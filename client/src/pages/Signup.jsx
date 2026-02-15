@@ -59,8 +59,10 @@ const Signup = () => {
           value={formData.role}
           onChange={(e) => setFormData({ ...formData, role: e.target.value })}
         >
-          <option value="creator">Creator</option>
+          <option value="creator">Creator / Writer</option>
           <option value="investor">Investor</option>
+          <option value="producer">Producer</option>
+          <option value="director">Director</option>
           <option value="actor">Actor</option>
           <option value="reader">Reader</option>
         </select>
