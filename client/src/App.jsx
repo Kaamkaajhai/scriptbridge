@@ -6,18 +6,15 @@ import Join from "./pages/Join";
 import RoleSelection from "./pages/RoleSelection";
 import WriterOnboarding from "./pages/WriterOnboarding";
 import IndustryOnboarding from "./pages/IndustryOnboarding";
-import Feed from "./pages/Feed";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
-import Messages from "./pages/Messages";
 import ScriptUpload from "./pages/ScriptUpload";
 import Search from "./pages/Search";
-import Settings from "./pages/Settings";
-import SmartMatch from "./pages/SmartMatch";
 import ScriptDetail from "./pages/ScriptDetail";
-import Auditions from "./pages/Auditions";
-import Notifications from "./pages/Notifications";
 import Mandates from "./pages/Mandates";
+import TopList from "./pages/TopList";
+import FeaturedProjects from "./pages/FeaturedProjects";
+import Messages from "./pages/Messages";
 import MainLayout from "./layouts/MainLayout";
 import PrivateRoute from "./utils/PrivateRoute";
 
@@ -33,11 +30,21 @@ function App() {
           <Route path="/writer-onboarding" element={<WriterOnboarding />} />
           <Route path="/industry-onboarding" element={<IndustryOnboarding />} />
           <Route
-            path="/feed"
+            path="/top-list"
             element={
               <PrivateRoute>
                 <MainLayout>
-                  <Feed />
+                  <TopList />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/featured"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <FeaturedProjects />
                 </MainLayout>
               </PrivateRoute>
             }
@@ -63,16 +70,6 @@ function App() {
             }
           />
           <Route
-            path="/messages"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <Messages />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/upload"
             element={
               <PrivateRoute>
@@ -93,61 +90,11 @@ function App() {
             }
           />
           <Route
-            path="/settings"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <Settings />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/featured"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <Feed />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/smart-match"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <SmartMatch />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/script/:id"
             element={
               <PrivateRoute>
                 <MainLayout>
                   <ScriptDetail />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/auditions"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <Auditions />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/notifications"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <Notifications />
                 </MainLayout>
               </PrivateRoute>
             }
@@ -178,16 +125,6 @@ function App() {
               <PrivateRoute>
                 <MainLayout>
                   <Messages />
-                </MainLayout>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/featured"
-            element={
-              <PrivateRoute>
-                <MainLayout>
-                  <Feed />
                 </MainLayout>
               </PrivateRoute>
             }

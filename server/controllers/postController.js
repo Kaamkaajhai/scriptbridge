@@ -1,5 +1,6 @@
 import Post from "../models/Post.js";
 import Comment from "../models/Comment.js";
+import Notification from "../models/Notification.js";
 
 export const createPost = async (req, res) => {
   try {
@@ -25,6 +26,17 @@ export const likePost = async (req, res) => {
     if (!post.likes.includes(req.user._id)) {
       post.likes.push(req.user._id);
       await post.save();
+
+      // Send notification to post owner (not yourself)
+      if (post.user.toString() !== req.user._id.toString()) {
+        await Notification.create({
+          user: post.user,
+          type: "like",
+          from: req.user._id,
+          post: post._id,
+          message: "liked your post",
+        });
+      }
     }
     res.json(post);
   } catch (error) {
@@ -38,6 +50,17 @@ export const commentPost = async (req, res) => {
     const post = await Post.findById(req.body.postId);
     post.comments.push(comment._id);
     await post.save();
+
+    // Send notification to post owner (not yourself)
+    if (post.user.toString() !== req.user._id.toString()) {
+      await Notification.create({
+        user: post.user,
+        type: "comment",
+        from: req.user._id,
+        post: post._id,
+        message: "commented on your post",
+      });
+    }
     res.json(comment);
   } catch (error) {
     res.status(500).json({ message: error.message });
