@@ -60,7 +60,11 @@ export const getUserProfile = async (req, res) => {
       .populate("user", "name profileImage role")
       .sort({ createdAt: -1 });
 
-    res.json({ user, posts });
+    const scripts = await Script.find({ creator: req.params.id })
+      .populate("creator", "name profileImage role")
+      .sort({ createdAt: -1 });
+
+    res.json({ user, posts, scripts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
