@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import PostCard from "../components/PostCard";
-import { Search as SearchIcon } from "lucide-react";
 
 const Search = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,9 +39,9 @@ const Search = () => {
   }, [searchTerm, activeTab]);
 
   const tabs = [
-    { id: "users", label: "People", icon: "👥" },
-    { id: "posts", label: "Posts", icon: "📝" },
-    { id: "scripts", label: "Scripts", icon: "🎬" },
+    { id: "users", label: "People" },
+    { id: "posts", label: "Posts" },
+    { id: "scripts", label: "Scripts" },
   ];
 
   return (
@@ -50,15 +49,17 @@ const Search = () => {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         {/* Header */}
         <div className="mb-5 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">Explore</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Explore</h1>
           <div className="relative">
-            <SearchIcon size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search people, posts, or scripts..."
-              className="w-full py-2.5 sm:py-3 pl-11 pr-4 bg-white border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#1a365d] focus:border-transparent transition"
+              className="w-full py-3 sm:py-3.5 pl-12 pr-4 bg-white border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent transition"
             />
           </div>
         </div>
@@ -70,11 +71,10 @@ const Search = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={[
-                "flex-1 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-lg transition-all",
-                activeTab === tab.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700",
+                "flex-1 py-2.5 sm:py-3 text-sm sm:text-base font-bold rounded-lg transition-all",
+                activeTab === tab.id ? "bg-white text-[#1e3a5f] shadow-sm" : "text-gray-500 hover:text-gray-700",
               ].join(" ")}
             >
-              <span className="mr-1.5">{tab.icon}</span>
               {tab.label}
             </button>
           ))}
@@ -83,7 +83,7 @@ const Search = () => {
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-12">
-            <div className="w-10 h-10 border-3 border-[#c3d5e8] border-t-[#0f2544] rounded-full animate-spin"></div>
+            <div className="w-10 h-10 border-3 border-gray-200 border-t-[#1e3a5f] rounded-full animate-spin"></div>
           </div>
         )}
 
@@ -91,10 +91,12 @@ const Search = () => {
         {!loading && !searchTerm && (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <SearchIcon size={32} className="text-gray-400" strokeWidth={1.5} />
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
-            <p className="text-base font-semibold text-gray-700 mb-1">Start your search</p>
-            <p className="text-sm text-gray-500">Find people, posts, and scripts</p>
+            <p className="text-lg font-bold text-gray-700 mb-1">Start your search</p>
+            <p className="text-base text-gray-500">Find people, posts, and scripts</p>
           </div>
         )}
 
@@ -108,11 +110,11 @@ const Search = () => {
                 <Link to={`/profile/${u._id}`} className="flex items-center gap-3 sm:gap-4">
                   <img src={u.profileImage} alt={u.name} className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm sm:text-base font-semibold text-gray-900">{u.name}</h3>
-                    <p className="text-xs text-[#0f2544] capitalize mb-0.5">{u.role}</p>
-                    <p className="text-xs sm:text-sm text-gray-500 line-clamp-1">{u.bio}</p>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900">{u.name}</h3>
+                    <p className="text-sm text-[#1e3a5f] capitalize font-semibold mb-0.5">{u.role}</p>
+                    <p className="text-sm sm:text-base text-gray-500 line-clamp-1">{u.bio}</p>
                   </div>
-                  <span className="text-xs text-gray-400 flex-shrink-0">{u.followers?.length || 0} followers</span>
+                  <span className="text-sm text-gray-400 font-medium flex-shrink-0">{u.followers?.length || 0} followers</span>
                 </Link>
               </motion.div>
             ))}
@@ -128,17 +130,17 @@ const Search = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <div>
-                        <h3 className="text-base sm:text-lg font-bold text-gray-900">{script.title}</h3>
-                        <p className="text-xs text-gray-500">by {script.creator?.name}</p>
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">{script.title}</h3>
+                        <p className="text-sm text-gray-500 font-medium">by {script.creator?.name}</p>
                       </div>
                       {script.isPremium && (
                         <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-lg text-xs font-semibold flex-shrink-0">⭐ Premium</span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 line-clamp-2 mb-3">{script.description}</p>
+                    <p className="text-base text-gray-600 line-clamp-2 mb-3">{script.description}</p>
                     <div className="flex items-center gap-3">
-                      <span className="bg-[#edf2f7] text-[#0f2544] px-2.5 py-1 rounded-lg text-xs font-medium">{script.genre}</span>
-                      <span className="text-sm font-bold text-[#0f2544]">${script.price}</span>
+                      <span className="bg-[#1e3a5f]/10 text-[#1e3a5f] px-3 py-1 rounded-lg text-sm font-semibold">{script.genre}</span>
+                      <span className="text-base font-bold text-[#1e3a5f]">${script.price}</span>
                     </div>
                   </div>
                 </div>
@@ -150,7 +152,7 @@ const Search = () => {
               (activeTab === "posts" && results.posts.length === 0) ||
               (activeTab === "scripts" && results.scripts.length === 0)) && (
               <div className="text-center py-12">
-                <p className="text-sm text-gray-500">No {activeTab} found for &ldquo;{searchTerm}&rdquo;</p>
+                <p className="text-base text-gray-500">No {activeTab} found for &ldquo;{searchTerm}&rdquo;</p>
               </div>
             )}
           </div>
