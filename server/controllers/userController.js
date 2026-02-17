@@ -1,5 +1,34 @@
 import User from "../models/User.js";
 import Post from "../models/Post.js";
+import Notification from "../models/Notification.js";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Multer config for profile image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "..", "uploads", "profiles"));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${req.user._id}-${Date.now()}${ext}`);
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only JPEG, PNG, WebP and GIF images are allowed"), false);
+  }
+};
+
+export const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
 export const getUserProfile = async (req, res) => {
   try {
@@ -71,7 +100,36 @@ export const followUser = async (req, res) => {
     await currentUser.save();
     await userToFollow.save();
 
+    // Send notification to the followed user
+    await Notification.create({
+      user: req.body.userId,
+      type: "follow",
+      from: req.user._id,
+      message: "started following you",
+    });
+
     res.json({ message: "User followed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const imageUrl = `/uploads/profiles/${req.file.filename}`;
+    user.profileImage = imageUrl;
+    await user.save();
+
+    res.json({ profileImage: imageUrl });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

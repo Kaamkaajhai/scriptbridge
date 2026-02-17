@@ -1,7 +1,6 @@
 import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { FileText, Mail, Lock, ArrowLeft } from "lucide-react";
 
 const Login = () => {
   const { login } = useContext(AuthContext);
@@ -15,36 +14,49 @@ const Login = () => {
     setError("");
     try {
       await login(email, password);
-      navigate("/feed");
+      navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-[#f0f4f8]">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-lg w-96 border border-gray-100">
-        <div className="flex items-center gap-2 mb-6">
-          <FileText size={28} className="text-[#0a1628]" strokeWidth={1.5} />
-          <h2 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Welcome back</h2>
+    <div className="flex justify-center items-center min-h-screen bg-[#f8f9fb]">
+      <div className="w-full max-w-md px-6">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-bold text-[#1e3a5f] tracking-tight">Sign in</h2>
+          <p className="text-base text-gray-500 mt-2">Welcome back to Script Bridge</p>
         </div>
-        {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
-        <div className="relative mb-4">
-          <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="email" placeholder="Email address" className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1a365d] focus:border-transparent outline-none" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <div className="relative mb-5">
-          <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="password" placeholder="Password" className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1a365d] focus:border-transparent outline-none" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </div>
-        <button type="submit" className="w-full bg-[#0f2544] text-white py-2.5 rounded-lg hover:bg-[#1a365d] transition font-semibold text-sm">Sign In</button>
-        <p className="mt-5 text-center text-sm text-gray-500">
-          Don't have an account? <Link to="/signup" className="text-[#1a365d] font-semibold hover:underline">Create one</Link>
+
+        {error && (
+          <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-medium">{error}</div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-base font-semibold text-gray-700 mb-2">Email</label>
+            <input type="email" placeholder="you@example.com"
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-base text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] transition-colors"
+              value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div>
+            <label className="block text-base font-semibold text-gray-700 mb-2">Password</label>
+            <input type="password" placeholder="••••••••"
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-base text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] transition-colors"
+              value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+          <button type="submit" className="w-full py-3 bg-[#1e3a5f] text-white rounded-lg text-base font-bold hover:bg-[#162d4a] transition-colors">
+            Sign in
+          </button>
+        </form>
+
+        <p className="mt-8 text-center text-base text-gray-500">
+          Don't have an account? <Link to="/signup" className="text-[#1e3a5f] font-semibold hover:underline">Sign up</Link>
         </p>
-        <p className="mt-2 text-center text-sm">
-          <Link to="/" className="text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1"><ArrowLeft size={14} /> Back to Home</Link>
+        <p className="mt-3 text-center">
+          <Link to="/" className="text-sm text-gray-400 hover:text-gray-600 font-medium">&larr; Back to home</Link>
         </p>
-      </form>
+      </div>
     </div>
   );
 };

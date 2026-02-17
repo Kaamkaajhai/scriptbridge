@@ -90,3 +90,125 @@ export const getDashboardStats = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getDashboardReviews = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const scripts = await Script.find({ creator: userId })
+      .select("title scriptScore views unlockedBy genre price holdStatus trailerStatus createdAt")
+      .sort({ createdAt: -1 });
+
+    // AI Reviews — from scripts that have been scored
+    const aiReviews = scripts
+      .filter(s => s.scriptScore?.overall)
+      .map(s => ({
+        scriptId: s._id,
+        scriptTitle: s.title,
+        source: "ai",
+        rating: s.scriptScore.overall,
+        scores: {
+          plot: s.scriptScore.plot,
+          characters: s.scriptScore.characters,
+          dialogue: s.scriptScore.dialogue,
+          pacing: s.scriptScore.pacing,
+          marketability: s.scriptScore.marketability,
+        },
+        feedback: s.scriptScore.feedback,
+        date: s.scriptScore.scoredAt,
+      }));
+
+    // Reader Insights — engagement-based metrics
+    const readerReviews = scripts.map(s => {
+      const unlocks = s.unlockedBy?.length || 0;
+      const views = s.views || 0;
+      const conversionRate = views > 0 ? Math.round((unlocks / views) * 100) : 0;
+      // Score based on engagement signals
+      const engagementScore = Math.min(100, Math.round(
+        (Math.min(views, 500) / 500) * 40 +
+        (Math.min(unlocks, 50) / 50) * 40 +
+        (conversionRate > 0 ? Math.min(conversionRate, 20) : 0)
+      ));
+      return {
+        scriptId: s._id,
+        scriptTitle: s.title,
+        source: "reader",
+        views,
+        unlocks,
+        conversionRate,
+        engagementScore,
+        insight: views === 0
+          ? "No views yet — share your script to get reader engagement."
+          : conversionRate > 10
+            ? "Strong reader interest — high conversion rate from views to unlocks."
+            : unlocks > 0
+              ? "Gaining traction — readers are discovering your content."
+              : "Getting views but no unlocks yet — consider adjusting your pricing or synopsis.",
+      };
+    });
+
+    // Platform Insights — editorial/platform-level analysis
+    const totalViews = scripts.reduce((sum, s) => sum + (s.views || 0), 0);
+    const totalUnlocks = scripts.reduce((sum, s) => sum + (s.unlockedBy?.length || 0), 0);
+    const scoredScripts = aiReviews.length;
+    const avgAiScore = scoredScripts > 0
+      ? Math.round(aiReviews.reduce((sum, r) => sum + r.rating, 0) / scoredScripts)
+      : null;
+    const heldCount = scripts.filter(s => s.holdStatus === "held").length;
+    const trailerCount = scripts.filter(s => s.trailerStatus === "ready").length;
+    const genres = [...new Set(scripts.map(s => s.genre).filter(Boolean))];
+
+    const platformInsights = [];
+    if (avgAiScore !== null) {
+      platformInsights.push({
+        type: "quality",
+        title: "Script Quality",
+        value: avgAiScore,
+        label: avgAiScore >= 80 ? "Excellent" : avgAiScore >= 60 ? "Good" : avgAiScore >= 40 ? "Average" : "Needs Work",
+        detail: `Average AI score across ${scoredScripts} scored script${scoredScripts > 1 ? "s" : ""}.`,
+      });
+    }
+    platformInsights.push({
+      type: "reach",
+      title: "Audience Reach",
+      value: totalViews,
+      label: totalViews >= 1000 ? "High" : totalViews >= 100 ? "Growing" : "Getting Started",
+      detail: `${totalViews.toLocaleString()} total views and ${totalUnlocks} unlocks across ${scripts.length} project${scripts.length > 1 ? "s" : ""}.`,
+    });
+    if (heldCount > 0) {
+      platformInsights.push({
+        type: "deals",
+        title: "Deal Activity",
+        value: heldCount,
+        label: "Active",
+        detail: `${heldCount} script${heldCount > 1 ? "s" : ""} currently held by interested buyers.`,
+      });
+    }
+    if (trailerCount > 0) {
+      platformInsights.push({
+        type: "marketing",
+        title: "Marketing Assets",
+        value: trailerCount,
+        label: "Ready",
+        detail: `${trailerCount} AI trailer${trailerCount > 1 ? "s" : ""} generated to showcase your work.`,
+      });
+    }
+    if (genres.length > 0) {
+      platformInsights.push({
+        type: "genre",
+        title: "Genre Focus",
+        value: genres.length,
+        label: genres.slice(0, 3).join(", "),
+        detail: `You write across ${genres.length} genre${genres.length > 1 ? "s" : ""}: ${genres.join(", ")}.`,
+      });
+    }
+
+    res.json({
+      ai: aiReviews,
+      readers: readerReviews,
+      platform: platformInsights,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

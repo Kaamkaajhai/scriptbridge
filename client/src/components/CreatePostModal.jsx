@@ -75,40 +75,40 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">
+            <label className="block text-gray-700 font-bold mb-2 text-base">
               What's on your mind?
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+              className="w-full p-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base"
               rows="5"
               placeholder="Share your thoughts, scripts, or updates..."
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">
+            <label className="block text-gray-700 font-bold mb-2 text-base">
               Image URL (optional)
             </label>
             <input
               type="url"
               value={image}
               onChange={(e) => setImage(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+              className="w-full p-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base"
               placeholder="https://..."
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-semibold mb-2">
+            <label className="block text-gray-700 font-bold mb-2 text-base">
               Video URL (optional)
             </label>
             <input
               type="url"
               value={video}
               onChange={(e) => setVideo(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+              className="w-full p-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base"
               placeholder="https://..."
             />
           </div>
@@ -145,14 +145,14 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+              className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-base font-semibold"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-[#0f2544] text-white rounded-lg hover:bg-[#1a365d] transition disabled:opacity-50"
+              className="flex-1 px-6 py-3 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition disabled:opacity-50 text-base font-bold"
             >
               {loading ? "Posting..." : "Post"}
             </button>
