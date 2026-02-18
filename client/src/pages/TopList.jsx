@@ -33,18 +33,18 @@ const TopList = () => {
   const getMetric = (script) => {
     if (sortBy === "platform") {
       const v = Math.round(script.platformScore || 0);
-      return { value: v, label: "Platform", pct: Math.min(v, 100), color: v >= 70 ? "#7c3aed" : v >= 40 ? "#3b82f6" : "#9ca3af" };
+      return { value: v, label: "Platform", pct: Math.min(v, 100), color: v >= 70 ? "#1e3a5f" : v >= 40 ? "#4a6d8c" : "#9ca3af" };
     }
     if (sortBy === "score") {
       const v = script.scriptScore?.overall || 0;
-      return { value: v, label: "AI Score", pct: Math.min(v, 100), color: v >= 80 ? "#059669" : v >= 60 ? "#d97706" : "#9ca3af" };
+      return { value: v, label: "AI Score", pct: Math.min(v, 100), color: v >= 80 ? "#1e3a5f" : v >= 60 ? "#4a6d8c" : "#9ca3af" };
     }
     if (sortBy === "engagement") {
       const v = Math.round(script.engagementScore || 0);
-      return { value: v, label: "Engage", pct: Math.min(v, 100), color: v >= 60 ? "#0891b2" : v >= 30 ? "#3b82f6" : "#9ca3af" };
+      return { value: v, label: "Engage", pct: Math.min(v, 100), color: v >= 60 ? "#1e3a5f" : v >= 30 ? "#4a6d8c" : "#9ca3af" };
     }
     const v = script.views || 0;
-    return { value: v.toLocaleString(), label: "Views", pct: Math.min((v / 1000) * 100, 100), color: "#6366f1" };
+    return { value: v.toLocaleString(), label: "Views", pct: Math.min((v / 1000) * 100, 100), color: "#1e3a5f" };
   };
 
   // Summary stats
@@ -88,20 +88,20 @@ const TopList = () => {
           {/* Background decorations */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/[0.03] rounded-full -translate-y-1/2 translate-x-1/3"></div>
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/[0.02] rounded-full translate-y-1/3 -translate-x-1/4"></div>
-          <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-amber-400/40 rounded-full"></div>
-          <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-blue-300/30 rounded-full"></div>
+          <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-white/20 rounded-full"></div>
+          <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-white/15 rounded-full"></div>
 
           <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                  <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-white/70" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Top List</h1>
-                  <p className="text-[13px] text-blue-200/70 font-medium mt-0.5">
+                  <p className="text-[13px] text-white/50 font-medium mt-0.5">
                     {sortTabs.find(t => t.key === sortBy)?.desc}
                   </p>
                 </div>
@@ -112,15 +112,15 @@ const TopList = () => {
             <div className="flex items-center gap-3">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2.5 text-center min-w-[80px]">
                 <p className="text-[18px] font-extrabold text-white tabular-nums">{totalScripts}</p>
-                <p className="text-[10px] text-blue-200/60 uppercase tracking-wider font-bold">Scripts</p>
+                <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Scripts</p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2.5 text-center min-w-[80px]">
-                <p className="text-[18px] font-extrabold text-amber-300 tabular-nums">{topScore.toLocaleString()}</p>
-                <p className="text-[10px] text-blue-200/60 uppercase tracking-wider font-bold">Top</p>
+                <p className="text-[18px] font-extrabold text-white tabular-nums">{topScore.toLocaleString()}</p>
+                <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Top</p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2.5 text-center min-w-[80px]">
-                <p className="text-[18px] font-extrabold text-blue-200 tabular-nums">{avgMetric.toLocaleString()}</p>
-                <p className="text-[10px] text-blue-200/60 uppercase tracking-wider font-bold">Average</p>
+                <p className="text-[18px] font-extrabold text-white/70 tabular-nums">{avgMetric.toLocaleString()}</p>
+                <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Average</p>
               </div>
             </div>
           </div>
@@ -211,7 +211,7 @@ const TopList = () => {
                         </span>
                       )}
                       {script.premium && (
-                        <span className="text-[11px] font-bold text-white bg-gradient-to-r from-amber-500/90 to-orange-500/90 backdrop-blur-md px-2.5 py-1 rounded-lg shadow-sm">
+                        <span className="text-[11px] font-bold text-white bg-[#1e3a5f] backdrop-blur-md px-2.5 py-1 rounded-lg shadow-sm">
                           ${script.price}
                         </span>
                       )}
@@ -274,7 +274,7 @@ const TopList = () => {
                       </div>
                       {script.scriptScore?.overall > 0 && sortBy !== "score" && (
                         <div className="flex items-center gap-1.5 ml-auto">
-                          <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                           </svg>
                           <span className="text-[12px] font-bold text-gray-600 tabular-nums">{script.scriptScore.overall}</span>

@@ -56,9 +56,9 @@ const Search = () => {
   const totalResults = (results.users?.length || 0) + (results.scripts?.length || 0);
 
   const roleColors = {
-    writer: "#7c3aed", creator: "#2563eb", investor: "#059669",
-    reader: "#d97706", producer: "#e11d48", director: "#0891b2",
-    actor: "#ec4899", industry: "#475569", professional: "#4f46e5",
+    writer: "#1e3a5f", creator: "#1e3a5f", investor: "#1e3a5f",
+    reader: "#1e3a5f", producer: "#1e3a5f", director: "#1e3a5f",
+    actor: "#1e3a5f", industry: "#1e3a5f", professional: "#1e3a5f",
   };
 
   const getProfileImage = (user) => {
@@ -87,14 +87,14 @@ const Search = () => {
           {/* Ambient shapes */}
           <div className="absolute top-0 right-0 w-72 h-72 bg-white/[0.025] rounded-full -translate-y-1/2 translate-x-1/3" />
           <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/[0.02] rounded-full translate-y-1/3 -translate-x-1/4" />
-          <div className="absolute top-1/4 right-[15%] w-1.5 h-1.5 bg-blue-300/25 rounded-full" />
-          <div className="absolute bottom-1/3 left-[20%] w-1 h-1 bg-amber-300/20 rounded-full" />
+          <div className="absolute top-1/4 right-[15%] w-1.5 h-1.5 bg-white/15 rounded-full" />
+          <div className="absolute bottom-1/3 left-[20%] w-1 h-1 bg-white/10 rounded-full" />
 
           <div className="relative text-center mb-8">
             <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-2">
               Discover&nbsp;Talent&nbsp;&&nbsp;Projects
             </h1>
-            <p className="text-[14px] text-blue-200/60 font-medium max-w-md mx-auto leading-relaxed">
+            <p className="text-[14px] text-white/50 font-medium max-w-md mx-auto leading-relaxed">
               Search across writers, investors, readers, and&nbsp;projects
             </p>
           </div>
@@ -360,7 +360,7 @@ const Search = () => {
                               </span>
                             )}
                             {script.premium && (
-                              <span className="text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 rounded-lg shadow-sm">
+                              <span className="text-[10px] font-bold text-white bg-[#1e3a5f] px-2.5 py-1 rounded-lg shadow-sm">
                                 ${script.price}
                               </span>
                             )}
@@ -408,7 +408,7 @@ const Search = () => {
                             </div>
                             {script.scriptScore?.overall > 0 && (
                               <div className="flex items-center gap-1 ml-auto">
-                                <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
                                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                                 </svg>
                                 <span className="text-[11px] font-bold text-gray-600 tabular-nums">{script.scriptScore.overall}</span>

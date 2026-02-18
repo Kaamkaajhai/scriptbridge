@@ -89,7 +89,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-3">
               {stats?.plan && (
                 <span className={`hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[12px] font-bold tracking-wide uppercase ${
-                  stats.plan === "pro" ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200/60" : "bg-gray-50 text-gray-500 ring-1 ring-gray-200/60"
+                  stats.plan === "pro" ? "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] ring-1 ring-[#1e3a5f]/10" : "bg-gray-50 text-gray-500 ring-1 ring-gray-200/60"
                 }`}>
                   {stats.plan === "pro" ? "Pro" : "Free"}
                 </span>
@@ -108,20 +108,11 @@ const Dashboard = () => {
         {statCards.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
             {statCards.map((card, idx) => {
-              const accents = [
-                "border-l-[#1e3a5f]",
-                "border-l-emerald-400",
-                "border-l-amber-400",
-                "border-l-sky-400",
-                "border-l-violet-400",
-                "border-l-rose-400",
-                "border-l-teal-400",
-                "border-l-indigo-400",
-              ];
+              const accent = "border-l-[#1e3a5f]";
               return (
                 <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
-                  className={`bg-white rounded-xl border border-gray-100 border-l-[3px] ${accents[idx % accents.length]} p-4 hover:shadow-md transition-shadow`}>
+                  className={`bg-white rounded-xl border border-gray-100 border-l-[3px] ${accent} p-4 hover:shadow-md transition-shadow`}>
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{card.label}</p>
                   <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{card.value}</p>
                 </motion.div>
@@ -163,25 +154,25 @@ const Dashboard = () => {
 
                 {/* Summary Stats */}
                 <div className="grid grid-cols-3 gap-3 mb-1">
-                  <div className="rounded-xl bg-blue-50/60 ring-1 ring-blue-100/40 px-4 py-3">
+                  <div className="rounded-xl bg-gray-50/60 ring-1 ring-gray-200/40 px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                      <p className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider">Total Views</p>
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#1e3a5f]"></div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Total Views</p>
                     </div>
                     <p className="text-xl font-extrabold text-gray-900 tabular-nums">{totalViews.toLocaleString()}</p>
                   </div>
-                  <div className="rounded-xl bg-violet-50/60 ring-1 ring-violet-100/40 px-4 py-3">
+                  <div className="rounded-xl bg-gray-50/60 ring-1 ring-gray-200/40 px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-violet-500"></div>
-                      <p className="text-[11px] font-semibold text-violet-400 uppercase tracking-wider">Top Script</p>
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#1e3a5f]"></div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Top Script</p>
                     </div>
                     <p className="text-xl font-extrabold text-gray-900 tabular-nums">{(topScript.views || 0).toLocaleString()}</p>
-                    <p className="text-[10px] text-violet-400/80 font-medium truncate">{topScript.title}</p>
+                    <p className="text-[10px] text-gray-400/80 font-medium truncate">{topScript.title}</p>
                   </div>
-                  <div className="rounded-xl bg-emerald-50/60 ring-1 ring-emerald-100/40 px-4 py-3">
+                  <div className="rounded-xl bg-gray-50/60 ring-1 ring-gray-200/40 px-4 py-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                      <p className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">Avg / Script</p>
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#1e3a5f]"></div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Avg / Script</p>
                     </div>
                     <p className="text-xl font-extrabold text-gray-900 tabular-nums">{avgViews.toLocaleString()}</p>
                   </div>
@@ -194,12 +185,12 @@ const Dashboard = () => {
                   <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="sparkGrad" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.12} />
-                        <stop offset="50%" stopColor="#3b82f6" stopOpacity={0.06} />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                        <stop offset="0%" stopColor="#1e3a5f" stopOpacity={0.12} />
+                        <stop offset="50%" stopColor="#1e3a5f" stopOpacity={0.06} />
+                        <stop offset="100%" stopColor="#1e3a5f" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <Area type="monotone" dataKey="views" stroke="#6366f1" strokeWidth={1.5} fill="url(#sparkGrad)" dot={false} />
+                    <Area type="monotone" dataKey="views" stroke="#1e3a5f" strokeWidth={1.5} fill="url(#sparkGrad)" dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -244,16 +235,16 @@ const Dashboard = () => {
                       />
                       <defs>
                         <linearGradient id="barGradTop" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#6366f1" />
-                          <stop offset="100%" stopColor="#4f46e5" />
+                          <stop offset="0%" stopColor="#1e3a5f" />
+                          <stop offset="100%" stopColor="#162d4a" />
                         </linearGradient>
                         <linearGradient id="barGradMid" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#3b82f6" />
-                          <stop offset="100%" stopColor="#2563eb" />
+                          <stop offset="0%" stopColor="#4a6d8c" />
+                          <stop offset="100%" stopColor="#3d5f7e" />
                         </linearGradient>
                         <linearGradient id="barGradLow" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#93c5fd" />
-                          <stop offset="100%" stopColor="#60a5fa" />
+                          <stop offset="0%" stopColor="#a8c4d8" />
+                          <stop offset="100%" stopColor="#8ab0c8" />
                         </linearGradient>
                       </defs>
                       <Bar dataKey="views" radius={[6, 6, 2, 2]}>
@@ -292,7 +283,7 @@ const Dashboard = () => {
                               animate={{ width: `${pct}%` }}
                               transition={{ duration: 0.7, delay: 0.4 + i * 0.06 }}
                               className="h-full rounded-full"
-                              style={{ backgroundColor: i === 0 ? "#6366f1" : i <= 2 ? "#3b82f6" : "#93c5fd" }}
+                              style={{ backgroundColor: i === 0 ? "#1e3a5f" : i <= 2 ? "#4a6d8c" : "#a8c4d8" }}
                             />
                           </div>
                         </div>
@@ -328,13 +319,13 @@ const Dashboard = () => {
                   {[
                     { key: "ai", label: "AI Analysis", shortLabel: "AI",
                       icon: "M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5",
-                      gradient: "from-indigo-500 to-violet-500" },
+                      gradient: "from-[#1e3a5f] to-[#162d4a]" },
                     { key: "reader", label: "Reader Engagement", shortLabel: "Readers",
                       icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z",
-                      gradient: "from-sky-500 to-cyan-500" },
+                      gradient: "from-[#1e3a5f] to-[#162d4a]" },
                     { key: "platform", label: "Platform Insights", shortLabel: "Platform",
                       icon: "M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6",
-                      gradient: "from-emerald-500 to-teal-500" },
+                      gradient: "from-[#1e3a5f] to-[#162d4a]" },
                   ].map((tab) => (
                     <button
                       key={tab.key}
@@ -362,9 +353,9 @@ const Dashboard = () => {
                     {reviews.ai?.length > 0 ? (
                       <div className="space-y-5">
                         {reviews.ai.map((r, idx) => {
-                          const scoreColor = r.rating >= 80 ? { ring: "#10b981", bg: "bg-emerald-50", text: "text-emerald-600", label: "Excellent" }
-                            : r.rating >= 60 ? { ring: "#f59e0b", bg: "bg-amber-50", text: "text-amber-600", label: "Good" }
-                            : { ring: "#ef4444", bg: "bg-red-50", text: "text-red-500", label: "Needs Work" };
+                          const scoreColor = r.rating >= 80 ? { ring: "#1e3a5f", bg: "bg-[#1e3a5f]/[0.06]", text: "text-[#1e3a5f]", label: "Excellent" }
+                            : r.rating >= 60 ? { ring: "#6b7280", bg: "bg-gray-50", text: "text-gray-600", label: "Good" }
+                            : { ring: "#9ca3af", bg: "bg-gray-50", text: "text-gray-500", label: "Needs Work" };
                           return (
                             <motion.div key={r.scriptId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: idx * 0.08 }}
@@ -403,7 +394,7 @@ const Dashboard = () => {
                                   {Object.keys(r.scores || {}).length > 0 && (
                                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
                                       {Object.entries(r.scores).map(([key, val]) => {
-                                        const barColor = val >= 80 ? "bg-emerald-400" : val >= 60 ? "bg-amber-400" : "bg-red-400";
+                                        const barColor = val >= 80 ? "bg-[#1e3a5f]" : val >= 60 ? "bg-gray-400" : "bg-gray-300";
                                         return (
                                           <div key={key} className="bg-gray-50/80 rounded-lg px-3 py-2.5">
                                             <div className="flex items-center justify-between mb-1.5">
@@ -423,15 +414,15 @@ const Dashboard = () => {
 
                                   {/* AI Feedback */}
                                   {r.feedback && (
-                                    <div className="mt-4 flex gap-3 p-3.5 bg-gradient-to-r from-indigo-50/80 to-violet-50/50 rounded-xl border border-indigo-100/60">
-                                      <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
-                                        <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <div className="mt-4 flex gap-3 p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
+                                      <div className="w-7 h-7 rounded-lg bg-[#1e3a5f]/[0.08] flex items-center justify-center shrink-0 mt-0.5">
+                                        <svg className="w-3.5 h-3.5 text-[#1e3a5f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
                                         </svg>
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider mb-1">AI Feedback</p>
-                                        <p className="text-[13px] text-indigo-700/80 leading-relaxed">{r.feedback}</p>
+                                        <p className="text-[11px] font-bold text-[#1e3a5f] uppercase tracking-wider mb-1">AI Feedback</p>
+                                        <p className="text-[13px] text-gray-600 leading-relaxed">{r.feedback}</p>
                                       </div>
                                     </div>
                                   )}
@@ -443,8 +434,8 @@ const Dashboard = () => {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-16">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 flex items-center justify-center mb-4">
-                          <svg className="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+                          <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082" />
                           </svg>
                         </div>
@@ -469,8 +460,8 @@ const Dashboard = () => {
                               {/* Script Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1.5">
-                                  <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
-                                    <svg className="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                     </svg>
                                   </div>
@@ -495,7 +486,7 @@ const Dashboard = () => {
                                 <div className="w-px h-8 bg-gray-200/80 mx-1"></div>
                                 <div className="text-center px-3">
                                   <p className={`text-lg font-extrabold leading-none mb-0.5 ${
-                                    r.conversionRate > 10 ? "text-emerald-600" : r.conversionRate > 0 ? "text-amber-500" : "text-gray-300"
+                                    r.conversionRate > 10 ? "text-[#1e3a5f]" : r.conversionRate > 0 ? "text-gray-700" : "text-gray-300"
                                   }`}>{r.conversionRate}%</p>
                                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">CVR</p>
                                 </div>
@@ -506,8 +497,8 @@ const Dashboard = () => {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-16">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-50 to-cyan-50 flex items-center justify-center mb-4">
-                          <svg className="w-8 h-8 text-sky-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+                          <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" />
                           </svg>
                         </div>
@@ -532,11 +523,11 @@ const Dashboard = () => {
                             genre: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z",
                           };
                           const styleMap = {
-                            quality: { icon: "text-indigo-500", bg: "bg-indigo-50", border: "border-indigo-100/60", accent: "from-indigo-500 to-violet-500" },
-                            reach: { icon: "text-sky-500", bg: "bg-sky-50", border: "border-sky-100/60", accent: "from-sky-500 to-cyan-500" },
-                            deals: { icon: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100/60", accent: "from-amber-500 to-orange-500" },
-                            marketing: { icon: "text-purple-500", bg: "bg-purple-50", border: "border-purple-100/60", accent: "from-purple-500 to-pink-500" },
-                            genre: { icon: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-100/60", accent: "from-emerald-500 to-teal-500" },
+                            quality: { icon: "text-[#1e3a5f]", bg: "bg-[#1e3a5f]/[0.06]", border: "border-gray-100", accent: "from-[#1e3a5f] to-[#162d4a]" },
+                            reach: { icon: "text-[#1e3a5f]", bg: "bg-[#1e3a5f]/[0.06]", border: "border-gray-100", accent: "from-[#1e3a5f] to-[#162d4a]" },
+                            deals: { icon: "text-[#1e3a5f]", bg: "bg-[#1e3a5f]/[0.06]", border: "border-gray-100", accent: "from-[#1e3a5f] to-[#162d4a]" },
+                            marketing: { icon: "text-[#1e3a5f]", bg: "bg-[#1e3a5f]/[0.06]", border: "border-gray-100", accent: "from-[#1e3a5f] to-[#162d4a]" },
+                            genre: { icon: "text-[#1e3a5f]", bg: "bg-[#1e3a5f]/[0.06]", border: "border-gray-100", accent: "from-[#1e3a5f] to-[#162d4a]" },
                           };
                           const style = styleMap[p.type] || styleMap.quality;
                           return (
@@ -567,8 +558,8 @@ const Dashboard = () => {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-16">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center mb-4">
-                          <svg className="w-8 h-8 text-emerald-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+                          <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
                           </svg>
                         </div>
