@@ -140,7 +140,7 @@ const Sidebar = () => {
 
       <div className="border-t border-gray-100 p-3">
         <button onClick={handleLogout}
-          className="w-full px-3 py-3 text-base font-bold text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2.5 justify-center">
+          className="w-full px-3 py-3 text-base font-bold text-gray-400 hover:text-gray-700 hover:bg-gray-50 rounded-xl transition-colors flex items-center gap-2.5 justify-center">
           <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           Log out
         </button>
@@ -198,7 +198,7 @@ const Sidebar = () => {
             )}
           </button>
           <button onClick={handleLogout} title="Log out"
-            className="w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+            className="w-11 h-11 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
             <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </button>
         </div>

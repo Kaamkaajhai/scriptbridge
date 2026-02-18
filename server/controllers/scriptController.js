@@ -103,7 +103,13 @@ export const getScripts = async (req, res) => {
       pipeline.push({ $unwind: { path: "$creator", preserveNullAndEmptyArrays: true } });
 
       const scripts = await Script.aggregate(pipeline);
-      return res.json(scripts);
+      // Strip full synopsis and fullContent from list view
+      const sanitized = scripts.map(s => ({
+        ...s,
+        synopsis: s.synopsis ? s.synopsis.substring(0, 120) + (s.synopsis.length > 120 ? '...' : '') : null,
+        fullContent: undefined,
+      }));
+      return res.json(sanitized);
     }
 
     let sortObj = { createdAt: -1 };
@@ -115,7 +121,16 @@ export const getScripts = async (req, res) => {
     const scripts = await Script.find(query)
       .populate("creator", "name profileImage role")
       .sort(sortObj);
-    res.json(scripts);
+    // Strip full synopsis and fullContent from list view
+    const sanitized = scripts.map(s => {
+      const obj = s.toObject();
+      return {
+        ...obj,
+        synopsis: obj.synopsis ? obj.synopsis.substring(0, 120) + (obj.synopsis.length > 120 ? '...' : '') : null,
+        fullContent: undefined,
+      };
+    });
+    res.json(sanitized);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -140,16 +155,28 @@ export const getScriptById = async (req, res) => {
     // Check if user has unlocked this script
     const isUnlocked = script.unlockedBy.includes(req.user._id);
     const isCreator = script.creator._id.toString() === req.user._id.toString();
+    const userRole = req.user.role;
+    const isWriter = userRole === 'writer' || userRole === 'creator';
+    const canPurchase = ['investor', 'producer', 'director', 'industry', 'professional'].includes(userRole);
 
     // Get audition count
     const Audition = (await import("../models/Audition.js")).default;
     const auditionCount = await Audition.countDocuments({ script: script._id });
 
+    // Synopsis visibility: only show full synopsis if creator or unlocked by a paying user
+    const synopsisTeaser = script.synopsis ? script.synopsis.substring(0, 120) + (script.synopsis.length > 120 ? '...' : '') : null;
+    const isSynopsisLocked = !isCreator && !isUnlocked;
+
     const response = {
       ...script.toObject(),
       isUnlocked,
       isCreator,
+      isSynopsisLocked,
+      canPurchase,
+      isWriter: isWriter && !isCreator,
       auditionCount,
+      // Hide full synopsis unless unlocked or creator
+      synopsis: (isUnlocked || isCreator) ? script.synopsis : synopsisTeaser,
       // Hide full content unless unlocked or creator
       fullContent: (isUnlocked || isCreator) ? script.fullContent : null,
     };
@@ -164,6 +191,19 @@ export const unlockScript = async (req, res) => {
   try {
     const script = await Script.findById(req.body.scriptId);
     if (!script) return res.status(404).json({ message: "Script not found" });
+
+    // Only investors, producers, directors, and industry professionals can unlock
+    const allowedRoles = ['investor', 'producer', 'director', 'industry', 'professional'];
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        message: "Only investors, producers, and directors can unlock scripts. Writers cannot purchase synopsis access." 
+      });
+    }
+
+    // Cannot unlock own script
+    if (script.creator.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "You already have access to your own script" });
+    }
 
     if (!script.unlockedBy.includes(req.user._id)) {
       script.unlockedBy.push(req.user._id);
