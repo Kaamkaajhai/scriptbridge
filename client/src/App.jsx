@@ -15,7 +15,6 @@ import Mandates from "./pages/Mandates";
 import TopList from "./pages/TopList";
 import FeaturedProjects from "./pages/FeaturedProjects";
 import Messages from "./pages/Messages";
-import Writers from "./pages/Writers";
 import MainLayout from "./layouts/MainLayout";
 import PrivateRoute from "./utils/PrivateRoute";
 
@@ -115,7 +114,7 @@ function App() {
             element={
               <PrivateRoute>
                 <MainLayout>
-                  <Writers />
+                  <Search />
                 </MainLayout>
               </PrivateRoute>
             }
