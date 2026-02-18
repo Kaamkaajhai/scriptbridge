@@ -32,9 +32,9 @@ const Writers = () => {
   }
 
   const medalColors = [
-    { bg: "bg-amber-50", border: "border-amber-200/60", text: "text-amber-600" },
+    { bg: "bg-[#1e3a5f]/[0.06]", border: "border-[#1e3a5f]/10", text: "text-[#1e3a5f]" },
     { bg: "bg-gray-50", border: "border-gray-200/60", text: "text-gray-500" },
-    { bg: "bg-orange-50", border: "border-orange-200/60", text: "text-orange-600" },
+    { bg: "bg-gray-50", border: "border-gray-200/60", text: "text-gray-400" },
   ];
 
   const sortTabs = [
@@ -44,20 +44,8 @@ const Writers = () => {
     { key: "followers", label: "Followers", icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" },
   ];
 
-  const getGenreColor = (genre) => {
-    const colors = {
-      "Drama": "bg-blue-50 text-blue-600",
-      "Comedy": "bg-amber-50 text-amber-600",
-      "Thriller": "bg-red-50 text-red-600",
-      "Horror": "bg-purple-50 text-purple-600",
-      "Sci-Fi": "bg-cyan-50 text-cyan-600",
-      "Action": "bg-orange-50 text-orange-600",
-      "Romance": "bg-pink-50 text-pink-600",
-      "Fantasy": "bg-violet-50 text-violet-600",
-      "Documentary": "bg-teal-50 text-teal-600",
-      "Animation": "bg-emerald-50 text-emerald-600",
-    };
-    return colors[genre] || "bg-gray-50 text-gray-600";
+  const getGenreColor = () => {
+    return "bg-gray-100 text-gray-600";
   };
 
   return (
@@ -174,7 +162,7 @@ const Writers = () => {
                         </span>
                       )}
                       {representation && representation !== "unrepresented" && (
-                        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-md shrink-0">
+                        <span className="text-[10px] font-bold bg-[#1e3a5f]/[0.06] text-[#1e3a5f] px-1.5 py-0.5 rounded-md shrink-0">
                           Repped
                         </span>
                       )}
@@ -216,11 +204,11 @@ const Writers = () => {
                     {sortBy === "score" && (
                       <div className="text-right">
                         <div className="flex items-center gap-1.5 justify-end">
-                          <svg className={`w-3.5 h-3.5 ${(writer.avgScore || 0) >= 80 ? "text-emerald-400" : (writer.avgScore || 0) >= 60 ? "text-amber-400" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <svg className={`w-3.5 h-3.5 ${(writer.avgScore || 0) >= 80 ? "text-[#1e3a5f]" : (writer.avgScore || 0) >= 60 ? "text-gray-400" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                           </svg>
                           <p className={`text-[14px] font-extrabold tabular-nums ${
-                            (writer.avgScore || 0) >= 80 ? "text-emerald-600" : (writer.avgScore || 0) >= 60 ? "text-amber-600" : "text-gray-900"
+                            (writer.avgScore || 0) >= 80 ? "text-[#1e3a5f]" : (writer.avgScore || 0) >= 60 ? "text-gray-600" : "text-gray-900"
                           }`}>{Math.round(writer.avgScore || 0)}</p>
                         </div>
                         <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mt-0.5">Avg Score</p>
@@ -230,7 +218,7 @@ const Writers = () => {
                     {sortBy === "views" && (
                       <div className="text-right">
                         <div className="flex items-center gap-1.5 justify-end">
-                          <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
@@ -243,7 +231,7 @@ const Writers = () => {
                     {sortBy === "followers" && (
                       <div className="text-right">
                         <div className="flex items-center gap-1.5 justify-end">
-                          <svg className="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                           </svg>
                           <p className="text-[14px] font-extrabold text-gray-900 tabular-nums">{(writer.followerCount || 0).toLocaleString()}</p>
@@ -255,11 +243,11 @@ const Writers = () => {
                     {sortBy === "reputation" && (
                       <div className="text-right">
                         <div className="flex items-center gap-1.5 justify-end">
-                          <svg className={`w-3.5 h-3.5 ${(writer.reputation || 0) >= 40 ? "text-violet-400" : (writer.reputation || 0) >= 20 ? "text-blue-400" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <svg className={`w-3.5 h-3.5 ${(writer.reputation || 0) >= 40 ? "text-[#1e3a5f]" : (writer.reputation || 0) >= 20 ? "text-gray-400" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172" />
                           </svg>
                           <p className={`text-[14px] font-extrabold tabular-nums ${
-                            (writer.reputation || 0) >= 40 ? "text-violet-600" : (writer.reputation || 0) >= 20 ? "text-blue-600" : "text-gray-900"
+                            (writer.reputation || 0) >= 40 ? "text-[#1e3a5f]" : (writer.reputation || 0) >= 20 ? "text-gray-600" : "text-gray-900"
                           }`}>{Math.round(writer.reputation || 0)}</p>
                         </div>
                         <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mt-0.5">Rep</p>
