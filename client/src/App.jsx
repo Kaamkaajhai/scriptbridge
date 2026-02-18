@@ -15,13 +15,10 @@ import Mandates from "./pages/Mandates";
 import TopList from "./pages/TopList";
 import FeaturedProjects from "./pages/FeaturedProjects";
 import Messages from "./pages/Messages";
-<<<<<<< HEAD
-=======
 import Writers from "./pages/Writers";
 import ReaderHome from "./pages/ReaderHome";
 import ScriptReader from "./pages/ScriptReader";
 import ReaderProfile from "./pages/ReaderProfile";
->>>>>>> 0eb81c78c41d99844e5086abdde56a2df72c3856
 import MainLayout from "./layouts/MainLayout";
 import PrivateRoute from "./utils/PrivateRoute";
 
