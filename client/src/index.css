@@ -23,7 +23,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  background: #050508;
+  background: #0a1628;
   color: #e2e8f0;
   font-size: 16px;
   line-height: 1.6;
@@ -37,7 +37,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #050508;
+  background: #0a1628;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -74,11 +74,11 @@ body {
 
   0%,
   100% {
-    box-shadow: 0 0 20px rgba(0, 240, 255, 0.15), 0 0 60px rgba(0, 240, 255, 0.05);
+    box-shadow: 0 0 20px rgba(30, 58, 95, 0.15), 0 0 60px rgba(30, 58, 95, 0.05);
   }
 
   50% {
-    box-shadow: 0 0 40px rgba(0, 240, 255, 0.3), 0 0 100px rgba(0, 240, 255, 0.1);
+    box-shadow: 0 0 40px rgba(30, 58, 95, 0.3), 0 0 100px rgba(30, 58, 95, 0.1);
   }
 }
 
@@ -146,11 +146,11 @@ body {
 
   0%,
   100% {
-    text-shadow: 0 0 10px rgba(0, 240, 255, 0.3), 0 0 40px rgba(0, 240, 255, 0.1);
+    text-shadow: 0 0 10px rgba(30, 58, 95, 0.3), 0 0 40px rgba(30, 58, 95, 0.1);
   }
 
   50% {
-    text-shadow: 0 0 20px rgba(0, 240, 255, 0.5), 0 0 60px rgba(0, 240, 255, 0.2);
+    text-shadow: 0 0 20px rgba(30, 58, 95, 0.5), 0 0 60px rgba(30, 58, 95, 0.2);
   }
 }
 
@@ -232,11 +232,11 @@ body {
 
   0%,
   100% {
-    border-color: rgba(0, 240, 255, 0.15);
+    border-color: rgba(30, 58, 95, 0.15);
   }
 
   50% {
-    border-color: rgba(0, 240, 255, 0.4);
+    border-color: rgba(30, 58, 95, 0.4);
   }
 }
 
@@ -370,41 +370,41 @@ body {
    ======================== */
 
 .glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .glass-strong {
-  background: rgba(10, 10, 20, 0.85);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(10, 22, 40, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-card {
-  background: rgba(12, 13, 28, 0.65);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(10, 22, 40, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
-  background: rgba(12, 13, 28, 0.85);
-  border-color: rgba(0, 240, 255, 0.15);
+  background: rgba(10, 22, 40, 0.8);
+  border-color: rgba(30, 58, 95, 0.2);
   box-shadow:
-    0 8px 40px rgba(0, 240, 255, 0.06),
-    0 0 80px rgba(0, 240, 255, 0.03);
-  transform: translateY(-6px);
+    0 8px 40px rgba(30, 58, 95, 0.08),
+    0 0 80px rgba(30, 58, 95, 0.04);
+  transform: translateY(-4px);
 }
 
 .glass-card-purple:hover {
-  border-color: rgba(168, 85, 247, 0.2);
+  border-color: rgba(30, 58, 95, 0.2);
   box-shadow:
-    0 8px 40px rgba(168, 85, 247, 0.06),
-    0 0 80px rgba(168, 85, 247, 0.03);
+    0 8px 40px rgba(30, 58, 95, 0.08),
+    0 0 80px rgba(30, 58, 95, 0.04);
 }
 
 /* ========================
@@ -412,23 +412,23 @@ body {
    ======================== */
 
 .neon-cyan {
-  color: #00f0ff;
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.4), 0 0 40px rgba(0, 240, 255, 0.15);
+  color: #1e3a5f;
+  text-shadow: 0 0 10px rgba(30, 58, 95, 0.4), 0 0 40px rgba(30, 58, 95, 0.15);
 }
 
 .neon-purple {
-  color: #a855f7;
-  text-shadow: 0 0 10px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.15);
+  color: #1e3a5f;
+  text-shadow: 0 0 10px rgba(30, 58, 95, 0.4), 0 0 40px rgba(30, 58, 95, 0.15);
 }
 
 .neon-border-cyan {
-  border-color: rgba(0, 240, 255, 0.25);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.06), inset 0 0 20px rgba(0, 240, 255, 0.02);
+  border-color: rgba(30, 58, 95, 0.3);
+  box-shadow: 0 0 20px rgba(30, 58, 95, 0.06), inset 0 0 20px rgba(30, 58, 95, 0.02);
 }
 
 .neon-border-purple {
-  border-color: rgba(168, 85, 247, 0.25);
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.06), inset 0 0 20px rgba(168, 85, 247, 0.02);
+  border-color: rgba(30, 58, 95, 0.3);
+  box-shadow: 0 0 20px rgba(30, 58, 95, 0.06), inset 0 0 20px rgba(30, 58, 95, 0.02);
 }
 
 /* ========================
@@ -436,28 +436,28 @@ body {
    ======================== */
 
 .gradient-text-cyan {
-  background: linear-gradient(135deg, #00f0ff, #0ea5e9);
+  background: linear-gradient(135deg, #1e3a5f, #2d5a8c);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-text-purple {
-  background: linear-gradient(135deg, #a855f7, #ec4899);
+  background: linear-gradient(135deg, #1e3a5f, #2d5a8c);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-text-warm {
-  background: linear-gradient(135deg, #f97316, #ef4444);
+  background: linear-gradient(135deg, #1e3a5f, #2d5a8c);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-text-gold {
-  background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+  background: linear-gradient(135deg, #1e3a5f, #2d5a8c);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -479,11 +479,11 @@ body {
   transform: translateX(-50%);
   width: 200px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 58, 95, 0.3), transparent);
 }
 
 .section-separator-purple::before {
-  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(30, 58, 95, 0.3), transparent);
 }
 
 /* ========================
@@ -495,13 +495,13 @@ body {
   width: 600px;
   height: 600px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 240, 255, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(30, 58, 95, 0.04) 0%, transparent 70%);
   pointer-events: none;
   filter: blur(60px);
 }
 
 .spotlight-purple {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(30, 58, 95, 0.04) 0%, transparent 70%);
 }
 
 /* ========================
