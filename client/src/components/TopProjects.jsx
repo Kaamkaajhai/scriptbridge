@@ -35,8 +35,8 @@ const TopProjects = () => {
               key={t.key}
               onClick={() => setActiveSort(t.key)}
               className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${activeSort === t.key
-                  ? "bg-gray-800 text-white"
-                  : "text-gray-400 hover:text-gray-600"
+                ? "bg-gray-800 text-white"
+                : "text-gray-400 hover:text-gray-600"
                 }`}
             >
               {t.label}

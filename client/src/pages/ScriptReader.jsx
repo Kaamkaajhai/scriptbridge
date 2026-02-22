@@ -242,43 +242,72 @@ const ScriptReader = () => {
         {activeTab === "reviews" && (
           <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1">
+              {/* Left Column: Write Review + Rating Summary */}
+              <div className="lg:col-span-1 space-y-5">
+                {/* Rating Overview Card */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="flex items-center gap-5 mb-5">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] flex flex-col items-center justify-center shrink-0">
+                      <span className="text-2xl font-black text-white leading-none">{(script.rating || 0).toFixed(1)}</span>
+                      <span className="text-[10px] text-white/50 font-bold mt-0.5">out of 5</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">{renderStars(script.rating || 0)}</div>
+                      <p className="text-sm text-gray-500 font-semibold">{script.reviewCount || 0} review{(script.reviewCount || 0) !== 1 ? "s" : ""}</p>
+                    </div>
+                  </div>
+                  {/* Rating breakdown */}
+                  <div className="space-y-1.5">
+                    {[5, 4, 3, 2, 1].map((star) => (
+                      <div key={star} className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-gray-400 w-3 text-right">{star}</span>
+                        <svg className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${script.reviewCount ? 0 : 0}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Write / Already Reviewed */}
                 {!myReview || editingReview ? (
                   <ReviewForm onSubmit={handleSubmitReview} loading={submitLoading} isEditing={!!editingReview} initialRating={editingReview?.rating || 0} initialComment={editingReview?.comment || ""} />
                 ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
-                    <svg className="w-10 h-10 text-green-500 mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <p className="text-green-800 font-bold mb-1">You&apos;ve reviewed this script</p>
-                    <p className="text-green-600 text-sm font-medium">Edit or delete your review below.</p>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-gray-800 mb-0.5">Review submitted</p>
+                    <p className="text-xs text-gray-400 font-medium">You can edit or delete your review from below.</p>
                   </div>
                 )}
-                {/* Rating Summary */}
-                <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                  <div className="text-center">
-                    <p className="text-4xl font-black text-gray-900">{(script.rating || 0).toFixed(1)}</p>
-                    <div className="flex justify-center mt-1">{renderStars(script.rating || 0)}</div>
-                    <p className="text-sm text-gray-400 font-bold mt-1">{script.reviewCount || 0} reviews</p>
-                  </div>
-                </div>
               </div>
-              <div className="lg:col-span-2 space-y-4">
+
+              {/* Right Column: Review list */}
+              <div className="lg:col-span-2 space-y-3">
                 {reviewsLoading ? (
-                  [...Array(3)].map((_, i) => <div key={i} className="h-32 bg-gray-100 rounded-2xl animate-pulse" />)
+                  [...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-50 rounded-2xl animate-pulse" />)
                 ) : reviews.length > 0 ? (
                   <>
                     {reviews.map((r) => <ReviewCard key={r._id} review={r} currentUserId={user?._id} onEdit={handleEditReview} onDelete={handleDeleteReview} />)}
                     {totalReviewPages > 1 && (
-                      <div className="flex justify-center gap-2 mt-6">
+                      <div className="flex justify-center gap-2 pt-4">
                         {[...Array(totalReviewPages)].map((_, i) => (
-                          <button key={i} onClick={() => fetchReviews(i + 1)} className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${reviewPage === i + 1 ? "bg-[#1e3a5f] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>{i + 1}</button>
+                          <button key={i} onClick={() => fetchReviews(i + 1)} className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${reviewPage === i + 1 ? "bg-[#1e3a5f] text-white shadow-sm" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}>{i + 1}</button>
                         ))}
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400 font-bold">No reviews yet</p>
-                    <p className="text-gray-300 text-sm font-medium mt-1">Be the first to review this script!</p>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                    </div>
+                    <p className="text-gray-700 font-bold text-sm mb-1">No reviews yet</p>
+                    <p className="text-gray-400 text-xs font-medium">Be the first to share your thoughts on this script!</p>
                   </div>
                 )}
               </div>
