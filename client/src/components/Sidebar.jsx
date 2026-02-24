@@ -31,6 +31,15 @@ const Sidebar = () => {
     }
   }, [user]);
 
+  // Re-fetch scripts whenever one is deleted anywhere in the app
+  useEffect(() => {
+    const onScriptDeleted = () => {
+      if (!isIndustry) fetchMyScripts();
+    };
+    window.addEventListener("scriptDeleted", onScriptDeleted);
+    return () => window.removeEventListener("scriptDeleted", onScriptDeleted);
+  }, [isIndustry]);
+
   const fetchMyScripts = async () => {
     try {
       const { data } = await api.get("/scripts");
