@@ -245,7 +245,7 @@ const WriterOnboarding = () => {
           return (
             <form onSubmit={handleAccountCreation} className="space-y-6">
               <h2 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Create Writer Account</h2>
-              <p className="text-sm text-gray-600">Join the Script Bridge community</p>
+              <p className="text-sm text-gray-600">Join the Ckript community</p>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -737,19 +737,19 @@ const WriterOnboarding = () => {
                 onScroll={handleAgreementScroll}
                 className="border-2 border-gray-200 rounded-lg p-4 h-[150px] overflow-y-auto text-sm text-gray-700 bg-gray-50"
               >
-                <h4 className="font-semibold mb-2">Script Bridge Submission Agreement</h4>
+                <h4 className="font-semibold mb-2">Ckript Submission Agreement</h4>
                 <p className="mb-3">
-                  By submitting your profile and/or scripts to ScriptBridge, you agree to the following terms:
+                  By submitting your profile and/or scripts to Ckript, you agree to the following terms:
                 </p>
                 <ol className="list-decimal pl-5 space-y-2">
                   <li>You retain all copyright and ownership of your work.</li>
-                  <li>You grant ScriptBridge permission to display your scripts to verified industry professionals.</li>
+                  <li>You grant Ckript permission to display your scripts to verified industry professionals.</li>
                   <li>You confirm that you own the rights to any material you submit or have permission to submit it.</li>
-                  <li>You release ScriptBridge from liability if similar content is independently produced.</li>
+                  <li>You release Ckript from liability if similar content is independently produced.</li>
                   <li>Your profile and scripts will be viewable by verified industry professionals only.</li>
                   <li>For paid plans, payment is non-refundable after your profile is activated.</li>
                   <li>Monthly subscriptions renew automatically and can be cancelled at any time.</li>
-                  <li>ScriptBridge reserves the right to remove content that violates our community guidelines.</li>
+                  <li>Ckript reserves the right to remove content that violates our community guidelines.</li>
                   <li>You agree to maintain professional conduct when interacting with other users.</li>
                   <li>These terms are subject to change with notice to active users.</li>
                 </ol>
@@ -824,7 +824,7 @@ const WriterOnboarding = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <FileText size={28} className="text-[#0a1628]" strokeWidth={1.5} />
-            <h1 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Script Bridge</h1>
+            <h1 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Ckript</h1>
           </div>
           <p className="text-sm text-gray-600">Writer Onboarding</p>
         </div>

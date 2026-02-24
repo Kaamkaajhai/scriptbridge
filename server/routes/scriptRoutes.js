@@ -5,7 +5,7 @@ import {
   holdScript, releaseHold, getMyHolds, addRoles,
   getFeaturedScripts, getTopScripts, searchScriptsReader,
   getLatestScripts, recordRead, toggleFavorite, getCategories,
-  extractPdfText, saveDraft
+  extractPdfText, saveDraft, deleteScript, getMyDrafts, updateScript
 } from "../controllers/scriptController.js";
 import multer from "multer";
 
@@ -17,6 +17,7 @@ router.post("/draft", protect, saveDraft);
 router.post("/upload", protect, uploadScript);
 router.get("/", protect, getScripts);
 router.get("/holds", protect, getMyHolds);
+router.get("/my-drafts", protect, getMyDrafts);
 // Reader static routes (must be before /:id)
 router.get("/featured", protect, getFeaturedScripts);
 router.get("/top", protect, getTopScripts);
@@ -30,5 +31,7 @@ router.post("/release-hold", protect, releaseHold);
 router.post("/add-roles", protect, addRoles);
 router.post("/:id/read", protect, recordRead);
 router.post("/:id/favorite", protect, toggleFavorite);
+router.put("/:id", protect, updateScript);
+router.delete("/:id", protect, deleteScript);
 
 export default router;

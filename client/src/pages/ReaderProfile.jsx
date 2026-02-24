@@ -4,11 +4,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Heart, MessageSquare, Pencil, ArrowLeft, X, Camera, Save, Loader2 } from "lucide-react";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { useDarkMode } from "../context/DarkModeContext";
 import ScriptCard from "../components/ScriptCard";
 import ReviewCard from "../components/ReviewCard";
 
 /* ── Edit Profile Modal ─────────────────────────────── */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
+  const { isDarkMode: dark } = useDarkMode();
   const { setUser, user } = useContext(AuthContext);
   const [name, setName] = useState(profile.name || "");
   const [bio, setBio] = useState(profile.bio || "");
@@ -103,17 +105,17 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+        className={`relative rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden ${dark ? "bg-[#101e30]" : "bg-white"}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${dark ? "border-[#182840]" : "border-gray-100"}`}>
           <div>
-            <h2 className="text-lg font-extrabold text-gray-900">Edit Profile</h2>
+            <h2 className={`text-lg font-extrabold ${dark ? "text-gray-100" : "text-gray-900"}`}>Edit Profile</h2>
             <p className="text-[12px] text-gray-400 font-medium mt-0.5">Update your profile information</p>
           </div>
-          <button
+            <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${dark ? "bg-white/[0.06] hover:bg-white/[0.1]" : "bg-gray-100 hover:bg-gray-200"}`}
           >
             <X size={16} strokeWidth={2.5} className="text-gray-500" />
           </button>
@@ -175,7 +177,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
               maxLength={50}
-              className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:border-[#1e3a5f]/30 focus:bg-white focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all"
+              className={`w-full h-11 px-4 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/30 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
             />
           </div>
 
@@ -190,7 +192,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               onChange={(e) => setBio(e.target.value.slice(0, 300))}
               placeholder="Tell others a bit about yourself..."
               rows={3}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:border-[#1e3a5f]/30 focus:bg-white focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all resize-none leading-relaxed"
+              className={`w-full px-4 py-3 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/30 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all resize-none leading-relaxed ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
             />
           </div>
 
@@ -204,7 +206,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               value={skills}
               onChange={(e) => setSkills(e.target.value)}
               placeholder="e.g. Screenwriting, Drama, Sci-Fi, Film Analysis"
-              className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:border-[#1e3a5f]/30 focus:bg-white focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all"
+              className={`w-full h-11 px-4 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/30 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
             />
             <p className="text-[11px] text-gray-400 mt-1.5 ml-0.5">Separate with commas</p>
           </div>
@@ -240,11 +242,11 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${dark ? "border-[#182840] bg-[#242424]" : "border-gray-100 bg-gray-50/50"}`}>
           <button
             onClick={onClose}
             disabled={saving}
-            className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all disabled:opacity-50"
+            className={`px-5 py-2.5 text-sm font-bold rounded-xl border transition-all disabled:opacity-50 ${dark ? "text-gray-300 bg-white/[0.04] border-[#1d3350] hover:border-[#244060]" : "text-gray-600 hover:text-gray-800 bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm"}`}
           >
             Cancel
           </button>
@@ -270,6 +272,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
 const ReaderProfile = () => {
   const { id } = useParams();
   const { user } = useContext(AuthContext);
+  const { isDarkMode: dark } = useDarkMode();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("read");
@@ -381,7 +384,7 @@ const ReaderProfile = () => {
       </Link>
 
       {/* Main Profile Header Card */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-3xl border shadow-sm overflow-hidden mb-8 ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
         {/* Decorative Gradient Banner */}
         <div className="h-32 bg-gradient-to-tr from-[#0f1c2e] via-[#1e3a5f] to-[#3a6ea5] relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
@@ -414,7 +417,7 @@ const ReaderProfile = () => {
               {/* Title & Role */}
               <div className="text-center sm:text-left pb-1">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-1.5">
-                  <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                    <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>
                     {profile.name || "User Profile"}
                   </h1>
                   <span className="px-2.5 py-1 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-xs font-bold uppercase tracking-widest border border-[#1e3a5f]/10 shadow-sm w-max mx-auto sm:mx-0">
@@ -443,9 +446,9 @@ const ReaderProfile = () => {
 
           {/* Bio */}
           {profile.bio && (
-            <div className="bg-gray-50 rounded-2xl p-5 mb-8 border border-gray-100">
+            <div className={`rounded-2xl p-5 mb-8 border ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">About Me</h3>
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">{profile.bio}</p>
+              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{profile.bio}</p>
             </div>
           )}
 
@@ -455,7 +458,7 @@ const ReaderProfile = () => {
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Interests & Skills</h3>
               <div className="flex flex-wrap gap-2">
                 {profile.skills.map((skill, i) => (
-                  <span key={i} className="px-3 py-1.5 bg-[#1e3a5f]/[0.04] text-[#1e3a5f] rounded-lg text-[12px] font-bold border border-[#1e3a5f]/8">
+                  <span key={i} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-blue-300 border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.04] text-[#1e3a5f] border-[#1e3a5f]/8"}`}>
                     {skill}
                   </span>
                 ))}
@@ -464,7 +467,7 @@ const ReaderProfile = () => {
           )}
 
           {/* Interactive Stat Tabs */}
-          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
+          <div className={`flex flex-wrap items-center gap-3 pt-4 border-t ${dark ? "border-[#182840]" : "border-gray-100"}`}>
             {tabs.map((t) => {
               const Icon = t.icon;
               const isActive = activeTab === t.key;
@@ -474,12 +477,14 @@ const ReaderProfile = () => {
                   onClick={() => setActiveTab(t.key)}
                   className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${isActive
                     ? "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/20 scale-105"
-                    : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:scale-105 border border-transparent hover:border-gray-200"
+                    : dark
+                      ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08] hover:scale-105 border border-transparent hover:border-[#1d3350]"
+                      : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:scale-105 border border-transparent hover:border-gray-200"
                     }`}
                 >
                   <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? "text-blue-200" : "text-gray-400"} />
                   <span>{t.label}</span>
-                  <div className={`ml-1.5 px-2 py-0.5 rounded-md text-[11px] font-black ${isActive ? "bg-white/20 text-white" : "bg-white border border-gray-200 text-gray-600 shadow-sm"
+                  <div className={`ml-1.5 px-2 py-0.5 rounded-md text-[11px] font-black ${isActive ? "bg-white/20 text-white" : dark ? "bg-white/[0.06] border border-[#1d3350] text-gray-400" : "bg-white border border-gray-200 text-gray-600 shadow-sm"
                     }`}>
                     {t.count}
                   </div>
@@ -495,7 +500,7 @@ const ReaderProfile = () => {
         {dataLoading ? (
           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 h-[280px] animate-pulse shadow-sm" />
+              <div key={i} className={`rounded-2xl border h-[280px] animate-pulse shadow-sm ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`} />
             ))}
           </motion.div>
         ) : (
@@ -539,10 +544,10 @@ const ReaderProfile = () => {
                   <div className="columns-1 md:columns-2 gap-6 space-y-6 max-w-5xl">
                     {reviews.map((r) => (
                       <div key={r._id} className="break-inside-avoid">
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+                        <div className={`rounded-2xl border shadow-sm p-5 hover:shadow-md transition-shadow ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
                           {r.script && (
-                            <Link to={`/reader/script/${r.script._id || r.script}`} className="flex items-center justify-between mb-4 pb-4 border-b border-gray-50 group">
-                              <span className="text-sm font-black text-gray-900 group-hover:text-[#1e3a5f] transition-colors truncate pr-4">
+                            <Link to={`/reader/script/${r.script._id || r.script}`} className={`flex items-center justify-between mb-4 pb-4 border-b group ${dark ? "border-[#182840]" : "border-gray-50"}`}>
+                              <span className={`text-sm font-black group-hover:text-[#1e3a5f] transition-colors truncate pr-4 ${dark ? "text-gray-100" : "text-gray-900"}`}>
                                 {r.script.title || "View Script"}
                               </span>
                               <span className="text-gray-300 group-hover:text-[#1e3a5f] transition-colors">
@@ -582,15 +587,18 @@ const ReaderProfile = () => {
   );
 };
 
-const EmptyState = ({ icon: Icon, title, subtitle, action }) => (
-  <div className="bg-white/50 backdrop-blur-xl rounded-3xl border border-gray-100/50 shadow-sm p-12 lg:p-16 text-center max-w-2xl mx-auto flex flex-col items-center">
-    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 border border-white shadow-sm flex items-center justify-center mb-6">
+const EmptyState = ({ icon: Icon, title, subtitle, action }) => {
+  const { isDarkMode: dark } = useDarkMode();
+  return (
+  <div className={`backdrop-blur-xl rounded-3xl border shadow-sm p-12 lg:p-16 text-center max-w-2xl mx-auto flex flex-col items-center ${dark ? "bg-[#101e30]/50 border-[#182840]" : "bg-white/50 border-gray-100/50"}`}>
+    <div className={`w-20 h-20 rounded-2xl border shadow-sm flex items-center justify-center mb-6 ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gradient-to-br from-gray-50 to-gray-100 border-white"}`}>
       <Icon size={32} strokeWidth={1.5} className="text-gray-400" />
     </div>
-    <h3 className="text-xl font-black text-gray-900 mb-2">{title}</h3>
+    <h3 className={`text-xl font-black mb-2 ${dark ? "text-gray-100" : "text-gray-900"}`}>{title}</h3>
     <p className="text-sm text-gray-500 font-medium max-w-md mx-auto leading-relaxed mb-2">{subtitle}</p>
     {action}
   </div>
-);
+  );
+};
 
 export default ReaderProfile;

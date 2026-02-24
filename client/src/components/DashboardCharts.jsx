@@ -1,9 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   ResponsiveContainer, Cell,
 } from "recharts";
+import { useDarkMode } from "../context/DarkModeContext";
+
 
 const sourceBarColor = (source) => {
   if (source === "AI") return "#1e3a5f";
@@ -24,6 +26,13 @@ const distBarFill = (range) => {
 
 const DashboardCharts = ({ reviews }) => {
   const [graphView, setGraphView] = useState("bar");
+  const [chartsReady, setChartsReady] = useState(false);
+  const { isDarkMode: dark } = useDarkMode();
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setChartsReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   const radarData = useMemo(() => {
     const aiWithScores = (reviews?.ai || []).filter((r) => r.scores);
@@ -78,17 +87,18 @@ const DashboardCharts = ({ reviews }) => {
   if (!hasData) return null;
 
   const tooltipStyle = {
-    backgroundColor: "#fff",
-    border: "1px solid #e5e7eb",
+    backgroundColor: dark ? '#2a2a2a' : '#fff',
+    border: `1px solid ${dark ? '#182840' : '#e5e7eb'}`,
     borderRadius: 8,
     fontSize: 12,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+    boxShadow: dark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.06)',
+    color: dark ? '#e5e7eb' : undefined,
   };
 
   return (
     <div className="mb-6">
       {/* Graph toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-4">
+      <div className={`flex gap-1 rounded-lg p-1 w-fit mb-4 ${dark ? 'bg-white/[0.04]' : 'bg-gray-100'}`}>
         {[
           { key: "radar", label: "Radar" },
           { key: "bar", label: "Ratings" },
@@ -99,8 +109,8 @@ const DashboardCharts = ({ reviews }) => {
             onClick={() => setGraphView(g.key)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               graphView === g.key
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? dark ? 'bg-white/[0.08] text-gray-100 shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                : dark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             {g.label}
@@ -108,7 +118,7 @@ const DashboardCharts = ({ reviews }) => {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <div className={`rounded-xl border p-5 ${dark ? 'bg-[#101e30] border-[#333]' : 'bg-white border-gray-100'}`}>
         {/* Radar */}
         {graphView === "radar" && radarData.length > 0 && (
           <div>
@@ -116,8 +126,9 @@ const DashboardCharts = ({ reviews }) => {
               Avg AI Score Breakdown
             </p>
             <div style={{ width: "100%", height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
+              {chartsReady && (
+                <ResponsiveContainer width="100%" height={280} minWidth={0}>
+                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
                   <PolarGrid stroke="#e5e7eb" />
                   <PolarAngleAxis
                     dataKey="dimension"
@@ -137,8 +148,9 @@ const DashboardCharts = ({ reviews }) => {
                     strokeWidth={2}
                     dot={{ r: 3, fill: "#0f2544" }}
                   />
-                </RadarChart>
-              </ResponsiveContainer>
+                  </RadarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         )}
@@ -157,8 +169,9 @@ const DashboardCharts = ({ reviews }) => {
               All Ratings
             </p>
             <div style={{ width: "100%", height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
+              {chartsReady && (
+                <ResponsiveContainer width="100%" height={280} minWidth={0}>
+                  <BarChart
                   data={ratingsBarData}
                   margin={{ top: 8, right: 8, bottom: 0, left: -16 }}
                 >
@@ -188,8 +201,9 @@ const DashboardCharts = ({ reviews }) => {
                       <Cell key={i} fill={sourceBarColor(entry.source)} />
                     ))}
                   </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="flex items-center justify-center gap-5 mt-2">
               {[
@@ -223,8 +237,9 @@ const DashboardCharts = ({ reviews }) => {
               Score Distribution
             </p>
             <div style={{ width: "100%", height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
+              {chartsReady && (
+                <ResponsiveContainer width="100%" height={280} minWidth={0}>
+                  <BarChart
                   data={distributionData}
                   margin={{ top: 8, right: 8, bottom: 0, left: -16 }}
                 >
@@ -254,8 +269,9 @@ const DashboardCharts = ({ reviews }) => {
                       <Cell key={i} fill={distBarFill(entry.range)} />
                     ))}
                   </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         )}

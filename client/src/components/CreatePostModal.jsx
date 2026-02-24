@@ -2,9 +2,11 @@ import { useState, useContext } from "react";
 import { motion } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { useDarkMode } from "../context/DarkModeContext";
 
 const CreatePostModal = ({ onClose, onPostCreated }) => {
   const { user } = useContext(AuthContext);
+  const { isDarkMode: dark } = useDarkMode();
   const [content, setContent] = useState("");
   const [image, setImage] = useState("");
   const [video, setVideo] = useState("");
@@ -55,13 +57,13 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6"
+        className={`rounded-xl shadow-2xl max-w-2xl w-full p-6 ${dark ? 'bg-[#101e30]' : 'bg-white'}`}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Create Post</h2>
+          <h2 className={`text-2xl font-bold ${dark ? 'text-gray-100' : 'text-gray-800'}`}>Create Post</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-3xl leading-none"
+            className={`text-3xl leading-none ${dark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
           >
             ×
           </button>
@@ -75,40 +77,40 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-700 font-bold mb-2 text-base">
+            <label className={`block font-bold mb-2 text-base ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
               What's on your mind?
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full p-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base"
+              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
               rows="5"
               placeholder="Share your thoughts, scripts, or updates..."
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-bold mb-2 text-base">
+            <label className={`block font-bold mb-2 text-base ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
               Image URL (optional)
             </label>
             <input
               type="url"
               value={image}
               onChange={(e) => setImage(e.target.value)}
-              className="w-full p-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base"
+              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
               placeholder="https://..."
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-bold mb-2 text-base">
+            <label className={`block font-bold mb-2 text-base ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
               Video URL (optional)
             </label>
             <input
               type="url"
               value={video}
               onChange={(e) => setVideo(e.target.value)}
-              className="w-full p-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base"
+              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
               placeholder="https://..."
             />
           </div>
@@ -145,7 +147,7 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-base font-semibold"
+              className={`flex-1 px-6 py-3 rounded-lg transition text-base font-semibold ${dark ? 'bg-[#333] text-gray-300 hover:bg-[#444]' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
             >
               Cancel
             </button>

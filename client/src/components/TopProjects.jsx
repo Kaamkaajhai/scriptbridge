@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
+import { useDarkMode } from "../context/DarkModeContext";
 import ScriptCard from "./ScriptCard";
 
 const tabs = [
@@ -9,6 +10,7 @@ const tabs = [
 ];
 
 const TopProjects = () => {
+  const { isDarkMode: dark } = useDarkMode();
   const [scripts, setScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeSort, setActiveSort] = useState("rating");
@@ -28,15 +30,15 @@ const TopProjects = () => {
   return (
     <section>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Top Projects</h2>
-        <div className="flex gap-0.5 border border-gray-100 rounded-lg p-0.5">
+        <h2 className={`text-xl font-semibold tracking-tight ${dark ? "text-gray-100" : "text-gray-800"}`}>Top Projects</h2>
+        <div className={`flex gap-0.5 border rounded-lg p-0.5 ${dark ? "border-[#182840]" : "border-gray-100"}`}>
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setActiveSort(t.key)}
               className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${activeSort === t.key
                 ? "bg-gray-800 text-white"
-                : "text-gray-400 hover:text-gray-600"
+                : dark ? "text-gray-400 hover:text-gray-200" : "text-gray-400 hover:text-gray-600"
                 }`}
             >
               {t.label}
@@ -47,7 +49,7 @@ const TopProjects = () => {
 
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => <div key={i} className="h-64 bg-gray-50 rounded-xl animate-pulse" />)}
+          {[...Array(8)].map((_, i) => <div key={i} className={`h-64 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-50"}`} />)}
         </div>
       ) : scripts.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

@@ -41,7 +41,7 @@ const Navbar = () => {
 
   return (
     <nav className="flex justify-between items-center px-6 h-16 bg-white border-b border-gray-200">
-      <h1 className="text-base font-bold text-[#1e3a5f] tracking-tight">Script Bridge</h1>
+      <h1 className="text-base font-bold text-[#1e3a5f] tracking-tight">Ckript</h1>
 
       {/* Center search */}
       <div className="relative hidden md:block" ref={dropdownRef}>

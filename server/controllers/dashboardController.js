@@ -40,7 +40,7 @@ export const getDashboardStats = async (req, res) => {
     const scoredScripts = scripts.filter(s => s.scriptScore?.overall).length;
     const avgScore = scoredScripts > 0 
       ? Math.round(scripts.filter(s => s.scriptScore?.overall).reduce((sum, s) => sum + s.scriptScore.overall, 0) / scoredScripts) 
-      : 0;
+      : null;
 
     // Audition stats
     const auditionCount = await Audition.countDocuments({ script: { $in: scripts.map(s => s._id) } });

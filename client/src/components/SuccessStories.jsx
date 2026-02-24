@@ -8,7 +8,7 @@ const SuccessStories = () => {
       name: "Sarah Chen",
       role: "Screenplay Writer",
       image: "👩‍💻",
-      story: "My sci-fi script was rejected 47 times until I uploaded it to ScriptBridge. The AI trailer got 2K views, and within two weeks, a producer optioned it for $5,000. Now I'm in talks with a production company.",
+      story: "My sci-fi script was rejected 47 times until I uploaded it to Ckript. The AI trailer got 2K views, and within two weeks, a producer optioned it for $5,000. Now I'm in talks with a production company.",
       metric: "From unknown to optioned in 2 weeks",
       tagline: "The AI trailer changed everything"
     },
@@ -17,7 +17,7 @@ const SuccessStories = () => {
       name: "Marcus Williams",
       role: "Independent Producer",
       image: "🎬",
-      story: "Before ScriptBridge, finding scripts meant reading thousands of submissions. Now I get 5-10 hand-picked scripts weekly matched to my production style. I optioned 3 scripts in the first month.",
+      story: "Before Ckript, finding scripts meant reading thousands of submissions. Now I get 5-10 hand-picked scripts weekly matched to my production style. I optioned 3 scripts in the first month.",
       metric: "5-10 perfect matches per week",
       tagline: "Stop searching. Start finding."
     },
@@ -26,7 +26,7 @@ const SuccessStories = () => {
       name: "Dr. Priya Kapoor",
       role: "Film & Content Investor",
       image: "💼",
-      story: "As an investor, I wanted access to pre-packaged opportunities. ScriptBridge's Domain Packages gave me curated collections of scripts by genre and budget. I've already invested in 2 promising projects.",
+      story: "As an investor, I wanted access to pre-packaged opportunities. Ckript's Domain Packages gave me curated collections of scripts by genre and budget. I've already invested in 2 promising projects.",
       metric: "Invested in 2 projects in 3 months",
       tagline: "Opportunities don't come knocking anymore"
     },
@@ -35,7 +35,7 @@ const SuccessStories = () => {
       name: "James Rodriguez",
       role: "Aspiring Actor",
       image: "🎭",
-      story: "Through ScriptBridge's audition feature, I performed for 3 scripts in my genre. A producer loved my take and attached me to a project that's now in development. That's my big break.",
+      story: "Through Ckript's audition feature, I performed for 3 scripts in my genre. A producer loved my take and attached me to a project that's now in development. That's my big break.",
       metric: "From unknown to attached talent",
       tagline: "Auditions lead to careers"
     }
@@ -73,7 +73,7 @@ const SuccessStories = () => {
             Stories of <span className="text-cyan-400">Real Success</span>
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            See how creators, producers, and industry professionals are transforming their careers on ScriptBridge
+            See how creators, producers, and industry professionals are transforming their careers on Ckript
           </p>
         </motion.div>
 

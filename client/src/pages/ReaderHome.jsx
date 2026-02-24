@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../services/api";
+import { useDarkMode } from "../context/DarkModeContext";
 import FeaturedSection from "../components/FeaturedSection";
 import TopProjects from "../components/TopProjects";
 import ScriptCard from "../components/ScriptCard";
 
 const ReaderHome = () => {
+  const { isDarkMode: dark } = useDarkMode();
   const [latestScripts, setLatestScripts] = useState([]);
   const [categories, setCategories] = useState({ contentTypes: [], genres: [] });
   const [activeCategory, setActiveCategory] = useState("all");
@@ -43,7 +45,7 @@ const ReaderHome = () => {
         {/* Latest Scripts */}
         <section>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-            <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Latest Scripts</h2>
+            <h2 className={`text-xl font-semibold tracking-tight ${dark ? "text-gray-100" : "text-gray-800"}`}>Latest Scripts</h2>
           </div>
           {/* Category filters */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
@@ -51,7 +53,9 @@ const ReaderHome = () => {
               onClick={() => setActiveCategory("all")}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all border ${activeCategory === "all"
                 ? "bg-gray-800 text-white border-gray-800"
-                : "bg-white text-gray-400 border-gray-150 hover:border-gray-300 hover:text-gray-600"
+                : dark
+                  ? "bg-white/[0.04] text-gray-400 border-[#1d3350] hover:border-[#244060] hover:text-gray-200"
+                  : "bg-white text-gray-400 border-gray-150 hover:border-gray-300 hover:text-gray-600"
                 }`}
             >
               All
@@ -62,7 +66,9 @@ const ReaderHome = () => {
                 onClick={() => setActiveCategory(c)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all capitalize border ${activeCategory === c
                   ? "bg-gray-800 text-white border-gray-800"
-                  : "bg-white text-gray-400 border-gray-150 hover:border-gray-300 hover:text-gray-600"
+                  : dark
+                    ? "bg-white/[0.04] text-gray-400 border-[#1d3350] hover:border-[#244060] hover:text-gray-200"
+                    : "bg-white text-gray-400 border-gray-150 hover:border-gray-300 hover:text-gray-600"
                   }`}
               >
                 {c.replace(/_/g, " ")}
@@ -71,7 +77,7 @@ const ReaderHome = () => {
           </div>
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {[...Array(10)].map((_, i) => <div key={i} className="h-64 bg-gray-50 rounded-xl animate-pulse" />)}
+              {[...Array(10)].map((_, i) => <div key={i} className={`h-64 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-50"}`} />)}
             </div>
           ) : filteredLatest.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -79,8 +85,8 @@ const ReaderHome = () => {
             </div>
           ) : (
             <div className="text-center py-16">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center">
-                <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
+                <svg className={`w-5 h-5 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12H9.75m3.75 3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                 </svg>
               </div>
