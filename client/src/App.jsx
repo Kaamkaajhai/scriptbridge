@@ -1,6 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { DarkModeProvider } from "./context/DarkModeContext";
 import Landing from "./pages/Landing";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import Login from "./pages/Login";
 import Join from "./pages/Join";
 import RoleSelection from "./pages/RoleSelection";
@@ -9,6 +12,8 @@ import IndustryOnboarding from "./pages/IndustryOnboarding";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
 import ScriptUpload from "./pages/ScriptUpload";
+import NewProject from "./pages/NewProject";
+import CreateProject from "./pages/CreateProject";
 import Search from "./pages/Search";
 import ScriptDetail from "./pages/ScriptDetail";
 import Mandates from "./pages/Mandates";
@@ -24,10 +29,13 @@ import PrivateRoute from "./utils/PrivateRoute";
 
 function App() {
   return (
+    <DarkModeProvider>
     <AuthProvider>
       <Router>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/login" element={<Login />} />
           <Route path="/join" element={<RoleSelection />} />
           <Route path="/signup" element={<Join />} />
@@ -75,6 +83,36 @@ function App() {
               <PrivateRoute>
                 <MainLayout>
                   <Dashboard />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/new-project"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <NewProject />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/create-project"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <CreateProject />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/create-project/:draftId"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <CreateProject />
                 </MainLayout>
               </PrivateRoute>
             }
@@ -192,8 +230,8 @@ function App() {
         </Routes>
       </Router>
     </AuthProvider>
+    </DarkModeProvider>
   );
 }
 
 export default App;
-

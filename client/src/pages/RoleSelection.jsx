@@ -14,10 +14,10 @@ const RoleSelection = () => {
         >
           <Link to="/" className="inline-flex items-center gap-2 text-3xl font-bold text-white mb-4">
             <FileText size={36} strokeWidth={1.5} />
-            Script Bridge
+            Ckript
           </Link>
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 tracking-tight">
-            Join Script Bridge
+            Join Ckript
           </h1>
           <p className="text-xl text-white/70 font-medium">
             Choose your path to get started

@@ -750,7 +750,7 @@ const IndustryOnboarding = () => {
                 onScroll={handleAgreementScroll}
                 className="border-2 border-gray-200 rounded-lg p-4 h-[150px] overflow-y-auto text-sm text-gray-700 bg-gray-50"
               >
-                <h4 className="font-semibold mb-2">Script Bridge Industry Professional Terms</h4>
+                <h4 className="font-semibold mb-2">Ckript Industry Professional Terms</h4>
                 <p className="mb-3">
                   By creating an industry professional account, you agree to the following:
                 </p>
@@ -759,7 +759,7 @@ const IndustryOnboarding = () => {
                   <li>You will use this platform professionally to discover and evaluate scripts.</li>
                   <li>You will protect the confidentiality of scripts you access through the platform.</li>
                   <li>You will not reproduce, distribute, or exploit scripts without proper agreements with writers.</li>
-                  <li>Script Bridge facilitates connections but is not party to any deals between users.</li>
+                  <li>Ckript facilitates connections but is not party to any deals between users.</li>
                   <li>Verified status is contingent on accurate professional information.</li>
                   <li>You agree to communicate professionally with writers on the platform.</li>
                   <li>Misrepresentation of credentials may result in account termination.</li>
@@ -836,7 +836,7 @@ const IndustryOnboarding = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <FileText size={28} className="text-[#0a1628]" strokeWidth={1.5} />
-            <h1 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Script Bridge</h1>
+            <h1 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Ckript</h1>
           </div>
           <p className="text-sm text-gray-600">Industry Professional Registration</p>
         </div>

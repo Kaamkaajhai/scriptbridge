@@ -1,12 +1,14 @@
 import { useContext, useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
 import api from "../services/api";
 
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -130,40 +132,77 @@ const MainLayout = ({ children }) => {
     : "U";
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb]">
+    <div className={`min-h-screen ${isDarkMode ? "bg-[#08111e]" : "bg-[#f8f9fb]"}`}>
       <Sidebar />
 
       {/* Top bar */}
-      <header className="fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20">
+      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
+        isDarkMode ? "bg-[#0b1426]/95 border-[#1a3050] backdrop-blur-xl" : "glass-strong border-gray-200/60"
+      }`}>
         {/* Search */}
-        <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-md">
-          <div className="flex items-center w-full border border-gray-200 rounded-lg overflow-hidden bg-white hover:border-gray-300 transition-colors">
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-2.5 text-base text-gray-800 placeholder-gray-400 outline-none bg-transparent"
-            />
-            <button type="submit" className="px-3 py-2 text-gray-400 hover:text-[#1e3a5f] transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-lg">
+          <div className={`group flex items-center w-full rounded-xl overflow-hidden transition-all duration-300 ${
+            isDarkMode
+              ? "border border-[#1a3050] bg-[#0e1c2e] hover:border-[#24466e] focus-within:border-[#2d5a8e]/60 focus-within:ring-2 focus-within:ring-[#1e3a5f]/20"
+              : "bg-gray-100/80 hover:bg-gray-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a5f]/10 focus-within:shadow-md"
+          }`}>
+            <div className={`pl-4 transition-colors ${isDarkMode ? "text-gray-500 group-focus-within:text-[#1e3a5f]" : "text-gray-400 group-focus-within:text-[#1e3a5f]"}`}>
+              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-            </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Search projects, writers, investors..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`flex-1 px-3 py-2.5 text-[14px] font-medium outline-none bg-transparent ${
+                isDarkMode ? "text-gray-200 placeholder-gray-500" : "text-gray-800 placeholder-gray-400"
+              }`}
+            />
+            {searchQuery && (
+              <button type="button" onClick={() => setSearchQuery("")}
+                className={`pr-3 transition-colors ${isDarkMode ? "text-gray-400 hover:text-gray-600" : "text-gray-300 hover:text-gray-500"}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </form>
 
         {/* Right side: notification + user menu */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleDarkMode}
+            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+              isDarkMode ? "text-amber-300 hover:bg-[#1a3050] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
+            }`}
+            aria-label="Toggle dark mode"
+            title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDarkMode ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.25-9H18m-13.5 0H3m15.364 6.364l-1.591-1.591M7.227 7.227 5.636 5.636m12.728 0-1.591 1.591M7.227 16.773l-1.591 1.591M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0112 21.75c-5.385 0-9.75-4.365-9.75-9.75 0-4.072 2.498-7.56 6.045-9.03a.75.75 0 01.986.987 7.5 7.5 0 009.764 9.765.75.75 0 01.987.986z" />
+              </svg>
+            )}
+          </button>
+
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
-              className="relative w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-50 transition-colors">
+              className={`relative w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+                isDarkMode ? "text-gray-400 hover:text-blue-400 hover:bg-[#1a3050] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
+              }`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-[#1e3a5f] text-white text-[10px] font-bold rounded-full px-1">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-[#1e3a5f] text-white text-[10px] font-bold rounded-full px-1 ring-2 ring-white animate-pulse-soft">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -171,10 +210,12 @@ const MainLayout = ({ children }) => {
 
             {/* Notification Panel */}
             {notifOpen && (
-              <div className="absolute right-0 mt-2 w-[380px] max-h-[520px] bg-white rounded-xl shadow-xl border border-gray-200 z-50 flex flex-col overflow-hidden">
+              <div className={`absolute right-0 mt-2 w-[380px] max-h-[520px] rounded-2xl z-50 flex flex-col overflow-hidden animate-scaleIn ${
+                isDarkMode ? "bg-[#0f1d35] border border-[#1a3050] shadow-2xl" : "bg-white border border-gray-200/80 shadow-xl shadow-gray-200/50"
+              }`}>
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-base font-bold text-gray-900">Notifications</h3>
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}>
+                  <h3 className={`text-base font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Notifications</h3>
                   <div className="flex items-center gap-2">
                     {unreadCount > 0 && (
                       <button onClick={handleMarkAllRead}
@@ -204,8 +245,11 @@ const MainLayout = ({ children }) => {
                     <div>
                       {notifications.map((n) => (
                         <div key={n._id}
-                          className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors group ${!n.read ? "bg-[#1e3a5f]/[0.02]" : ""
-                            }`}>
+                          className={`flex items-start gap-3 px-4 py-3 border-b transition-colors group ${
+                            isDarkMode
+                              ? `border-[#182840] hover:bg-white/[0.03] ${!n.read ? "bg-[#1e3a5f]/[0.06]" : ""}`
+                              : `border-gray-50 hover:bg-gray-50/50 ${!n.read ? "bg-[#1e3a5f]/[0.02]" : ""}`
+                          }`}>
                           {/* Icon */}
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${getNotifColor(n.type)}`}>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -215,16 +259,16 @@ const MainLayout = ({ children }) => {
 
                           {/* Content */}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-700 leading-snug">
+                            <p className={`text-sm leading-snug ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                               {n.from?.name && (
-                                <span className="font-bold text-gray-900">{n.from.name} </span>
+                                <span className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{n.from.name} </span>
                               )}
                               <span>{n.message}</span>
                               {n.script?.title && (
                                 <span className="font-semibold text-[#1e3a5f]"> {n.script.title}</span>
                               )}
                             </p>
-                            <p className="text-xs text-gray-400 font-medium mt-0.5">{timeAgo(n.createdAt)}</p>
+                            <p className={`text-xs font-medium mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(n.createdAt)}</p>
                           </div>
 
                           {/* Actions */}
@@ -254,13 +298,13 @@ const MainLayout = ({ children }) => {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-14">
-                      <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                        <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+                        <svg className={`w-7 h-7 ${isDarkMode ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                         </svg>
                       </div>
-                      <p className="text-sm font-bold text-gray-500">No notifications yet</p>
-                      <p className="text-xs text-gray-400 mt-1">You're all caught up</p>
+                      <p className={`text-sm font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No notifications yet</p>
+                      <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>You're all caught up</p>
                     </div>
                   )}
                 </div>
@@ -271,32 +315,32 @@ const MainLayout = ({ children }) => {
           {/* User menu */}
           <div className="relative" ref={dropdownRef}>
             <button onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#1a3050]" : "hover:bg-gray-100"}`}>
               {user?.profileImage ? (
-                <img src={user.profileImage} alt={user.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-200" />
+                <img src={user.profileImage} alt={user.name} className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1a3050]" : "ring-gray-100 hover:ring-gray-200"}`} />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-[#1e3a5f]/10 flex items-center justify-center text-xs font-semibold text-[#1e3a5f]">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-blue-500/20 text-blue-400" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
                   {initials}
                 </div>
               )}
-              <span className="hidden sm:block text-base font-semibold text-gray-700">{user?.name || "User"}</span>
-              <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <span className={`hidden sm:block text-[14px] font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>{user?.name || "User"}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {dropdownOpen && (
-              <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl border py-1.5 z-50 animate-scaleIn ${isDarkMode ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/80 shadow-gray-200/50"}`}>
                 <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
-                  className="w-full text-left px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-300 hover:bg-[#1a3050]" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   Profile
                 </button>
-                <div className="border-t border-gray-100 my-1"></div>
+                <div className={`border-t my-1 ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}></div>
                 <button onClick={() => { logout(); navigate("/login"); }}
-                  className="w-full text-left px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-50 flex items-center gap-2">
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-400 hover:bg-[#1a3050] hover:text-gray-200" : "text-gray-500 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
@@ -310,7 +354,7 @@ const MainLayout = ({ children }) => {
 
       {/* Main content */}
       <main className="pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
           {children}
         </div>
       </main>

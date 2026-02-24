@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
+import { useDarkMode } from "../context/DarkModeContext";
 import ScriptCard from "./ScriptCard";
 
 const FeaturedSection = () => {
+  const { isDarkMode: dark } = useDarkMode();
   const [scripts, setScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [heroIdx, setHeroIdx] = useState(0);
@@ -30,9 +32,9 @@ const FeaturedSection = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-56 bg-gray-50 rounded-xl animate-pulse" />
+        <div className={`h-56 rounded-xl animate-pulse ${dark ? "bg-[#333]" : "bg-gray-50"}`} />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-64 bg-gray-50 rounded-xl animate-pulse" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className={`h-64 rounded-xl animate-pulse ${dark ? "bg-[#333]" : "bg-gray-50"}`} />)}
         </div>
       </div>
     );
@@ -45,7 +47,7 @@ const FeaturedSection = () => {
   return (
     <section>
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Featured Projects</h2>
+        <h2 className={`text-xl font-semibold tracking-tight ${dark ? "text-gray-100" : "text-gray-800"}`}>Featured Projects</h2>
         <Link to="/reader/featured" className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors">
           View all →
         </Link>

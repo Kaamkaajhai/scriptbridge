@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AlertCircle } from "lucide-react";
+import { useDarkMode } from "../context/DarkModeContext";
 
 const GENRE_OPTIONS = [
   "Action", "Comedy", "Drama", "Horror", "Thriller",
@@ -31,6 +32,7 @@ const NUANCED_TAGS = [
 ];
 
 const EditProfileModal = ({ profile, onClose, onUpdate }) => {
+  const { isDarkMode: dark } = useDarkMode();
   const isWriter = profile.role === "creator" || profile.role === "writer";
   const wp = profile.writerProfile || {};
 
@@ -175,9 +177,10 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       : `http://localhost:5001${imagePreview}`
     : "";
 
-  const inputClass =
-    "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] focus:bg-white transition-colors";
-  const labelClass = "block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5";
+  const inputClass = dark
+    ? "w-full px-3.5 py-2.5 bg-[#242424] border border-[#444] rounded-lg text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-blue-500 focus:bg-[#101e30] transition-colors"
+    : "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] focus:bg-white transition-colors";
+  const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`;
 
   return (
     <div
@@ -189,15 +192,15 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.2 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-xl border border-gray-200/80 w-full overflow-hidden"
+        className={`rounded-xl border w-full overflow-hidden ${dark ? 'bg-[#101e30] border-[#444]' : 'bg-white border-gray-200/80'}`}
         style={{ maxWidth: "520px", maxHeight: "90vh" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">Edit Profile</h2>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${dark ? 'border-[#333]' : 'border-gray-100'}`}>
+          <h2 className={`text-base font-bold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Edit Profile</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${dark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -215,7 +218,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 onClick={() => setActiveSection(s.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${activeSection === s.key
                     ? "bg-[#0f2544] text-white"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    : dark ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
               >
                 {s.label}
@@ -278,7 +281,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       <button
                         type="button"
                         onClick={handleRemoveImage}
-                        className="px-3.5 py-1.5 bg-white text-gray-500 rounded-lg text-xs font-semibold border border-gray-200 hover:text-red-500 hover:border-red-200 transition-colors"
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${dark ? 'bg-[#242424] text-gray-400 border-[#444] hover:text-red-400 hover:border-red-500/40' : 'bg-white text-gray-500 border-gray-200 hover:text-red-500 hover:border-red-200'}`}
                       >
                         Remove
                       </button>
@@ -330,8 +333,8 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "writer" && isWriter && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">Writer Details</h3>
-                <p className="text-xs text-gray-400 mb-4">Professional information visible to industry contacts</p>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Writer Details</h3>
+                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Professional information visible to industry contacts</p>
               </div>
 
               <div>
@@ -361,7 +364,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </div>
               )}
 
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
                 <input
                   type="checkbox"
                   id="wgaMemberEdit"
@@ -369,7 +372,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   onChange={(e) => setWgaMember(e.target.checked)}
                   className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
                 />
-                <label htmlFor="wgaMemberEdit" className="text-sm font-semibold text-gray-700">
+                <label htmlFor="wgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                   I am a WGA member
                 </label>
               </div>
@@ -380,8 +383,8 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "genres" && isWriter && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">Primary Genres</h3>
-                <p className="text-xs text-gray-400 mb-3">Select all genres that apply to your work</p>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Primary Genres</h3>
+                <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Select all genres that apply to your work</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {GENRE_OPTIONS.map((genre) => (
@@ -391,7 +394,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     onClick={() => toggleGenre(genre)}
                     className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border-2 ${selectedGenres.includes(genre)
                         ? "bg-[#0f2544] text-white border-[#0f2544]"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]"
+                        : dark ? "bg-[#242424] text-gray-300 border-[#444] hover:border-blue-500" : "bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]"
                       }`}
                   >
                     {genre}
@@ -410,7 +413,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "tags" && isWriter && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">Specialized Tags</h3>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Specialized Tags</h3>
                 <p className="text-xs text-gray-400 mb-3">
                   Choose themes, tones, or settings you specialize in (max 5)
                 </p>
@@ -430,7 +433,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 )}
               </AnimatePresence>
 
-              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+              <div className={`grid grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 border rounded-lg ${dark ? 'border-[#444] bg-[#242424]' : 'border-gray-200 bg-gray-50'}`}>
                 {NUANCED_TAGS.map((tag) => (
                   <button
                     key={tag}
@@ -438,7 +441,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     onClick={() => toggleTag(tag)}
                     className={`px-3 py-2 rounded-lg text-xs font-medium transition-all border ${specializedTags.includes(tag)
                         ? "bg-[#0f2544] text-white border-[#0f2544]"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]"
+                        : dark ? "bg-[#101e30] text-gray-300 border-[#444] hover:border-blue-500" : "bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]"
                       }`}
                   >
                     {tag}
@@ -459,7 +462,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "diversity" && isWriter && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">Diversity Information</h3>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Diversity Information</h3>
                 <p className="text-xs text-gray-400 mb-4">
                   Optional — helps producers find underrepresented voices
                 </p>
@@ -490,11 +493,11 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           )}
 
           {/* Action Buttons - always visible */}
-          <div className="flex items-center gap-2.5 pt-3 border-t border-gray-100">
+          <div className={`flex items-center gap-2.5 pt-3 border-t ${dark ? 'border-[#333]' : 'border-gray-100'}`}>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 bg-white text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm font-semibold"
+              className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${dark ? 'bg-[#242424] text-gray-300 border-[#444] hover:bg-[#333]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
             >
               Cancel
             </button>

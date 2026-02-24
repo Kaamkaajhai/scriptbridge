@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useSearchParams } from "react-router-dom";
+import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 
 /* ── Filter Constants ───────────────────────────────── */
@@ -62,18 +63,145 @@ const XIcon = () => (
   </svg>
 );
 
+/* ── Theme Tokens ───────────────────────────────────── */
+const getTokens = (dark) => dark ? {
+  // Page
+  pageBg: "-m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 min-h-screen bg-[#0a1628]",
+  // Header
+  title: "text-white",
+  subtitle: "text-slate-400",
+  accentBar: "from-blue-400 to-cyan-400",
+  // Search bar
+  searchWrap: "bg-[#0f1d35]/80 backdrop-blur-sm border-[#1a3050] hover:border-[#2a4570]",
+  searchFocused: "!border-blue-500/40 shadow-lg shadow-blue-500/10 ring-1 ring-blue-500/10",
+  searchIcon: "text-slate-500",
+  searchInput: "text-white placeholder:text-slate-500",
+  searchClearBtn: "bg-[#1a3050] hover:bg-[#243d5e]",
+  searchClearIcon: "text-slate-400",
+  searchHint: "text-slate-600 border-slate-700/60",
+  // Tabs
+  tabBar: "bg-[#0f1d35]/60 backdrop-blur-sm border border-[#1a3050]/50",
+  tabActive: "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white shadow-lg shadow-[#1e3a5f]/30",
+  tabIdle: "text-slate-400 hover:text-slate-200",
+  // Filter button
+  filterBtnActive: "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white border-[#1e3a5f] shadow-lg shadow-[#1e3a5f]/20",
+  filterBtnIdle: "bg-[#0f1d35]/80 text-slate-300 border-[#1a3050] hover:border-[#2a4570] hover:bg-[#132744]",
+  // Filter tags
+  filterTag: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+  filterTagX: "hover:bg-blue-500/20",
+  clearAll: "text-slate-500 hover:text-red-400",
+  // Filter panel
+  filterPanel: "bg-[#0f1d35]/90 backdrop-blur-sm border-[#1a3050] shadow-2xl shadow-black/20",
+  filterDivider: "border-[#1a3050]/60",
+  filterClearMobile: "text-red-400 hover:text-red-300 border-red-500/20 bg-red-500/10",
+  // Pill
+  pillActive: "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white border-transparent shadow-md shadow-[#1e3a5f]/20",
+  pillIdle: "bg-[#0a1628] text-slate-400 border-[#1a3050] hover:border-[#2a4570] hover:text-slate-200 hover:bg-[#0f1d35]",
+  filterLabel: "text-slate-500",
+  // Loading
+  spinnerTrack: "border-[#1a3050]",
+  spinnerColor: "border-t-blue-400",
+  spinnerText: "text-slate-500",
+  // Empty state
+  genreHint: "text-slate-500",
+  genreBtn: "text-slate-400 bg-[#0f1d35]/80 border-[#1a3050] hover:border-blue-500/30 hover:text-blue-400 hover:bg-[#132744] hover:shadow-lg hover:shadow-blue-500/5",
+  // No results
+  noResultBg: "bg-[#0f1d35]/60",
+  noResultIcon: "text-slate-600",
+  noResultTitle: "text-slate-200",
+  noResultSub: "text-slate-500",
+  noResultBtn: "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/20",
+  // Results
+  resultCount: "text-slate-500",
+  sectionBar: "bg-gradient-to-b from-blue-400 to-cyan-400",
+  sectionTitle: "text-slate-200",
+  sectionCount: "text-slate-500",
+  // Person card
+  personCard: "bg-[#0f1d35]/70 backdrop-blur-sm border-[#1a3050]/80 hover:bg-[#132744] hover:border-[#2a4570] hover:shadow-xl hover:shadow-blue-500/5",
+  personAvatarBg: "bg-[#1a3050]",
+  personName: "text-white group-hover:text-blue-400",
+  personBio: "text-slate-500",
+  personGenreTag: "text-slate-500 bg-[#0a1628]",
+  personFollowers: "text-slate-500",
+  personChevron: "text-slate-600 group-hover:text-slate-400",
+  // Project card
+  projectCard: "bg-[#0f1d35]/70 backdrop-blur-sm border-[#1a3050]/80 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1.5 hover:border-[#2a4570]",
+  projectEmptyCover: "from-[#0a1628] via-[#0f1d35] to-[#1a3050]",
+  projectEmptyIcon: "text-slate-700",
+  projectTitle: "text-white group-hover:text-blue-400",
+  projectDesc: "text-slate-500",
+  projectStatIcon: "text-slate-600",
+  projectStatValue: "text-slate-400",
+  projectScoreStar: "text-amber-400",
+  projectScoreValue: "text-amber-400",
+} : {
+  pageBg: "",
+  title: "text-gray-900",
+  subtitle: "text-gray-400",
+  accentBar: "from-[#1e3a5f] to-[#3a7bd5]",
+  searchWrap: "bg-white border-gray-200 shadow-sm",
+  searchFocused: "!border-[#1e3a5f]/30 shadow-lg shadow-[#1e3a5f]/5",
+  searchIcon: "text-gray-400",
+  searchInput: "text-gray-900 placeholder:text-gray-400",
+  searchClearBtn: "bg-gray-100 hover:bg-gray-200",
+  searchClearIcon: "text-gray-500",
+  searchHint: "text-gray-300 border-gray-200",
+  tabBar: "bg-gray-50/80",
+  tabActive: "bg-white text-[#1e3a5f] shadow-sm",
+  tabIdle: "text-gray-400 hover:text-gray-600",
+  filterBtnActive: "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm",
+  filterBtnIdle: "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm",
+  filterTag: "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]",
+  filterTagX: "hover:bg-[#1e3a5f]/10",
+  clearAll: "text-gray-400 hover:text-red-500",
+  filterPanel: "bg-white border-gray-100 shadow-sm",
+  filterDivider: "border-gray-100",
+  filterClearMobile: "text-red-500 hover:text-red-600 border-red-200 bg-red-50",
+  pillActive: "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm shadow-[#1e3a5f]/15",
+  pillIdle: "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm",
+  filterLabel: "text-gray-400",
+  spinnerTrack: "border-gray-100",
+  spinnerColor: "border-t-[#1e3a5f]",
+  spinnerText: "text-gray-400",
+  genreHint: "text-gray-300",
+  genreBtn: "text-gray-500 bg-white border-gray-150 hover:border-[#1e3a5f]/30 hover:text-[#1e3a5f] hover:shadow-sm",
+  noResultBg: "bg-gray-50",
+  noResultIcon: "text-gray-300",
+  noResultTitle: "text-gray-600",
+  noResultSub: "text-gray-400",
+  noResultBtn: "bg-[#1e3a5f] hover:bg-[#162d4a] text-white shadow-sm",
+  resultCount: "text-gray-400",
+  sectionBar: "bg-[#1e3a5f]",
+  sectionTitle: "text-gray-900",
+  sectionCount: "text-gray-400",
+  personCard: "bg-white border-gray-100/80 hover:bg-gray-50/50 hover:border-gray-200",
+  personAvatarBg: "bg-gray-100",
+  personName: "text-gray-900 group-hover:text-[#1e3a5f]",
+  personBio: "text-gray-400",
+  personGenreTag: "text-gray-400 bg-gray-50",
+  personFollowers: "text-gray-400",
+  personChevron: "text-gray-300 group-hover:text-gray-500",
+  projectCard: "bg-white border-gray-100/80 hover:shadow-xl hover:shadow-gray-200/40 hover:-translate-y-1",
+  projectEmptyCover: "from-slate-50 via-gray-50 to-slate-100",
+  projectEmptyIcon: "text-gray-200",
+  projectTitle: "text-gray-900 group-hover:text-[#1e3a5f]",
+  projectDesc: "text-gray-400",
+  projectStatIcon: "text-gray-400",
+  projectStatValue: "text-gray-500",
+  projectScoreStar: "text-gray-400",
+  projectScoreValue: "text-gray-600",
+};
+
 /* ── Reusable Components ────────────────────────────── */
-const Pill = ({ active, onClick, children }) => {
+const Pill = ({ active, onClick, children, t }) => {
   const base = "px-3.5 py-[7px] rounded-xl text-[12px] font-semibold transition-all duration-200 whitespace-nowrap border cursor-pointer select-none";
-  const styles = active
-    ? "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm shadow-[#1e3a5f]/15"
-    : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm";
+  const styles = active ? t.pillActive : t.pillIdle;
   return <button onClick={onClick} className={`${base} ${styles}`}>{children}</button>;
 };
 
-const FilterSection = ({ label, children }) => (
+const FilterSection = ({ label, children, t }) => (
   <div className="space-y-2.5">
-    <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-0.5">{label}</h4>
+    <h4 className={`text-[11px] font-bold uppercase tracking-widest pl-0.5 ${t.filterLabel}`}>{label}</h4>
     <div className="flex flex-wrap gap-2">{children}</div>
   </div>
 );
@@ -82,6 +210,9 @@ const budgetLabel = { micro: "Micro", low: "Low", medium: "Medium", high: "High"
 
 /* ── Main Component ─────────────────────────────────── */
 const Search = () => {
+  const { isDarkMode: dark } = useDarkMode();
+  const t = getTokens(dark);
+
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [activeTab, setActiveTab] = useState(searchParams.get("type") || "all");
@@ -210,6 +341,7 @@ const Search = () => {
   const ease = [0.25, 0.46, 0.45, 0.94];
 
   return (
+    <div className={t.pageBg}>
     <div className="max-w-5xl mx-auto">
 
       {/* ── Header + Search ── */}
@@ -222,19 +354,19 @@ const Search = () => {
         <div className="flex items-end justify-between gap-4 mb-5">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#1e3a5f] to-[#3a7bd5]" />
-              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Search</h1>
+              <div className={`w-1 h-6 rounded-full bg-gradient-to-b ${t.accentBar}`} />
+              <h1 className={`text-2xl font-extrabold tracking-tight ${t.title}`}>Search</h1>
             </div>
-            <p className="text-[13px] text-gray-400 font-medium ml-[18px]">
+            <p className={`text-[13px] font-medium ml-[18px] ${t.subtitle}`}>
               Discover talent & projects across the platform
             </p>
           </div>
         </div>
 
         {/* Search bar */}
-        <div className={`relative bg-white rounded-xl border transition-all duration-300 ${focused ? "border-[#1e3a5f]/30 shadow-lg shadow-[#1e3a5f]/5" : "border-gray-200 shadow-sm"}`}>
+        <div className={`relative rounded-xl border transition-all duration-300 ${t.searchWrap} ${focused ? t.searchFocused : ""}`}>
           <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-            <svg className="w-[18px] h-[18px] text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className={`w-[18px] h-[18px] ${t.searchIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
           </div>
@@ -246,19 +378,19 @@ const Search = () => {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Search by name, genre, title, skills..."
-            className="w-full h-12 pl-12 pr-12 bg-transparent rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            className={`w-full h-12 pl-12 pr-12 bg-transparent rounded-xl text-[14px] focus:outline-none ${t.searchInput}`}
           />
           {query ? (
             <button
               onClick={() => { setQuery(""); inputRef.current?.focus(); }}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${t.searchClearBtn}`}
             >
-              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <svg className={`w-3.5 h-3.5 ${t.searchClearIcon}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           ) : (
-            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-300 border border-gray-200 rounded-md px-1.5 py-0.5 select-none pointer-events-none hidden sm:block">
+            <div className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold border rounded-md px-1.5 py-0.5 select-none pointer-events-none hidden sm:block ${t.searchHint}`}>
               ⌘K
             </div>
           )}
@@ -275,14 +407,14 @@ const Search = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <div className="flex items-center gap-3">
             {/* Category tabs */}
-            <div className="inline-flex items-center bg-gray-50/80 rounded-full p-1 gap-0.5">
+            <div className={`inline-flex items-center rounded-full p-1 gap-0.5 ${t.tabBar}`}>
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={`relative px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-250 whitespace-nowrap ${activeTab === tab.key
-                    ? "bg-white text-[#1e3a5f] shadow-sm"
-                    : "text-gray-400 hover:text-gray-600"
+                    ? t.tabActive
+                    : t.tabIdle
                     }`}
                 >
                   {tab.label}
@@ -295,8 +427,8 @@ const Search = () => {
               <button
                 onClick={() => setFiltersOpen(!filtersOpen)}
                 className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${filtersOpen || activeFilterCount > 0
-                  ? "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                  ? t.filterBtnActive
+                  : t.filterBtnIdle
                   }`}
               >
                 <FilterIcon />
@@ -315,36 +447,36 @@ const Search = () => {
           {showProjectFilters && activeFilterCount > 0 && (
             <div className="hidden sm:flex items-center gap-2 flex-wrap">
               {selectedGenre && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-[11px] font-bold">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${t.filterTag}`}>
                   {selectedGenre}
-                  <button onClick={() => setSelectedGenre("")} className="hover:bg-[#1e3a5f]/10 rounded p-0.5 transition-colors"><XIcon /></button>
+                  <button onClick={() => setSelectedGenre("")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedContentType && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-[11px] font-bold">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${t.filterTag}`}>
                   {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label || selectedContentType}
-                  <button onClick={() => setSelectedContentType("")} className="hover:bg-[#1e3a5f]/10 rounded p-0.5 transition-colors"><XIcon /></button>
+                  <button onClick={() => setSelectedContentType("")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedBudget && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-[11px] font-bold">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${t.filterTag}`}>
                   {budgetLabel[selectedBudget]} Budget
-                  <button onClick={() => setSelectedBudget("")} className="hover:bg-[#1e3a5f]/10 rounded p-0.5 transition-colors"><XIcon /></button>
+                  <button onClick={() => setSelectedBudget("")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedPremium !== "all" && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-[11px] font-bold">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${t.filterTag}`}>
                   {selectedPremium === "premium" ? "Premium" : "Free"}
-                  <button onClick={() => setSelectedPremium("all")} className="hover:bg-[#1e3a5f]/10 rounded p-0.5 transition-colors"><XIcon /></button>
+                  <button onClick={() => setSelectedPremium("all")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedSort && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-[11px] font-bold">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${t.filterTag}`}>
                   {SORT_OPTIONS.find(s => s.key === selectedSort)?.label}
-                  <button onClick={() => setSelectedSort("")} className="hover:bg-[#1e3a5f]/10 rounded p-0.5 transition-colors"><XIcon /></button>
+                  <button onClick={() => setSelectedSort("")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
                 </span>
               )}
-              <button onClick={clearAllFilters} className="text-[11px] font-semibold text-gray-400 hover:text-red-500 transition-colors px-2 py-1">
+              <button onClick={clearAllFilters} className={`text-[11px] font-semibold transition-colors px-2 py-1 ${t.clearAll}`}>
                 Clear all
               </button>
             </div>
@@ -361,50 +493,50 @@ const Search = () => {
               transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className="bg-white border border-gray-100 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 mb-4">
+              <div className={`border rounded-2xl p-5 sm:p-6 space-y-5 mb-4 ${t.filterPanel}`}>
                 {/* Sort By */}
-                <FilterSection label="Sort By">
+                <FilterSection label="Sort By" t={t}>
                   {SORT_OPTIONS.map((opt) => (
-                    <Pill key={opt.key} active={selectedSort === opt.key} onClick={() => setSelectedSort(selectedSort === opt.key ? "" : opt.key)}>
+                    <Pill key={opt.key} active={selectedSort === opt.key} onClick={() => setSelectedSort(selectedSort === opt.key ? "" : opt.key)} t={t}>
                       <span className="flex items-center gap-1.5">{opt.icon} {opt.label}</span>
                     </Pill>
                   ))}
                 </FilterSection>
 
-                <div className="border-t border-gray-100" />
+                <div className={`border-t ${t.filterDivider}`} />
 
                 {/* Genre */}
-                <FilterSection label="Genre">
-                  <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")}>All Genres</Pill>
+                <FilterSection label="Genre" t={t}>
+                  <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")} t={t}>All Genres</Pill>
                   {GENRES.map((g) => (
-                    <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)}>{g}</Pill>
+                    <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)} t={t}>{g}</Pill>
                   ))}
                 </FilterSection>
 
-                <div className="border-t border-gray-100" />
+                <div className={`border-t ${t.filterDivider}`} />
 
                 {/* Content Type */}
-                <FilterSection label="Content Type">
-                  <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")}>All Types</Pill>
+                <FilterSection label="Content Type" t={t}>
+                  <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")} t={t}>All Types</Pill>
                   {CONTENT_TYPES.map((ct) => (
-                    <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)}>{ct.label}</Pill>
+                    <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)} t={t}>{ct.label}</Pill>
                   ))}
                 </FilterSection>
 
-                <div className="border-t border-gray-100" />
+                <div className={`border-t ${t.filterDivider}`} />
 
                 {/* Budget + Premium row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FilterSection label="Budget Range">
-                    <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")}>Any</Pill>
+                  <FilterSection label="Budget Range" t={t}>
+                    <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")} t={t}>Any</Pill>
                     {BUDGETS.map((b) => (
-                      <Pill key={b.key} active={selectedBudget === b.key} onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)}>{b.label}</Pill>
+                      <Pill key={b.key} active={selectedBudget === b.key} onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)} t={t}>{b.label}</Pill>
                     ))}
                   </FilterSection>
 
-                  <FilterSection label="Pricing">
+                  <FilterSection label="Pricing" t={t}>
                     {PREMIUM_OPTIONS.map((p) => (
-                      <Pill key={p.key} active={selectedPremium === p.key} onClick={() => setSelectedPremium(p.key)}>{p.label}</Pill>
+                      <Pill key={p.key} active={selectedPremium === p.key} onClick={() => setSelectedPremium(p.key)} t={t}>{p.label}</Pill>
                     ))}
                   </FilterSection>
                 </div>
@@ -412,7 +544,7 @@ const Search = () => {
                 {/* Clear All (mobile) */}
                 {activeFilterCount > 0 && (
                   <div className="flex sm:hidden justify-end pt-2">
-                    <button onClick={clearAllFilters} className="text-[12px] font-semibold text-red-500 hover:text-red-600 transition-colors px-3 py-1.5 border border-red-200 rounded-xl bg-red-50">
+                    <button onClick={clearAllFilters} className={`text-[12px] font-semibold transition-colors px-3 py-1.5 border rounded-xl ${t.filterClearMobile}`}>
                       Clear all filters
                     </button>
                   </div>
@@ -435,8 +567,8 @@ const Search = () => {
             exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center py-28 gap-3"
           >
-            <div className="w-8 h-8 border-[2.5px] border-gray-100 border-t-[#1e3a5f] rounded-full animate-spin" />
-            <p className="text-[13px] text-gray-400 font-medium">Searching...</p>
+            <div className={`w-8 h-8 border-[2.5px] rounded-full animate-spin ${t.spinnerTrack} ${t.spinnerColor}`} />
+            <p className={`text-[13px] font-medium ${t.spinnerText}`}>Searching...</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -449,13 +581,13 @@ const Search = () => {
           transition={{ duration: 0.4, delay: 0.1, ease }}
           className="text-center py-16"
         >
-          <p className="text-[13px] text-gray-300 font-medium mb-6">Popular genres</p>
+          <p className={`text-[13px] font-medium mb-6 ${t.genreHint}`}>Popular genres</p>
           <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-lg mx-auto">
             {["Thriller", "Drama", "Comedy", "Sci-Fi", "Horror", "Romance", "Action", "Mystery"].map((g) => (
               <button
                 key={g}
                 onClick={() => setQuery(g)}
-                className="px-4 py-2 text-[13px] font-medium text-gray-500 bg-white border border-gray-150 rounded-xl hover:border-[#1e3a5f]/30 hover:text-[#1e3a5f] hover:shadow-sm transition-all duration-200"
+                className={`px-4 py-2 text-[13px] font-medium border rounded-xl transition-all duration-200 ${t.genreBtn}`}
               >
                 {g}
               </button>
@@ -471,15 +603,15 @@ const Search = () => {
           animate={{ opacity: 1 }}
           className="text-center py-24"
         >
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <div className={`w-12 h-12 mx-auto rounded-2xl flex items-center justify-center mb-4 ${t.noResultBg}`}>
+            <svg className={`w-5 h-5 ${t.noResultIcon}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
           </div>
-          <p className="text-[15px] font-semibold text-gray-600 mb-1">No results{query ? ` for "${query}"` : ""}</p>
-          <p className="text-[13px] text-gray-400 mb-4">Try different keywords or adjust your filters</p>
+          <p className={`text-[15px] font-semibold mb-1 ${t.noResultTitle}`}>No results{query ? ` for "${query}"` : ""}</p>
+          <p className={`text-[13px] mb-4 ${t.noResultSub}`}>Try different keywords or adjust your filters</p>
           {activeFilterCount > 0 && (
-            <button onClick={clearAllFilters} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-semibold hover:bg-[#162d4a] transition-colors shadow-sm">
+            <button onClick={clearAllFilters} className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${t.noResultBtn}`}>
               Clear all filters
             </button>
           )}
@@ -494,7 +626,7 @@ const Search = () => {
           transition={{ duration: 0.3 }}
         >
           {/* Result count */}
-          <p className="text-[12px] font-medium text-gray-400 mb-6">
+          <p className={`text-[12px] font-medium mb-6 ${t.resultCount}`}>
             {totalResults} result{totalResults !== 1 ? "s" : ""}
           </p>
 
@@ -503,9 +635,9 @@ const Search = () => {
             <section className="mb-10">
               {activeTab === "all" && (
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-4 rounded-full bg-[#1e3a5f]" />
-                  <h2 className="text-[13px] font-bold text-gray-900 uppercase tracking-wider">People</h2>
-                  <span className="text-[11px] font-medium text-gray-400 ml-1">{results.users.length}</span>
+                  <div className={`w-1 h-4 rounded-full ${t.sectionBar}`} />
+                  <h2 className={`text-[13px] font-bold uppercase tracking-wider ${t.sectionTitle}`}>People</h2>
+                  <span className={`text-[11px] font-medium ml-1 ${t.sectionCount}`}>{results.users.length}</span>
                 </div>
               )}
 
@@ -523,14 +655,14 @@ const Search = () => {
                     >
                       <Link
                         to={`/profile/${user._id}`}
-                        className="flex items-center gap-4 bg-white rounded-xl border border-gray-100/80 px-4 py-3.5 hover:bg-gray-50/50 hover:border-gray-200 transition-all duration-200 group"
+                        className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 transition-all duration-200 group ${t.personCard}`}
                       >
                         {/* Avatar */}
-                        <div className="w-11 h-11 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        <div className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${t.personAvatarBg}`}>
                           {img ? (
                             <img src={img} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-[14px] font-bold" style={{ color }}>
+                            <span className="text-[14px] font-bold" style={{ color: dark ? "#93c5fd" : color }}>
                               {user.name?.charAt(0)?.toUpperCase()}
                             </span>
                           )}
@@ -539,21 +671,21 @@ const Search = () => {
                         {/* Details */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2.5">
-                            <h3 className="text-[14px] font-semibold text-gray-900 truncate group-hover:text-[#1e3a5f] transition-colors">
+                            <h3 className={`text-[14px] font-semibold truncate transition-colors ${t.personName}`}>
                               {user.name}
                             </h3>
                             <span
                               className="text-[10px] font-bold uppercase tracking-wide px-2 py-[2px] rounded-full"
-                              style={{ color, backgroundColor: color + "10" }}
+                              style={{ color: dark ? "#93c5fd" : color, backgroundColor: dark ? "rgba(59,130,246,0.12)" : color + "10" }}
                             >
                               {user.role}
                             </span>
                             {user.writerProfile?.wgaMember && (
-                              <span className="text-[9px] font-bold text-[#1e3a5f] bg-[#1e3a5f]/8 px-1.5 py-0.5 rounded-full tracking-wide">WGA</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#1e3a5f] bg-[#1e3a5f]/8"}`}>WGA</span>
                             )}
                           </div>
                           {user.bio && (
-                            <p className="text-[12px] text-gray-400 line-clamp-1 mt-0.5">{user.bio}</p>
+                            <p className={`text-[12px] line-clamp-1 mt-0.5 ${t.personBio}`}>{user.bio}</p>
                           )}
                         </div>
 
@@ -562,14 +694,14 @@ const Search = () => {
                           {user.writerProfile?.genres?.length > 0 && (
                             <div className="hidden sm:flex items-center gap-1">
                               {user.writerProfile.genres.slice(0, 2).map((g) => (
-                                <span key={g} className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">{g}</span>
+                                <span key={g} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${t.personGenreTag}`}>{g}</span>
                               ))}
                             </div>
                           )}
-                          <span className="text-[11px] text-gray-400 font-medium tabular-nums whitespace-nowrap">
+                          <span className={`text-[11px] font-medium tabular-nums whitespace-nowrap ${t.personFollowers}`}>
                             {user.followerCount || 0} <span className="hidden sm:inline">follower{(user.followerCount || 0) !== 1 ? "s" : ""}</span>
                           </span>
-                          <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <svg className={`w-4 h-4 transition-colors ${t.personChevron}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                           </svg>
                         </div>
@@ -586,9 +718,9 @@ const Search = () => {
             <section>
               {activeTab === "all" && (
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-4 rounded-full bg-[#1e3a5f]" />
-                  <h2 className="text-[13px] font-bold text-gray-900 uppercase tracking-wider">Projects</h2>
-                  <span className="text-[11px] font-medium text-gray-400 ml-1">{results.scripts.length}</span>
+                  <div className={`w-1 h-4 rounded-full ${t.sectionBar}`} />
+                  <h2 className={`text-[13px] font-bold uppercase tracking-wider ${t.sectionTitle}`}>Projects</h2>
+                  <span className={`text-[11px] font-medium ml-1 ${t.sectionCount}`}>{results.scripts.length}</span>
                 </div>
               )}
 
@@ -605,15 +737,15 @@ const Search = () => {
                     >
                       <Link
                         to={`/script/${script._id}`}
-                        className="block bg-white rounded-2xl border border-gray-100/80 overflow-hidden hover:shadow-xl hover:shadow-gray-200/40 hover:-translate-y-1 transition-all duration-300 group"
+                        className={`block rounded-2xl border overflow-hidden transition-all duration-300 group ${t.projectCard}`}
                       >
                         {/* Cover */}
                         <div className="relative h-40 overflow-hidden">
                           {cover ? (
                             <img src={cover} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                           ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center">
-                              <svg className="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
+                            <div className={`w-full h-full bg-gradient-to-br flex items-center justify-center ${t.projectEmptyCover}`}>
+                              <svg className={`w-8 h-8 ${t.projectEmptyIcon}`} fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                               </svg>
                             </div>
@@ -628,7 +760,7 @@ const Search = () => {
                               </span>
                             )}
                             {script.premium && (
-                              <span className="text-[10px] font-bold text-white bg-[#1e3a5f] px-2.5 py-1 rounded-lg shadow-sm">
+                              <span className={`text-[10px] font-bold text-white px-2.5 py-1 rounded-lg shadow-sm ${dark ? "bg-blue-500" : "bg-[#1e3a5f]"}`}>
                                 ${script.price}
                               </span>
                             )}
@@ -652,34 +784,34 @@ const Search = () => {
 
                         {/* Body */}
                         <div className="p-4">
-                          <h3 className="text-[14px] font-bold text-gray-900 leading-snug line-clamp-1 group-hover:text-[#1e3a5f] transition-colors mb-1.5">
+                          <h3 className={`text-[14px] font-bold leading-snug line-clamp-1 transition-colors mb-1.5 ${t.projectTitle}`}>
                             {script.title}
                           </h3>
                           {script.description && (
-                            <p className="text-[12px] text-gray-400 leading-relaxed line-clamp-2 mb-3">{script.description}</p>
+                            <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${t.projectDesc}`}>{script.description}</p>
                           )}
 
                           {/* Stats */}
-                          <div className="flex items-center gap-4 text-gray-400">
+                          <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <svg className={`w-3.5 h-3.5 ${t.projectStatIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               </svg>
-                              <span className="text-[11px] font-semibold text-gray-500 tabular-nums">{(script.viewCount || script.views || 0).toLocaleString()}</span>
+                              <span className={`text-[11px] font-semibold tabular-nums ${t.projectStatValue}`}>{(script.viewCount || script.views || 0).toLocaleString()}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <svg className={`w-3.5 h-3.5 ${t.projectStatIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                               </svg>
-                              <span className="text-[11px] font-semibold text-gray-500 tabular-nums">{script.unlockCount || 0}</span>
+                              <span className={`text-[11px] font-semibold tabular-nums ${t.projectStatValue}`}>{script.unlockCount || 0}</span>
                             </div>
                             {script.scriptScore?.overall > 0 && (
                               <div className="flex items-center gap-1 ml-auto">
-                                <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                <svg className={`w-3.5 h-3.5 ${t.projectScoreStar}`} fill="currentColor" viewBox="0 0 24 24">
                                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                                 </svg>
-                                <span className="text-[11px] font-bold text-gray-600 tabular-nums">{script.scriptScore.overall}</span>
+                                <span className={`text-[11px] font-bold tabular-nums ${t.projectScoreValue}`}>{script.scriptScore.overall}</span>
                               </div>
                             )}
                           </div>
@@ -693,6 +825,7 @@ const Search = () => {
           )}
         </motion.div>
       )}
+    </div>
     </div>
   );
 };

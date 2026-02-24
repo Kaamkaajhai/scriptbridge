@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { FileText, CheckCircle, Save, RefreshCw } from "lucide-react";
+import { useDarkMode } from "../context/DarkModeContext";
 
 const Mandates = () => {
   const navigate = useNavigate();
+  const { isDarkMode: dark } = useDarkMode();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -122,24 +124,24 @@ const Mandates = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e8eff5] flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${dark ? '' : 'bg-gradient-to-br from-[#f0f4f8] to-[#e8eff5]'}`}>
         <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#0f2544] mx-auto mb-3" />
-          <p className="text-gray-600">Loading your mandates...</p>
+          <RefreshCw className={`w-8 h-8 animate-spin mx-auto mb-3 ${dark ? 'text-blue-400' : 'text-[#0f2544]'}`} />
+          <p className={dark ? 'text-gray-400' : 'text-gray-600'}>Loading your mandates...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e8eff5] py-8 px-4">
+    <div className={`min-h-screen py-8 px-4 ${dark ? '' : 'bg-gradient-to-br from-[#f0f4f8] to-[#e8eff5]'}`}>
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+        <div className={`rounded-2xl shadow-lg p-8 ${dark ? 'bg-[#101e30]' : 'bg-white'}`}>
           <div className="flex items-center gap-3 mb-6">
             <FileText className="w-8 h-8 text-[#0f2544]" />
             <div>
-              <h1 className="text-3xl font-extrabold text-[#0a1628] tracking-tight">My Mandates</h1>
-              <p className="text-gray-600 text-sm mt-1">Define your project search criteria and automatically receive matching scripts</p>
+              <h1 className={`text-3xl font-extrabold tracking-tight ${dark ? 'text-gray-100' : 'text-[#0a1628]'}`}>My Mandates</h1>
+              <p className={`text-sm mt-1 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>Define your project search criteria and automatically receive matching scripts</p>
             </div>
           </div>
 
@@ -153,7 +155,7 @@ const Mandates = () => {
           <form onSubmit={handleSave} className="space-y-8">
             {/* Formats */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
+              <label className={`block text-sm font-bold mb-3 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Formats (Select all that apply)
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -165,7 +167,7 @@ const Mandates = () => {
                     className={`px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                       mandates.formats.includes(format)
                         ? "bg-[#0f2544] text-white shadow-md"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {format}
@@ -176,7 +178,7 @@ const Mandates = () => {
 
             {/* Budget Tiers */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
+              <label className={`block text-sm font-bold mb-3 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Budget Preference
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -188,7 +190,7 @@ const Mandates = () => {
                     className={`px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                       mandates.budgetTiers.includes(tier.value)
                         ? "bg-[#0f2544] text-white shadow-md"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {tier.label}
@@ -199,7 +201,7 @@ const Mandates = () => {
 
             {/* Include Genres */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
+              <label className={`block text-sm font-bold mb-3 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Genres I'm Looking For
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -211,7 +213,7 @@ const Mandates = () => {
                     className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                       mandates.genres.includes(genre)
                         ? "bg-[#1e3a5f] text-white shadow-md"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {genre}
@@ -222,7 +224,7 @@ const Mandates = () => {
 
             {/* Exclude Genres */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
+              <label className={`block text-sm font-bold mb-3 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Genres to Exclude
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -234,7 +236,7 @@ const Mandates = () => {
                     className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                       mandates.excludeGenres.includes(genre)
                         ? "bg-red-600 text-white shadow-md"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {genre}
@@ -245,7 +247,7 @@ const Mandates = () => {
 
             {/* Specific Hooks */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
+              <label className={`block text-sm font-bold mb-3 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Specific Hooks & Preferences
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -257,7 +259,7 @@ const Mandates = () => {
                     className={`px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                       mandates.specificHooks.includes(hook)
                         ? "bg-[#0f2544] text-white shadow-md"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {hook}
@@ -267,7 +269,7 @@ const Mandates = () => {
             </div>
 
             {/* Save Button */}
-            <div className="pt-6 border-t border-gray-200">
+            <div className={`pt-6 border-t ${dark ? 'border-[#182840]' : 'border-gray-200'}`}>
               <button
                 type="submit"
                 disabled={saving}
@@ -289,8 +291,8 @@ const Mandates = () => {
           </form>
         </div>
 
-        <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-700">
+        <div className={`mt-6 border rounded-lg p-4 ${dark ? 'bg-white/[0.03] border-[#182840]' : 'bg-gray-50 border-gray-200'}`}>
+          <p className={`text-sm ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
             <strong>💡 How it works:</strong> Based on these mandates, our AI will automatically recommend scripts that match your criteria. 
             You'll receive notifications when new matching scripts are uploaded.
           </p>

@@ -128,7 +128,12 @@ export const getUserProfile = async (req, res) => {
       .populate("user", "name profileImage role")
       .sort({ createdAt: -1 });
 
-    const scripts = await Script.find({ creator: req.params.id })
+    const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
+    const scriptQuery = isOwnProfile
+      ? { creator: req.params.id }
+      : { creator: req.params.id, status: { $ne: "draft" } };
+
+    const scripts = await Script.find(scriptQuery)
       .populate("creator", "name profileImage role")
       .sort({ createdAt: -1 });
 

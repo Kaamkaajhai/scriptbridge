@@ -62,6 +62,103 @@ export const saveDraft = async (req, res) => {
   }
 };
 
+export const deleteScript = async (req, res) => {
+  try {
+    const script = await Script.findById(req.params.id);
+    if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    await Script.findByIdAndDelete(req.params.id);
+    res.json({ message: "Script deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMyDrafts = async (req, res) => {
+  try {
+    const drafts = await Script.find({ creator: req.user._id, status: "draft" })
+      .sort({ updatedAt: -1 })
+      .lean();
+    res.json(drafts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateScript = async (req, res) => {
+  try {
+    const script = await Script.findById(req.params.id);
+    if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to edit this script" });
+    }
+
+    const {
+      title, logline, format, pageCount, classification,
+      scriptUrl, description, synopsis, textContent, fileUrl,
+      coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
+    } = req.body;
+
+    if (title) script.title = title;
+    if (logline !== undefined) script.logline = logline;
+    if (format) script.format = format;
+    if (pageCount) script.pageCount = Number(pageCount);
+    if (textContent !== undefined) script.textContent = textContent;
+    if (description !== undefined) script.description = description;
+    if (synopsis !== undefined) script.synopsis = synopsis;
+    const realUrl = scriptUrl || fileUrl;
+    if (realUrl && !realUrl.includes("placeholder-url.com")) script.fileUrl = realUrl;
+    if (coverImage) script.coverImage = coverImage;
+    if (premium !== undefined) script.premium = premium;
+    if (price !== undefined) script.price = Number(price);
+    if (roles) script.roles = roles;
+    if (tags) script.tags = tags;
+    if (budget) script.budget = budget;
+    if (holdFee) script.holdFee = holdFee;
+
+    if (classification) {
+      const g = classification.primaryGenre || script.classification?.primaryGenre;
+      script.genre = genre || g;
+      script.primaryGenre = g;
+      script.classification = {
+        primaryGenre: classification.primaryGenre ?? script.classification?.primaryGenre,
+        secondaryGenre: classification.secondaryGenre ?? script.classification?.secondaryGenre,
+        tones: classification.tones ?? script.classification?.tones ?? [],
+        themes: classification.themes ?? script.classification?.themes ?? [],
+        settings: classification.settings ?? script.classification?.settings ?? [],
+      };
+      script.markModified("classification");
+    } else if (genre) {
+      script.genre = genre;
+    }
+
+    if (services) {
+      script.services = {
+        hosting: services.hosting ?? script.services?.hosting ?? true,
+        evaluation: services.evaluation ?? script.services?.evaluation ?? false,
+        aiTrailer: services.aiTrailer ?? script.services?.aiTrailer ?? false,
+      };
+      script.markModified("services");
+    }
+
+    if (legal?.agreedToTerms !== undefined) {
+      script.legal = {
+        agreedToTerms: legal.agreedToTerms,
+        timestamp: script.legal?.timestamp || new Date(),
+        ipAddress: req.ip || req.connection.remoteAddress,
+      };
+    }
+
+    script.status = "published";
+    await script.save();
+    res.json(script);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const uploadScript = async (req, res) => {
   try {
     const {
@@ -202,7 +299,7 @@ export const uploadScript = async (req, res) => {
 export const getScripts = async (req, res) => {
   try {
     const { genre, contentType, budget, sort, search, premium, minPrice, maxPrice } = req.query;
-    const query = {};
+    const query = { status: "published" };
     if (genre) query.genre = genre;
     if (contentType) query.contentType = contentType;
     if (budget) query.budget = budget;
@@ -321,8 +418,15 @@ export const getScriptById = async (req, res) => {
 
     if (!script) return res.status(404).json({ message: "Script not found" });
 
-    // Track view
-    script.views += 1;
+    const isOwner = script.creator._id.toString() === req.user._id.toString();
+    if (script.status === "draft" && !isOwner) {
+      return res.status(403).json({ message: "This draft is private" });
+    }
+
+    // Track view — only count views from users who are NOT the script creator
+    if (!isOwner) {
+      script.views += 1;
+    }
     const alreadyViewed = script.viewedBy.some(v => v.user.toString() === req.user._id.toString());
     if (!alreadyViewed) {
       script.viewedBy.push({ user: req.user._id });
@@ -538,7 +642,10 @@ export const addRoles = async (req, res) => {
 
 export const getFeaturedScripts = async (req, res) => {
   try {
-    const scripts = await Script.find({ $or: [{ isFeatured: true }, { rating: { $gte: 4 } }] })
+    const scripts = await Script.find({
+      status: "published",
+      $or: [{ isFeatured: true }, { rating: { $gte: 4 } }],
+    })
       .populate("creator", "name profileImage role")
       .sort({ rating: -1 })
       .limit(12);
@@ -554,7 +661,7 @@ export const getTopScripts = async (req, res) => {
     let sortObj = { rating: -1 };
     if (sortBy === "reads") sortObj = { readsCount: -1 };
     if (sortBy === "purchases") sortObj = { "unlockedBy": -1 };
-    const scripts = await Script.find()
+    const scripts = await Script.find({ status: "published" })
       .populate("creator", "name profileImage role")
       .sort(sortObj)
       .limit(20);
@@ -567,7 +674,7 @@ export const getTopScripts = async (req, res) => {
 export const searchScriptsReader = async (req, res) => {
   try {
     const { q, category, genre, page = 1, limit = 20 } = req.query;
-    const query = {};
+    const query = { status: "published" };
     if (q) {
       const regex = new RegExp(q, "i");
       query.$or = [{ title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
@@ -588,7 +695,7 @@ export const searchScriptsReader = async (req, res) => {
 
 export const getLatestScripts = async (req, res) => {
   try {
-    const scripts = await Script.find()
+    const scripts = await Script.find({ status: "published" })
       .populate("creator", "name profileImage role")
       .sort({ createdAt: -1 })
       .limit(18);
@@ -631,8 +738,8 @@ export const toggleFavorite = async (req, res) => {
 
 export const getCategories = async (req, res) => {
   try {
-    const contentTypes = await Script.distinct("contentType");
-    const genres = await Script.distinct("genre");
+    const contentTypes = await Script.distinct("contentType", { status: "published" });
+    const genres = await Script.distinct("genre", { status: "published" });
     res.json({ contentTypes: contentTypes.filter(Boolean), genres: genres.filter(Boolean) });
   } catch (error) {
     res.status(500).json({ message: error.message });

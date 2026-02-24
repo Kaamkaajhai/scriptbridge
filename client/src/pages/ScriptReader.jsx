@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { useDarkMode } from "../context/DarkModeContext";
 import ReviewCard from "../components/ReviewCard";
 import ReviewForm from "../components/ReviewForm";
 import { Film } from "lucide-react";
@@ -10,6 +11,7 @@ import { Film } from "lucide-react";
 const ScriptReader = () => {
   const { id } = useParams();
   const { user } = useContext(AuthContext);
+  const { isDarkMode: dark } = useDarkMode();
   const [script, setScript] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +125,7 @@ const ScriptReader = () => {
       </Link>
 
       {/* Hero — Clean two-column */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border shadow-sm overflow-hidden mb-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
         <div className="flex flex-col md:flex-row">
           {/* Cover */}
           <div className="md:w-72 shrink-0">
@@ -144,13 +146,13 @@ const ScriptReader = () => {
           <div className="flex-1 p-6 md:p-8">
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {script.genre && <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-[11px] font-bold text-gray-500 uppercase tracking-wide">{script.genre}</span>}
-              {script.contentType && <span className="px-2.5 py-1 bg-gray-100 rounded-lg text-[11px] font-bold text-gray-500 uppercase tracking-wide">{script.contentType.replace(/_/g, " ")}</span>}
-              {script.premium && <span className="px-2.5 py-1 bg-amber-50 border border-amber-200/60 rounded-lg text-[11px] font-bold text-amber-600 uppercase tracking-wide">Premium</span>}
+              {script.genre && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-gray-500"}`}>{script.genre}</span>}
+              {script.contentType && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-gray-500"}`}>{script.contentType.replace(/_/g, " ")}</span>}
+              {script.premium && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-amber-500/20 border border-amber-500/30 text-amber-300" : "bg-amber-50 border border-amber-200/60 text-amber-600"}`}>Premium</span>}
             </div>
 
             {/* Title */}
-            <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">{script.title}</h1>
+            <h1 className={`text-2xl md:text-3xl font-extrabold mb-2 tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>{script.title}</h1>
 
             {/* Description / Logline */}
             {(script.logline || script.description) && (
@@ -162,13 +164,13 @@ const ScriptReader = () => {
               {script.creator?.profileImage ? (
                 <img src={resolveImage(script.creator.profileImage)} alt=""
                   onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentElement.querySelector('.avatar-fallback').style.display = 'flex'; }}
-                  className="w-9 h-9 rounded-full object-cover ring-2 ring-gray-100" />
+                  className={`w-9 h-9 rounded-full object-cover ring-2 ${dark ? "ring-[#333]" : "ring-gray-100"}`} />
               ) : null}
               <div className={`avatar-fallback w-9 h-9 rounded-full bg-[#1e3a5f]/10 items-center justify-center text-xs font-bold text-[#1e3a5f] ${script.creator?.profileImage ? 'hidden' : 'flex'}`}>
                 {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
               <div>
-                <p className="text-sm font-bold text-gray-900 group-hover:text-[#1e3a5f] transition-colors">{script.creator?.name || "Unknown"}</p>
+                <p className={`text-sm font-bold group-hover:text-[#1e3a5f] transition-colors ${dark ? "text-gray-200" : "text-gray-900"}`}>{script.creator?.name || "Unknown"}</p>
                 <p className="text-[11px] text-gray-400 font-medium capitalize">{script.creator?.role || "Writer"}</p>
               </div>
             </Link>
@@ -185,7 +187,7 @@ const ScriptReader = () => {
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-3">
-              <button onClick={handleToggleFavorite} className={`px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all border ${isFavorited ? "bg-red-50 text-red-500 border-red-200 hover:bg-red-100" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"}`}>
+              <button onClick={handleToggleFavorite} className={`px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all border ${isFavorited ? (dark ? "bg-red-500/15 text-red-400 border-red-500/30" : "bg-red-50 text-red-500 border-red-200 hover:bg-red-100") : (dark ? "bg-white/[0.04] text-gray-300 border-[#444] hover:border-[#555]" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100")}`}>
                 <svg className={`w-4 h-4 ${isFavorited ? "fill-red-400" : ""}`} fill={isFavorited ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                 {isFavorited ? "Favorited" : "Favorite"}
               </button>
@@ -201,13 +203,13 @@ const ScriptReader = () => {
       </motion.div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100/60 rounded-xl p-1 max-w-sm mb-6">
+      <div className={`flex gap-1 rounded-xl p-1 max-w-sm mb-6 ${dark ? "bg-white/[0.04]" : "bg-gray-100/60"}`}>
         {[
           { key: "synopsis", label: "Synopsis" },
           { key: "reviews", label: `Reviews (${script.reviewCount || 0})` },
           { key: "details", label: "Details" },
         ].map((tab) => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`flex-1 py-2.5 px-4 rounded-lg text-[13px] font-semibold transition-all ${activeTab === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}>
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`flex-1 py-2.5 px-4 rounded-lg text-[13px] font-semibold transition-all ${activeTab === tab.key ? (dark ? "bg-[#101e30] text-gray-100 shadow-sm" : "bg-white text-gray-900 shadow-sm") : (dark ? "text-gray-400 hover:text-gray-200" : "text-gray-400 hover:text-gray-600")}`}>
             {tab.label}
           </button>
         ))}
@@ -217,19 +219,19 @@ const ScriptReader = () => {
       <AnimatePresence mode="wait">
         {activeTab === "synopsis" && (
           <motion.div key="synopsis" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8">
-              <h3 className="text-lg font-extrabold text-gray-900 mb-4">Synopsis</h3>
+            <div className={`rounded-2xl border shadow-sm p-6 md:p-8 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+              <h3 className={`text-lg font-extrabold mb-4 ${dark ? "text-gray-100" : "text-gray-900"}`}>Synopsis</h3>
               {script.synopsis ? (
-                <p className="text-gray-600 leading-relaxed font-medium whitespace-pre-line">{script.synopsis}</p>
+                <p className={`leading-relaxed font-medium whitespace-pre-line ${dark ? "text-gray-300" : "text-gray-600"}`}>{script.synopsis}</p>
               ) : (
                 <p className="text-gray-400 italic">No synopsis available for this script.</p>
               )}
             </div>
 
             {/* Locked content notice */}
-            <div className="mt-6 bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center">
-              <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-              <p className="text-sm font-bold text-gray-700 mb-1">Full Script Content</p>
+            <div className={`mt-6 rounded-2xl p-6 text-center border ${dark ? "bg-[#242424] border-[#333]" : "bg-gray-50 border-gray-100"}`}>
+              <svg className={`w-10 h-10 mx-auto mb-3 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+              <p className={`text-sm font-bold mb-1 ${dark ? "text-gray-200" : "text-gray-700"}`}>Full Script Content</p>
               {isPro ? (
                 <p className="text-xs text-gray-400">Unlock this premium script to access the full content.</p>
               ) : (
@@ -245,7 +247,7 @@ const ScriptReader = () => {
               {/* Left Column: Write Review + Rating Summary */}
               <div className="lg:col-span-1 space-y-5">
                 {/* Rating Overview Card */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
                   <div className="flex items-center gap-5 mb-5">
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] flex flex-col items-center justify-center shrink-0">
                       <span className="text-2xl font-black text-white leading-none">{(script.rating || 0).toFixed(1)}</span>
@@ -276,8 +278,8 @@ const ScriptReader = () => {
                 {!myReview || editingReview ? (
                   <ReviewForm onSubmit={handleSubmitReview} loading={submitLoading} isEditing={!!editingReview} initialRating={editingReview?.rating || 0} initialComment={editingReview?.comment || ""} />
                 ) : (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+                  <div className={`bg-white rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "border-gray-100"}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-emerald-500/15" : "bg-emerald-50"}`}>
                       <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <p className="text-sm font-bold text-gray-800 mb-0.5">Review submitted</p>
@@ -289,24 +291,24 @@ const ScriptReader = () => {
               {/* Right Column: Review list */}
               <div className="lg:col-span-2 space-y-3">
                 {reviewsLoading ? (
-                  [...Array(3)].map((_, i) => <div key={i} className="h-28 bg-gray-50 rounded-2xl animate-pulse" />)
+                  [...Array(3)].map((_, i) => <div key={i} className={`h-28 rounded-2xl animate-pulse ${dark ? "bg-[#333]" : "bg-gray-50"}`} />)
                 ) : reviews.length > 0 ? (
                   <>
                     {reviews.map((r) => <ReviewCard key={r._id} review={r} currentUserId={user?._id} onEdit={handleEditReview} onDelete={handleDeleteReview} />)}
                     {totalReviewPages > 1 && (
                       <div className="flex justify-center gap-2 pt-4">
                         {[...Array(totalReviewPages)].map((_, i) => (
-                          <button key={i} onClick={() => fetchReviews(i + 1)} className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${reviewPage === i + 1 ? "bg-[#1e3a5f] text-white shadow-sm" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}>{i + 1}</button>
+                          <button key={i} onClick={() => fetchReviews(i + 1)} className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${reviewPage === i + 1 ? "bg-[#1e3a5f] text-white shadow-sm" : (dark ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08]" : "bg-gray-50 text-gray-400 hover:bg-gray-100")}`}>{i + 1}</button>
                         ))}
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                  <div className={`rounded-2xl border shadow-sm p-10 text-center ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
+                      <svg className={`w-6 h-6 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                     </div>
-                    <p className="text-gray-700 font-bold text-sm mb-1">No reviews yet</p>
+                    <p className={`font-bold text-sm mb-1 ${dark ? "text-gray-200" : "text-gray-700"}`}>No reviews yet</p>
                     <p className="text-gray-400 text-xs font-medium">Be the first to share your thoughts on this script!</p>
                   </div>
                 )}
@@ -317,12 +319,12 @@ const ScriptReader = () => {
 
         {activeTab === "details" && (
           <motion.div key="details" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h3 className="text-base font-extrabold text-gray-900 mb-3">Description</h3>
-              <p className="text-gray-600 text-sm leading-relaxed font-medium">{script.description || "No description provided."}</p>
+            <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+              <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Description</h3>
+              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{script.description || "No description provided."}</p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h3 className="text-base font-extrabold text-gray-900 mb-3">Script Info</h3>
+            <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+              <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Script Info</h3>
               <div className="space-y-2.5">
                 {[
                   { label: "Genre", value: script.genre },
@@ -332,30 +334,30 @@ const ScriptReader = () => {
                   { label: "Budget", value: script.budget },
                   { label: "Uploaded", value: script.createdAt ? new Date(script.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : null },
                 ].filter((i) => i.value).map((i) => (
-                  <div key={i.label} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+                  <div key={i.label} className={`flex justify-between items-center py-2 border-b last:border-0 ${dark ? "border-[#333]" : "border-gray-50"}`}>
                     <span className="text-xs text-gray-400 font-bold">{i.label}</span>
-                    <span className="text-xs text-gray-700 font-bold capitalize">{i.value}</span>
+                    <span className={`text-xs font-bold capitalize ${dark ? "text-gray-200" : "text-gray-700"}`}>{i.value}</span>
                   </div>
                 ))}
               </div>
             </div>
             {script.tags?.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <h3 className="text-base font-extrabold text-gray-900 mb-3">Tags</h3>
+              <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+                <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Tags</h3>
                 <div className="flex flex-wrap gap-2">
                   {script.tags.map((tag) => (
-                    <span key={tag} className="px-3 py-1.5 bg-gray-50 rounded-lg text-xs font-bold text-gray-500">#{tag}</span>
+                    <span key={tag} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-50 text-gray-500"}`}>#{tag}</span>
                   ))}
                 </div>
               </div>
             )}
             {script.roles?.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <h3 className="text-base font-extrabold text-gray-900 mb-3">Roles</h3>
+              <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+                <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Roles</h3>
                 <div className="space-y-3">
                   {script.roles.map((role) => (
-                    <div key={role._id} className="p-3 bg-gray-50 rounded-xl">
-                      <p className="font-bold text-gray-900 text-sm">{role.characterName}</p>
+                    <div key={role._id} className={`p-3 rounded-xl ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
+                      <p className={`font-bold text-sm ${dark ? "text-gray-100" : "text-gray-900"}`}>{role.characterName}</p>
                       {role.type && <p className="text-xs text-gray-500 font-medium mt-0.5">{role.type}</p>}
                       {role.description && <p className="text-xs text-gray-400 mt-1">{role.description}</p>}
                     </div>

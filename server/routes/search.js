@@ -57,7 +57,7 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Search scripts/projects
     if (type === "all" || type === "projects") {
-      const scriptQuery = {};
+      const scriptQuery = { status: "published" };
       if (q && q.trim()) {
         scriptQuery.$or = [
           { title: searchRegex },

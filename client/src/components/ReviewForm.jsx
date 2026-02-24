@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDarkMode } from "../context/DarkModeContext";
 
 const labels = ["Poor", "Fair", "Good", "Great", "Excellent"];
 const labelColors = [
@@ -10,6 +11,7 @@ const labelColors = [
 ];
 
 const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRating = 0, initialComment = "" }) => {
+  const { isDarkMode: dark } = useDarkMode();
   const [rating, setRating] = useState(initialRating);
   const [hover, setHover] = useState(0);
   const [comment, setComment] = useState(initialComment);
@@ -26,10 +28,10 @@ const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRatin
   const charPercent = Math.min((charCount / 2000) * 100, 100);
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <form onSubmit={handleSubmit} className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
       {/* Form Header */}
-      <div className="px-6 pt-5 pb-4 border-b border-gray-50">
-        <h3 className="text-base font-extrabold text-gray-900">
+      <div className={`px-6 pt-5 pb-4 border-b ${dark ? "border-[#333]" : "border-gray-50"}`}>
+        <h3 className={`text-base font-extrabold ${dark ? "text-gray-100" : "text-gray-900"}`}>
           {isEditing ? "Edit Your Review" : "Write a Review"}
         </h3>
         <p className="text-xs text-gray-400 font-medium mt-0.5">Share your thoughts about this script</p>
@@ -54,7 +56,9 @@ const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRatin
                 <svg
                   className={`w-7 h-7 transition-all duration-150 ${s <= activeRating
                       ? "text-amber-400 fill-amber-400 drop-shadow-sm"
-                      : "text-gray-200 fill-gray-200 group-hover:text-amber-200 group-hover:fill-amber-200"
+                      : dark
+                        ? "text-gray-600 fill-gray-600 group-hover:text-amber-300 group-hover:fill-amber-300"
+                        : "text-gray-200 fill-gray-200 group-hover:text-amber-200 group-hover:fill-amber-200"
                     }`}
                   viewBox="0 0 20 20"
                 >
@@ -81,11 +85,11 @@ const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRatin
             placeholder="What did you think about this script? Share your honest thoughts..."
             rows={4}
             maxLength={2000}
-            className="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 outline-none focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/10 resize-none transition-all font-medium leading-relaxed"
+            className={`w-full px-4 py-3 border rounded-xl text-sm placeholder-gray-300 outline-none focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/10 resize-none transition-all font-medium leading-relaxed ${dark ? "bg-white/[0.04] border-[#444] text-gray-200" : "bg-gray-50/80 border-gray-200 text-gray-700"}`}
           />
           {/* Character counter bar */}
           <div className="flex items-center justify-between mt-1.5">
-            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden mr-3 max-w-[120px]">
+            <div className={`flex-1 h-1 rounded-full overflow-hidden mr-3 max-w-[120px] ${dark ? "bg-[#444]" : "bg-gray-100"}`}>
               <div
                 className={`h-full rounded-full transition-all duration-300 ${charPercent > 90 ? "bg-red-400" : charPercent > 70 ? "bg-amber-400" : "bg-[#1e3a5f]/30"
                   }`}
@@ -104,7 +108,7 @@ const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRatin
         <button
           type="submit"
           disabled={loading || rating < 1 || !comment.trim()}
-          className="w-full py-3 bg-[#1e3a5f] text-white rounded-xl font-bold text-sm hover:bg-[#162d4a] disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md active:scale-[0.99]"
+          className="w-full py-3 bg-[#1e3a5f] text-white rounded-xl font-bold text-sm hover:bg-[#162d4a] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 active:scale-[0.99]"
         >
           {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {isEditing ? "Update Review" : "Submit Review"}
