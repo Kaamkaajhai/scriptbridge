@@ -431,7 +431,8 @@ const WriterOnboarding = () => {
                 id="wgaMember"
                 checked={writerProfile.wgaMember}
                 onChange={(e) => setWriterProfile({...writerProfile, wgaMember: e.target.checked})}
-                className="w-5 h-5 text-[#0f2544] border-gray-300 rounded focus:ring-[#0f2544]"
+                className="w-5 h-5 border-gray-300 rounded focus:ring-[#0f2544]"
+                style={{ accentColor: '#0f2544' }}
               />
               <label htmlFor="wgaMember" className="ml-3 text-sm font-medium text-gray-700">
                 I am a WGA member
