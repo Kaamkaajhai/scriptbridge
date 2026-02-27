@@ -767,7 +767,8 @@ const WriterOnboarding = () => {
                   checked={agreementAccepted}
                   onChange={(e) => setAgreementAccepted(e.target.checked)}
                   disabled={!agreementScrolled}
-                  className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ accentColor: '#1e3a5f' }}
                 />
                 <label
                   htmlFor="agreement"
