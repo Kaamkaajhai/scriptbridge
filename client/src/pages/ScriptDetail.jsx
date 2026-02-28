@@ -569,6 +569,23 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
+                    {/* Message Writer — only visible to investors who have purchased this script */}
+                    {!isOwner && user?.role === "investor" && script.isUnlocked && (
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/messages?recipientId=${script.creator?._id}&recipientName=${encodeURIComponent(script.creator?.name || "Writer")}`
+                          )
+                        }
+                        className={`w-full px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 shadow-sm ${t.btnPrim}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z" />
+                        </svg>
+                        Message Writer
+                      </button>
+                    )}
+
                     {!isOwner && isPro && script.holdStatus === "available" && (
                       <button
                         onClick={() => setShowHoldModal(true)}
@@ -591,7 +608,7 @@ const ScriptDetail = () => {
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
                       >
                         <Film size={14} />
-                        {trailerLoading ? "Generating..." : "Generate AI Trailer"}
+                        {trailerLoading ? "Generating..." : "Generate AI Trailer — 15 credits"}
                       </button>
                     )}
 
@@ -611,7 +628,7 @@ const ScriptDetail = () => {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path d="M18 20V10M12 20V4M6 20v-6" />
                         </svg>
-                        {scoreLoading ? "Scoring..." : "Get Script Score \u2014 $10"}
+                        {scoreLoading ? "Scoring..." : "Get Script Score \u2014 10 credits"}
                       </button>
                     )}
 
@@ -819,7 +836,7 @@ const ScriptDetail = () => {
                     {isOwner && (
                       <button onClick={handleGenerateScore} disabled={scoreLoading}
                         className={`px-6 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 ${t.btnPrim}`}>
-                        {scoreLoading ? "Scoring..." : "Get Script Score \u2014 $10"}
+                        {scoreLoading ? "Scoring..." : "Get Script Score — 10 credits"}
                       </button>
                     )}
                   </div>

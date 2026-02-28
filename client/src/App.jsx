@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import Landing from "./pages/Landing";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
+import PrivacyPolicy from "./pages/PolicyPage";
 import TermsOfService from "./pages/TermsOfService";
 import Login from "./pages/Login";
 import Join from "./pages/Join";
@@ -20,8 +20,10 @@ import ScriptDetail from "./pages/ScriptDetail";
 import Mandates from "./pages/Mandates";
 import TopList from "./pages/TopList";
 import FeaturedProjects from "./pages/FeaturedProjects";
+import Trending from "./pages/Trending";
 import Messages from "./pages/Messages";
 import Writers from "./pages/Writers";
+import InvestorHome from "./pages/InvestorHome";
 import ReaderHome from "./pages/ReaderHome";
 import ScriptReader from "./pages/ScriptReader";
 import ReaderProfile from "./pages/ReaderProfile";
@@ -70,6 +72,16 @@ function App() {
             }
           />
           <Route
+            path="/trending"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <Trending />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="/profile/:id?"
             element={
               <PrivateRoute>
@@ -95,6 +107,26 @@ function App() {
               <PrivateRoute>
                 <MainLayout>
                   <NewProject />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/ai-tools"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <Dashboard />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/offer-holds"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <Dashboard />
                 </MainLayout>
               </PrivateRoute>
             }
@@ -165,6 +197,16 @@ function App() {
               <PrivateRoute>
                 <MainLayout>
                   <Writers />
+                </MainLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <PrivateRoute>
+                <MainLayout>
+                  <InvestorHome />
                 </MainLayout>
               </PrivateRoute>
             }
