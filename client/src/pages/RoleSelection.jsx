@@ -12,10 +12,6 @@ const RoleSelection = () => {
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <Link to="/" className="inline-flex items-center gap-2 text-3xl font-bold text-white mb-4">
-            <FileText size={36} strokeWidth={1.5} />
-            Ckript
-          </Link>
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 tracking-tight">
             Join Ckript
           </h1>
