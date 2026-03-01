@@ -5,6 +5,7 @@ import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, Help
 import FeaturesShowcase from "../components/FeaturesShowcase";
 import SuccessStories from "../components/SuccessStories";
 import api from "../services/api";
+import BrandLogo from "../components/BrandLogo";
 
 const contactReasons = [
   { value: "doubt", label: "I have a question / doubt", icon: HelpCircle, accent: "cyan" },
@@ -270,10 +271,7 @@ const Landing = () => {
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Film className="w-8 h-8 text-cyan-400" />
-            <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">Ckript</span>
-          </div>
+          <BrandLogo className="h-11 w-auto" />
           <div className="flex items-center gap-4">
             <Link to="/login" className="px-6 py-2 text-sm font-semibold text-gray-300 hover:text-white transition">
               Sign In

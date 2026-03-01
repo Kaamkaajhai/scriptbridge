@@ -193,6 +193,8 @@ const CreateProject = () => {
   const [charCount, setCharCount] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [grammarLoading, setGrammarLoading] = useState(false);
+  const [grammarNotes, setGrammarNotes] = useState([]);
 
   // Step 2: Details
   const [formData, setFormData] = useState({ format: "feature", primaryGenre: "", logline: "", description: "" });
@@ -341,6 +343,56 @@ const CreateProject = () => {
     } catch (err) { setError(err.response?.data?.message || "Failed to publish."); } finally { setLoading(false); }
   };
 
+  const escapeHtml = (str = "") =>
+    str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  const textToParagraphHtml = (text = "") => {
+    const blocks = text
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    if (!blocks.length) return "";
+
+    return blocks
+      .map((block) => `<p>${escapeHtml(block).replace(/\n/g, "<br />")}</p>`)
+      .join("");
+  };
+
+  const handleFixGrammar = async () => {
+    if (!editor) return;
+    const plainText = editor.getText().trim();
+    if (!plainText) {
+      setError("Write some script text before running grammar correction.");
+      return;
+    }
+
+    setGrammarLoading(true);
+    setError("");
+    setGrammarNotes([]);
+
+    try {
+      const { data } = await api.post("/ai/correct-script-text", { text: plainText });
+      const correctedText = data?.correctedText?.trim();
+
+      if (correctedText) {
+        editor.commands.setContent(textToParagraphHtml(correctedText));
+        setSaved(false);
+      }
+
+      setGrammarNotes(Array.isArray(data?.notes) ? data.notes : []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to correct script text.");
+    } finally {
+      setGrammarLoading(false);
+    }
+  };
+
   // Styling helpers
   const cardCls = `rounded-2xl border backdrop-blur-sm ${dark ? "bg-[#0d1520]/80 border-[#182840]" : "bg-white/90 border-gray-200 shadow-sm"}`;
   const inputCls = `w-full px-4 py-3 rounded-xl text-sm transition-all duration-200 outline-none ${dark
@@ -464,11 +516,33 @@ const CreateProject = () => {
               {/* Status */}
               <div className={`flex items-center justify-between px-4 py-2.5 border-t text-xs ${dark ? "border-[#182840] text-gray-500" : "border-gray-100 text-gray-400"}`}>
                 <div className="flex gap-4"><span>{wordCount} words</span><span>{charCount} chars</span></div>
-                <button onClick={() => handleSave(false)} disabled={saving}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${dark ? "hover:bg-white/[0.06] text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>
-                  {saving ? "Saving..." : "Save Draft"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleFixGrammar}
+                    disabled={grammarLoading || saving}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition disabled:opacity-50 ${dark
+                      ? "border-[#1d3350] text-gray-300 hover:bg-white/[0.06]"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                  >
+                    {grammarLoading ? "Fixing..." : "Fix Grammar with AI"}
+                  </button>
+                  <button onClick={() => handleSave(false)} disabled={saving}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${dark ? "hover:bg-white/[0.06] text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>
+                    {saving ? "Saving..." : "Save Draft"}
+                  </button>
+                </div>
               </div>
+              {grammarNotes.length > 0 && (
+                <div className={`px-4 py-3 text-xs border-t ${dark ? "border-[#182840] text-gray-400" : "border-gray-100 text-gray-600"}`}>
+                  <p className={`font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>AI Notes</p>
+                  <ul className="space-y-0.5">
+                    {grammarNotes.slice(0, 3).map((note, idx) => (
+                      <li key={`${note}-${idx}`}>• {note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
