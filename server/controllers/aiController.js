@@ -2,6 +2,50 @@ import Script from "../models/Script.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { CREDIT_PRICES } from "./creditsController.js";
+import { generateJsonWithGoogleAI } from "../services/googleAiService.js";
+import { generateTrailerVideo } from "../services/videoGenerationService.js";
+
+const clampScore = (value) => {
+  const n = Number(value);
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+};
+
+const cleanText = (value = "") =>
+  String(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const safeSlice = (value = "", limit = 22000) => cleanText(value).slice(0, limit);
+
+const normalizeScorePayload = (payload = {}) => {
+  const ai = payload.aiAnalysis || {};
+  const platform = payload.platformAnalysis || {};
+  const reader = payload.readerAnalysis || {};
+
+  const score = {
+    plot: clampScore(payload.plot),
+    characters: clampScore(payload.characters),
+    dialogue: clampScore(payload.dialogue),
+    pacing: clampScore(payload.pacing),
+    marketability: clampScore(payload.marketability),
+  };
+
+  const avg = Math.round(
+    (score.plot + score.characters + score.dialogue + score.pacing + score.marketability) / 5
+  );
+
+  score.overall = clampScore(payload.overall || avg);
+
+  return {
+    ...score,
+    feedback:
+      payload.feedback ||
+      [ai.summary, platform.positioning, reader.connection].filter(Boolean).join("\n\n") ||
+      "AI analysis completed.",
+  };
+};
 
 // Simulate AI trailer generation (in production, integrate with RunwayML, Pika, etc.)
 export const generateTrailer = async (req, res) => {
@@ -52,13 +96,72 @@ export const generateTrailer = async (req, res) => {
     script.trailerStatus = "generating";
     await script.save();
 
-    // Simulate AI processing (in production, call AI video API)
-    // Generate a placeholder trailer based on genre and description
-    const trailerData = generateAITrailerData(script);
+    const scriptText = safeSlice(
+      script.textContent || script.fullContent || script.synopsis || script.description,
+      18000
+    );
+
+    const trailerPrompt = `You are a trailer writing assistant for film scripts.
+Create a cinematic trailer package from the script context below.
+
+Return STRICT JSON with this exact shape:
+{
+  "hookLine": "string",
+  "trailerNarration": "string",
+  "sceneBeats": ["string", "string", "string", "string", "string"],
+  "voiceoverStyle": "string",
+  "musicCue": "string"
+}
+
+Rules:
+- Keep trailerNarration 120-220 words.
+- sceneBeats must contain exactly 5 concise beats.
+- Avoid spoilers for final ending.
+
+Script Title: ${script.title}
+Genre: ${script.primaryGenre || script.genre || "Unknown"}
+Logline: ${script.logline || "N/A"}
+Description: ${script.description || "N/A"}
+Content: ${scriptText || "N/A"}`;
+
+    let trailerJson;
+    let usedFallback = false;
+    try {
+      trailerJson = await generateJsonWithGoogleAI({
+        prompt: trailerPrompt,
+        temperature: 0.7,
+        maxOutputTokens: 1600,
+      });
+    } catch (aiError) {
+      usedFallback = true;
+      trailerJson = buildFallbackTrailerText(script);
+    }
+
+    const trailerData = buildTrailerData(script, trailerJson);
+
+    let videoProvider = "fallback";
+    try {
+      const videoPrompt = buildVideoPrompt(script, trailerData.text);
+      const generatedVideo = await generateTrailerVideo({
+        prompt: videoPrompt,
+        durationSeconds: 12,
+        aspectRatio: "16:9",
+      });
+      trailerData.videoUrl = generatedVideo.videoUrl;
+      videoProvider = generatedVideo.provider;
+    } catch {
+      usedFallback = true;
+    }
     
     script.trailerUrl = trailerData.videoUrl;
     script.trailerThumbnail = trailerData.thumbnailUrl;
     script.trailerStatus = "ready";
+    script.services = {
+      hosting: script.services?.hosting ?? true,
+      evaluation: script.services?.evaluation ?? false,
+      aiTrailer: true,
+    };
+    script.markModified("services");
     await script.save();
 
     // Notify followers
@@ -79,10 +182,13 @@ export const generateTrailer = async (req, res) => {
         url: script.trailerUrl,
         thumbnail: script.trailerThumbnail,
         status: script.trailerStatus,
-      }
+      },
+      trailerText: trailerData.text,
+      usedFallback,
+      videoProvider,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
@@ -146,8 +252,63 @@ export const generateScriptScore = async (req, res) => {
       await user.save();
     }
 
-    // Generate AI score (simulated - in production, use GPT-4 or custom model)
-    const score = generateAIScriptScore(script);
+    const scriptText = safeSlice(
+      script.textContent || script.fullContent || script.synopsis || script.description,
+      22000
+    );
+
+    const scorePrompt = `You are a senior screenplay analyst.
+
+Analyze this script and return STRICT JSON with this exact shape:
+{
+  "plot": 0-100,
+  "characters": 0-100,
+  "dialogue": 0-100,
+  "pacing": 0-100,
+  "marketability": 0-100,
+  "overall": 0-100,
+  "feedback": "string",
+  "aiAnalysis": {
+    "summary": "string",
+    "strengths": ["string"],
+    "weaknesses": ["string"],
+    "improvements": ["string"]
+  },
+  "platformAnalysis": {
+    "audienceFit": "string",
+    "positioning": "string"
+  },
+  "readerAnalysis": {
+    "engagement": "string",
+    "connection": "string"
+  }
+}
+
+Rules:
+- All score fields must be integers.
+- feedback must be 120-260 words and actionable.
+
+Script Title: ${script.title}
+Genre: ${script.primaryGenre || script.genre || "Unknown"}
+Format: ${script.format || "Unknown"}
+Logline: ${script.logline || "N/A"}
+Description: ${script.description || "N/A"}
+Content: ${scriptText || "N/A"}`;
+
+    let scorePayload;
+    let usedFallback = false;
+    try {
+      scorePayload = await generateJsonWithGoogleAI({
+        prompt: scorePrompt,
+        temperature: 0.4,
+        maxOutputTokens: 2600,
+      });
+    } catch (aiError) {
+      usedFallback = true;
+      scorePayload = generateAIScriptScore(script);
+    }
+
+    const score = normalizeScorePayload(scorePayload);
     
     script.scriptScore = {
       overall: score.overall,
@@ -159,6 +320,12 @@ export const generateScriptScore = async (req, res) => {
       feedback: score.feedback,
       scoredAt: new Date(),
     };
+    script.services = {
+      hosting: script.services?.hosting ?? true,
+      evaluation: true,
+      aiTrailer: script.services?.aiTrailer ?? false,
+    };
+    script.markModified("services");
     await script.save();
 
     // Notify the creator
@@ -172,9 +339,73 @@ export const generateScriptScore = async (req, res) => {
     res.json({ 
       message: "Script scored successfully",
       score: script.scriptScore,
+      usedFallback,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+export const correctScriptText = async (req, res) => {
+  try {
+    const sourceText = String(req.body?.text || "").trim();
+    if (!sourceText) {
+      return res.status(400).json({ message: "Script text is required" });
+    }
+
+    const normalizedSource = sourceText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    const truncatedSource = normalizedSource.slice(0, 25000);
+
+    const prompt = `You are an expert screenplay proofreader.
+Fix grammar, punctuation, spelling, and readability while preserving writer voice, scene structure, and line breaks.
+
+Return STRICT JSON with this exact shape:
+{
+  "correctedText": "string",
+  "notes": ["string", "string", "string"]
+}
+
+Rules:
+- Do NOT censor or rewrite story intent.
+- Keep screenplay formatting and paragraph/line breaks.
+- correctedText must contain the full corrected script text.
+- notes should be up to 5 concise bullet-style strings.
+
+Script text:
+${truncatedSource}`;
+
+    let payload;
+    let usedFallback = false;
+    try {
+      payload = await generateJsonWithGoogleAI({
+        prompt,
+        temperature: 0.2,
+        maxOutputTokens: 3200,
+      });
+    } catch (aiError) {
+      usedFallback = true;
+      payload = {
+        correctedText: truncatedSource,
+        notes: [
+          "AI quota is currently limited; showing original text.",
+          "No automatic grammar edits were applied.",
+          "Try again later to run full AI correction.",
+        ],
+      };
+    }
+
+    const correctedText = String(payload?.correctedText || "").trim() || truncatedSource;
+    const notes = Array.isArray(payload?.notes)
+      ? payload.notes.map((note) => String(note).trim()).filter(Boolean).slice(0, 5)
+      : [];
+
+    return res.json({
+      correctedText,
+      notes,
+      usedFallback,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
@@ -214,6 +445,78 @@ function generateAITrailerData(script) {
     videoUrl: `https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4`,
     thumbnailUrl: genreVisuals[script.genre] || genreVisuals.Drama,
   };
+}
+
+function buildTrailerData(script, payload = {}) {
+  const fallbackMedia = generateAITrailerData(script);
+  const hookLine = cleanText(payload.hookLine || payload.tagline || "");
+  const trailerNarration = cleanText(payload.trailerNarration || payload.narration || "");
+  const sceneBeats = Array.isArray(payload.sceneBeats)
+    ? payload.sceneBeats.map((item) => cleanText(item)).filter(Boolean)
+    : [];
+  const voiceoverStyle = cleanText(payload.voiceoverStyle || "");
+  const musicCue = cleanText(payload.musicCue || "");
+
+  return {
+    videoUrl: payload.videoUrl || fallbackMedia.videoUrl,
+    thumbnailUrl: payload.thumbnailUrl || fallbackMedia.thumbnailUrl,
+    text: {
+      hookLine,
+      trailerNarration,
+      sceneBeats: sceneBeats.slice(0, 5),
+      voiceoverStyle,
+      musicCue,
+    },
+  };
+}
+
+function buildFallbackTrailerText(script) {
+  const genre = script.primaryGenre || script.genre || "drama";
+  const title = script.title || "Untitled Project";
+  const logline = cleanText(script.logline || script.description || "A world on the edge of change.");
+
+  return {
+    hookLine: `${title}: One choice changes everything.`,
+    trailerNarration: `${logline} In a ${genre.toLowerCase()} world, stakes rise fast as hidden truths surface and relationships are tested. Every decision pushes the characters toward a point of no return, building to an emotional and cinematic climax that leaves audiences wanting more.`,
+    sceneBeats: [
+      "Opening image sets the world and tone.",
+      "A disruptive event forces the protagonist into action.",
+      "Escalation montage reveals conflict and pressure.",
+      "A vulnerable emotional beat reframes the stakes.",
+      "Final high-intensity button ends on suspense.",
+    ],
+    voiceoverStyle: "Cinematic, urgent, emotionally grounded",
+    musicCue: "Slow atmospheric build into percussive climax",
+  };
+}
+
+function buildVideoPrompt(script, trailerText = {}) {
+  const title = cleanText(script.title || "Untitled Project");
+  const genre = cleanText(script.primaryGenre || script.genre || "drama");
+  const logline = cleanText(script.logline || script.description || "");
+  const hookLine = cleanText(trailerText.hookLine || "");
+  const narration = cleanText(trailerText.trailerNarration || "");
+  const beats = Array.isArray(trailerText.sceneBeats)
+    ? trailerText.sceneBeats.map((beat) => cleanText(beat)).filter(Boolean).slice(0, 5)
+    : [];
+  const musicCue = cleanText(trailerText.musicCue || "cinematic tension build");
+  const voiceStyle = cleanText(trailerText.voiceoverStyle || "cinematic and emotional");
+
+  return `Create a high-quality cinematic teaser trailer video for the script "${title}".
+Genre: ${genre}
+Logline: ${logline || "N/A"}
+Hook: ${hookLine || "N/A"}
+Narration tone: ${voiceStyle}
+Music direction: ${musicCue}
+Story narration: ${narration || "N/A"}
+Scene beats:
+${beats.map((beat, index) => `${index + 1}. ${beat}`).join("\n") || "1. Build atmosphere and suspense"}
+
+Requirements:
+- 12-second cinematic teaser, realistic live-action look.
+- Dynamic camera movement, dramatic lighting, emotional character closeups.
+- No logos, no subtitles, no text overlays, no watermarks.
+- Trailer style pacing with escalating intensity and polished color grading.`;
 }
 
 function generateAIScriptScore(script) {

@@ -15,6 +15,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import BrandLogo from "../components/BrandLogo";
 
 const WriterOnboarding = () => {
   const { join } = useContext(AuthContext);
@@ -257,7 +258,7 @@ const WriterOnboarding = () => {
                     type="text"
                     value={accountData.name}
                     onChange={(e) => setAccountData({...accountData, name: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                     placeholder="John Doe"
                     required
                   />
@@ -274,7 +275,7 @@ const WriterOnboarding = () => {
                     type="email"
                     value={accountData.email}
                     onChange={(e) => setAccountData({...accountData, email: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                     placeholder="writer@example.com"
                     required
                   />
@@ -291,7 +292,7 @@ const WriterOnboarding = () => {
                     type="password"
                     value={accountData.password}
                     onChange={(e) => setAccountData({...accountData, password: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                     placeholder="••••••••"
                     required
                   />
@@ -308,7 +309,7 @@ const WriterOnboarding = () => {
                     type="password"
                     value={accountData.confirmPassword}
                     onChange={(e) => setAccountData({...accountData, confirmPassword: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                     placeholder="••••••••"
                     required
                   />
@@ -347,7 +348,7 @@ const WriterOnboarding = () => {
                   type="text"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-center text-2xl tracking-widest"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-center text-2xl tracking-widest text-gray-900"
                   placeholder="000000"
                   maxLength={6}
                   required
@@ -385,7 +386,7 @@ const WriterOnboarding = () => {
               <textarea
                 value={writerProfile.bio}
                 onChange={(e) => setWriterProfile({...writerProfile, bio: e.target.value})}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent resize-none"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent resize-none text-gray-900"
                 rows={4}
                 maxLength={500}
                 placeholder="Tell us about your background, voice, and experience..."
@@ -401,7 +402,7 @@ const WriterOnboarding = () => {
               <select
                 value={writerProfile.representationStatus}
                 onChange={(e) => setWriterProfile({...writerProfile, representationStatus: e.target.value})}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
               >
                 <option value="unrepresented">Unrepresented</option>
                 <option value="manager">Manager</option>
@@ -419,7 +420,7 @@ const WriterOnboarding = () => {
                   type="text"
                   value={writerProfile.agencyName}
                   onChange={(e) => setWriterProfile({...writerProfile, agencyName: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                   placeholder="e.g., CAA, WME, UTA"
                 />
               </div>
@@ -431,7 +432,8 @@ const WriterOnboarding = () => {
                 id="wgaMember"
                 checked={writerProfile.wgaMember}
                 onChange={(e) => setWriterProfile({...writerProfile, wgaMember: e.target.checked})}
-                className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                className="w-5 h-5 border-gray-300 rounded focus:ring-[#0f2544]"
+                style={{ accentColor: '#0f2544' }}
               />
               <label htmlFor="wgaMember" className="ml-3 text-sm font-medium text-gray-700">
                 I am a WGA member
@@ -458,7 +460,7 @@ const WriterOnboarding = () => {
                       ...writerProfile, 
                       diversity: {...writerProfile.diversity, gender: e.target.value}
                     })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                     placeholder="Optional"
                   />
                 </div>
@@ -474,7 +476,7 @@ const WriterOnboarding = () => {
                       ...writerProfile, 
                       diversity: {...writerProfile.diversity, ethnicity: e.target.value}
                     })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
                     placeholder="Optional"
                   />
                 </div>
@@ -766,7 +768,8 @@ const WriterOnboarding = () => {
                   checked={agreementAccepted}
                   onChange={(e) => setAgreementAccepted(e.target.checked)}
                   disabled={!agreementScrolled}
-                  className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ accentColor: '#1e3a5f' }}
                 />
                 <label
                   htmlFor="agreement"
@@ -823,8 +826,7 @@ const WriterOnboarding = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <FileText size={28} className="text-[#0a1628]" strokeWidth={1.5} />
-            <h1 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Ckript</h1>
+            <BrandLogo className="h-11 w-auto" />
           </div>
           <p className="text-sm text-gray-600">Writer Onboarding</p>
         </div>
