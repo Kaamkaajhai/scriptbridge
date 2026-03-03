@@ -507,14 +507,18 @@ ${truncatedSource}`;
         maxOutputTokens: Math.min(truncatedSource.length * 2 + 500, 8000),
       });
     } catch (aiError) {
+      console.error("[AI Writing Assist] AI call failed:", aiError.message);
       usedFallback = true;
+      // Return a meaningful error detail to the frontend
+      const isQuota = aiError.statusCode === 429 || /quota|rate.limit/i.test(aiError.message);
+      const isTimeout = aiError.statusCode === 504 || /timeout|abort/i.test(aiError.message);
       payload = {
         result: truncatedSource,
-        changes: [
-          "AI is temporarily unavailable.",
-          "Your original text is shown unchanged.",
-          "Please try again in a moment.",
-        ],
+        changes: isQuota
+          ? ["AI rate limit reached — please wait 30 seconds and try again."]
+          : isTimeout
+          ? ["AI took too long to respond — try with a shorter text selection."]
+          : [`AI error: ${aiError.message || "Unknown error"}. Please try again.`],
       };
     }
 

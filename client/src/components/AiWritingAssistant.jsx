@@ -1,65 +1,28 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 
-// ── AI action definitions ────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════════════
+   AI WRITING ASSISTANT — Professional Script Editor Companion
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 const AI_ACTIONS = [
-  {
-    key: "improve",
-    label: "Improve",
-    icon: "✨",
-    description: "Make it more engaging & compelling",
-    color: "from-purple-500/20 to-purple-600/10",
-    border: "border-purple-500/30",
-  },
-  {
-    key: "professional",
-    label: "Professional",
-    icon: "🎬",
-    description: "Industry-standard formatting & tone",
-    color: "from-blue-500/20 to-blue-600/10",
-    border: "border-blue-500/30",
-  },
-  {
-    key: "grammar",
-    label: "Fix Grammar",
-    icon: "📝",
-    description: "Fix spelling, grammar & punctuation",
-    color: "from-green-500/20 to-green-600/10",
-    border: "border-green-500/30",
-  },
-  {
-    key: "dialogue",
-    label: "Better Dialogue",
-    icon: "💬",
-    description: "Natural voices & subtext",
-    color: "from-amber-500/20 to-amber-600/10",
-    border: "border-amber-500/30",
-  },
-  {
-    key: "emotional",
-    label: "Add Emotion",
-    icon: "❤️",
-    description: "Deepen feelings & character arcs",
-    color: "from-rose-500/20 to-rose-600/10",
-    border: "border-rose-500/30",
-  },
-  {
-    key: "shorten",
-    label: "Shorten",
-    icon: "✂️",
-    description: "Tighten & remove filler",
-    color: "from-orange-500/20 to-orange-600/10",
-    border: "border-orange-500/30",
-  },
-  {
-    key: "expand",
-    label: "Expand",
-    icon: "📖",
-    description: "Add detail & atmosphere",
-    color: "from-teal-500/20 to-teal-600/10",
-    border: "border-teal-500/30",
-  },
+  { key: "improve",      label: "Improve",         icon: "✨", desc: "More engaging & compelling",     accent: "#a78bfa" },
+  { key: "professional", label: "Professional",     icon: "🎬", desc: "Studio-ready polish",           accent: "#60a5fa" },
+  { key: "grammar",      label: "Fix Grammar",      icon: "📝", desc: "Spelling, grammar & flow",      accent: "#34d399" },
+  { key: "dialogue",     label: "Better Dialogue",  icon: "💬", desc: "Natural voices & subtext",      accent: "#fbbf24" },
+  { key: "emotional",    label: "Add Emotion",      icon: "❤️", desc: "Deeper feelings & arcs",        accent: "#f472b6" },
+  { key: "shorten",      label: "Shorten",          icon: "✂️", desc: "Cut filler, tighten prose",     accent: "#fb923c" },
+  { key: "expand",       label: "Expand",           icon: "📖", desc: "Richer detail & atmosphere",    accent: "#2dd4bf" },
+];
+
+const LOADING_TIPS = [
+  "AI is analyzing your screenplay structure...",
+  "Checking dialogue rhythm and pacing...",
+  "Enhancing character voice consistency...",
+  "Polishing scene descriptions...",
+  "Refining emotional beats...",
+  "Strengthening narrative flow...",
 ];
 
 const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
@@ -72,28 +35,50 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
   const [customPrompt, setCustomPrompt] = useState("");
   const [showCustom, setShowCustom] = useState(false);
   const [history, setHistory] = useState([]); // undo stack
+  const [loadingTip, setLoadingTip] = useState(0);
+  const [successMsg, setSuccessMsg] = useState("");
   const panelRef = useRef(null);
+  const tipInterval = useRef(null);
 
-  // Close panel on outside click
+  // Rotate loading tips
+  useEffect(() => {
+    if (isLoading) {
+      tipInterval.current = setInterval(() => {
+        setLoadingTip((prev) => (prev + 1) % LOADING_TIPS.length);
+      }, 2500);
+    } else {
+      clearInterval(tipInterval.current);
+    }
+    return () => clearInterval(tipInterval.current);
+  }, [isLoading]);
+
+  // Close on outside click
   useEffect(() => {
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
-        // Don't close if loading
-        if (!isLoading) setIsOpen(false);
+      if (panelRef.current && !panelRef.current.contains(e.target) && !isLoading) {
+        setIsOpen(false);
       }
     };
     if (isOpen) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen, isLoading]);
 
-  const handleAction = async (actionKey, custom = null) => {
+  // Auto-dismiss success message
+  useEffect(() => {
+    if (successMsg) {
+      const t = setTimeout(() => setSuccessMsg(""), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [successMsg]);
+
+  const handleAction = useCallback(async (actionKey, custom = null) => {
     const text = textContent?.trim();
     if (!text) {
-      setError("Write some script content first, then use AI to improve it.");
+      setError("Write some script content first before using AI.");
       return;
     }
-    if (text.length < 20) {
-      setError("Add at least a few sentences before using AI assistance.");
+    if (text.length < 10) {
+      setError("Add a bit more text so AI can work with it effectively.");
       return;
     }
 
@@ -102,6 +87,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
     setError("");
     setResult(null);
     setChanges([]);
+    setLoadingTip(0);
 
     try {
       const payload = custom
@@ -110,35 +96,47 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
 
       const { data } = await api.post("/ai/writing-assist", payload);
 
+      if (data.usedFallback) {
+        const errMsg = data.changes?.[0] || "AI is temporarily busy. Please try again.";
+        setError(errMsg);
+        setIsLoading(false);
+        setActiveAction(null);
+        return;
+      }
+
       setResult(data.result);
       setChanges(data.changes || []);
-
-      if (data.usedFallback) {
-        setError("AI is temporarily busy. Showing original text — please try again.");
-      }
     } catch (err) {
-      setError(err.response?.data?.message || "AI request failed. Please try again.");
+      const msg = err.response?.data?.message || "Connection error. Check if the server is running.";
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [textContent]);
 
   const handleApply = () => {
     if (!result) return;
-    // Save current text to history for undo
     setHistory((prev) => [...prev.slice(-9), textContent]);
     onApply(result);
     setResult(null);
     setChanges([]);
     setIsOpen(false);
     setActiveAction(null);
+    setSuccessMsg("AI changes applied!");
   };
 
   const handleUndo = () => {
     if (history.length === 0) return;
-    const prev = history[history.length - 1];
+    onApply(history[history.length - 1]);
     setHistory((h) => h.slice(0, -1));
-    onApply(prev);
+    setSuccessMsg("Reverted to previous version");
+  };
+
+  const handleDiscard = () => {
+    setResult(null);
+    setChanges([]);
+    setActiveAction(null);
+    setError("");
   };
 
   const handleCustomSubmit = (e) => {
@@ -148,27 +146,50 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
     setShowCustom(false);
   };
 
+  const actionLabel = AI_ACTIONS.find((a) => a.key === activeAction)?.label || "Custom AI";
+  const wordCount = textContent?.split(/\s+/).filter(Boolean).length || 0;
+
   return (
     <div className="relative" ref={panelRef}>
-      {/* ── Trigger Button ─────────────────────────────────────────────────── */}
+      {/* ━━ Success Toast ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <AnimatePresence>
+        {successMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className="absolute -top-12 left-0 right-0 z-[60] flex justify-center pointer-events-none"
+          >
+            <div className="bg-emerald-500/90 text-white text-xs font-semibold px-4 py-2 rounded-full backdrop-blur-sm shadow-lg">
+              ✓ {successMsg}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ━━ Trigger Bar ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+          onClick={() => { setIsOpen(!isOpen); setError(""); }}
+          className={`group relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 overflow-hidden ${
             isOpen
-              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/25"
-              : "bg-gradient-to-r from-purple-500/15 to-blue-500/15 text-purple-300 border border-purple-500/20 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/10"
+              ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-600/30 scale-[1.02]"
+              : "bg-gradient-to-r from-violet-500/10 to-indigo-500/10 text-violet-300 border border-violet-500/20 hover:border-violet-400/50 hover:shadow-lg hover:shadow-violet-500/10 hover:scale-[1.01]"
           }`}
         >
+          {/* Shimmer effect */}
+          {!isOpen && (
+            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          )}
           <span className="text-base">🤖</span>
-          AI Assistant
+          <span>AI Assistant</span>
+          {isLoading && (
+            <span className="w-1.5 h-1.5 rounded-full bg-violet-300 animate-pulse" />
+          )}
           <svg
-            className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2.5}
-            viewBox="0 0 24 24"
+            className={`w-3.5 h-3.5 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+            fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
@@ -179,38 +200,45 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
             type="button"
             onClick={handleUndo}
             title="Undo last AI change"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-neutral-400 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:text-white transition"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-neutral-400 bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] hover:text-white transition-all"
           >
-            ↩️ Undo
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v0a5 5 0 01-5 5H3M3 10l4-4M3 10l4 4" />
+            </svg>
+            Undo
           </button>
         )}
       </div>
 
-      {/* ── AI Panel ───────────────────────────────────────────────────────── */}
+      {/* ━━ AI Panel ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            initial={{ opacity: 0, y: -10, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.18 }}
-            className="absolute left-0 right-0 top-full mt-2 z-50 bg-[#0a1220] border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/40 overflow-hidden"
-            style={{ minWidth: 340 }}
+            exit={{ opacity: 0, y: -10, scale: 0.96 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="absolute left-0 top-full mt-2 z-50 w-[380px] max-w-[calc(100vw-2rem)] bg-[#080e1a] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
           >
-            {/* Header */}
-            <div className="px-5 py-3 border-b border-white/[0.06] bg-gradient-to-r from-purple-500/10 to-blue-500/10">
+            {/* ── Header ──────────────────────────────────────────────────── */}
+            <div className="px-5 py-3.5 border-b border-white/[0.06] bg-gradient-to-r from-violet-600/10 via-indigo-600/8 to-transparent">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🤖</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                    <span className="text-sm">🤖</span>
+                  </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">AI Writing Assistant</h3>
-                    <p className="text-[10px] text-neutral-500">Free • Powered by Gemini AI</p>
+                    <h3 className="text-sm font-bold text-white tracking-tight">AI Writing Assistant</h3>
+                    <p className="text-[10px] text-neutral-500 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                      Powered by Gemini AI
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => !isLoading && setIsOpen(false)}
-                  className="text-neutral-500 hover:text-white transition p-1"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:text-white hover:bg-white/[0.08] transition"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -219,148 +247,248 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
               </div>
             </div>
 
-            {/* Error */}
-            {error && (
-              <div className="mx-4 mt-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
-                {error}
-              </div>
-            )}
-
-            {/* Loading state */}
-            {isLoading && (
-              <div className="px-5 py-8 text-center">
-                <div className="inline-flex items-center gap-3">
-                  <div className="relative w-8 h-8">
-                    <div className="absolute inset-0 rounded-full border-2 border-purple-500/30 animate-ping" />
-                    <div className="absolute inset-0 rounded-full border-2 border-t-purple-400 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+            {/* ── Error ───────────────────────────────────────────────────── */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mx-4 mt-3 px-3 py-2.5 bg-red-500/10 border border-red-500/15 rounded-xl flex items-start gap-2">
+                    <span className="text-red-400 mt-0.5 shrink-0 text-xs">⚠</span>
+                    <div className="flex-1">
+                      <p className="text-xs text-red-300 leading-relaxed">{error}</p>
+                      <button
+                        type="button"
+                        onClick={() => setError("")}
+                        className="text-[10px] text-red-400/60 hover:text-red-300 mt-1 underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-white">
-                      AI is {activeAction === "grammar" ? "fixing grammar" : activeAction === "professional" ? "making it professional" : activeAction === "shorten" ? "tightening your script" : activeAction === "expand" ? "expanding your content" : activeAction === "dialogue" ? "improving dialogue" : activeAction === "emotional" ? "adding emotional depth" : activeAction === "custom" ? "following your instructions" : "improving your script"}...
-                    </p>
-                    <p className="text-[10px] text-neutral-500 mt-0.5">This usually takes 5-15 seconds</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* ── Loading State ────────────────────────────────────────────── */}
+            {isLoading && (
+              <div className="px-5 py-10">
+                <div className="flex flex-col items-center">
+                  {/* Animated rings */}
+                  <div className="relative w-14 h-14 mb-4">
+                    <div className="absolute inset-0 rounded-full border-2 border-violet-500/20 animate-ping" style={{ animationDuration: "2s" }} />
+                    <div className="absolute inset-1 rounded-full border-2 border-indigo-500/20 animate-ping" style={{ animationDuration: "2.5s" }} />
+                    <div className="absolute inset-2 rounded-full border-2 border-t-violet-400 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin" style={{ animationDuration: "1s" }} />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-lg">🤖</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold text-white mb-1">{actionLabel}</p>
+                  <motion.p
+                    key={loadingTip}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[11px] text-neutral-500 text-center"
+                  >
+                    {LOADING_TIPS[loadingTip]}
+                  </motion.p>
+                  {/* Progress bar */}
+                  <div className="w-full mt-4 h-0.5 bg-white/[0.04] rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full"
+                      initial={{ width: "0%" }}
+                      animate={{ width: "85%" }}
+                      transition={{ duration: 15, ease: "linear" }}
+                    />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Result preview */}
+            {/* ── Result Preview ───────────────────────────────────────────── */}
             {!isLoading && result && (
-              <div className="px-4 py-3 space-y-3">
-                {/* Changes summary */}
+              <div className="p-4 space-y-3">
+                {/* Changes badge */}
                 {changes.length > 0 && (
-                  <div className="bg-green-500/10 border border-green-500/15 rounded-xl p-3">
-                    <p className="text-[10px] font-bold text-green-400 uppercase tracking-wider mb-1.5">What changed</p>
-                    <ul className="space-y-1">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border border-emerald-500/15 rounded-xl p-3"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md bg-emerald-500/20 flex items-center justify-center">
+                        <span className="text-[10px]">✓</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Changes Made</span>
+                    </div>
+                    <ul className="space-y-1.5">
                       {changes.map((change, i) => (
-                        <li key={i} className="text-xs text-green-300/80 flex items-start gap-1.5">
-                          <span className="text-green-400 mt-0.5 shrink-0">•</span>
+                        <li key={i} className="text-[11px] text-emerald-200/70 flex items-start gap-2 leading-relaxed">
+                          <span className="text-emerald-400 mt-0.5 shrink-0">›</span>
                           {change}
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </motion.div>
                 )}
 
-                {/* Preview of result */}
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 max-h-48 overflow-y-auto">
-                  <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1.5">Preview</p>
-                  <p className="text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                    {result.length > 800 ? result.slice(0, 800) + "..." : result}
+                {/* Text preview */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 max-h-52 overflow-y-auto scrollbar-thin"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Preview</span>
+                    <span className="text-[10px] text-neutral-600">
+                      {result.split(/\s+/).filter(Boolean).length} words
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-300/90 whitespace-pre-wrap leading-[1.7] font-mono">
+                    {result.length > 1200 ? result.slice(0, 1200) + "\n\n[... preview truncated — full text will be applied]" : result}
                   </p>
-                </div>
+                </motion.div>
 
-                {/* Action buttons */}
-                <div className="flex gap-2">
+                {/* Apply / Discard */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex gap-2"
+                >
                   <button
                     type="button"
                     onClick={handleApply}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl text-sm font-semibold hover:from-green-500 hover:to-emerald-500 transition shadow-lg shadow-green-500/20"
+                    className="flex-1 relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-sm font-bold hover:from-emerald-500 hover:to-teal-500 transition-all shadow-lg shadow-emerald-600/20 active:scale-[0.98]"
                   >
-                    ✅ Apply Changes
+                    <span className="relative z-10 flex items-center justify-center gap-1.5">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Apply Changes
+                    </span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setResult(null);
-                      setChanges([]);
-                      setActiveAction(null);
-                    }}
-                    className="px-4 py-2.5 bg-white/[0.06] text-neutral-400 rounded-xl text-sm font-medium hover:bg-white/[0.1] transition"
+                    onClick={handleDiscard}
+                    className="px-4 py-2.5 bg-white/[0.04] border border-white/[0.06] text-neutral-400 rounded-xl text-sm font-medium hover:bg-white/[0.08] hover:text-neutral-200 transition-all active:scale-[0.98]"
                   >
                     Discard
                   </button>
-                </div>
+                </motion.div>
               </div>
             )}
 
-            {/* Action buttons grid */}
+            {/* ── Action Grid ──────────────────────────────────────────────── */}
             {!isLoading && !result && (
               <div className="p-4 space-y-3">
-                {/* Quick actions */}
-                <div className="grid grid-cols-2 gap-2">
+                {/* Word count indicator */}
+                {wordCount > 0 && (
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="flex-1 h-1 bg-white/[0.04] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (wordCount / 50) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-600 shrink-0">{wordCount} words</span>
+                  </div>
+                )}
+
+                {/* Quick action grid */}
+                <div className="grid grid-cols-2 gap-1.5">
                   {AI_ACTIONS.map((action) => (
                     <button
                       key={action.key}
                       type="button"
                       onClick={() => handleAction(action.key)}
-                      className={`group text-left p-3 rounded-xl border ${action.border} bg-gradient-to-br ${action.color} hover:scale-[1.02] active:scale-[0.98] transition-all duration-150`}
+                      disabled={wordCount < 1}
+                      className="group relative text-left p-3 rounded-xl border border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.1] active:scale-[0.97] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed overflow-hidden"
                     >
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-base">{action.icon}</span>
-                        <span className="text-xs font-bold text-white">{action.label}</span>
+                      {/* Hover glow */}
+                      <div
+                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"
+                        style={{ background: `radial-gradient(circle at 30% 30%, ${action.accent}15, transparent 70%)` }}
+                      />
+                      <div className="relative">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm">{action.icon}</span>
+                          <span className="text-xs font-bold text-white/90">{action.label}</span>
+                        </div>
+                        <p className="text-[10px] text-neutral-500 leading-tight group-hover:text-neutral-400 transition-colors">{action.desc}</p>
                       </div>
-                      <p className="text-[10px] text-neutral-400 leading-tight">{action.description}</p>
                     </button>
                   ))}
+
+                  {/* Custom instruction button */}
+                  {!showCustom && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCustom(true)}
+                      disabled={wordCount < 1}
+                      className="group text-left p-3 rounded-xl border border-dashed border-white/[0.06] bg-transparent hover:bg-white/[0.03] hover:border-white/[0.12] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm">🎯</span>
+                        <span className="text-xs font-bold text-white/90">Custom</span>
+                      </div>
+                      <p className="text-[10px] text-neutral-500 leading-tight">Your own instruction</p>
+                    </button>
+                  )}
                 </div>
 
-                {/* Custom instruction */}
-                {!showCustom ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowCustom(true)}
-                    className="w-full p-3 rounded-xl border border-dashed border-white/[0.12] text-xs text-neutral-500 hover:border-white/[0.25] hover:text-neutral-300 transition flex items-center justify-center gap-2"
-                  >
-                    <span>🎯</span> Custom instruction...
-                  </button>
-                ) : (
-                  <form onSubmit={handleCustomSubmit} className="space-y-2">
-                    <textarea
-                      value={customPrompt}
-                      onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder='e.g. "Make the villain more menacing" or "Add a plot twist at the end"'
-                      rows={2}
-                      maxLength={500}
-                      autoFocus
-                      className="w-full p-3 bg-white/[0.04] border border-white/[0.1] rounded-xl text-xs text-white placeholder-neutral-600 focus:ring-2 focus:ring-purple-500/30 focus:border-transparent resize-none transition"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={!customPrompt.trim()}
-                        className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-xs font-semibold hover:from-purple-500 hover:to-blue-500 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        🎯 Run Custom AI
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCustom(false);
-                          setCustomPrompt("");
-                        }}
-                        className="px-3 py-2 bg-white/[0.06] text-neutral-400 rounded-lg text-xs hover:bg-white/[0.1] transition"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                )}
+                {/* Custom instruction form */}
+                <AnimatePresence>
+                  {showCustom && (
+                    <motion.form
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      onSubmit={handleCustomSubmit}
+                      className="overflow-hidden space-y-2"
+                    >
+                      <textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder='e.g. "Make the villain more menacing" or "Add a plot twist"'
+                        rows={2}
+                        maxLength={500}
+                        autoFocus
+                        className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white placeholder-neutral-600 focus:ring-1 focus:ring-violet-500/40 focus:border-violet-500/30 resize-none transition"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={!customPrompt.trim()}
+                          className="flex-1 px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg text-xs font-bold hover:from-violet-500 hover:to-indigo-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.98]"
+                        >
+                          Run Custom AI
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowCustom(false); setCustomPrompt(""); }}
+                          className="px-3 py-2 bg-white/[0.04] text-neutral-500 rounded-lg text-xs hover:bg-white/[0.08] transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
 
-                {/* Tip */}
-                <p className="text-[10px] text-neutral-600 text-center leading-tight px-2">
-                  💡 Select any action to let AI improve your entire script. You can undo any change instantly.
-                </p>
+                {/* Footer tip */}
+                <div className="flex items-center gap-2 pt-1 px-1">
+                  <div className="w-4 h-4 rounded-md bg-violet-500/10 flex items-center justify-center shrink-0">
+                    <span className="text-[8px]">💡</span>
+                  </div>
+                  <p className="text-[10px] text-neutral-600 leading-snug">
+                    Click any action to enhance your script. Every change can be undone instantly.
+                  </p>
+                </div>
               </div>
             )}
           </motion.div>
