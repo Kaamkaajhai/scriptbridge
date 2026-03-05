@@ -17,8 +17,9 @@ const seedAdmin = async () => {
 
         const existing = await User.findOne({ email: "admin@ckript.com" });
         if (existing) {
-            // Update role to admin if user exists
+            // Update role to admin and ensure email is verified
             existing.role = "admin";
+            existing.emailVerified = true;
             await existing.save();
             console.log("Updated existing user to admin:", existing._id);
         } else {
@@ -27,6 +28,7 @@ const seedAdmin = async () => {
                 email: "admin@ckript.com",
                 password: "admin123",
                 role: "admin",
+                emailVerified: true,
             });
             console.log("Admin user created:", admin._id);
             console.log("Email: admin@ckript.com");

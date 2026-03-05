@@ -5,24 +5,38 @@ const createTransporter = () => {
   // For development, use ethereal.email or Gmail
   // For production, use a proper email service like SendGrid, AWS SES, etc.
   
+  const emailUser = (process.env.EMAIL_USER || '').trim();
+  const emailPassword = (process.env.EMAIL_PASSWORD || '').trim();
+  
+  console.log('Email config - User:', emailUser ? 'Found' : 'Missing', 'Pass:', emailPassword ? 'Found' : 'Missing');
+  
+  if (!emailUser || !emailPassword) {
+    console.error('Missing EMAIL_USER or EMAIL_PASSWORD in environment variables');
+    console.error('Available env keys:', Object.keys(process.env).filter(k => k.includes('EMAIL')));
+    throw new Error('EMAIL_USER and EMAIL_PASSWORD environment variables are required');
+  }
+  
   if (process.env.EMAIL_HOST && process.env.EMAIL_PORT) {
     // Production configuration
     return nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
-      port: process.env.EMAIL_PORT,
+      port: parseInt(process.env.EMAIL_PORT),
       secure: process.env.EMAIL_SECURE === 'true',
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: emailUser,
+        pass: emailPassword,
       },
     });
   } else {
-    // Development fallback - use Gmail
+    // Development fallback - use Gmail with enhanced settings
     return nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER || 'your-email@gmail.com',
-        pass: process.env.EMAIL_PASSWORD || 'your-app-password',
+        user: emailUser,
+        pass: emailPassword,
+      },
+      tls: {
+        rejectUnauthorized: false,
       },
     });
   }
@@ -46,7 +60,12 @@ export const sendOTPEmail = async (email, name, otp) => {
       throw new Error('Invalid email address format');
     }
     
+    console.log(`Sending OTP email to ${email}...`);
     const transporter = createTransporter();
+    
+    // Verify transporter connection
+    await transporter.verify();
+    console.log('Email service verified successfully');
 
     const mailOptions = {
       from: `"ScriptBridge" <${process.env.EMAIL_USER || 'noreply@scriptbridge.com'}>`,
@@ -101,9 +120,8 @@ export const sendOTPEmail = async (email, name, otp) => {
     console.log('OTP email sent successfully to:', email, 'MessageId:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending OTP email to', email, ':', error.message);
+    console.error('Error sending OTP email to', email, ':', error.message, { code: error.code, command: error.command, response: error.response });
     
-    // Provide more specific error messages
     let errorMessage = error.message;
     if (error.code === 'EAUTH') {
       errorMessage = 'Email authentication failed. Invalid credentials.';
@@ -120,7 +138,12 @@ export const sendOTPEmail = async (email, name, otp) => {
 // Send welcome email after verification
 export const sendWelcomeEmail = async (email, name) => {
   try {
+    console.log(`Sending welcome email to ${email}...`);
     const transporter = createTransporter();
+    
+    // Verify transporter connection
+    await transporter.verify();
+    console.log('Email service verified successfully');
 
     const mailOptions = {
       from: `"ScriptBridge" <${process.env.EMAIL_USER || 'noreply@scriptbridge.com'}>`,
@@ -165,10 +188,16 @@ export const sendWelcomeEmail = async (email, name) => {
       text: `Hi ${name},\n\nYour email has been successfully verified! You're now part of the ScriptBridge community.\n\nWe're excited to have you on board!\n\nBest regards,\nThe ScriptBridge Team`,
     };
 
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Welcome email sent successfully:', info.messageId);
     return { success: true };
   } catch (error) {
-    console.error('Error sending welcome email:', error);
+    console.error('Error sending welcome email:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+    });
     return { success: false, error: error.message };
   }
 };
