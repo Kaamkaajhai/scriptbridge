@@ -105,12 +105,6 @@ const CreatorDashboard = ({ user, dark }) => {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-              {stats?.plan && (
-                <span className={`hidden sm:inline-flex px-3 py-1.5 rounded-lg text-[12px] font-bold tracking-wide uppercase ${stats.plan === "pro" ? "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] ring-1 ring-[#1e3a5f]/10" : dark ? "bg-white/[0.06] text-gray-400 ring-1 ring-white/10" : "bg-gray-50 text-gray-500 ring-1 ring-gray-200/60"
-                  }`}>
-                  {stats.plan === "pro" ? "Pro" : "Free"}
-                </span>
-              )}
               <Link to="/create-project"
                 className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 shadow-sm hover:-translate-y-0.5 ${dark ? 'bg-white/[0.06] text-gray-200 hover:bg-white/[0.1] ring-1 ring-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
