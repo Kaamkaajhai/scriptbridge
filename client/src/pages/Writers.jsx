@@ -28,20 +28,45 @@ const genreColor = (g) => GENRE_COLORS[g] || "bg-gray-100 text-gray-500";const W
   const [followedIds, setFollowedIds] = useState(new Set());
   const [followLoading, setFollowLoading] = useState(new Set());
 
-  useEffect(() => {
-    fetchWriters();
-  }, [sortBy]);
+const SORT_TABS = [
+  { key: "reputation", label: "Top Writers",  icon: "M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172" },
+  { key: "score",      label: "AI Score",     icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" },
+  { key: "views",      label: "Most Viewed",  icon: "M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" },
+  { key: "followers",  label: "Followers",    icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" },
+  { key: "scripts",    label: "Most Scripts", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" },
+];
 
-  const fetchWriters = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get(`/users/writers?sort=${sortBy}`);
-      setWriters(data);
-    } catch {
-      setWriters([]);
-    }
-    setLoading(false);
-  };
+/* ─── Rank tiers (no gold) ────────────────────── */
+// 1 = blue-violet (premier)  2 = slate  3 = teal
+const RANK_TIERS = {
+  1: {
+    strip:    "from-blue-500 via-violet-500 to-indigo-500",
+    avatarRing: "ring-blue-400/30",
+    badge:    "from-blue-500 to-violet-500 text-white",
+    glow:     "shadow-[0_4px_32px_rgba(99,102,241,0.14)]",
+    border:   { l: "border-blue-200/60",   d: "border-blue-500/20" },
+    bg:       { l: "bg-blue-50/30",        d: "bg-[#0a1628]" },
+    label:    { l: "text-blue-600 bg-blue-50 border-blue-100",    d: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+  },
+  2: {
+    strip:    "from-slate-400 to-slate-300",
+    avatarRing: "ring-slate-300/40",
+    badge:    "from-slate-400 to-slate-300 text-slate-800",
+    glow:     "shadow-[0_4px_20px_rgba(100,116,139,0.14)]",
+    border:   { l: "border-slate-200",     d: "border-slate-500/20" },
+    bg:       { l: "bg-slate-50/40",       d: "bg-[#0f1823]" },
+    label:    { l: "text-slate-600 bg-slate-100 border-slate-200", d: "text-slate-400 bg-slate-500/10 border-slate-500/20" },
+  },
+  3: {
+    strip:    "from-teal-400 to-cyan-400",
+    avatarRing: "ring-teal-400/30",
+    badge:    "from-teal-400 to-cyan-400 text-teal-900",
+    glow:     "shadow-[0_4px_20px_rgba(20,184,166,0.13)]",
+    border:   { l: "border-teal-200/60",   d: "border-teal-500/20" },
+    bg:       { l: "bg-teal-50/20",        d: "bg-[#081a1c]" },
+    label:    { l: "text-teal-700 bg-teal-50 border-teal-100",    d: "text-teal-400 bg-teal-500/10 border-teal-500/20" },
+  },
+};
 
   const handleFollow = async (e, writerId) => {
     e.preventDefault();
@@ -64,12 +89,11 @@ const genreColor = (g) => GENRE_COLORS[g] || "bg-gray-100 text-gray-500";const W
     w.writerProfile?.genres?.some(g => g.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const sortTabs = [
-    { key: "reputation", label: "Reputation", icon: "M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228m0 0a6.003 6.003 0 01-5.54 0" },
-    { key: "score", label: "AI Score", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" },
-    { key: "views", label: "Views", icon: "M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" },
-    { key: "followers", label: "Followers", icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" },
-  ];
+  const avatarUrl = writer.profileImage
+    ? writer.profileImage.startsWith("http")
+      ? writer.profileImage
+      : `${import.meta.env.VITE_API_URL || "http://localhost:5001"}${writer.profileImage}`
+    : null;
 
   if (loading) {
     return (

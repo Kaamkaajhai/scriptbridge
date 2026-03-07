@@ -4,20 +4,49 @@ import { motion, AnimatePresence } from "framer-motion";
 import { io } from "socket.io-client";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
-import { MessageCircle, ChevronLeft, Send, Lock, Info, Search, Smile } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
+import {
+  MessageCircle, ChevronLeft, Send, Lock, Info, Search, X,
+  Check, CheckCheck, Smile, Trash2, MoreVertical, Image,
+  ShieldCheck, ArrowRight,
+} from "lucide-react";
 
-// Build a consistent chatId from two user IDs (same logic as server)
+/* ── helpers ──────────────────────────────────────────────────── */
 const buildChatId = (a, b) => {
   const sorted = [a.toString(), b.toString()].sort();
   return `${sorted[0]}_${sorted[1]}`;
 };
 
+const formatTime = (date) =>
+  new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+const formatDay = (date) => {
+  const d = new Date(date);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
+
+const isSameDay = (a, b) =>
+  new Date(a).toDateString() === new Date(b).toDateString();
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+/* ═══════════════════════════════════════════════════════════════
+   MESSAGES PAGE
+═══════════════════════════════════════════════════════════════ */
 const Messages = () => {
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  /* state */
   const [conversations, setConversations] = useState([]);
+  const [filteredConvs, setFilteredConvs] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -63,7 +92,8 @@ const Messages = () => {
     const newSocket = io("http://localhost:5002");
     setSocket(newSocket);
     loadConversations();
-    return () => newSocket.close();
+    return () => sock.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Typing indicator
@@ -81,34 +111,41 @@ const Messages = () => {
   // If investor arrives from ScriptDetail with ?recipientId=...&recipientName=...
   // pre-open the chat after conversations are loaded
   useEffect(() => {
-    if (loading) return; // wait until conversations have loaded
+    if (!socket) return;
+    socket.off("user-typing");
+    socket.on("user-typing", ({ chatId, userId }) => {
+      if (activeChat?.chatId === chatId && userId !== user._id) {
+        setIsTyping(true);
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(() => setIsTyping(false), 2500);
+      }
+    });
+  }, [socket, activeChat, user._id]);
+
+  /* ── URL param: open chat from ScriptDetail ─────────────── */
+  useEffect(() => {
+    if (loading) return;
     const recipientId = searchParams.get("recipientId");
     const recipientName = searchParams.get("recipientName") || "Writer";
     if (!recipientId || !isInvestor) return;
 
-    // Build the chatId the same way the server does
     const chatId = buildChatId(user._id, recipientId);
-
-    // If this conversation is already in the list, select it
     const existing = conversations.find((c) => c.chatId === chatId);
-    if (existing) {
-      handleSelectChat(existing);
-      return;
-    }
+    if (existing) { handleSelectChat(existing); return; }
 
-    // Otherwise create a pending chat entry (investor is about to send the first message)
     const pendingChat = {
       chatId,
       user: { _id: recipientId, name: recipientName, role: "writer", profileImage: "" },
       lastMessage: "",
       timestamp: new Date().toISOString(),
-      isPending: true, // flag: no messages exist yet
+      isPending: true,
     };
     setActiveChat(pendingChat);
     setMessages([]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
+  /* ── Join socket room when chat changes ─────────────────── */
   useEffect(() => {
     if (socket && activeChat) {
       socket.emit("join-chat", activeChat.chatId);
@@ -131,89 +168,128 @@ const Messages = () => {
     };
   }, [socket, activeChat]);
 
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  /* ── Scroll to bottom ───────────────────────────────────── */
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
 
+  /* ── Filter conversations by search query ───────────────── */
+  useEffect(() => {
+    if (!searchQuery.trim()) { setFilteredConvs(conversations); return; }
+    const q = searchQuery.toLowerCase();
+    setFilteredConvs(conversations.filter((c) => c.user?.name?.toLowerCase().includes(q)));
+  }, [searchQuery, conversations]);
+
+  /* ── Load conversations ─────────────────────────────────── */
   const loadConversations = async () => {
     try {
       const { data } = await api.get("/messages/conversations");
       setConversations(data);
-    } catch (error) {
-      console.error("Error loading conversations:", error);
+      setFilteredConvs(data);
+    } catch {
       setConversations([]);
+      setFilteredConvs([]);
     } finally {
       setLoading(false);
     }
   };
 
+  /* ── Load messages ──────────────────────────────────────── */
   const loadMessages = async (chatId) => {
     setMessagesLoading(true);
     try {
       const { data } = await api.get(`/messages/${chatId}`);
       setMessages(data);
-    } catch (error) {
+    } catch {
       setMessages([]);
     } finally {
       setMessagesLoading(false);
     }
   };
 
-  const handleSelectChat = (conversation) => {
+  /* ── Select conversation ────────────────────────────────── */
+  const handleSelectChat = useCallback((conv) => {
     setSendError("");
-    setActiveChat(conversation);
-    loadMessages(conversation.chatId);
-  };
+    setIsTyping(false);
+    setEmojiPicker(null);
+    setActiveChat(conv);
+    loadMessages(conv.chatId);
+    // Clear unread badge
+    setConversations((prev) =>
+      prev.map((c) => (c.chatId === conv.chatId ? { ...c, unreadCount: 0 } : c))
+    );
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
 
+  /* ── Send message ───────────────────────────────────────── */
   const handleSendMessage = async (e) => {
     e.preventDefault();
     setSendError("");
     if (!newMessage.trim() || !activeChat) return;
 
-    // Writers cannot send if there are no messages yet (backend enforces this too)
     if (isWriter && !messagesLoading && messages.length === 0) {
       setSendError("You cannot initiate a conversation. Only investors can message first.");
       return;
     }
 
-    const messageData = {
+    const tempId = `temp_${Date.now()}`;
+    const optimistic = {
+      _id: tempId,
       chatId: activeChat.chatId,
-      sender: user._id,
+      sender: { _id: user._id, name: user.name, profileImage: user.profileImage, role: user.role },
+      receiver: activeChat.user._id,
       text: newMessage,
-      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      read: false,
     };
 
+    setMessages((prev) => [...prev, optimistic]);
+    const sentText = newMessage;
+    setNewMessage("");
+
     try {
-      await api.post("/messages/send", {
+      const { data: saved } = await api.post("/messages/send", {
         receiverId: activeChat.user._id,
-        text: newMessage,
+        text: sentText,
       });
-      socket?.emit("send-message", messageData);
-      // If this was a pending (no prior messages) chat, now promote it into the conversations list
+
+      // Replace optimistic with saved
+      setMessages((prev) => prev.map((m) => (m._id === tempId ? saved : m)));
+
+      socket?.emit("send-message", { ...saved, chatId: activeChat.chatId });
+
       if (activeChat.isPending) {
-        const promoted = { ...activeChat, lastMessage: newMessage, isPending: false };
+        const promoted = { ...activeChat, lastMessage: sentText, isPending: false };
         setConversations((prev) => [promoted, ...prev]);
+        setFilteredConvs((prev) => [promoted, ...prev]);
         setActiveChat(promoted);
       } else {
-        // Update lastMessage in conversation list
         setConversations((prev) =>
           prev.map((c) =>
-            c.chatId === activeChat.chatId ? { ...c, lastMessage: newMessage, timestamp: new Date().toISOString() } : c
+            c.chatId === activeChat.chatId
+              ? { ...c, lastMessage: sentText, timestamp: new Date().toISOString() }
+              : c
           )
         );
       }
-      setMessages((prev) => [...prev, messageData]);
-      setNewMessage("");
-    } catch (error) {
-      const msg = error.response?.data?.message || "Failed to send message.";
-      const code = error.response?.data?.code;
-      if (code === "PURCHASE_REQUIRED") {
-        setSendError("Purchase a project from this writer first to unlock messaging.");
-      } else {
-        setSendError(msg);
-      }
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      const code = err.response?.data?.code;
+      setSendError(
+        code === "PURCHASE_REQUIRED"
+          ? "Purchase a project from this writer first to unlock messaging."
+          : err.response?.data?.message || "Failed to send message."
+      );
     }
   };
 
-  const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); };
+  /* ── Typing indicator emit ──────────────────────────────── */
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    if (socket && activeChat) {
+      socket.emit("typing", { chatId: activeChat.chatId, userId: user._id });
+    }
+  };
 
   if (loading) {
     return (
@@ -266,8 +342,8 @@ const Messages = () => {
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.length === 0 ? (
             <div className="p-8 text-center">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${dark ? 'bg-white/[0.04]' : 'bg-gray-100'}`}>
-                <MessageCircle size={28} className={dark ? 'text-gray-500' : 'text-gray-400'} strokeWidth={1.5} />
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+                <MessageCircle size={26} className={t.muted} strokeWidth={1.5} />
               </div>
               <p className={`text-[13px] font-semibold mb-1 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                 {convSearch ? "No results found" : "No conversations yet"}
@@ -330,12 +406,16 @@ const Messages = () => {
         </div>
       </div>
 
-      {/* ── Chat Area ── */}
+      {/* ════════════════════════════════════════
+          RIGHT — Chat Area
+      ════════════════════════════════════════ */}
       <div className={[
         "flex-1 flex-col min-w-0",
         dark ? "bg-[#0c1825]" : "bg-gray-50/40",
         !showList ? "flex" : "hidden md:flex",
       ].join(" ")}>
+
+        {/* ── Empty state (no conversation selected) ── */}
         {!activeChat ? (
           /* Empty state */
           <div className="flex-1 flex items-center justify-center p-8">
@@ -352,6 +432,22 @@ const Messages = () => {
                 </div>
               )}
             </div>
+            <h3 className={`text-base font-bold mb-1.5 ${t.title}`}>Your Messages</h3>
+            <p className={`text-sm max-w-xs leading-relaxed ${t.sub}`}>
+              {isInvestor
+                ? "Select a conversation or purchase a project to unlock messaging with its writer."
+                : isWriter
+                ? "Investors will message you here after purchasing one of your projects."
+                : "Select a conversation from the left to start chatting."}
+            </p>
+            {isInvestor && (
+              <button
+                onClick={() => navigate("/search")}
+                className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-colors"
+              >
+                Browse Projects <ArrowRight size={15} />
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -376,6 +472,11 @@ const Messages = () => {
                 <h3 className={`text-[14px] font-bold leading-tight ${dark ? 'text-gray-100' : 'text-gray-900'}`}>{activeChat.user.name}</h3>
                 <p className={`text-[11px] font-medium capitalize ${dark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>Online</p>
               </div>
+              {isInvestor && (
+                <span className={`hidden sm:flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full ${dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
+                  <ShieldCheck size={12} /> Verified Investor
+                </span>
+              )}
             </div>
 
             {/* Messages */}
@@ -528,6 +629,41 @@ const Messages = () => {
           </>
         )}
       </div>
+
+      {/* ════════════════════════════════════════
+          Delete confirmation modal
+      ════════════════════════════════════════ */}
+      <AnimatePresence>
+        {deleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={() => setDeleteModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-sm rounded-2xl p-6 shadow-2xl border ${dark ? "bg-[#0a1628] border-[#152035]" : "bg-white border-gray-100"}`}
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 ${dark ? "bg-red-900/20" : "bg-red-50"}`}>
+                <Trash2 size={22} className="text-red-500" />
+              </div>
+              <h3 className={`text-base font-bold text-center mb-1.5 ${t.title}`}>Delete Message?</h3>
+              <p className={`text-sm text-center mb-6 ${t.sub}`}>This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteModal(null)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${dark ? "border-[#152035] text-gray-300 hover:bg-white/[0.04]" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                  Cancel
+                </button>
+                <button onClick={() => handleDelete(deleteModal)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-500 hover:bg-red-600 text-white transition">
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

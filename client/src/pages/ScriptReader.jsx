@@ -213,6 +213,9 @@ const ScriptReader = () => {
                   Unlock – ${script.price}
                 </button>
               )}
+              {!isUnlocked && !isPro && !script.isCreator && (
+                <p className="text-xs text-amber-500 font-semibold">Sign in as a producer, director, or investor to unlock.</p>
+              )}
             </div>
           </div>
         </div>
