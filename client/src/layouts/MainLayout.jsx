@@ -1,5 +1,6 @@
 import { useContext, useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
@@ -9,6 +10,7 @@ import api from "../services/api";
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -130,7 +132,7 @@ const MainLayout = ({ children }) => {
   };
 
   const getNotifColor = () => {
-    return "text-[#1e3a5f] bg-[#1e3a5f]/[0.06]";
+    return "text-black bg-black/[0.06]";
   };
 
   const timeAgo = (date) => {
@@ -165,19 +167,19 @@ const MainLayout = ({ children }) => {
       <div className={`min-h-screen ${isDarkMode ? "bg-[#060d18]" : "bg-[#eef0f3]"}`}>
       <Sidebar />
 
-      {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
-        isDarkMode ? "bg-[#0b1426]/95 border-[#1a3050] backdrop-blur-xl" : "glass-strong border-gray-200/60"
+      {/* Top bar - search + notifications + user */}
+      <header className={`fixed top-0 right-0 left-0 md:left-16 lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
+        isDarkMode ? "bg-[#0b1426]/95 border-[#1a3050] backdrop-blur-xl" : "bg-white border-gray-200"
       }`}>
         {/* Search */}
         <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-lg">
           <div className={`group flex items-center w-full rounded-xl overflow-hidden transition-all duration-300 ${
             isDarkMode
-              ? "border border-[#1a3050] bg-[#0e1c2e] hover:border-[#24466e] focus-within:border-[#2d5a8e]/60 focus-within:ring-2 focus-within:ring-[#1e3a5f]/20"
-              : "bg-gray-100/80 hover:bg-gray-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a5f]/10 focus-within:shadow-md"
+              ? "border border-[#1a3050] bg-[#0e1c2e] hover:border-[#24466e] focus-within:border-[#333333]/60 focus-within:ring-2 focus-within:ring-[#111111]/20"
+              : "bg-gray-100 border border-gray-200 hover:bg-gray-50 focus-within:bg-white focus-within:border-black/40 focus-within:ring-2 focus-within:ring-black/10 focus-within:shadow-sm"
           }`}>
-            <div className={`pl-4 transition-colors ${isDarkMode ? "text-gray-500 group-focus-within:text-[#1e3a5f]" : "text-gray-400 group-focus-within:text-[#1e3a5f]"}`}>
-              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <div className={`pl-4 transition-colors ${isDarkMode ? "text-gray-500 group-focus-within:text-white" : "text-gray-400 group-focus-within:text-black"}`}>
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
@@ -226,13 +228,13 @@ const MainLayout = ({ children }) => {
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
               className={`relative w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
-                isDarkMode ? "text-gray-400 hover:text-blue-400 hover:bg-[#1a3050] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
+                isDarkMode ? "text-gray-400 hover:text-white hover:bg-[#1a3050] hover:scale-105" : "text-gray-400 hover:text-black hover:bg-gray-100 hover:scale-105"
               }`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-[#1e3a5f] text-white text-[10px] font-bold rounded-full px-1 ring-2 ring-white animate-pulse-soft">
+                <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-black text-white text-[10px] font-bold rounded-full px-1 ring-2 ring-white animate-pulse-soft">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -240,7 +242,7 @@ const MainLayout = ({ children }) => {
 
             {/* Notification Panel */}
             {notifOpen && (
-              <div className={`absolute right-0 mt-2 w-[380px] max-h-[520px] rounded-2xl z-50 flex flex-col overflow-hidden animate-scaleIn ${
+              <div className={`absolute right-0 mt-2 w-95 max-h-130 rounded-2xl z-50 flex flex-col overflow-hidden animate-scaleIn ${
                 isDarkMode ? "bg-[#0f1d35] border border-[#1a3050] shadow-2xl" : "bg-white border border-gray-200/80 shadow-xl shadow-gray-200/50"
               }`}>
                 {/* Header */}
@@ -249,7 +251,7 @@ const MainLayout = ({ children }) => {
                   <div className="flex items-center gap-2">
                     {unreadCount > 0 && (
                       <button onClick={handleMarkAllRead}
-                        className="text-xs font-semibold text-[#1e3a5f] hover:text-[#162d4a] transition-colors">
+                        className="text-xs font-semibold text-black hover:text-gray-700 transition-colors">
                         Mark all read
                       </button>
                     )}
@@ -269,7 +271,7 @@ const MainLayout = ({ children }) => {
                 <div className="flex-1 overflow-y-auto">
                   {notifLoading ? (
                     <div className="flex justify-center items-center py-12">
-                      <div className="w-6 h-6 border-2 border-gray-200 border-t-[#1e3a5f] rounded-full animate-spin"></div>
+                      <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin"></div>
                     </div>
                   ) : notifications.length > 0 ? (
                     <div>
@@ -277,8 +279,8 @@ const MainLayout = ({ children }) => {
                         <div key={n._id}
                           className={`flex items-start gap-3 px-4 py-3 border-b transition-colors group ${
                             isDarkMode
-                              ? `border-[#182840] hover:bg-white/[0.03] ${!n.read ? "bg-[#1e3a5f]/[0.06]" : ""}`
-                              : `border-gray-50 hover:bg-gray-50/50 ${!n.read ? "bg-[#1e3a5f]/[0.02]" : ""}`
+                              ? `border-[#182840] hover:bg-white/3 ${!n.read ? "bg-[#111111]/[0.06]" : ""}`
+                              : `border-gray-50 hover:bg-gray-50/50 ${!n.read ? "bg-black/[0.02]" : ""}`
                           }`}>
                           {/* Icon */}
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${getNotifColor(n.type)}`}>
@@ -295,7 +297,7 @@ const MainLayout = ({ children }) => {
                               )}
                               <span>{n.message}</span>
                               {n.script?.title && (
-                                <span className="font-semibold text-[#1e3a5f]"> {n.script.title}</span>
+                                <span className="font-semibold text-black"> {n.script.title}</span>
                               )}
                             </p>
                             <p className={`text-xs font-medium mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(n.createdAt)}</p>
@@ -305,7 +307,7 @@ const MainLayout = ({ children }) => {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
                             {!n.read && (
                               <button onClick={() => handleMarkOneRead(n._id)} title="Mark as read"
-                                className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-[#1e3a5f] hover:bg-[#1e3a5f]/5 transition-colors">
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-black hover:bg-black/5 transition-colors">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                 </svg>
@@ -321,14 +323,14 @@ const MainLayout = ({ children }) => {
 
                           {/* Unread dot */}
                           {!n.read && (
-                            <div className="w-2 h-2 bg-[#1e3a5f] rounded-full shrink-0 mt-2"></div>
+                            <div className="w-2 h-2 bg-black rounded-full shrink-0 mt-2"></div>
                           )}
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-14">
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-white/4" : "bg-gray-100"}`}>
                         <svg className={`w-7 h-7 ${isDarkMode ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                         </svg>
@@ -367,7 +369,7 @@ const MainLayout = ({ children }) => {
               {user?.profileImage ? (
                 <img src={user.profileImage} alt={user.name} className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1a3050]" : "ring-gray-100 hover:ring-gray-200"}`} />
               ) : (
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-blue-500/20 text-blue-400" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-white/10 text-white" : "bg-black text-white"}`}>
                   {initials}
                 </div>
               )}
@@ -411,10 +413,8 @@ const MainLayout = ({ children }) => {
       </header>
 
       {/* Main content */}
-      <main className="pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
-          {children}
-        </div>
+      <main className="pt-16 pb-16 md:pb-0 md:ml-16 lg:ml-[270px] min-h-screen">
+        <PageContent>{children}</PageContent>
       </main>
     </div>
     </>
@@ -422,3 +422,22 @@ const MainLayout = ({ children }) => {
 };
 
 export default MainLayout;
+
+// ── Page-level transition wrapper ──────────────────────────────────────────
+const PageContent = ({ children }) => {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="p-4 sm:p-6 lg:p-8 w-full"
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+};
