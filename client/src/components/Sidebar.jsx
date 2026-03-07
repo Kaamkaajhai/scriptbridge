@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useContext, useState, useEffect } from "react";
+
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
@@ -11,12 +12,10 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // State for collapsible sections
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const [watchlistOpen, setWatchlistOpen] = useState(true); // NEW for Producers
-
+  const [watchlistOpen, setWatchlistOpen] = useState(true);
   const [myScripts, setMyScripts] = useState([]);
-  const [watchlist, setWatchlist] = useState([]); // NEW for Producers
+  const [watchlist, setWatchlist] = useState([]);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isIndustry = user?.role === 'professional' || user?.role === 'producer' || user?.role === 'investor';
@@ -33,7 +32,6 @@ const Sidebar = () => {
     }
   }, [user]);
 
-  // Re-fetch scripts whenever one is deleted anywhere in the app
   useEffect(() => {
     const onScriptDeleted = () => {
       if (!isIndustry && !isReader) fetchMyScripts();
@@ -54,7 +52,6 @@ const Sidebar = () => {
 
   const fetchWatchlist = async () => {
     try {
-      // You need an endpoint for this: /users/watchlist
       const { data } = await api.get("/users/watchlist");
       setWatchlist(data);
     } catch {
@@ -66,8 +63,6 @@ const Sidebar = () => {
 
   const isActive = (path) => {
     if (location.pathname === path) return true;
-    // Only use prefix matching for paths that won't accidentally match sibling routes
-    // e.g. "/reader" must NOT match "/reader/profile/..." since Profile is its own nav item
     const siblingPaths = [...mainNavItems, ...actionItems, ...bottomNavItems].map((i) => i.path);
     if (siblingPaths.some((p) => p !== path && p.startsWith(path + "/"))) return false;
     return location.pathname.startsWith(path + "/");
@@ -148,6 +143,9 @@ const Sidebar = () => {
   const bottomNavItems = (!isReader && !isIndustry && !isAdmin) ? [
     { path: "/programs", label: "Messages", icon: "M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" },
     { path: `/profile/${user?._id || ""}`, label: "Profile", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+    { path: "/offer-holds", label: "Offer Holds", icon: "M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.745 3.745 0 013.296-1.043A3.745 3.745 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.745 3.745 0 013.296 1.043 3.745 3.745 0 011.043 3.296A3.745 3.745 0 0121 12z" },
+    { path: "/qa-checklist", label: "QA Checklist", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
+    { path: "/e2e-flow", label: "E2E Flow", icon: "M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" },
   ] : [];
 
   const mobileItems = isAdmin ? [
@@ -193,11 +191,10 @@ const Sidebar = () => {
           : isDarkMode ? "text-gray-400 hover:bg-[#132744] hover:text-gray-200" : "text-gray-500 hover:bg-gray-50/80 hover:text-gray-700"
           }`}
       >
-        <Icon d={item.icon} />
+        <span className={`transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-110"}`}>
+          <Icon d={item.icon} />
+        </span>
         <span>{item.label}</span>
-        {active && (
-          <div className={`absolute right-3 w-1.5 h-1.5 rounded-full ${isDarkMode ? "bg-blue-400" : "bg-[#1e3a5f]"}`} />
-        )}
       </Link>
     );
   };
@@ -288,14 +285,16 @@ const Sidebar = () => {
 
   return (
     <>
-      <aside className={`hidden lg:flex fixed left-0 top-0 h-screen w-[270px] border-r flex-col z-30 ${isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white/80 backdrop-blur-xl border-gray-200/60"}`}>
+      {/* Desktop 270px sidebar */}
+      <aside className={`hidden lg:flex fixed left-0 top-0 h-screen w-[270px] border-r flex-col z-30 ${isReader && isDarkMode ? "bg-[var(--eclipse-sidebar)] border-[var(--eclipse-sidebar-border)]" : isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white border-gray-200"}`}>
         <SidebarContent />
       </aside>
 
-      <aside className={`hidden md:flex lg:hidden fixed left-0 top-0 h-screen w-[64px] border-r flex-col items-center z-30 ${isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white/80 backdrop-blur-xl border-gray-200/60"}`}>
+      {/* Medium 64px icon-only sidebar */}
+      <aside className={`hidden md:flex lg:hidden fixed left-0 top-0 h-screen w-[64px] border-r flex-col items-center z-30 ${isReader && isDarkMode ? "bg-[var(--eclipse-sidebar)] border-[var(--eclipse-sidebar-border)]" : isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white border-gray-200"}`}>
         <div className="h-16 flex items-center justify-center">
           <Link to="/dashboard">
-            <svg className={`w-7 h-7 ${isDarkMode ? "text-blue-400" : "text-[#1e3a5f]"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <svg className={`w-7 h-7 ${isDarkMode ? "text-white" : "text-black"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </Link>
@@ -305,11 +304,15 @@ const Sidebar = () => {
             const active = isActive(item.path);
             return (
               <Link key={item.label} to={item.path} title={item.label}
-                className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${active
-                  ? isDarkMode ? "bg-blue-500/15 text-blue-400" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"
-                  : isDarkMode ? "text-gray-500 hover:bg-[#132744] hover:text-gray-300" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-                  }`}>
-                <Icon d={item.icon} />
+                style={active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-active-text)", borderLeftColor: "var(--sidebar-active-border)" } : undefined}
+                className={["w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 border-l-[2.5px] group",
+                  active ? "border-l-[var(--sidebar-active-border)] font-bold"
+                    : isDarkMode ? "text-gray-500 hover:bg-white/[0.05] hover:text-gray-300 border-l-transparent"
+                    : "text-gray-400 hover:bg-black/[0.04] hover:text-gray-600 border-l-transparent",
+                ].join(" ")}>
+                <span className={`transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-110"}`}>
+                  <Icon d={item.icon} />
+                </span>
               </Link>
             );
           })}
@@ -318,11 +321,15 @@ const Sidebar = () => {
             const active = isActive(item.path);
             return (
               <Link key={item.label} to={item.path} title={item.label}
-                className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${active
-                  ? isDarkMode ? "bg-blue-500/15 text-blue-400" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"
-                  : isDarkMode ? "text-gray-500 hover:bg-[#132744] hover:text-gray-300" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-                  }`}>
-                <Icon d={item.icon} />
+                style={active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-active-text)", borderLeftColor: "var(--sidebar-active-border)" } : undefined}
+                className={["w-11 h-11 flex items-center justify-center rounded-xl transition-all duration-200 border-l-[2.5px] group",
+                  active ? "border-l-[var(--sidebar-active-border)] font-bold"
+                    : isDarkMode ? "text-gray-500 hover:bg-white/[0.05] hover:text-gray-300 border-l-transparent"
+                    : "text-gray-400 hover:bg-black/[0.04] hover:text-gray-600 border-l-transparent",
+                ].join(" ")}>
+                <span className={`transition-transform duration-200 ${active ? "scale-110" : "group-hover:scale-110"}`}>
+                  <Icon d={item.icon} />
+                </span>
               </Link>
             );
           })}
@@ -332,7 +339,7 @@ const Sidebar = () => {
             {user?.profileImage ? (
               <img src={user.profileImage} alt={user.name} className={`w-9 h-9 rounded-full object-cover ring-1 ${isDarkMode ? "ring-[#1a3050]" : "ring-gray-200"}`} />
             ) : (
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isDarkMode ? "bg-blue-500/20 text-blue-400" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"}`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isDarkMode ? "bg-white/10 text-white" : "bg-black text-white"}`}>
                 {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
             )}
@@ -344,6 +351,7 @@ const Sidebar = () => {
         </div>
       </aside>
 
+      {/* Mobile hamburger button */}
       <button onClick={() => setMobileOpen(true)}
         className={`md:hidden fixed top-4 left-4 z-50 w-9 h-9 border rounded-lg flex items-center justify-center shadow-sm ${isDarkMode ? "bg-[#0f1d35] border-[#1a3050] text-gray-300" : "bg-white border-gray-200 text-gray-600"}`}>
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -351,10 +359,11 @@ const Sidebar = () => {
         </svg>
       </button>
 
+      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)}></div>
-          <aside className={`absolute left-0 top-0 h-full w-[260px] shadow-lg ${isDarkMode ? "bg-[#0b1426]" : "bg-white"}`}>
+          <aside className={`absolute left-0 top-0 h-full w-[260px] shadow-lg ${isReader && isDarkMode ? "bg-[var(--eclipse-sidebar)]" : isDarkMode ? "bg-[#0b1426]" : "bg-white"}`}>
             <button onClick={() => setMobileOpen(false)} className={`absolute top-4 right-3 ${isDarkMode ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -365,18 +374,19 @@ const Sidebar = () => {
         </div>
       )}
 
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-16 border-t flex items-center justify-around px-1 z-40 ${isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white/90 backdrop-blur-xl border-gray-200/60"}`}>
+      {/* Mobile bottom nav */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-16 border-t flex items-center justify-around px-1 z-40 ${isReader && isDarkMode ? "bg-[var(--eclipse-sidebar)] border-[var(--eclipse-sidebar-border)]" : isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white border-gray-200"}`}>
         {mobileItems.map((item) => {
           const active = isActive(item.path);
           return (
             <Link key={item.path} to={item.path}
               className={`flex flex-col items-center justify-center gap-0.5 w-14 h-12 transition-colors ${active
-                ? isDarkMode ? "text-blue-400" : "text-[#1e3a5f]"
+                  ? isDarkMode ? "text-white" : "text-black"
                 : isDarkMode ? "text-gray-500" : "text-gray-400"
-                }`}>
+              }`}>
               <Icon d={item.icon} size={`w-[22px] h-[22px] ${active ? "stroke-[2.2]" : ""}`} />
               <span className={`text-xs ${active
-                ? isDarkMode ? "font-extrabold text-blue-400" : "font-extrabold text-[#1e3a5f]"
+                    ? isDarkMode ? "font-extrabold text-white" : "font-extrabold text-black"
                 : isDarkMode ? "font-bold text-gray-500" : "font-bold text-gray-400"
                 }`}>
                 {item.label}

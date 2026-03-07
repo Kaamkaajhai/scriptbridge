@@ -74,7 +74,7 @@ const FeaturedSection = () => {
               <div className="max-w-lg">
                 <div className="flex gap-2 mb-3">
                   {hero.genre && <span className="px-2.5 py-1 bg-white/15 backdrop-blur-sm rounded-md text-xs font-medium text-white/90">{hero.genre}</span>}
-                  <span className="px-2.5 py-1 bg-amber-500/20 backdrop-blur-sm rounded-md text-xs font-medium text-amber-200">Featured</span>
+                  <span className="px-2.5 py-1 bg-[#505081]/60 backdrop-blur-sm rounded-md text-xs font-medium text-[#c2c2e0]">Featured</span>
                 </div>
                 <h3 className="text-xl md:text-2xl font-semibold text-white mb-1.5">{hero.title}</h3>
                 {hero.logline && <p className="text-white/60 text-sm font-normal line-clamp-2 mb-4">{hero.logline}</p>}

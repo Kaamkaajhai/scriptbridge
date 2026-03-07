@@ -1,9 +1,13 @@
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useDarkMode } from "../context/DarkModeContext";
+import useIntersectionObserver from "../utils/useIntersectionObserver";
 
 const ProjectCard = ({ project, userName }) => {
   const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
+
+  const [cardRef, isVisible] = useIntersectionObserver({ threshold: 0.05 });
 
   const statusConfig = {
     pending_approval: {
@@ -28,17 +32,22 @@ const ProjectCard = ({ project, userName }) => {
   };
 
   const statusInfo = statusConfig[project?.status];
+  const isPremium = project?.premium || project?.isPremium;
   const isClickable = project?.status === "published";
 
   return (
-    <div
+    <div ref={cardRef}>
+    <motion.div
       onClick={() => isClickable && navigate(`/script/${project._id}`)}
-      className={`rounded-2xl border transition-all duration-300 overflow-hidden w-full group relative ${
-        isClickable ? "cursor-pointer hover:-translate-y-1" : "cursor-default opacity-90"
+      initial={{ opacity: 0, y: 16 }}
+      animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className={`card-hover rounded-2xl border overflow-hidden w-full group relative ${
+        isClickable ? "cursor-pointer" : "cursor-default opacity-90"
       } ${
         dark
-          ? "bg-[#0d1829] border-white/[0.06] hover:border-white/[0.1] hover:shadow-xl hover:shadow-[#020609]/30"
-          : "bg-white border-gray-100 shadow-sm hover:shadow-xl hover:shadow-gray-200/60"
+          ? "bg-[#0d1829] border-white/[0.06]"
+          : "bg-white border-gray-100 shadow-sm"
       }`}
     >
       {/* Status badge */}
@@ -57,16 +66,16 @@ const ProjectCard = ({ project, userName }) => {
       {/* Card body */}
       <div className="flex flex-col items-center px-6 pt-10 pb-6 relative">
         {/* Subtle accent at top */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#1e3a5f]/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#111111]/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Project icon */}
         <div className={`w-16 h-16 mb-5 flex items-center justify-center rounded-2xl transition-colors duration-300 ${
           dark
             ? "bg-white/[0.04] group-hover:bg-white/[0.07]"
-            : "bg-[#1e3a5f]/[0.04] group-hover:bg-[#1e3a5f]/[0.08]"
+            : "bg-[#111111]/[0.04] group-hover:bg-[#111111]/[0.08]"
         }`}>
           <svg className={`w-10 h-10 group-hover:scale-110 transition-transform duration-300 ${
-            dark ? "text-[#7aafff]/50" : "text-[#1e3a5f]"
+            dark ? "text-[#7aafff]/50" : "text-[#111111]"
           }`} fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
@@ -111,10 +120,11 @@ const ProjectCard = ({ project, userName }) => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-sm font-bold tracking-wider uppercase">
-            {project?.premium ? "Premium" : "Evaluations"}
+            {isPremium ? "Premium" : "Evaluations"}
           </span>
         </div>
       </div>
+    </motion.div>
     </div>
   );
 };

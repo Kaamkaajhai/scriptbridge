@@ -59,12 +59,27 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const ip = profile.industryProfile || {};
   const mandates = ip.mandates || {};
 
+  const READER_GENRE_OPTIONS = [
+    "Action", "Comedy", "Drama", "Horror", "Thriller",
+    "Romance", "Sci-Fi", "Fantasy", "Mystery", "Adventure",
+    "Crime", "Animation", "Documentary", "Historical",
+  ];
+
   const [formData, setFormData] = useState({
     name: profile.name || "",
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
     profileImage: profile.profileImage || "",
+    coverImage: profile.coverImage || "",
   });
+  const [selectedFavoriteGenres, setSelectedFavoriteGenres] = useState(profile.favoriteGenres || []);
+  const [coverPreview, setCoverPreview] = useState(
+    profile.coverImage
+      ? (profile.coverImage.startsWith("http") ? profile.coverImage : `http://localhost:5002${profile.coverImage}`)
+      : ""
+  );
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef(null);
 
   // Investor-specific state
   const [investorData, setInvestorData] = useState({
@@ -184,7 +199,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setFormData({ ...formData, profileImage: data.profileImage });
-      setImagePreview(`http://localhost:5001${data.profileImage}`);
+      setImagePreview(`http://localhost:5002${data.profileImage}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to upload image");
       setImagePreview(profile.profileImage || "");
@@ -197,6 +212,31 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     setFormData({ ...formData, profileImage: "" });
     setImagePreview("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) { setError("Only JPEG, PNG, WebP images are allowed for cover"); return; }
+    if (file.size > 5 * 1024 * 1024) { setError("Cover image must be under 5MB"); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setCoverPreview(ev.target.result);
+    reader.readAsDataURL(file);
+    setUploadingCover(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("profileImage", file);
+      const { data } = await api.post("/users/upload-image", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setFormData((prev) => ({ ...prev, coverImage: data.profileImage }));
+      setCoverPreview(`http://localhost:5002${data.profileImage}`);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to upload cover image");
+      setCoverPreview("");
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -213,6 +253,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       const payload = {
         ...formData,
         skills: skillsArray,
+        favoriteGenres: selectedFavoriteGenres,
       };
 
       if (isWriter) {
@@ -253,12 +294,12 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const displayImage = imagePreview
     ? imagePreview.startsWith("data:") || imagePreview.startsWith("http")
       ? imagePreview
-      : `http://localhost:5001${imagePreview}`
+      : `http://localhost:5002${imagePreview}`
     : "";
 
   const inputClass = dark
     ? "w-full px-3.5 py-2.5 bg-[#242424] border border-[#444] rounded-lg text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-blue-500 focus:bg-[#101e30] transition-colors"
-    : "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] focus:bg-white transition-colors";
+    : "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-[#111111] focus:bg-white transition-colors";
   const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`;
 
   return (
@@ -329,8 +370,8 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                         className="w-[72px] h-[72px] rounded-full object-cover border-2 border-gray-200"
                       />
                     ) : (
-                      <div className="w-[72px] h-[72px] rounded-full bg-[#1e3a5f]/10 border-2 border-dashed border-gray-300 flex items-center justify-center">
-                        <span className="text-2xl font-bold text-[#1e3a5f]">
+                      <div className="w-[72px] h-[72px] rounded-full bg-[#111111]/10 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                        <span className="text-2xl font-bold text-[#111111]">
                           {formData.name ? formData.name.charAt(0).toUpperCase() : "?"}
                         </span>
                       </div>
@@ -353,7 +394,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
-                      className="px-3.5 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-semibold hover:bg-[#162d4a] transition-colors disabled:opacity-50"
+                      className="px-3.5 py-1.5 bg-[#111111] text-white rounded-lg text-xs font-semibold hover:bg-[#000000] transition-colors disabled:opacity-50"
                     >
                       {uploading ? "Uploading..." : "Upload Photo"}
                     </button>
@@ -405,6 +446,68 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   placeholder="Writing, Directing, Acting"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Separate skills with commas</p>
+              </div>
+
+              {/* Cover Image */}
+              <div>
+                <label className={labelClass}>Cover Image</label>
+                <div className={`relative w-full h-24 rounded-xl overflow-hidden border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${
+                  dark ? "border-[#444] bg-[#242424] hover:border-[#666]" : "border-gray-200 bg-gray-50 hover:border-gray-400"
+                }`} onClick={() => coverInputRef.current?.click()}>
+                  {coverPreview ? (
+                    <>
+                      <img src={coverPreview} alt="Cover" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                        <span className="text-white text-xs font-semibold">Change cover</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center">
+                      <p className={`text-xs font-semibold ${dark ? "text-gray-500" : "text-gray-400"}`}>Click to upload cover image</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Recommended 1200×400px</p>
+                    </div>
+                  )}
+                  {uploadingCover && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <input ref={coverInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleCoverUpload} className="hidden" />
+                {coverPreview && (
+                  <button type="button" onClick={() => { setCoverPreview(""); setFormData((p) => ({ ...p, coverImage: "" })); }}
+                    className={`mt-1.5 text-[11px] font-semibold transition-colors ${dark ? "text-red-400 hover:text-red-300" : "text-red-500 hover:text-red-600"}`}>
+                    Remove cover
+                  </button>
+                )}
+              </div>
+
+              {/* Favourite Genres (reader/all roles) */}
+              <div>
+                <label className={labelClass}>Favourite Genres</label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {READER_GENRE_OPTIONS.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setSelectedFavoriteGenres((prev) =>
+                        prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+                      )}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                        selectedFavoriteGenres.includes(g)
+                          ? "bg-[#111111] text-white border-[#111111]"
+                          : dark
+                          ? "bg-white/[0.04] text-gray-400 border-[#444] hover:border-[#666]"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-[#111111]"
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                {selectedFavoriteGenres.length > 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1.5">{selectedFavoriteGenres.length} selected</p>
+                )}
               </div>
             </motion.div>
           )}
@@ -893,7 +996,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
             <button
               type="submit"
               disabled={loading || uploading}
-              className="flex-1 px-4 py-2.5 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors disabled:opacity-50 text-sm font-bold"
+              className="flex-1 px-4 py-2.5 bg-[#111111] text-white rounded-lg hover:bg-[#000000] transition-colors disabled:opacity-50 text-sm font-bold"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
