@@ -146,7 +146,7 @@ const Mandates = () => {
           </div>
 
           {message && (
-            <div className={`mb-6 p-4 rounded-lg ${message.includes("Error") ? "bg-red-50 text-red-700" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]"} flex items-center gap-2`}>
+            <div className={`mb-6 p-4 rounded-lg ${message.includes("Error") ? "bg-red-50 text-red-700" : "bg-[#111111]/[0.06] text-[#111111]"} flex items-center gap-2`}>
               <CheckCircle className="w-5 h-5" />
               <p className="font-medium">{message}</p>
             </div>
@@ -212,7 +212,7 @@ const Mandates = () => {
                     onClick={() => toggleGenre(genre)}
                     className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                       mandates.genres.includes(genre)
-                        ? "bg-[#1e3a5f] text-white shadow-md"
+                        ? "bg-[#111111] text-white shadow-md"
                         : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >

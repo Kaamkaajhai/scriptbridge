@@ -1,12 +1,18 @@
 import { useState, useEffect, useContext, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Heart, MessageSquare, Pencil, ArrowLeft, X, Camera, Save, Loader2 } from "lucide-react";
+import {
+  BookOpen, Heart, MessageSquare, Pencil, ArrowLeft, X, Camera, Save, Loader2,
+  Star, Clock, Eye, TrendingUp, Users, Flame, Award, ChevronLeft, ChevronRight,
+  Play, BarChart2, Sparkles, Calendar
+} from "lucide-react";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ScriptCard from "../components/ScriptCard";
 import ReviewCard from "../components/ReviewCard";
+import { StreakWidget, BadgeShelf, useBadges } from "../components/AchievementSystem";
+import { useStreak } from "../context/StreakContext";
 
 /* ── Edit Profile Modal ─────────────────────────────── */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
@@ -25,7 +31,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   const handleImageChange = (e) => {
@@ -142,7 +148,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               )}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute -bottom-1.5 -right-1.5 w-8 h-8 bg-[#1e3a5f] rounded-xl flex items-center justify-center shadow-lg shadow-[#1e3a5f]/25 hover:bg-[#162d4a] transition-colors group-hover:scale-110"
+                className="absolute -bottom-1.5 -right-1.5 w-8 h-8 bg-[#111111] rounded-xl flex items-center justify-center shadow-lg shadow-[#111111]/25 hover:bg-[#000000] transition-colors group-hover:scale-110"
               >
                 <Camera size={14} className="text-white" />
               </button>
@@ -159,7 +165,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               <p className="text-[11px] text-gray-400 mt-0.5">JPG, PNG or GIF. Max 5MB.</p>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-2 text-[12px] font-bold text-[#1e3a5f] hover:text-[#162d4a] transition-colors"
+                className="mt-2 text-[12px] font-bold text-[#111111] hover:text-[#000000] transition-colors"
               >
                 Change photo
               </button>
@@ -177,7 +183,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
               maxLength={50}
-              className={`w-full h-11 px-4 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/30 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
+              className={`w-full h-11 px-4 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#111111]/30 focus:ring-2 focus:ring-[#111111]/[0.05] transition-all ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
             />
           </div>
 
@@ -192,7 +198,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               onChange={(e) => setBio(e.target.value.slice(0, 300))}
               placeholder="Tell others a bit about yourself..."
               rows={3}
-              className={`w-full px-4 py-3 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/30 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all resize-none leading-relaxed ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
+              className={`w-full px-4 py-3 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#111111]/30 focus:ring-2 focus:ring-[#111111]/[0.05] transition-all resize-none leading-relaxed ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
             />
           </div>
 
@@ -206,7 +212,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
               value={skills}
               onChange={(e) => setSkills(e.target.value)}
               placeholder="e.g. Screenwriting, Drama, Sci-Fi, Film Analysis"
-              className={`w-full h-11 px-4 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/30 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
+              className={`w-full h-11 px-4 border rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#111111]/30 focus:ring-2 focus:ring-[#111111]/[0.05] transition-all ${dark ? "bg-white/[0.04] border-[#1d3350] text-gray-200 placeholder:text-gray-500 focus:bg-white/[0.06]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:bg-white"}`}
             />
             <p className="text-[11px] text-gray-400 mt-1.5 ml-0.5">Separate with commas</p>
           </div>
@@ -253,7 +259,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-[#1e3a5f] rounded-xl hover:bg-[#162d4a] transition-all shadow-sm shadow-[#1e3a5f]/15 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-[#111111] rounded-xl hover:bg-[#000000] transition-all shadow-sm shadow-[#111111]/15 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
           >
             {saving ? (
               <Loader2 size={16} className="animate-spin" />
@@ -268,27 +274,250 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   );
 };
 
+/* ── Genre tag colors ──────────────────────────────── */
+const GENRE_COLORS = {
+  horror:      { bg: "bg-red-500/10",     text: "text-red-400",     border: "border-red-500/20"     },
+  thriller:    { bg: "bg-orange-500/10",  text: "text-orange-400",  border: "border-orange-500/20"  },
+  drama:       { bg: "bg-violet-500/10",  text: "text-violet-400",  border: "border-violet-500/20"  },
+  "sci-fi":    { bg: "bg-cyan-500/10",    text: "text-cyan-400",    border: "border-cyan-500/20"    },
+  sci_fi:      { bg: "bg-cyan-500/10",    text: "text-cyan-400",    border: "border-cyan-500/20"    },
+  romance:     { bg: "bg-pink-500/10",    text: "text-pink-400",    border: "border-pink-500/20"    },
+  action:      { bg: "bg-yellow-500/10",  text: "text-yellow-400",  border: "border-yellow-500/20"  },
+  comedy:      { bg: "bg-lime-500/10",    text: "text-lime-400",    border: "border-lime-500/20"    },
+  fantasy:     { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/20"  },
+  mystery:     { bg: "bg-indigo-500/10",  text: "text-indigo-400",  border: "border-indigo-500/20"  },
+  default:     { bg: "bg-gray-500/10",    text: "text-gray-400",    border: "border-gray-500/20"    },
+};
+
+const genreColor = (g) => GENRE_COLORS[(g || "").toLowerCase()] || GENRE_COLORS.default;
+
+/* ── Stat Card ─────────────────────────────────────── */
+const StatCard = ({ icon: Icon, iconColor, value, label }) => (
+  <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconColor}`}>
+      <Icon size={18} strokeWidth={2} className="text-white" />
+    </div>
+    <div className="min-w-0">
+      <p className="text-xl font-black text-white leading-none">{value ?? 0}</p>
+      <p className="text-[11px] text-gray-500 font-medium mt-0.5 truncate">{label}</p>
+    </div>
+  </div>
+);
+
+/* ── Section Title ─────────────────────────────────── */
+const SectionTitle = ({ icon: Icon, iconBg, title }) => (
+  <div className="flex items-center gap-3 mb-4">
+    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${iconBg}`}>
+      <Icon size={15} className="text-white" strokeWidth={2.5} />
+    </div>
+    <h3 className="text-[15px] font-extrabold text-white tracking-tight">{title}</h3>
+  </div>
+);
+
+/* ── Glass Card wrapper ────────────────────────────── */
+const GCard = ({ className = "", children }) => (
+  <div className={`rounded-2xl border border-white/[0.07] bg-[#0d1525]/80 backdrop-blur-sm shadow-xl ${className}`}>
+    {children}
+  </div>
+);
+
+/* ── Mini Weekly Bar Chart ─────────────────────────── */
+const WeeklyChart = ({ streak }) => {
+  const days = ["M", "T", "W", "T", "F", "S", "S"];
+  const today = new Date().getDay(); // 0=Sun
+  const reorderedDays = [...days.slice(1), days[0]]; // Mon-Sun
+  return (
+    <div className="flex items-end justify-between gap-1 h-12 mt-3">
+      {reorderedDays.map((d, i) => {
+        const lit = i < streak && i < 7;
+        const isToday = i === (today === 0 ? 6 : today - 1);
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            <motion.div
+              initial={{ height: 0 }}
+              animate={{ height: lit ? `${Math.min(100, 30 + i * 10)}%` : "20%" }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
+              className={`w-full rounded-t-md transition-colors ${
+                lit
+                  ? isToday
+                    ? "bg-cyan-400"
+                    : "bg-violet-500/70"
+                  : "bg-white/[0.06]"
+              }`}
+              style={{ minHeight: 4 }}
+            />
+            <span className={`text-[9px] font-bold ${isToday ? "text-cyan-400" : "text-gray-600"}`}>{d}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+/* ── Recent Reads Horizontal Card ─────────────────── */
+const RecentReadCard = ({ script, index }) => {
+  const [imgErr, setImgErr] = useState(false);
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return "";
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    return `${Math.floor(days / 30)}mo ago`;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.3 }}
+      className="flex-none w-44"
+    >
+      <Link to={`/reader/script/${script._id}`} className="group block">
+        {/* Cover */}
+        <div className="relative w-full aspect-[3/4] rounded-xl overflow-hidden bg-[#0f1c2e] mb-2.5">
+          {script.coverImage && !imgErr ? (
+            <img src={script.coverImage} alt={script.title}
+              onError={() => setImgErr(true)}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-b from-[#1a2d45] to-[#0f1c2e] flex items-center justify-center">
+              <BookOpen size={22} className="text-white/20" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2.5">
+            <span className="text-white text-[11px] font-bold flex items-center gap-1">
+              <Eye size={10} /> Read
+            </span>
+          </div>
+          {script.rating > 0 && (
+            <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded-md">
+              <Star size={9} className="text-yellow-400 fill-yellow-400" />
+              <span className="text-[10px] text-white font-bold">{script.rating.toFixed(1)}</span>
+            </div>
+          )}
+        </div>
+        <h4 className="text-xs font-semibold text-gray-200 line-clamp-2 leading-snug group-hover:text-violet-400 transition-colors">
+          {script.title}
+        </h4>
+        <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+          {script.creator?.name || "Unknown"}
+        </p>
+        {script.lastReadAt && (
+          <p className="text-[10px] text-gray-600 mt-0.5 flex items-center gap-1">
+            <Clock size={8} /> {timeAgo(script.lastReadAt)}
+          </p>
+        )}
+      </Link>
+    </motion.div>
+  );
+};
+
+/* ── Continue Reading Progress Card ───────────────── */
+const ContinueCard = ({ script, index }) => {
+  const [imgErr, setImgErr] = useState(false);
+  const progress = script.progress || Math.floor(Math.random() * 50 + 20);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06, duration: 0.3 }}
+    >
+      <Link to={`/reader/script/${script._id}`} className="group block">
+        <div className="flex items-center gap-3.5 p-3.5 rounded-2xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] hover:border-violet-500/30 transition-all duration-200">
+          {/* Cover */}
+          <div className="w-11 h-16 rounded-xl overflow-hidden shrink-0 bg-[#0f1c2e]">
+            {script.coverImage && !imgErr ? (
+              <img src={script.coverImage} alt={script.title}
+                onError={() => setImgErr(true)}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-[#1a2d45] to-[#0f1c2e] flex items-center justify-center">
+                <BookOpen size={14} className="text-white/25" />
+              </div>
+            )}
+          </div>
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-bold text-gray-200 line-clamp-1 group-hover:text-violet-400 transition-colors">
+              {script.title}
+            </h4>
+            {script.genre && (
+              <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-md font-medium mt-1 border ${genreColor(script.genre).bg} ${genreColor(script.genre).text} ${genreColor(script.genre).border}`}>
+                {script.genre}
+              </span>
+            )}
+            {/* Progress bar */}
+            <div className="mt-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-gray-500 font-medium">Progress</span>
+                <span className="text-[10px] text-cyan-400 font-bold">{progress}%</span>
+              </div>
+              <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.8, delay: index * 0.1 }}
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+                />
+              </div>
+            </div>
+          </div>
+          {/* Resume button */}
+          <div className="shrink-0 w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+            <Play size={12} className="text-violet-400 ml-0.5" fill="currentColor" />
+          </div>
+        </div>
+      </Link>
+    </motion.div>
+  );
+};
+
+/* ── Review Row ────────────────────────────────────── */
+const ReviewRow = ({ review, currentUserId }) => (
+  <div className="p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+    {review.script && (
+      <Link to={`/reader/script/${review.script._id || review.script}`}
+        className="flex items-center justify-between mb-3 pb-3 border-b border-white/[0.06] group">
+        <span className="text-sm font-bold text-gray-200 group-hover:text-violet-400 transition-colors truncate pr-3">
+          {review.script.title || "View Script"}
+        </span>
+        <ChevronRight size={14} className="text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors" />
+      </Link>
+    )}
+    <ReviewCard review={review} currentUserId={currentUserId} />
+  </div>
+);
+
 /* ── Main Component ─────────────────────────────────── */
 const ReaderProfile = () => {
   const { id } = useParams();
   const { user } = useContext(AuthContext);
-  const { isDarkMode: dark } = useDarkMode();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("read");
+  const [activeTab, setActiveTab] = useState("recent");
   const [readScripts, setReadScripts] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [continueScripts, setContinueScripts] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const recentRowRef = useRef(null);
 
   const profileId = id || user?._id;
   const isOwnProfile = !id || id === user?._id;
 
+  const { streak, longestStreak, totalReads, todayRead } = useStreak();
+  const { earnedDefs } = useBadges();
+
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   useEffect(() => { fetchProfile(); }, [profileId]);
@@ -299,7 +528,7 @@ const ReaderProfile = () => {
       setLoading(true);
       const [userRes, reviewsRes] = await Promise.all([
         api.get(`/users/${profileId}`),
-        api.get(`/reviews/user/${profileId}?limit=1`) // Fetch total review count
+        api.get(`/reviews/user/${profileId}?limit=1`),
       ]);
       const userObj = userRes.data.user || userRes.data;
       setProfile({ ...userObj, reviewsCount: reviewsRes.data.total || 0 });
@@ -310,29 +539,30 @@ const ReaderProfile = () => {
   const fetchTabData = async () => {
     try {
       setDataLoading(true);
-      if (activeTab === "read" || activeTab === "favorites") {
+      if (activeTab === "recent" || activeTab === "favorites") {
         const { data } = await api.get(`/users/${profileId}`);
         const userObj = data.user || data;
-        const arr = activeTab === "read" ? userObj.scriptsRead : userObj.favoriteScripts;
-
+        const arr = activeTab === "recent" ? userObj.scriptsRead : userObj.favoriteScripts;
         if (arr?.length) {
           const scripts = await Promise.all(
             arr.slice(0, 20).map(async (sId) => {
               try {
-                const s = typeof sId === "object" ? sId : (await api.get(`/scripts/${sId}`)).data;
-                return s;
+                return typeof sId === "object" ? sId : (await api.get(`/scripts/${sId}`)).data;
               } catch { return null; }
             })
           );
-          if (activeTab === "read") setReadScripts(scripts.filter(Boolean));
+          if (activeTab === "recent") setReadScripts(scripts.filter(Boolean));
           else setFavorites(scripts.filter(Boolean));
         } else {
-          if (activeTab === "read") setReadScripts([]);
+          if (activeTab === "recent") setReadScripts([]);
           else setFavorites([]);
         }
       } else if (activeTab === "reviews") {
         const { data } = await api.get(`/reviews/user/${profileId}`);
         setReviews(data.reviews || []);
+      } else if (activeTab === "continue") {
+        const { data } = await api.get("/scripts/continue-reading").catch(() => ({ data: [] }));
+        setContinueScripts(data || []);
       }
     } catch { /* silent */ }
     finally { setDataLoading(false); }
@@ -344,20 +574,17 @@ const ReaderProfile = () => {
 
   if (loading) return (
     <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="w-10 h-10 border-3 border-gray-200 border-t-[#1e3a5f] rounded-full animate-spin" />
+      <div className="w-10 h-10 border-2 border-gray-700 border-t-violet-500 rounded-full animate-spin" />
     </div>
   );
 
   if (!profile) return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center gap-4 bg-gray-50 rounded-2xl m-6">
-      <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-2">
-        <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
+    <div className="min-h-[80vh] flex flex-col items-center justify-center gap-4 m-6">
+      <div className="w-16 h-16 bg-white/[0.04] rounded-2xl flex items-center justify-center mb-2 border border-white/[0.08]">
+        <BookOpen className="w-8 h-8 text-gray-600" />
       </div>
-      <p className="text-gray-900 font-extrabold text-xl">Profile not found</p>
-      <p className="text-gray-500 font-medium text-sm mb-2">This user might have been removed or deleted.</p>
-      <Link to="/reader" className="text-sm font-bold text-white bg-[#1e3a5f] hover:bg-[#162d4a] px-6 py-2.5 rounded-xl transition-colors">
+      <p className="text-white font-extrabold text-xl">Profile not found</p>
+      <Link to="/reader" className="text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 px-6 py-2.5 rounded-xl transition-colors">
         Back to Reader
       </Link>
     </div>
@@ -367,238 +594,406 @@ const ReaderProfile = () => {
     ? new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
     : null;
 
+  const followersCount = profile.followers?.length || 0;
+  const favoritesCount = profile.favoriteScripts?.length || 0;
+  const readsCount = profile.scriptsRead?.length || totalReads || 0;
+  const writersFollowed = profile.following?.length || 0;
+
+  const preferredGenres = [
+    ...(profile.favoriteGenres || []),
+    ...(profile.preferences?.genres || []),
+    ...(profile.skills || []),
+  ].filter(Boolean).slice(0, 8);
+
   const tabs = [
-    { key: "read", label: "Scripts Read", icon: BookOpen, count: profile.scriptsRead?.length || 0 },
-    { key: "favorites", label: "Favorites", icon: Heart, count: profile.favoriteScripts?.length || 0 },
-    { key: "reviews", label: "Reviews", icon: MessageSquare, count: profile.reviewsCount || 0 },
+    { key: "recent",   label: "Recent Reads",   icon: Clock,         count: readsCount },
+    { key: "continue", label: "Continue",        icon: Play,          count: null },
+    { key: "favorites",label: "Favorites",       icon: Heart,         count: favoritesCount },
+    { key: "reviews",  label: "Reviews",         icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto pb-16 px-4 pt-6">
-      {/* Back Button */}
-      <Link to="/reader" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1e3a5f] text-sm font-bold mb-6 transition-colors group">
-        <span className="p-1.5 rounded-lg bg-gray-100 group-hover:bg-[#1e3a5f]/10 transition-colors">
-          <ArrowLeft size={16} />
-        </span>
-        Back to Reader
-      </Link>
+    <div
+      className="min-h-screen pb-20"
+      style={{ background: "linear-gradient(135deg, #060d1a 0%, #0b1228 40%, #07101e 100%)" }}
+    >
+      {/* Decorative blobs */}
+      <div className="fixed top-0 left-1/4 w-96 h-96 bg-violet-600/[0.06] rounded-full blur-3xl pointer-events-none" />
+      <div className="fixed bottom-1/3 right-1/4 w-80 h-80 bg-cyan-500/[0.05] rounded-full blur-3xl pointer-events-none" />
 
-      {/* Main Profile Header Card */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-3xl border shadow-sm overflow-hidden mb-8 ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
-        {/* Decorative Gradient Banner */}
-        <div className="h-32 bg-gradient-to-tr from-[#0f1c2e] via-[#1e3a5f] to-[#3a6ea5] relative overflow-hidden">
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/20 blur-3xl" />
-            <div className="absolute -bottom-16 left-1/4 w-64 h-64 rounded-full bg-[#60a5fa]/20 blur-3xl" />
+      <div className="max-w-5xl mx-auto px-4 pt-6 relative">
+
+        {/* Back */}
+        <Link to="/reader"
+          className="inline-flex items-center gap-2 text-sm font-semibold mb-6 text-gray-500 hover:text-gray-200 transition-colors group">
+          <span className="w-7 h-7 rounded-lg bg-white/[0.05] group-hover:bg-white/[0.1] border border-white/[0.07] flex items-center justify-center transition-colors">
+            <ArrowLeft size={13} strokeWidth={2.5} />
+          </span>
+          Back to Reader
+        </Link>
+
+        {/* ══════════════════════════════════════════
+            TOP: Profile Hero Card
+        ══════════════════════════════════════════ */}
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl overflow-hidden mb-6 border border-white/[0.07] shadow-2xl shadow-black/40">
+
+          {/* Banner gradient */}
+          <div className="h-32 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #1e1040 0%, #0f1e40 50%, #0d1f35 100%)" }}>
+            <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 70% 50%, rgba(139,92,246,0.18) 0%, transparent 65%)" }} />
+            <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 20% 80%, rgba(6,182,212,0.12) 0%, transparent 55%)" }} />
+            {/* Grid lines */}
+            <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="white" strokeWidth="0.5"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
+          </div>
+
+          {/* Avatar + info */}
+          <div className="px-7 pb-7 -mt-14 relative"
+            style={{ background: "linear-gradient(180deg, rgba(6,13,26,0.7) 0%, #060d1a 100%)" }}>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pt-2">
+              <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5">
+                {/* Avatar */}
+                <div className="relative">
+                  {profile.profileImage ? (
+                    <img src={resolveImage(profile.profileImage)} alt={profile.name}
+                      className="w-24 h-24 rounded-2xl object-cover ring-4 ring-[#060d1a] shadow-2xl shadow-violet-900/30" />
+                  ) : (
+                    <div className="w-24 h-24 rounded-2xl flex items-center justify-center ring-4 ring-[#060d1a] shadow-2xl border border-violet-500/20"
+                      style={{ background: "linear-gradient(135deg, #1e1040, #0f1e40)" }}>
+                      <span className="text-3xl font-black text-violet-300">
+                        {profile.name?.charAt(0)?.toUpperCase() || "U"}
+                      </span>
+                    </div>
+                  )}
+                  {/* Online / today dot */}
+                  {todayRead && (
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#060d1a] shadow-sm" />
+                  )}
+                </div>
+
+                {/* Name / role */}
+                <div className="text-center sm:text-left pb-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1.5">
+                    <h1 className="text-2xl font-black tracking-tight text-white">
+                      {profile.name || "Reader"}
+                    </h1>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-widest border w-max mx-auto sm:mx-0"
+                      style={{ background: "rgba(139,92,246,0.12)", borderColor: "rgba(139,92,246,0.25)", color: "#a78bfa" }}>
+                      {profile.role || "Reader"}
+                    </span>
+                  </div>
+                  {memberSince && (
+                    <p className="text-[12px] text-gray-500 font-medium flex items-center gap-1.5 justify-center sm:justify-start">
+                      <Calendar size={11} /> Member since {memberSince}
+                    </p>
+                  )}
+                  {/* Quick stats pills */}
+                  <div className="flex items-center gap-3 mt-2.5 flex-wrap justify-center sm:justify-start">
+                    <span className="text-[12px] font-bold text-gray-400">
+                      <span className="text-white">{readsCount}</span> reads
+                    </span>
+                    <span className="text-gray-700">·</span>
+                    <span className="text-[12px] font-bold text-gray-400">
+                      <span className="text-white">{favoritesCount}</span> favorites
+                    </span>
+                    <span className="text-gray-700">·</span>
+                    <span className="text-[12px] font-bold text-gray-400">
+                      <span className="text-white">{writersFollowed}</span> following
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Button */}
+              {isOwnProfile && (
+                <button onClick={() => setEditOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shrink-0 border"
+                  style={{ background: "rgba(139,92,246,0.12)", borderColor: "rgba(139,92,246,0.3)", color: "#c4b5fd" }}>
+                  <Pencil size={14} strokeWidth={2.5} />
+                  Edit Profile
+                </button>
+              )}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ══════════════════════════════════════════
+            ABOUT ME (if bio exists)
+        ══════════════════════════════════════════ */}
+        <GCard className="p-6 mb-6">
+          <SectionTitle icon={Sparkles} iconBg="bg-gradient-to-br from-violet-600 to-violet-800" title="About Me" />
+          {profile.bio ? (
+            <p className="text-sm text-gray-300 leading-relaxed">{profile.bio}</p>
+          ) : (
+            <p className="text-sm text-gray-600 italic">
+              {isOwnProfile
+                ? "No bio yet — click Edit Profile to tell others about yourself."
+                : "This reader hasn't added a bio yet."}
+            </p>
+          )}
+        </GCard>
+
+        {/* ══════════════════════════════════════════
+            2×2 STATS GRID
+        ══════════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+
+          {/* LEFT COL */}
+          <div className="space-y-5">
+
+            {/* Reading Stats Card */}
+            <GCard className="p-6">
+              <SectionTitle icon={BarChart2} iconBg="bg-gradient-to-br from-cyan-500 to-blue-600" title="Reading Stats" />
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard icon={BookOpen} iconColor="bg-gradient-to-br from-violet-500 to-violet-700"
+                  value={readsCount} label="Total Reads" />
+                <StatCard icon={Heart} iconColor="bg-gradient-to-br from-pink-500 to-rose-600"
+                  value={favoritesCount} label="Favorites" />
+                <StatCard icon={MessageSquare} iconColor="bg-gradient-to-br from-amber-500 to-orange-600"
+                  value={profile.reviewsCount || 0} label="Reviews Written" />
+                <StatCard icon={Users} iconColor="bg-gradient-to-br from-cyan-500 to-teal-600"
+                  value={writersFollowed} label="Writers Followed" />
+              </div>
+            </GCard>
+
+            {/* Favorite Genres Card */}
+            <GCard className="p-6">
+              <SectionTitle icon={Star} iconBg="bg-gradient-to-br from-yellow-500 to-orange-500" title="Favorite Genres" />
+              {preferredGenres.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {preferredGenres.map((g, i) => {
+                    const c = genreColor(g);
+                    return (
+                      <span key={i}
+                        className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border capitalize tracking-wide ${c.bg} ${c.text} ${c.border}`}>
+                        {g.replace(/_/g, "-")}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600 italic">
+                  {isOwnProfile ? "Add interests in your profile to see genre tags here." : "No genres specified."}
+                </p>
+              )}
+            </GCard>
+          </div>
+
+          {/* RIGHT COL */}
+          <div className="space-y-5">
+
+            {/* Reading Streak Card */}
+            {isOwnProfile && (
+              <GCard className="p-6">
+                <SectionTitle icon={Flame} iconBg="bg-gradient-to-br from-orange-500 to-red-600" title="Reading Streak" />
+                <div className="flex items-end gap-6 mb-1">
+                  <div>
+                    <p className={`text-5xl font-black leading-none ${streak >= 7 ? "text-orange-400" : streak >= 3 ? "text-amber-400" : "text-white"}`}>
+                      {streak}
+                    </p>
+                    <p className="text-[11px] text-gray-500 font-medium mt-1">current streak</p>
+                  </div>
+                  <div className="pb-1">
+                    <p className="text-2xl font-black text-gray-300">{longestStreak}</p>
+                    <p className="text-[11px] text-gray-600 font-medium mt-0.5">best streak</p>
+                  </div>
+                  <div className="pb-1 ml-auto">
+                    {todayRead && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                        ✓ Today read
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <WeeklyChart streak={streak} />
+              </GCard>
+            )}
+
+            {/* Achievements / Badges Card */}
+            {isOwnProfile && (
+              <GCard className="p-6">
+                <SectionTitle icon={Award} iconBg="bg-gradient-to-br from-purple-500 to-indigo-600" title="Achievements" />
+                <BadgeShelf earnedDefs={earnedDefs} dark={true} />
+              </GCard>
+            )}
+
+            {/* For non-own profile: show streak widget from AchievementSystem */}
+            {!isOwnProfile && (
+              <GCard className="overflow-hidden">
+                <StreakWidget streak={0} longestStreak={0} totalReads={readsCount} todayRead={false} dark={true} />
+              </GCard>
+            )}
           </div>
         </div>
 
-        {/* Profile Content */}
-        <div className="px-6 sm:px-10 pb-8 -mt-16 relative">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5">
-              {/* Avatar */}
-              <div className="relative">
-                {profile.profileImage ? (
-                  <img
-                    src={resolveImage(profile.profileImage)}
-                    alt={profile.name}
-                    className="w-32 h-32 rounded-2xl object-cover ring-4 ring-white shadow-xl bg-white"
-                  />
-                ) : (
-                  <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center ring-4 ring-white shadow-xl border border-gray-200">
-                    <span className="text-4xl font-black text-gray-400">
-                      {profile.name?.charAt(0)?.toUpperCase() || "U"}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Title & Role */}
-              <div className="text-center sm:text-left pb-1">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-1.5">
-                    <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>
-                    {profile.name || "User Profile"}
-                  </h1>
-                  <span className="px-2.5 py-1 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-xs font-bold uppercase tracking-widest border border-[#1e3a5f]/10 shadow-sm w-max mx-auto sm:mx-0">
-                    {profile.role || "Reader"}
-                  </span>
-                </div>
-                {memberSince && (
-                  <p className="text-sm text-gray-400 font-semibold">Member since {memberSince}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            {isOwnProfile && (
-              <div className="flex shrink-0 justify-center sm:justify-start">
-                <button
-                  onClick={() => setEditOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
-                >
-                  <Pencil size={16} strokeWidth={2.5} />
-                  Edit Profile
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Bio */}
-          {profile.bio && (
-            <div className={`rounded-2xl p-5 mb-8 border ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">About Me</h3>
-              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{profile.bio}</p>
-            </div>
-          )}
-
-          {/* Skills */}
-          {profile.skills?.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Interests & Skills</h3>
-              <div className="flex flex-wrap gap-2">
-                {profile.skills.map((skill, i) => (
-                  <span key={i} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-blue-300 border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.04] text-[#1e3a5f] border-[#1e3a5f]/8"}`}>
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Interactive Stat Tabs */}
-          <div className={`flex flex-wrap items-center gap-3 pt-4 border-t ${dark ? "border-[#182840]" : "border-gray-100"}`}>
+        {/* ══════════════════════════════════════════
+            TAB BAR: Recent Reads | Continue | Favorites | Reviews
+        ══════════════════════════════════════════ */}
+        <GCard className="overflow-hidden">
+          {/* Tabs */}
+          <div className="flex border-b border-white/[0.06] overflow-x-auto scrollbar-hide">
             {tabs.map((t) => {
               const Icon = t.icon;
               const isActive = activeTab === t.key;
               return (
-                <button
-                  key={t.key}
-                  onClick={() => setActiveTab(t.key)}
-                  className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${isActive
-                    ? "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/20 scale-105"
-                    : dark
-                      ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08] hover:scale-105 border border-transparent hover:border-[#1d3350]"
-                      : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:scale-105 border border-transparent hover:border-gray-200"
-                    }`}
-                >
-                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? "text-blue-200" : "text-gray-400"} />
+                <button key={t.key} onClick={() => setActiveTab(t.key)}
+                  className={`flex-1 min-w-fit flex items-center justify-center gap-1.5 px-3 py-3.5 text-[13px] font-bold whitespace-nowrap transition-all border-b-2 ${
+                    isActive
+                      ? "border-violet-500 text-violet-300 bg-violet-500/[0.06]"
+                      : "border-transparent text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]"
+                  }`}>
+                  <Icon size={14} strokeWidth={isActive ? 2.5 : 2} />
                   <span>{t.label}</span>
-                  <div className={`ml-1.5 px-2 py-0.5 rounded-md text-[11px] font-black ${isActive ? "bg-white/20 text-white" : dark ? "bg-white/[0.06] border border-[#1d3350] text-gray-400" : "bg-white border border-gray-200 text-gray-600 shadow-sm"
+                  {t.count !== null && (
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                      isActive ? "bg-violet-500/20 text-violet-300" : "bg-white/[0.05] text-gray-600"
                     }`}>
-                    {t.count}
-                  </div>
+                      {t.count}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
-        </div>
-      </motion.div>
 
-      {/* Main Tab Content */}
-      <AnimatePresence mode="wait">
-        {dataLoading ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className={`rounded-2xl border h-[280px] animate-pulse shadow-sm ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`} />
-            ))}
-          </motion.div>
-        ) : (
-          <div className="min-h-[400px]">
-            {activeTab === "read" && (
-              <motion.div key="read" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                {readScripts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {readScripts.map((s) => <ScriptCard key={s._id} script={s} />)}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={BookOpen}
-                    title="No scripts read yet"
-                    subtitle={isOwnProfile ? "Discover new scripts and dive into a reading adventure!" : "This user hasn't made their reading list public."}
-                    action={isOwnProfile ? <Link to="/reader" className="mt-4 inline-block px-6 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-bold hover:bg-[#162d4a] transition-colors shadow-sm">Explore Scripts</Link> : null}
-                  />
-                )}
-              </motion.div>
-            )}
-
-            {activeTab === "favorites" && (
-              <motion.div key="favorites" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                {favorites.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {favorites.map((s) => <ScriptCard key={s._id} script={s} />)}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={Heart}
-                    title="No favorites saved"
-                    subtitle={isOwnProfile ? "Save your favorite scripts by tapping the heart icon!" : "This user hasn't saved any favorites."}
-                  />
-                )}
-              </motion.div>
-            )}
-
-            {activeTab === "reviews" && (
-              <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                {reviews.length > 0 ? (
-                  <div className="columns-1 md:columns-2 gap-6 space-y-6 max-w-5xl">
-                    {reviews.map((r) => (
-                      <div key={r._id} className="break-inside-avoid">
-                        <div className={`rounded-2xl border shadow-sm p-5 hover:shadow-md transition-shadow ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
-                          {r.script && (
-                            <Link to={`/reader/script/${r.script._id || r.script}`} className={`flex items-center justify-between mb-4 pb-4 border-b group ${dark ? "border-[#182840]" : "border-gray-50"}`}>
-                              <span className={`text-sm font-black group-hover:text-[#1e3a5f] transition-colors truncate pr-4 ${dark ? "text-gray-100" : "text-gray-900"}`}>
-                                {r.script.title || "View Script"}
-                              </span>
-                              <span className="text-gray-300 group-hover:text-[#1e3a5f] transition-colors">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                              </span>
-                            </Link>
-                          )}
-                          <ReviewCard review={r} currentUserId={user?._id} />
+          {/* Tab Content */}
+          <div className="p-5 min-h-[320px]">
+            <AnimatePresence mode="wait">
+              {dataLoading ? (
+                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="rounded-xl h-[200px] animate-pulse bg-white/[0.04]" />
+                  ))}
+                </motion.div>
+              ) : (
+                <>
+                  {/* Recent Reads — horizontal scroll */}
+                  {activeTab === "recent" && (
+                    <motion.div key="recent" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                      {readScripts.length > 0 ? (
+                        <div className="relative">
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="text-[12px] text-gray-500 font-medium">{readScripts.length} scripts read</p>
+                            <div className="flex gap-2">
+                              <button onClick={() => recentRowRef.current?.scrollBy({ left: -260, behavior: "smooth" })}
+                                className="w-7 h-7 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.1] transition-all">
+                                <ChevronLeft size={14} />
+                              </button>
+                              <button onClick={() => recentRowRef.current?.scrollBy({ left: 260, behavior: "smooth" })}
+                                className="w-7 h-7 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.1] transition-all">
+                                <ChevronRight size={14} />
+                              </button>
+                            </div>
+                          </div>
+                          <div ref={recentRowRef} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                            {readScripts.map((s, i) => (
+                              <RecentReadCard key={s._id} script={s} index={i} />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={MessageSquare}
-                    title="No reviews left"
-                    subtitle={isOwnProfile ? "Help writers by sharing your thoughtful feedback!" : "This user hasn't reviewed any scripts."}
-                  />
-                )}
-              </motion.div>
-            )}
+                      ) : (
+                        <EmptyState icon={BookOpen} title="No scripts read yet"
+                          subtitle={isOwnProfile ? "Start exploring scripts on the Reader home page." : "This reader's history is private."}
+                          action={isOwnProfile ? (
+                            <Link to="/reader" className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-colors"
+                              style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)" }}>
+                              Explore Scripts
+                            </Link>
+                          ) : null}
+                        />
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Continue Reading */}
+                  {activeTab === "continue" && (
+                    <motion.div key="continue" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                      {continueScripts.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {continueScripts.map((s, i) => (
+                            <ContinueCard key={s._id} script={s} index={i} />
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState icon={Play} title="Nothing in progress"
+                          subtitle="Scripts you've started reading will appear here."
+                          action={isOwnProfile ? (
+                            <Link to="/reader" className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-colors"
+                              style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)" }}>
+                              Find a Script
+                            </Link>
+                          ) : null}
+                        />
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Favorites */}
+                  {activeTab === "favorites" && (
+                    <motion.div key="favorites" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                      {favorites.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {favorites.map((s) => <ScriptCard key={s._id} script={s} />)}
+                        </div>
+                      ) : (
+                        <EmptyState icon={Heart} title="No favorites saved"
+                          subtitle={isOwnProfile ? "Tap the heart on any script to save it here." : "No favorites made public."} />
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Reviews */}
+                  {activeTab === "reviews" && (
+                    <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                      {reviews.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {reviews.map((r) => (
+                            <ReviewRow key={r._id} review={r} currentUserId={user?._id} />
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState icon={MessageSquare} title="No reviews written"
+                          subtitle={isOwnProfile ? "Share your feedback on scripts you've read." : "This reader hasn't written any reviews."} />
+                      )}
+                    </motion.div>
+                  )}
+                </>
+              )}
+            </AnimatePresence>
           </div>
-        )}
-      </AnimatePresence>
+        </GCard>
+
+      </div>
 
       {/* Edit Profile Modal */}
       <AnimatePresence>
         {editOpen && (
-          <EditProfileModal
-            profile={profile}
-            onClose={() => setEditOpen(false)}
-            onSaved={handleProfileSaved}
-          />
+          <EditProfileModal profile={profile} onClose={() => setEditOpen(false)} onSaved={handleProfileSaved} />
         )}
       </AnimatePresence>
     </div>
   );
 };
 
-const EmptyState = ({ icon: Icon, title, subtitle, action }) => {
-  const { isDarkMode: dark } = useDarkMode();
-  return (
-  <div className={`backdrop-blur-xl rounded-3xl border shadow-sm p-12 lg:p-16 text-center max-w-2xl mx-auto flex flex-col items-center ${dark ? "bg-[#101e30]/50 border-[#182840]" : "bg-white/50 border-gray-100/50"}`}>
-    <div className={`w-20 h-20 rounded-2xl border shadow-sm flex items-center justify-center mb-6 ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gradient-to-br from-gray-50 to-gray-100 border-white"}`}>
-      <Icon size={32} strokeWidth={1.5} className="text-gray-400" />
+const EmptyState = ({ icon: Icon, title, subtitle, action }) => (
+  <div className="flex flex-col items-center justify-center py-16 text-center">
+    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 border border-white/[0.08]"
+      style={{ background: "rgba(139,92,246,0.08)" }}>
+      <Icon size={28} strokeWidth={1.5} className="text-violet-400/60" />
     </div>
-    <h3 className={`text-xl font-black mb-2 ${dark ? "text-gray-100" : "text-gray-900"}`}>{title}</h3>
-    <p className="text-sm text-gray-500 font-medium max-w-md mx-auto leading-relaxed mb-2">{subtitle}</p>
+    <h3 className="text-base font-bold text-gray-300 mb-1.5">{title}</h3>
+    <p className="text-sm text-gray-600 font-medium max-w-xs mx-auto leading-relaxed">{subtitle}</p>
     {action}
   </div>
-  );
-};
+);
 
 export default ReaderProfile;

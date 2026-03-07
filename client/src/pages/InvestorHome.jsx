@@ -56,7 +56,7 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
     {to && (
       <Link to={to}
         className={`text-[11px] font-semibold flex items-center gap-0.5 transition-all hover:gap-1
-          ${dark ? "text-blue-400/80 hover:text-blue-300" : "text-[#1e3a5f]/70 hover:text-[#1e3a5f]"}`}>
+          ${dark ? "text-blue-400/80 hover:text-blue-300" : "text-[#111111]/70 hover:text-[#111111]"}`}>
         See all
         <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -272,7 +272,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
 
         {/* ── Info below poster ── */}
         <h3 className={`text-[12.5px] font-bold leading-tight line-clamp-1 transition-colors
-          ${dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#1e3a5f]"}`}>
+          ${dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"}`}>
           {script.title}
         </h3>
         <div className="flex items-center justify-between mt-1 gap-1">
@@ -559,8 +559,8 @@ const InvestorHome = () => {
                     </p>
                     <div className="flex items-center justify-center gap-3 flex-wrap">
                       <Link to="/search"
-                        className="px-6 py-2.5 rounded-xl bg-[#1e3a5f] text-white text-[13px] font-bold hover:bg-[#17304e]
-                          transition-all shadow-lg shadow-[#1e3a5f]/25 hover:shadow-xl inline-flex items-center gap-2">
+                        className="px-6 py-2.5 rounded-xl bg-[#111111] text-white text-[13px] font-bold hover:bg-[#17304e]
+                          transition-all shadow-lg shadow-[#111111]/25 hover:shadow-xl inline-flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                         </svg>

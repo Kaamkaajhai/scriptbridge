@@ -6,7 +6,10 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ReviewCard from "../components/ReviewCard";
 import ReviewForm from "../components/ReviewForm";
-import { Film } from "lucide-react";
+import { Film, Share2 } from "lucide-react";
+import ShareModal from "../components/ShareModal";
+import { useBadges, BadgeToastContainer } from "../components/AchievementSystem";
+import { useStreak } from "../context/StreakContext";
 
 const ScriptReader = () => {
   const { id } = useParams();
@@ -26,11 +29,15 @@ const ScriptReader = () => {
   const [showContent, setShowContent] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
   const [totalReviewPages, setTotalReviewPages] = useState(1);
+  const [showShare, setShowShare] = useState(false);
+
+  const { recordRead, streak, totalReads } = useStreak();
+  const { newlyUnlocked, checkBadges, dismissToast } = useBadges();
 
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   useEffect(() => {
@@ -38,6 +45,10 @@ const ScriptReader = () => {
     fetchReviews();
     setCoverError(false);
     api.post(`/scripts/${id}/read`).catch(() => {});
+    // Record streak and check for newly unlocked badges
+    recordRead();
+    // Check badges on next tick so streak state has updated
+    setTimeout(() => checkBadges(streak, totalReads + 1), 200);
   }, [id]);
 
   const fetchScript = async () => {
@@ -101,7 +112,7 @@ const ScriptReader = () => {
   const renderStars = (rating) => (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((s) => (
-        <svg key={s} className={`w-5 h-5 ${s <= Math.round(rating) ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-200"}`} viewBox="0 0 20 20">
+        <svg key={s} className={`w-5 h-5 ${s <= Math.round(rating) ? "text-[#8686AC] fill-[#8686AC]" : "text-gray-200 fill-gray-200"}`} viewBox="0 0 20 20">
           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
         </svg>
       ))}
@@ -109,28 +120,28 @@ const ScriptReader = () => {
   );
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-10 h-10 border-3 border-gray-200 border-t-[#1e3a5f] rounded-full animate-spin" />
+    <div className={`min-h-screen flex items-center justify-center ${dark ? "bg-[var(--eclipse-bg)]" : ""}`}>
+      <div className={`w-10 h-10 border-3 rounded-full animate-spin ${dark ? "border-[var(--eclipse-card)] border-t-[var(--eclipse-muted)]" : "border-gray-200 border-t-[#111111]"}`} />
     </div>
   );
 
   if (!script) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4">
       <p className="text-gray-400 font-bold text-lg">Script not found</p>
-      <Link to="/reader" className="text-sm font-bold text-[#1e3a5f] hover:underline">← Back to Reader</Link>
+      <Link to="/reader" className="text-sm font-bold text-[#111111] hover:underline">← Back to Reader</Link>
     </div>
   );
 
   return (
-    <div className="max-w-5xl mx-auto pb-16">
+    <div className={`reader-section max-w-5xl mx-auto pb-16 ${dark ? "" : "!bg-transparent"}`}>
       {/* Back */}
-      <Link to="/reader" className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-sm font-semibold mb-6 transition-colors">
+      <Link to="/reader" className={`inline-flex items-center gap-1.5 text-sm font-semibold mb-6 transition-colors ${dark ? "text-[var(--eclipse-muted)] hover:text-[var(--eclipse-text-primary)]" : "text-gray-400 hover:text-gray-600"}`}>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         Back to Reader
       </Link>
 
       {/* Hero — Clean two-column */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border shadow-sm overflow-hidden mb-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border overflow-hidden mb-6 ${dark ? "bg-[var(--eclipse-card)] border-[var(--eclipse-card-border)] shadow-[0_8px_32px_rgba(15,14,71,0.6)]" : "bg-white border-gray-100 shadow-sm"}`}>
         <div className="flex flex-col md:flex-row">
           {/* Cover */}
           <div className="md:w-72 shrink-0">
@@ -151,17 +162,17 @@ const ScriptReader = () => {
           <div className="flex-1 p-6 md:p-8">
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {script.genre && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-gray-500"}`}>{script.genre}</span>}
-              {script.contentType && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-gray-500"}`}>{script.contentType.replace(/_/g, " ")}</span>}
-              {script.premium && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-amber-500/20 border border-amber-500/30 text-amber-300" : "bg-amber-50 border border-amber-200/60 text-amber-600"}`}>Premium</span>}
+              {script.genre && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-[var(--eclipse-active-bg)] text-[var(--eclipse-muted)] border border-[var(--eclipse-card-border)]" : "bg-gray-100 text-gray-500"}`}>{script.genre}</span>}
+              {script.contentType && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-[var(--eclipse-active-bg)] text-[var(--eclipse-muted)] border border-[var(--eclipse-card-border)]" : "bg-gray-100 text-gray-500"}`}>{script.contentType.replace(/_/g, " ")}</span>}
+              {script.premium && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-[#505081]/30 border border-[#8686AC]/30 text-[#c2c2e0]" : "bg-[#505081]/10 border border-[#8686AC]/20 text-[#505081]"}`}>Premium</span>}
             </div>
 
             {/* Title */}
-            <h1 className={`text-2xl md:text-3xl font-extrabold mb-2 tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>{script.title}</h1>
+            <h1 className={`text-2xl md:text-3xl font-extrabold mb-2 tracking-tight ${dark ? "text-[var(--eclipse-text-primary)] [font-family:'Sora',sans-serif]" : "text-gray-900"}`}>{script.title}</h1>
 
             {/* Description / Logline */}
             {(script.logline || script.description) && (
-              <p className="text-gray-500 text-[15px] leading-relaxed mb-5 max-w-xl">{script.logline || script.description}</p>
+              <p className={`text-[15px] leading-relaxed mb-5 max-w-xl ${dark ? "text-[var(--eclipse-text-secondary)]" : "text-gray-500"}`}>{script.logline || script.description}</p>
             )}
 
             {/* Author */}
@@ -171,11 +182,11 @@ const ScriptReader = () => {
                   onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentElement.querySelector('.avatar-fallback').style.display = 'flex'; }}
                   className={`w-9 h-9 rounded-full object-cover ring-2 ${dark ? "ring-[#333]" : "ring-gray-100"}`} />
               ) : null}
-              <div className={`avatar-fallback w-9 h-9 rounded-full bg-[#1e3a5f]/10 items-center justify-center text-xs font-bold text-[#1e3a5f] ${script.creator?.profileImage ? 'hidden' : 'flex'}`}>
+              <div className={`avatar-fallback w-9 h-9 rounded-full bg-[#111111]/10 items-center justify-center text-xs font-bold text-[#111111] ${script.creator?.profileImage ? 'hidden' : 'flex'}`}>
                 {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
               <div>
-                <p className={`text-sm font-bold group-hover:text-[#1e3a5f] transition-colors ${dark ? "text-gray-200" : "text-gray-900"}`}>{script.creator?.name || "Unknown"}</p>
+                <p className={`text-sm font-bold group-hover:text-[#111111] transition-colors ${dark ? "text-gray-200" : "text-gray-900"}`}>{script.creator?.name || "Unknown"}</p>
                 <p className="text-[11px] text-gray-400 font-medium capitalize">{script.creator?.role || "Writer"}</p>
               </div>
             </Link>
@@ -197,7 +208,7 @@ const ScriptReader = () => {
                 {isFavorited ? "Favorited" : "Favorite"}
               </button>
               {script.premium && !isUnlocked && isPro && (
-                <button className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex items-center gap-2">
+                <button className="px-5 py-2.5 bg-[#505081] text-white rounded-xl text-sm font-bold hover:bg-[#272757] transition-colors flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                   Unlock – ${script.price}
                 </button>
@@ -256,7 +267,7 @@ const ScriptReader = () => {
                 {/* Rating Overview Card */}
                 <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
                   <div className="flex items-center gap-5 mb-5">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] flex flex-col items-center justify-center shrink-0">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#111111] to-[#333333] flex flex-col items-center justify-center shrink-0">
                       <span className="text-2xl font-black text-white leading-none">{(script.rating || 0).toFixed(1)}</span>
                       <span className="text-[10px] text-white/50 font-bold mt-0.5">out of 5</span>
                     </div>
@@ -270,11 +281,11 @@ const ScriptReader = () => {
                     {[5, 4, 3, 2, 1].map((star) => (
                       <div key={star} className="flex items-center gap-2">
                         <span className="text-[11px] font-bold text-gray-400 w-3 text-right">{star}</span>
-                        <svg className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" viewBox="0 0 20 20">
+                        <svg className="w-3 h-3 text-[#8686AC] fill-[#8686AC] shrink-0" viewBox="0 0 20 20">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
                         <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${script.reviewCount ? 0 : 0}%` }} />
+                          <div className="h-full bg-[#8686AC] rounded-full" style={{ width: `${script.reviewCount ? 0 : 0}%` }} />
                         </div>
                       </div>
                     ))}
@@ -305,7 +316,7 @@ const ScriptReader = () => {
                     {totalReviewPages > 1 && (
                       <div className="flex justify-center gap-2 pt-4">
                         {[...Array(totalReviewPages)].map((_, i) => (
-                          <button key={i} onClick={() => fetchReviews(i + 1)} className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${reviewPage === i + 1 ? "bg-[#1e3a5f] text-white shadow-sm" : (dark ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08]" : "bg-gray-50 text-gray-400 hover:bg-gray-100")}`}>{i + 1}</button>
+                          <button key={i} onClick={() => fetchReviews(i + 1)} className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${reviewPage === i + 1 ? "bg-[#111111] text-white shadow-sm" : (dark ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08]" : "bg-gray-50 text-gray-400 hover:bg-gray-100")}`}>{i + 1}</button>
                         ))}
                       </div>
                     )}
@@ -843,6 +854,23 @@ const ScriptReader = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {showShare && script && (
+          <ShareModal
+            script={script}
+            onClose={() => setShowShare(false)}
+            onShared={() => {
+              checkBadges(streak, totalReads, { shared: true });
+              setShowShare(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Achievement Toasts */}
+      <BadgeToastContainer newlyUnlocked={newlyUnlocked} onDismiss={dismissToast} />
     </div>
   );
 };

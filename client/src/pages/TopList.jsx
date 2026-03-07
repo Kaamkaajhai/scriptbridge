@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
@@ -35,6 +35,12 @@ const PREMIUM_OPTIONS = [
   { key: "free", label: "Free" },
 ];
 
+const TIME_PERIODS = [
+  { key: "alltime", label: "All Time" },
+  { key: "monthly", label: "Monthly" },
+  { key: "weekly",  label: "Weekly" },
+];
+
 const budgetLabel = {
   micro: "Micro",
   low: "Low",
@@ -68,9 +74,9 @@ const XIcon = () => (
 /* ── Rank Badge ──────────────────────────────────────── */
 const RankBadge = ({ rank, dark }) => {
   const medals = {
-    1: { bg: "from-amber-400 to-yellow-300", text: "text-amber-900", shadow: "shadow-amber-400/40" },
+    1: { bg: "from-[#c2c2e0] to-[#8686AC]", text: "text-[#0F0E47]", shadow: "shadow-[#8686AC]/40" },
     2: { bg: "from-slate-300 to-gray-200",   text: "text-slate-700", shadow: "shadow-slate-300/40" },
-    3: { bg: "from-orange-400 to-amber-300", text: "text-orange-900", shadow: "shadow-orange-400/40" },
+    3: { bg: "from-[#505081] to-[#272757]", text: "text-[#c2c2e0]", shadow: "shadow-[#505081]/40" },
   };
   const medal = medals[rank];
   if (medal) {
@@ -89,13 +95,89 @@ const RankBadge = ({ rank, dark }) => {
   );
 };
 
+/* ── Rank Change Indicator ───────────────────────────── */
+const RankChange = ({ change }) => {
+  if (change === 0 || change === null || change === undefined) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-100/60 text-gray-400 dark:bg-white/5">
+        <span>—</span>
+      </span>
+    );
+  }
+  if (change > 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+        </svg>
+        +{change}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-red-500/10 text-red-500">
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
+      </svg>
+      {change}
+    </span>
+  );
+};
+
+/* ── Save Button ─────────────────────────────────────── */
+const SaveButton = ({ scriptId, dark }) => {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.post("/users/watchlist/add", { scriptId });
+      setSaved(true);
+    } catch {
+      setSaved(true); // optimistic — already saved is fine
+    }
+    setSaving(false);
+  };
+
+  return (
+    <button
+      onClick={handleSave}
+      title={saved ? "Saved to library" : "Save to library"}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-bold transition-all duration-200 ${
+        saved
+          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+          : dark
+            ? "bg-white/15 hover:bg-white/25 text-white border border-white/20"
+            : "bg-white/90 hover:bg-white text-[#111111] border border-white/60 shadow-sm"
+      }`}
+    >
+      {saving ? (
+        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      ) : saved ? (
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+        </svg>
+      )}
+      {saved ? "Saved" : "Save"}
+    </button>
+  );
+};
+
 /* ── Pill ─────────────────────────────────────────────── */
 const Pill = ({ active, onClick, children, dark }) => (
   <button
     onClick={onClick}
     className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all duration-200 border ${
       active
-        ? "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm"
+        ? "bg-[#111111] text-white border-[#111111] shadow-sm"
         : dark
           ? "bg-white/[0.04] text-gray-300 border-[#444] hover:bg-white/[0.08] hover:text-gray-200"
           : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm"
@@ -108,7 +190,7 @@ const Pill = ({ active, onClick, children, dark }) => (
 /* ── FilterSection ───────────────────────────────────── */
 const FilterSection = ({ label, children, dark }) => (
   <div className="space-y-2.5">
-    <span className={`text-[11px] font-bold uppercase tracking-wider ${dark ? "text-gray-400" : "text-gray-400"}`}>
+    <span className={`text-[13px] font-bold uppercase tracking-wider ${dark ? "text-gray-400" : "text-gray-400"}`}>
       {label}
     </span>
     <div className="flex flex-wrap gap-2">{children}</div>
@@ -137,32 +219,44 @@ const TopList = () => {
     header:      dark ? "text-gray-100" : "text-gray-900",
     sub:         dark ? "text-gray-400" : "text-gray-400",
     divider:     dark ? "border-[#333]" : "border-gray-100",
-    stat:        dark ? "bg-white/[0.04] border-[#333]" : "bg-[#1e3a5f]/[0.05] border-transparent",
+    stat:        dark ? "bg-white/[0.04] border-[#333]" : "bg-[#111111]/[0.05] border-transparent",
     statLabel:   dark ? "text-gray-400" : "text-gray-400",
-    statValue:   dark ? "text-cyan-300" : "text-[#1e3a5f]",
+    statValue:   dark ? "text-cyan-300" : "text-[#111111]",
     filterPanel: dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100",
-    sortActive:  "bg-[#1e3a5f] text-white shadow-lg shadow-[#1e3a5f]/30",
+    sortActive:  "bg-[#111111] text-white shadow-lg shadow-[#111111]/30",
     sortIdle:    dark ? "bg-white/[0.04] text-gray-300 border-[#444] hover:bg-white/[0.08] hover:text-gray-200" : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm",
     filterBtn:   dark ? "bg-white/[0.04] border-[#444] text-gray-300 hover:bg-white/[0.08] hover:text-gray-200" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm",
-    filterBtnActive: "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm",
-    tag:         dark ? "bg-blue-500/15 text-blue-300 border-blue-400/25" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-transparent",
-    tagX:        dark ? "hover:bg-blue-500/25" : "hover:bg-[#1e3a5f]/10",
+    filterBtnActive: "bg-[#111111] text-white border-[#111111] shadow-sm",
+    tag:         dark ? "bg-blue-500/15 text-blue-300 border-blue-400/25" : "bg-[#111111]/[0.06] text-[#111111] border-transparent",
+    tagX:        dark ? "hover:bg-blue-500/25" : "hover:bg-[#111111]/10",
     statPill:    dark ? "text-gray-400" : "text-gray-400",
     emptyCard:   dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100",
     emptyTitle:  dark ? "text-gray-100" : "text-gray-800",
     metricBar:   dark ? "bg-[#333]" : "bg-gray-100",
     iconMuted:   dark ? "text-gray-500" : "text-gray-300",
+    // Hover overlay
+    hoverOverlay: dark ? "bg-[#0a1628]/90 backdrop-blur-md" : "bg-[#0f1d35]/85 backdrop-blur-md",
+    hoverPreviewText: "text-white/90",
+    hoverPreviewSub:  "text-white/55",
+    hoverTag:         "bg-white/10 text-white/80 border border-white/10",
+    // Period tabs
+    periodTab:       dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100",
+    periodTabActive: "bg-[#111111] text-white border-[#111111] shadow-sm",
+    periodTabIdle:   dark ? "bg-white/[0.04] text-gray-300 border-[#444] hover:bg-white/[0.08] hover:text-white" : "bg-white text-gray-500 border-gray-200 hover:border-[#111111]/30 hover:text-[#111111]",
   };
 
   /* State */
   const [scripts, setScripts]           = useState([]);
+  const [prevScripts, setPrevScripts]   = useState([]);  // for rank change calculation
   const [loading, setLoading]           = useState(true);
   const [sortBy, setSortBy]             = useState("platform");
+  const [timePeriod, setTimePeriod]     = useState("alltime");
   const [filtersOpen, setFiltersOpen]   = useState(false);
   const [selectedGenre, setSelectedGenre]             = useState("");
   const [selectedContentType, setSelectedContentType] = useState("");
   const [selectedBudget, setSelectedBudget]           = useState("");
   const [selectedPremium, setSelectedPremium]         = useState("all");
+  const [hoveredId, setHoveredId]       = useState(null);
 
   const activeFilterCount = [
     selectedGenre,
@@ -180,25 +274,38 @@ const TopList = () => {
 
   useEffect(() => {
     fetchScripts();
-  }, [sortBy, selectedGenre, selectedContentType, selectedBudget, selectedPremium]);
+  }, [sortBy, timePeriod, selectedGenre, selectedContentType, selectedBudget, selectedPremium]);
 
   const fetchScripts = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       params.append("sort", sortBy);
-      if (selectedGenre)      params.append("genre", selectedGenre);
+      if (timePeriod !== "alltime") params.append("period", timePeriod);
+      if (selectedGenre)       params.append("genre", selectedGenre);
       if (selectedContentType) params.append("contentType", selectedContentType);
-      if (selectedBudget)     params.append("budget", selectedBudget);
+      if (selectedBudget)      params.append("budget", selectedBudget);
       if (selectedPremium === "premium") params.append("premium", "true");
       else if (selectedPremium === "free") params.append("premium", "false");
       const { data } = await api.get(`/scripts?${params.toString()}`);
-      setScripts(Array.isArray(data) ? data : []);
+      const fresh = Array.isArray(data) ? data : [];
+      // Save current ordering as previous for next fetch's rank change calc
+      setPrevScripts(scripts.length > 0 ? scripts : []);
+      setScripts(fresh);
     } catch {
       setScripts([]);
     }
     setLoading(false);
   };
+
+  // Compute rank change: positive = moved up, negative = moved down
+  const getRankChange = useCallback((scriptId, currentRank) => {
+    if (prevScripts.length === 0) return 0;
+    const prevRank = prevScripts.findIndex(s => (s._id || s.id) === scriptId);
+    if (prevRank === -1) return null; // new entry
+    const change = (prevRank + 1) - currentRank; // positive = improved rank
+    return change;
+  }, [prevScripts]);
 
   const sortTabs = [
     { key: "platform",   label: "Platform", desc: "Ranked by overall platform performance" },
@@ -217,7 +324,7 @@ const TopList = () => {
   const resolveImg = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   const numericMetrics = scripts.map((s) => {
@@ -255,10 +362,10 @@ const TopList = () => {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#1e3a5f] to-[#3a7bd5]" />
-              <h1 className={`text-2xl font-extrabold tracking-tight ${t.header}`}>Top List</h1>
+              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#111111] to-[#3a7bd5]" />
+              <h1 className={`text-3xl font-extrabold tracking-tight ${t.header}`}>Top List</h1>
             </div>
-            <p className={`text-[13px] font-medium ml-[18px] ${t.sub}`}>
+            <p className={`text-[15px] font-medium ml-[18px] ${t.sub}`}>
               {sortTabs.find(tab => tab.key === sortBy)?.desc}
             </p>
           </div>
@@ -266,18 +373,18 @@ const TopList = () => {
           {/* Summary stat badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Scripts</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${t.statValue}`}>{scripts.length}</span>
+              <span className={`text-[13px] font-semibold ${t.statLabel}`}>Scripts</span>
+              <span className={`text-[16px] font-extrabold tabular-nums ${t.statValue}`}>{scripts.length}</span>
             </div>
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Top</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${t.statValue}`}>{topScore.toLocaleString()}</span>
+              <span className={`text-[13px] font-semibold ${t.statLabel}`}>Top</span>
+              <span className={`text-[16px] font-extrabold tabular-nums ${t.statValue}`}>{topScore.toLocaleString()}</span>
             </div>
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
               dark ? "bg-[#4e4e4e] border-[#5a5a5a]" : "bg-gray-50 border-transparent"
             }`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Avg</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-500"}`}>{avgMetric.toLocaleString()}</span>
+              <span className={`text-[13px] font-semibold ${t.statLabel}`}>Avg</span>
+              <span className={`text-[16px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-500"}`}>{avgMetric.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -290,6 +397,26 @@ const TopList = () => {
         transition={{ duration: 0.35, delay: 0.08 }}
         className="mb-5"
       >
+        {/* ── Time Period tabs ── */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-[13px] font-bold uppercase tracking-widest mr-1 ${
+            dark ? "text-gray-500" : "text-gray-400"
+          }`}>Period</span>
+          <div className={`inline-flex items-center gap-1 p-1 rounded-xl border ${t.periodTab}`}>
+            {TIME_PERIODS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setTimePeriod(p.key)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[14px] font-semibold transition-all duration-200 border ${
+                  timePeriod === p.key ? t.periodTabActive : t.periodTabIdle
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -297,7 +424,7 @@ const TopList = () => {
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
-                  className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 whitespace-nowrap border ${
+                  className={`px-4 py-2 rounded-xl text-[15px] font-semibold transition-all duration-200 whitespace-nowrap border ${
                     sortBy === tab.key ? t.sortActive : t.sortIdle
                   }`}
                 >
@@ -308,7 +435,7 @@ const TopList = () => {
 
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[15px] font-semibold transition-all duration-200 border ${
                 filtersOpen || activeFilterCount > 0 ? t.filterBtnActive : t.filterBtn
               }`}
             >
@@ -327,25 +454,25 @@ const TopList = () => {
           {activeFilterCount > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
               {selectedGenre && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-bold border ${t.tag}`}>
                   {selectedGenre}
                   <button onClick={() => setSelectedGenre("")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedContentType && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-bold border ${t.tag}`}>
                   {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label || selectedContentType}
                   <button onClick={() => setSelectedContentType("")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedBudget && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-bold border ${t.tag}`}>
                   {budgetLabel[selectedBudget]} Budget
                   <button onClick={() => setSelectedBudget("")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
                 </span>
               )}
               {selectedPremium !== "all" && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-bold border ${t.tag}`}>
                   {selectedPremium === "premium" ? "Premium" : "Free"}
                   <button onClick={() => setSelectedPremium("all")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
                 </span>
@@ -402,7 +529,7 @@ const TopList = () => {
 
                 {activeFilterCount > 0 && (
                   <div className="flex sm:hidden justify-end pt-1">
-                    <button onClick={clearAllFilters} className="text-[12px] font-semibold text-red-500 hover:text-red-600 transition-colors px-3 py-1.5 border border-red-400/30 rounded-xl bg-red-500/10">
+                    <button onClick={clearAllFilters} className="text-[14px] font-semibold text-red-500 hover:text-red-600 transition-colors px-3 py-1.5 border border-red-400/30 rounded-xl bg-red-500/10">
                       Clear all filters
                     </button>
                   </div>
@@ -426,10 +553,10 @@ const TopList = () => {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>
-          <p className={`text-[16px] font-bold mb-1 ${t.emptyTitle}`}>No projects found</p>
-          <p className={`text-[13px] mb-5 ${t.sub}`}>Try adjusting your filters or check back later</p>
+          <p className={`text-[18px] font-bold mb-1 ${t.emptyTitle}`}>No projects found</p>
+          <p className={`text-[15px] mb-5 ${t.sub}`}>Try adjusting your filters or check back later</p>
           {activeFilterCount > 0 && (
-            <button onClick={clearAllFilters} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-semibold hover:bg-[#162d4a] transition-colors shadow-sm">
+            <button onClick={clearAllFilters} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111111] text-white rounded-xl text-sm font-semibold hover:bg-[#000000] transition-colors shadow-sm">
               Clear all filters
             </button>
           )}
@@ -446,10 +573,13 @@ const TopList = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.04, duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+                onMouseEnter={() => setHoveredId(script._id || index)}
+                onMouseLeave={() => setHoveredId(null)}
+                className="relative"
               >
                 <Link
                   to={`/script/${script._id}`}
-                  className={`group block rounded-2xl overflow-hidden transition-all duration-300 border ${t.card} ${t.cardShadow} hover:-translate-y-1`}
+                  className={`group block rounded-2xl overflow-hidden transition-all duration-300 border ${t.card} ${t.cardShadow} hover:-translate-y-1.5`}
                 >
                   {/* ── Cover ── */}
                   <div className="relative h-[200px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
@@ -458,7 +588,7 @@ const TopList = () => {
                         <img
                           src={resolveImg(script.coverImage)}
                           alt={script.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
+                          className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#091a2f]/80 via-[#091a2f]/20 to-transparent" />
                       </>
@@ -473,10 +603,10 @@ const TopList = () => {
                           <div className="w-8 h-[2px] rounded-full bg-white/[0.04]" />
                         </div>
                         <div className="absolute inset-0 flex flex-col justify-center items-center text-center px-6">
-                          <h4 className="text-lg font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-2">
+                          <h4 className="text-xl font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-2">
                             {script.title}
                           </h4>
-                          <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed font-medium">
+                          <p className="text-[13px] text-white/40 line-clamp-2 leading-relaxed font-medium">
                             {script.logline || script.description || script.synopsis || "No description available"}
                           </p>
                         </div>
@@ -487,18 +617,18 @@ const TopList = () => {
                     <RankBadge rank={rank} dark={dark} />
 
                     {(script.primaryGenre || script.genre) && (
-                      <span className="absolute top-3 right-3 text-[10px] font-bold text-white/90 bg-white/15 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
+                      <span className="absolute top-3 right-3 text-[12px] font-bold text-white/90 bg-white/15 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
                         {script.primaryGenre || script.genre}
                       </span>
                     )}
 
                     {script.premium ? (
-                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg shadow-lg">
-                        <span className="text-[11px] font-extrabold text-white">${script.price}</span>
+                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-[#505081]/90 backdrop-blur-sm rounded-lg shadow-lg">
+                        <span className="text-[13px] font-extrabold text-white">${script.price}</span>
                       </div>
                     ) : (
                       <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-emerald-500/80 backdrop-blur-sm rounded-lg">
-                        <span className="text-[10px] font-bold text-white">Free</span>
+                        <span className="text-[12px] font-bold text-white">Free</span>
                       </div>
                     )}
 
@@ -510,19 +640,81 @@ const TopList = () => {
                           <span className="text-[9px] font-bold text-white">{script.creator?.name?.charAt(0)?.toUpperCase()}</span>
                         )}
                       </div>
-                      <span className="text-[11px] font-semibold text-white/80 drop-shadow">{script.creator?.name || "Unknown"}</span>
+                      <span className="text-[13px] font-semibold text-white/80 drop-shadow">{script.creator?.name || "Unknown"}</span>
                     </div>
+
+                    {/* ── Hover Quick-Preview Overlay ── */}
+                    <AnimatePresence>
+                      {hoveredId === (script._id || index) && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.18 }}
+                          className={`absolute inset-0 flex flex-col justify-end p-4 z-20 ${t.hoverOverlay}`}
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          {/* Preview content */}
+                          <div className="mb-3">
+                            <p className={`text-[15px] font-bold mb-1 leading-snug ${t.hoverPreviewText}`}>
+                              {script.title}
+                            </p>
+                            {(script.logline || script.description || script.synopsis) && (
+                              <p className={`text-[13px] leading-relaxed line-clamp-3 mb-2 ${t.hoverPreviewSub}`}>
+                                {script.logline || script.description || script.synopsis}
+                              </p>
+                            )}
+                            {/* Tags */}
+                            <div className="flex flex-wrap gap-1">
+                              {script.genre && (
+                                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-lg ${t.hoverTag}`}>{script.genre}</span>
+                              )}
+                              {script.contentType && (
+                                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-lg ${t.hoverTag}`}>{script.contentType}</span>
+                              )}
+                              {script.pageCount && (
+                                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-lg ${t.hoverTag}`}>{script.pageCount} pages</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-2">
+                            <SaveButton scriptId={script._id} dark={dark} />
+                            <Link
+                              to={`/script/${script._id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-[#111111] hover:bg-[#000000] text-white transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                              </svg>
+                              View
+                            </Link>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   {/* ── Info Section ── */}
                   <div className="p-4">
+                    {/* Title + rank change row */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className={`text-[16px] font-bold leading-snug line-clamp-1 flex-1 ${
+                        dark ? "text-gray-100 group-hover:text-white" : "text-gray-900 group-hover:text-[#111111]"
+                      } transition-colors`}>
+                        {script.title}
+                      </h3>
+                      <RankChange change={getRankChange(script._id || index, rank)} />
+                    </div>
+
                     {/* Metric bar */}
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${t.sub}`}>
+                        <span className={`text-[12px] font-bold uppercase tracking-wider ${t.sub}`}>
                           {sortTabs.find(tab => tab.key === sortBy)?.label}
                         </span>
-                        <span className={`text-[13px] font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-800"}`}>
+                        <span className={`text-[15px] font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-800"}`}>
                           {metric.value}
                         </span>
                       </div>
@@ -531,7 +723,7 @@ const TopList = () => {
                           initial={{ width: 0 }}
                           animate={{ width: `${metric.pct}%` }}
                           transition={{ duration: 0.6, delay: index * 0.04 + 0.2, ease: "easeOut" }}
-                          className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5]"
+                          className="h-full rounded-full bg-gradient-to-r from-[#111111] to-[#3a7bd5]"
                         />
                       </div>
                     </div>
@@ -551,10 +743,10 @@ const TopList = () => {
                       <div className="flex items-center gap-2.5">
                         {script.scriptScore?.overall > 0 && (
                           <div className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-3.5 h-3.5 text-[#8686AC]" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
                             </svg>
-                            <span className={`text-[11px] font-semibold tabular-nums ${t.statPill}`}>{script.scriptScore.overall}</span>
+                            <span className={`text-[13px] font-semibold tabular-nums ${t.statPill}`}>{script.scriptScore.overall}</span>
                           </div>
                         )}
                         {script.pageCount && (
@@ -562,7 +754,7 @@ const TopList = () => {
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                             </svg>
-                            <span className="text-[11px] font-semibold tabular-nums">{script.pageCount}p</span>
+                            <span className="text-[13px] font-semibold tabular-nums">{script.pageCount}p</span>
                           </div>
                         )}
                       </div>

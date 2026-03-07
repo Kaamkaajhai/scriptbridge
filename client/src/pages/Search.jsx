@@ -35,6 +35,13 @@ const PREMIUM_OPTIONS = [
   { key: "premium", label: "Premium Only" },
 ];
 
+const RATING_OPTIONS = [
+  { key: "", label: "Any" },
+  { key: "3", label: "3+ ★" },
+  { key: "4", label: "4+ ★" },
+  { key: "4.5", label: "4.5+ ★" },
+];
+
 const SORT_OPTIONS = [
   { key: "", label: "Relevance", icon: "🔍" },
   { key: "engagement", label: "Trending", icon: "🔥" },
@@ -81,10 +88,10 @@ const getTokens = (dark) => dark ? {
   searchHint: "text-slate-600 border-slate-700/60",
   // Tabs
   tabBar: "bg-[#0f1d35]/60 backdrop-blur-sm border border-[#1a3050]/50",
-  tabActive: "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white shadow-lg shadow-[#1e3a5f]/30",
+  tabActive: "bg-gradient-to-r from-[#111111] to-[#2a5a8f] text-white shadow-lg shadow-[#111111]/30",
   tabIdle: "text-slate-400 hover:text-slate-200",
   // Filter button
-  filterBtnActive: "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white border-[#1e3a5f] shadow-lg shadow-[#1e3a5f]/20",
+  filterBtnActive: "bg-gradient-to-r from-[#111111] to-[#2a5a8f] text-white border-[#111111] shadow-lg shadow-[#111111]/20",
   filterBtnIdle: "bg-[#0f1d35]/80 text-slate-300 border-[#1a3050] hover:border-[#2a4570] hover:bg-[#132744]",
   // Filter tags
   filterTag: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
@@ -95,7 +102,7 @@ const getTokens = (dark) => dark ? {
   filterDivider: "border-[#1a3050]/60",
   filterClearMobile: "text-red-400 hover:text-red-300 border-red-500/20 bg-red-500/10",
   // Pill
-  pillActive: "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white border-transparent shadow-md shadow-[#1e3a5f]/20",
+  pillActive: "bg-gradient-to-r from-[#111111] to-[#2a5a8f] text-white border-transparent shadow-md shadow-[#111111]/20",
   pillIdle: "bg-[#0a1628] text-slate-400 border-[#1a3050] hover:border-[#2a4570] hover:text-slate-200 hover:bg-[#0f1d35]",
   filterLabel: "text-slate-500",
   // Loading
@@ -132,51 +139,68 @@ const getTokens = (dark) => dark ? {
   projectDesc: "text-slate-500",
   projectStatIcon: "text-slate-600",
   projectStatValue: "text-slate-400",
-  projectScoreStar: "text-amber-400",
-  projectScoreValue: "text-amber-400",
+  projectScoreStar: "text-[#8686AC]",
+  projectScoreValue: "text-[#c2c2e0]",
+  // Popularity bar
+  popularityBar: "bg-blue-500/60",
+  popularityTrack: "bg-[#1a3050]",
+  // Suggestions dropdown
+  suggestionsDrop: "bg-[#0f1d35] border-[#1a3050] shadow-2xl shadow-black/40",
+  suggestionItem: "hover:bg-[#132744]",
+  suggestionText: "text-white",
+  suggestionSub: "text-slate-500",
+  suggestionHighlight: "text-blue-400 font-bold",
+  suggestionSection: "text-slate-600",
+  // Trending
+  trendingTitle: "text-slate-400",
+  trendingChip: "bg-[#0f1d35]/80 border-[#1a3050] text-slate-300 hover:border-blue-500/40 hover:text-blue-400 hover:bg-[#132744]",
+  trendingScript: "bg-[#0f1d35]/60 border-[#1a3050] hover:border-[#2a4570] hover:bg-[#132744]",
+  trendingScriptTitle: "text-slate-200 group-hover:text-blue-400",
+  trendingScriptGenre: "text-slate-600",
+  trendingScriptStat: "text-slate-500",
 } : {
   pageBg: "",
   title: "text-gray-900",
   subtitle: "text-gray-400",
-  accentBar: "from-[#1e3a5f] to-[#3a7bd5]",
+  accentBar: "from-[#111111] to-[#3a7bd5]",
   searchWrap: "bg-white border-gray-200 shadow-sm",
-  searchFocused: "!border-[#1e3a5f]/30 shadow-lg shadow-[#1e3a5f]/5",
+  searchFocused: "!border-[#111111]/30 shadow-lg shadow-[#111111]/[0.05]",
   searchIcon: "text-gray-400",
   searchInput: "text-gray-900 placeholder:text-gray-400",
   searchClearBtn: "bg-gray-100 hover:bg-gray-200",
   searchClearIcon: "text-gray-500",
   searchHint: "text-gray-300 border-gray-200",
   tabBar: "bg-gray-50/80",
-  tabActive: "bg-white text-[#1e3a5f] shadow-sm",
+  tabActive: "bg-white text-[#111111] shadow-sm",
   tabIdle: "text-gray-400 hover:text-gray-600",
-  filterBtnActive: "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm",
+  filterBtnActive: "bg-[#111111] text-white border-[#111111] shadow-sm",
   filterBtnIdle: "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm",
-  filterTag: "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]",
-  filterTagX: "hover:bg-[#1e3a5f]/10",
+  filterTag: "bg-[#111111]/[0.06] text-[#111111]",
+  filterTagX: "hover:bg-[#111111]/10",
   clearAll: "text-gray-400 hover:text-red-500",
   filterPanel: "bg-white border-gray-100 shadow-sm",
   filterDivider: "border-gray-100",
   filterClearMobile: "text-red-500 hover:text-red-600 border-red-200 bg-red-50",
-  pillActive: "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm shadow-[#1e3a5f]/15",
+  pillActive: "bg-[#111111] text-white border-[#111111] shadow-sm shadow-[#111111]/15",
   pillIdle: "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm",
   filterLabel: "text-gray-400",
   spinnerTrack: "border-gray-100",
-  spinnerColor: "border-t-[#1e3a5f]",
+  spinnerColor: "border-t-[#111111]",
   spinnerText: "text-gray-400",
   genreHint: "text-gray-300",
-  genreBtn: "text-gray-500 bg-white border-gray-150 hover:border-[#1e3a5f]/30 hover:text-[#1e3a5f] hover:shadow-sm",
+  genreBtn: "text-gray-500 bg-white border-gray-200 hover:border-[#111111]/30 hover:text-[#111111] hover:shadow-sm",
   noResultBg: "bg-gray-50",
   noResultIcon: "text-gray-300",
   noResultTitle: "text-gray-600",
   noResultSub: "text-gray-400",
-  noResultBtn: "bg-[#1e3a5f] hover:bg-[#162d4a] text-white shadow-sm",
+  noResultBtn: "bg-[#111111] hover:bg-[#000000] text-white shadow-sm",
   resultCount: "text-gray-400",
-  sectionBar: "bg-[#1e3a5f]",
+  sectionBar: "bg-[#111111]",
   sectionTitle: "text-gray-900",
   sectionCount: "text-gray-400",
   personCard: "bg-white border-gray-100/80 hover:bg-gray-50/50 hover:border-gray-200",
   personAvatarBg: "bg-gray-100",
-  personName: "text-gray-900 group-hover:text-[#1e3a5f]",
+  personName: "text-gray-900 group-hover:text-[#111111]",
   personBio: "text-gray-400",
   personGenreTag: "text-gray-400 bg-gray-50",
   personFollowers: "text-gray-400",
@@ -184,12 +208,29 @@ const getTokens = (dark) => dark ? {
   projectCard: "bg-white border-gray-100/80 hover:shadow-xl hover:shadow-gray-200/40 hover:-translate-y-1",
   projectEmptyCover: "from-slate-50 via-gray-50 to-slate-100",
   projectEmptyIcon: "text-gray-200",
-  projectTitle: "text-gray-900 group-hover:text-[#1e3a5f]",
+  projectTitle: "text-gray-900 group-hover:text-[#111111]",
   projectDesc: "text-gray-400",
   projectStatIcon: "text-gray-400",
   projectStatValue: "text-gray-500",
   projectScoreStar: "text-gray-400",
   projectScoreValue: "text-gray-600",
+  // Popularity bar
+  popularityBar: "bg-[#111111]/70",
+  popularityTrack: "bg-gray-100",
+  // Suggestions dropdown
+  suggestionsDrop: "bg-white border-gray-100 shadow-xl shadow-gray-200/60",
+  suggestionItem: "hover:bg-gray-50",
+  suggestionText: "text-gray-900",
+  suggestionSub: "text-gray-400",
+  suggestionHighlight: "text-[#111111] font-bold",
+  suggestionSection: "text-gray-300",
+  // Trending
+  trendingTitle: "text-gray-400",
+  trendingChip: "bg-white border-gray-200 text-gray-500 hover:border-[#111111]/30 hover:text-[#111111] hover:shadow-sm",
+  trendingScript: "bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm",
+  trendingScriptTitle: "text-gray-900 group-hover:text-[#111111]",
+  trendingScriptGenre: "text-gray-300",
+  trendingScriptStat: "text-gray-400",
 };
 
 /* ── Reusable Components ────────────────────────────── */
@@ -229,6 +270,36 @@ const Search = () => {
   const [selectedBudget, setSelectedBudget] = useState("");
   const [selectedPremium, setSelectedPremium] = useState("all");
   const [selectedSort, setSelectedSort] = useState("");
+  const [selectedRating, setSelectedRating] = useState("");
+
+  /* Suggestions state */
+  const [suggestions, setSuggestions] = useState({ scripts: [], users: [] });
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const suggestionsRef = useRef(null);
+
+  /* Trending state */
+  const [trending, setTrending] = useState({ scripts: [], genres: [] });
+  const [trendingLoaded, setTrendingLoaded] = useState(false);
+
+  // Load trending on mount
+  useEffect(() => {
+    api.get("/search/trending").then(({ data }) => {
+      setTrending(data);
+      setTrendingLoaded(true);
+    }).catch(() => setTrendingLoaded(true));
+  }, []);
+
+  // Close suggestions dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Sync from URL params when navigating from navbar
   useEffect(() => {
@@ -246,6 +317,7 @@ const Search = () => {
     selectedBudget,
     selectedPremium !== "all" ? selectedPremium : "",
     selectedSort,
+    selectedRating,
   ].filter(Boolean).length;
 
   const clearAllFilters = () => {
@@ -254,6 +326,7 @@ const Search = () => {
     setSelectedBudget("");
     setSelectedPremium("all");
     setSelectedSort("");
+    setSelectedRating("");
   };
 
   const tabs = [
@@ -277,7 +350,28 @@ const Search = () => {
       }
     }, 400);
     return () => clearTimeout(debounce);
-  }, [query, activeTab, selectedGenre, selectedContentType, selectedBudget, selectedPremium, selectedSort]);
+  }, [query, activeTab, selectedGenre, selectedContentType, selectedBudget, selectedPremium, selectedSort, selectedRating]);
+
+  // Fetch suggestions with debounce
+  useEffect(() => {
+    if (!query.trim() || query.trim().length < 2) {
+      setSuggestions({ scripts: [], users: [] });
+      setSuggestionsOpen(false);
+      return;
+    }
+    setSuggestionsLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/search/suggestions?q=${encodeURIComponent(query.trim())}`);
+        setSuggestions(data);
+        setSuggestionsOpen((data.scripts?.length > 0 || data.users?.length > 0));
+      } catch {
+        setSuggestions({ scripts: [], users: [] });
+      }
+      setSuggestionsLoading(false);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const doSearch = async () => {
     setLoading(true);
@@ -313,6 +407,12 @@ const Search = () => {
         });
       }
 
+      // Client-side rating filter
+      if (selectedRating && showProjectFilters) {
+        const minRating = parseFloat(selectedRating);
+        scripts = scripts.filter((s) => (s.scriptScore?.overall || 0) >= minRating);
+      }
+
       setResults({ ...data, scripts });
     } catch {
       setResults({ users: [], scripts: [] });
@@ -323,19 +423,19 @@ const Search = () => {
   const totalResults = (results.users?.length || 0) + (results.scripts?.length || 0);
 
   const roleColors = {
-    writer: "#1e3a5f", creator: "#1e3a5f", investor: "#1e3a5f",
-    reader: "#1e3a5f", producer: "#1e3a5f", director: "#1e3a5f",
-    actor: "#1e3a5f", industry: "#1e3a5f", professional: "#1e3a5f",
+    writer: "#111111", creator: "#111111", investor: "#111111",
+    reader: "#111111", producer: "#111111", director: "#111111",
+    actor: "#111111", industry: "#111111", professional: "#111111",
   };
 
   const getProfileImage = (user) => {
     if (!user.profileImage) return null;
-    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5001${user.profileImage}`;
+    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5002${user.profileImage}`;
   };
 
   const getCoverImage = (script) => {
     if (!script.coverImage) return null;
-    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5001${script.coverImage}`;
+    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`;
   };
 
   const ease = [0.25, 0.46, 0.45, 0.94];
@@ -363,37 +463,122 @@ const Search = () => {
           </div>
         </div>
 
-        {/* Search bar */}
-        <div className={`relative rounded-xl border transition-all duration-300 ${t.searchWrap} ${focused ? t.searchFocused : ""}`}>
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-            <svg className={`w-[18px] h-[18px] ${t.searchIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-          </div>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Search by name, genre, title, skills..."
-            className={`w-full h-12 pl-12 pr-12 bg-transparent rounded-xl text-[14px] focus:outline-none ${t.searchInput}`}
-          />
-          {query ? (
-            <button
-              onClick={() => { setQuery(""); inputRef.current?.focus(); }}
-              className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${t.searchClearBtn}`}
-            >
-              <svg className={`w-3.5 h-3.5 ${t.searchClearIcon}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        {/* Search bar with suggestions */}
+        <div ref={suggestionsRef} className="relative">
+          <div className={`relative rounded-xl border transition-all duration-300 ${t.searchWrap} ${focused ? t.searchFocused : ""}`}>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className={`w-[18px] h-[18px] ${t.searchIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
-            </button>
-          ) : (
-            <div className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold border rounded-md px-1.5 py-0.5 select-none pointer-events-none hidden sm:block ${t.searchHint}`}>
-              ⌘K
             </div>
-          )}
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => { setFocused(true); if (suggestions.scripts?.length > 0 || suggestions.users?.length > 0) setSuggestionsOpen(true); }}
+              onBlur={() => setFocused(false)}
+              placeholder="Search by name, genre, title, skills..."
+              className={`w-full h-12 pl-12 pr-12 bg-transparent rounded-xl text-[14px] focus:outline-none ${t.searchInput}`}
+            />
+            {suggestionsLoading && (
+              <div className="absolute right-11 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-t-transparent border-blue-400 rounded-full animate-spin" />
+            )}
+            {query ? (
+              <button
+                onClick={() => { setQuery(""); setSuggestionsOpen(false); inputRef.current?.focus(); }}
+                className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${t.searchClearBtn}`}
+              >
+                <svg className={`w-3.5 h-3.5 ${t.searchClearIcon}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            ) : (
+              <div className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold border rounded-md px-1.5 py-0.5 select-none pointer-events-none hidden sm:block ${t.searchHint}`}>
+                ⌘K
+              </div>
+            )}
+          </div>
+
+          {/* Suggestions Dropdown */}
+          <AnimatePresence>
+            {suggestionsOpen && (suggestions.scripts?.length > 0 || suggestions.users?.length > 0) && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                transition={{ duration: 0.15 }}
+                className={`absolute top-full mt-2 left-0 right-0 z-50 rounded-xl border overflow-hidden ${t.suggestionsDrop}`}
+              >
+                {suggestions.scripts?.length > 0 && (
+                  <div>
+                    <div className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest ${t.suggestionSection}`}>Scripts</div>
+                    {suggestions.scripts.map((s) => {
+                      const hl = query.trim();
+                      const parts = s.title.split(new RegExp(`(${hl})`, "i"));
+                      return (
+                        <button
+                          key={s._id}
+                          onMouseDown={() => { setQuery(s.title); setSuggestionsOpen(false); }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left ${t.suggestionItem}`}
+                        >
+                          <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-700/40">
+                            {s.coverImage ? (
+                              <img src={s.coverImage.startsWith("http") ? s.coverImage : `http://localhost:5002${s.coverImage}`} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-[13px] font-medium truncate ${t.suggestionText}`}>
+                              {parts.map((part, idx) =>
+                                part.toLowerCase() === hl.toLowerCase()
+                                  ? <span key={idx} className={t.suggestionHighlight}>{part}</span>
+                                  : part
+                              )}
+                            </p>
+                            <p className={`text-[11px] truncate ${t.suggestionSub}`}>
+                              {s.genre && <span>{s.genre}</span>}
+                              {s.creator?.name && <span> · {s.creator.name}</span>}
+                            </p>
+                          </div>
+                          {s.readsCount > 0 && (
+                            <span className={`text-[10px] font-medium flex-shrink-0 ${t.suggestionSub}`}>{s.readsCount.toLocaleString()} reads</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {suggestions.users?.length > 0 && (
+                  <div className={suggestions.scripts?.length > 0 ? `border-t ${dark ? "border-[#1a3050]" : "border-gray-100"}` : ""}>
+                    <div className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest ${t.suggestionSection}`}>People</div>
+                    {suggestions.users.map((u) => (
+                      <button
+                        key={u._id}
+                        onMouseDown={() => { setQuery(u.name); setSuggestionsOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left ${t.suggestionItem}`}
+                      >
+                        <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${dark ? "bg-[#1a3050]" : "bg-gray-100"}`}>
+                          {u.profileImage ? (
+                            <img src={u.profileImage.startsWith("http") ? u.profileImage : `http://localhost:5002${u.profileImage}`} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className={`text-[12px] font-bold ${dark ? "text-blue-300" : "text-[#111111]"}`}>{u.name?.charAt(0)?.toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-medium truncate ${t.suggestionText}`}>{u.name}</p>
+                          <p className={`text-[11px] capitalize ${t.suggestionSub}`}>{u.role}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 
@@ -476,6 +661,12 @@ const Search = () => {
                   <button onClick={() => setSelectedSort("")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
                 </span>
               )}
+              {selectedRating && (
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${t.filterTag}`}>
+                  {RATING_OPTIONS.find(r => r.key === selectedRating)?.label}
+                  <button onClick={() => setSelectedRating("")} className={`rounded p-0.5 transition-colors ${t.filterTagX}`}><XIcon /></button>
+                </span>
+              )}
               <button onClick={clearAllFilters} className={`text-[11px] font-semibold transition-colors px-2 py-1 ${t.clearAll}`}>
                 Clear all
               </button>
@@ -541,6 +732,15 @@ const Search = () => {
                   </FilterSection>
                 </div>
 
+                <div className={`border-t ${t.filterDivider}`} />
+
+                {/* Min Rating */}
+                <FilterSection label="Min Rating" t={t}>
+                  {RATING_OPTIONS.map((r) => (
+                    <Pill key={r.key} active={selectedRating === r.key} onClick={() => setSelectedRating(selectedRating === r.key && r.key !== "" ? "" : r.key)} t={t}>{r.label}</Pill>
+                  ))}
+                </FilterSection>
+
                 {/* Clear All (mobile) */}
                 {activeFilterCount > 0 && (
                   <div className="flex sm:hidden justify-end pt-2">
@@ -579,19 +779,58 @@ const Search = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1, ease }}
-          className="text-center py-16"
+          className="py-10 space-y-10"
         >
-          <p className={`text-[13px] font-medium mb-6 ${t.genreHint}`}>Popular genres</p>
-          <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-lg mx-auto">
-            {["Thriller", "Drama", "Comedy", "Sci-Fi", "Horror", "Romance", "Action", "Mystery"].map((g) => (
-              <button
-                key={g}
-                onClick={() => setQuery(g)}
-                className={`px-4 py-2 text-[13px] font-medium border rounded-xl transition-all duration-200 ${t.genreBtn}`}
-              >
-                {g}
-              </button>
-            ))}
+          {/* Trending searches / scripts */}
+          {trendingLoaded && trending.scripts?.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-base">🔥</span>
+                <p className={`text-[13px] font-bold uppercase tracking-widest ${t.trendingTitle}`}>Trending Now</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {trending.scripts.slice(0, 8).map((s) => (
+                  <button
+                    key={s._id}
+                    onClick={() => setQuery(s.title)}
+                    className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-200 text-left ${t.trendingScript}`}
+                  >
+                    <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+                      {s.coverImage ? (
+                        <img src={s.coverImage.startsWith("http") ? s.coverImage : `http://localhost:5002${s.coverImage}`} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center ${dark ? "bg-[#1a3050]" : "bg-gray-100"}`}>
+                          <span className="text-sm">📄</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[12px] font-semibold truncate transition-colors ${t.trendingScriptTitle}`}>{s.title}</p>
+                      <p className={`text-[10px] truncate ${t.trendingScriptGenre}`}>
+                        {s.genre || "Script"}
+                        {(s.readsCount > 0) && <span className={` · ${t.trendingScriptStat}`}>{s.readsCount.toLocaleString()} reads</span>}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Popular genre chips */}
+          <div>
+            <p className={`text-[13px] font-bold uppercase tracking-widest mb-4 ${t.trendingTitle}`}>Browse by genre</p>
+            <div className="flex flex-wrap items-center gap-2.5 max-w-lg">
+              {(trending.genres?.length > 0 ? trending.genres : ["Thriller", "Drama", "Comedy", "Sci-Fi", "Horror", "Romance", "Action", "Mystery"]).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setQuery(g)}
+                  className={`px-4 py-2 text-[13px] font-medium border rounded-xl transition-all duration-200 ${t.trendingChip}`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
           </div>
         </motion.div>
       )}
@@ -681,7 +920,7 @@ const Search = () => {
                               {user.role}
                             </span>
                             {user.writerProfile?.wgaMember && (
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#1e3a5f] bg-[#1e3a5f]/8"}`}>WGA</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#111111] bg-[#111111]/[0.08]"}`}>WGA</span>
                             )}
                           </div>
                           {user.bio && (
@@ -750,17 +989,27 @@ const Search = () => {
                               </svg>
                             </div>
                           )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+                          {/* Rating badge on cover */}
+                          {script.scriptScore?.overall > 0 && (
+                            <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/10">
+                              <svg className="w-3 h-3 text-[#8686AC]" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                              </svg>
+                              <span className="text-[11px] font-bold text-[#c2c2e0] tabular-nums">{script.scriptScore.overall}</span>
+                            </div>
+                          )}
 
                           {/* Floating tags */}
-                          <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
+                          <div className="absolute top-3 left-3 flex items-start gap-1.5">
                             {(script.genre || script.contentType) && (
                               <span className="text-[10px] font-bold text-white/90 bg-white/15 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/10">
                                 {script.genre || script.contentType}
                               </span>
                             )}
                             {script.premium && (
-                              <span className={`text-[10px] font-bold text-white px-2.5 py-1 rounded-lg shadow-sm ${dark ? "bg-blue-500" : "bg-[#1e3a5f]"}`}>
+                              <span className={`text-[10px] font-bold text-white px-2.5 py-1 rounded-lg shadow-sm ${dark ? "bg-blue-500" : "bg-[#111111]"}`}>
                                 ${script.price}
                               </span>
                             )}
@@ -771,7 +1020,7 @@ const Search = () => {
                             <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/20 overflow-hidden">
                               {script.creator?.profileImage ? (
                                 <img
-                                  src={script.creator.profileImage.startsWith("http") ? script.creator.profileImage : `http://localhost:5001${script.creator.profileImage}`}
+                                  src={script.creator.profileImage.startsWith("http") ? script.creator.profileImage : `http://localhost:5002${script.creator.profileImage}`}
                                   alt="" className="w-full h-full object-cover"
                                 />
                               ) : (
@@ -784,12 +1033,34 @@ const Search = () => {
 
                         {/* Body */}
                         <div className="p-4">
-                          <h3 className={`text-[14px] font-bold leading-snug line-clamp-1 transition-colors mb-1.5 ${t.projectTitle}`}>
+                          <h3 className={`text-[14px] font-bold leading-snug line-clamp-1 transition-colors mb-1 ${t.projectTitle}`}>
                             {script.title}
                           </h3>
                           {script.description && (
                             <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${t.projectDesc}`}>{script.description}</p>
                           )}
+
+                          {/* Popularity bar */}
+                          {(script.viewCount || script.views || script.readsCount) > 0 && (() => {
+                            const maxInSet = Math.max(...results.scripts.map(s => s.viewCount || s.views || s.readsCount || 0), 1);
+                            const pct = Math.round(((script.viewCount || script.views || script.readsCount || 0) / maxInSet) * 100);
+                            return pct > 0 ? (
+                              <div className="mb-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className={`text-[9px] font-bold uppercase tracking-widest ${t.trendingScriptStat}`}>Popularity</span>
+                                  <span className={`text-[9px] font-semibold tabular-nums ${t.trendingScriptStat}`}>{pct}%</span>
+                                </div>
+                                <div className={`h-1 rounded-full overflow-hidden ${t.popularityTrack}`}>
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${pct}%` }}
+                                    transition={{ duration: 0.6, delay: i * 0.04 + 0.2, ease: [0.4, 0, 0.2, 1] }}
+                                    className={`h-full rounded-full ${t.popularityBar}`}
+                                  />
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
 
                           {/* Stats */}
                           <div className="flex items-center gap-4">
@@ -806,12 +1077,12 @@ const Search = () => {
                               </svg>
                               <span className={`text-[11px] font-semibold tabular-nums ${t.projectStatValue}`}>{script.unlockCount || 0}</span>
                             </div>
-                            {script.scriptScore?.overall > 0 && (
-                              <div className="flex items-center gap-1 ml-auto">
-                                <svg className={`w-3.5 h-3.5 ${t.projectScoreStar}`} fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            {script.readsCount > 0 && (
+                              <div className="flex items-center gap-1">
+                                <svg className={`w-3.5 h-3.5 ${t.projectStatIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                                 </svg>
-                                <span className={`text-[11px] font-bold tabular-nums ${t.projectScoreValue}`}>{script.scriptScore.overall}</span>
+                                <span className={`text-[11px] font-semibold tabular-nums ${t.projectStatValue}`}>{script.readsCount.toLocaleString()}</span>
                               </div>
                             )}
                           </div>
