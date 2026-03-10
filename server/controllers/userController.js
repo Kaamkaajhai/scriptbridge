@@ -209,6 +209,8 @@ export const updateUserProfile = async (req, res) => {
       name, bio, skills, profileImage, writerProfile,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
+      // Reader preferences (genres + contentTypes)
+      preferences,
       // onboarding completion
       onboardingComplete,
       // investor profile fields
@@ -239,6 +241,14 @@ export const updateUserProfile = async (req, res) => {
       if (!user.industryProfile.mandates) user.industryProfile.mandates = {};
       user.industryProfile.mandates.genres = preferredGenres;
       user.markModified("industryProfile");
+    }
+
+    // Reader / generic preferences (genres + contentTypes)
+    if (preferences !== undefined) {
+      if (!user.preferences) user.preferences = {};
+      if (preferences.genres !== undefined) user.preferences.genres = preferences.genres;
+      if (preferences.contentTypes !== undefined) user.preferences.contentTypes = preferences.contentTypes;
+      user.markModified("preferences");
     }
     if (preferredBudgets !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};

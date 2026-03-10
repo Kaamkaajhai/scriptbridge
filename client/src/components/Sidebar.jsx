@@ -229,7 +229,6 @@ const Sidebar = () => {
             {!isReader && !isAdmin && !isInvestorRole && (
               <>
                 <div className={`mx-3 my-2 border-t ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}></div>
-
                 <button
                   onClick={() => setProjectsOpen(!projectsOpen)}
                   className={`flex items-center gap-2.5 px-5 py-2.5 w-full text-left transition-colors ${isDarkMode ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}
@@ -240,7 +239,6 @@ const Sidebar = () => {
                   </svg>
                   <span className={`text-sm font-bold tracking-wider uppercase ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>My Projects</span>
                 </button>
-
                 {projectsOpen && (
                   <div className="pl-3">
                     {myScripts.length > 0 ? (
@@ -262,19 +260,39 @@ const Sidebar = () => {
         )}
       </nav>
 
+      {/* ── User row ── */}
       <div className={`border-t p-3 ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}>
-        <button onClick={handleLogout}
-          className={`w-full px-3 py-2.5 text-[14px] font-semibold rounded-xl transition-all duration-200 flex items-center gap-2.5 justify-center ${isDarkMode ? "text-gray-400 hover:text-gray-200 hover:bg-[#132744]" : "text-gray-400 hover:text-red-500 hover:bg-red-50/80"}`}>
-          <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          Log out
-        </button>
+        <div className={`flex items-center gap-3 px-2 py-2 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#132744]" : "hover:bg-gray-50"}`}>
+          <div className="relative shrink-0 cursor-pointer" onClick={() => navigate(isReader ? `/reader/profile/${user?._id}` : `/profile/${user?._id}`)}
+          >
+            {user?.profileImage ? (
+              <img src={user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5001${user.profileImage}`} alt={user.name}
+                className={`w-10 h-10 rounded-full object-cover ring-2 ${isDarkMode ? "ring-[#1a3050]" : "ring-gray-200"}`} />
+            ) : (
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${isDarkMode ? "bg-gradient-to-br from-blue-500/30 to-purple-500/20 text-blue-300" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
+                {user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "U"}
+              </div>
+            )}
+            <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ${isDarkMode ? "ring-[#0b1426]" : "ring-white"}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-[13.5px] font-bold truncate leading-tight ${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>{user?.name || "User"}</p>
+            <p className={`text-[11px] font-medium capitalize truncate mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
+              {user?.role === "professional" ? "Industry Pro" : user?.role || "Member"}
+            </p>
+          </div>
+          <button onClick={handleLogout} title="Log out"
+            className={`w-8 h-8 flex items-center justify-center rounded-lg shrink-0 transition-all ${isDarkMode ? "text-gray-500 hover:text-red-400 hover:bg-red-500/10" : "text-gray-300 hover:text-red-500 hover:bg-red-50"}`}>
+            <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" size="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
 
   return (
     <>
-      <aside className={`hidden lg:flex fixed left-0 top-0 h-screen w-[270px] border-r flex-col z-30 ${isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white/80 backdrop-blur-xl border-gray-200/60"}`}>
+      <aside className={`hidden lg:flex fixed left-0 top-0 h-screen w-[280px] border-r flex-col z-30 ${isDarkMode ? "bg-[#0b1426] border-[#1a3050]" : "bg-white/80 backdrop-blur-xl border-gray-200/60"}`}>
         <SidebarContent />
       </aside>
 

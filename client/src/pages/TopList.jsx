@@ -10,75 +10,104 @@ const GENRES = [
   "Action","Mystery","Fantasy","Animation","Crime","Adventure",
 ];
 const CONTENT_TYPES = [
-  { key: "movie", label: "Movie" },
-  { key: "tv_series", label: "TV Series" },
-  { key: "short_film", label: "Short Film" },
-  { key: "web_series", label: "Web Series" },
+  { key: "movie",       label: "Movie"       },
+  { key: "tv_series",   label: "TV Series"   },
+  { key: "short_film",  label: "Short Film"  },
+  { key: "web_series",  label: "Web Series"  },
   { key: "documentary", label: "Documentary" },
-  { key: "anime", label: "Anime" },
-  { key: "book", label: "Book" },
-  { key: "startup", label: "Startup" },
+  { key: "anime",       label: "Anime"       },
+  { key: "book",        label: "Book"        },
+  { key: "startup",     label: "Startup"     },
 ];
 const BUDGETS = [
-  { key: "micro", label: "Micro (<$10k)" },
-  { key: "low", label: "Low ($10k–$100k)" },
-  { key: "mid", label: "Mid ($100k–$1M)" },
-  { key: "high", label: "High ($1M–$10M)" },
-  { key: "blockbuster", label: "Blockbuster (>$10M)" },
+  { key: "micro",       label: "Micro"       },
+  { key: "low",         label: "Low"         },
+  { key: "mid",         label: "Mid"         },
+  { key: "high",        label: "High"        },
+  { key: "blockbuster", label: "Blockbuster" },
 ];
 const PREMIUM_OPTIONS = [
-  { key: "all", label: "All" },
+  { key: "all",     label: "All"     },
   { key: "premium", label: "Premium" },
-  { key: "free", label: "Free" },
+  { key: "free",    label: "Free"    },
 ];
-const budgetLabel = { micro: "Micro", low: "Low", mid: "Mid", high: "High", blockbuster: "Blockbuster" };
 
-/* ── Sort Tabs — merged from all 3 sections ───────── */
+/* ── Sort Tabs ─────────────────────────────────────── */
 const SORT_TABS = [
-  { key: "platform",  label: "Top Ranked", desc: "Ranked by overall platform score",            icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" },
-  { key: "score",     label: "AI Score",   desc: "Ranked by script quality score",              icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
-  { key: "views",     label: "Most Viewed",desc: "Ranked by total views",                       icon: "M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" },
+  { key: "platform",  label: "Top Ranked",  desc: "Ranked by overall platform score",   icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" },
+  { key: "score",     label: "AI Score",    desc: "Ranked by script quality score",     icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
+  { key: "views",     label: "Most Viewed", desc: "Ranked by total views",              icon: "M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" },
 ];
 
-/* ── Small UI helpers ─────────────────────────────── */
 const ease = [0.25, 0.46, 0.45, 0.94];
+
+/* ── Icon Components ───────────────────────────────── */
+const EyeIcon = () => (
+  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+const PageIcon = () => (
+  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+  </svg>
+);
+
+const StarIcon = ({ cls }) => (
+  <svg className={cls || "w-3.5 h-3.5"} fill="currentColor" viewBox="0 0 20 20">
+    <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
+  </svg>
+);
 
 const FilterIcon = () => (
   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
   </svg>
 );
+
 const ChevronDown = ({ open }) => (
   <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
   </svg>
 );
+
 const XIcon = () => (
   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
   </svg>
 );
 
-/* ── Rank Badge ────────────────────────────────────── */
-const RankBadge = ({ rank, dark }) => {
-  const medals = {
-    1: { bg: "from-amber-400 to-yellow-300", text: "text-amber-900", shadow: "shadow-amber-400/40" },
-    2: { bg: "from-slate-300 to-gray-200",   text: "text-slate-700", shadow: "shadow-slate-300/40" },
-    3: { bg: "from-orange-400 to-amber-300", text: "text-orange-900", shadow: "shadow-orange-400/40" },
-  };
-  const medal = medals[rank];
-  if (medal) {
-    return (
-      <div className={`absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br ${medal.bg} ${medal.text} flex items-center justify-center text-[12px] font-black shadow-lg ${medal.shadow} z-10`}>
-        {rank}
+/* ── Rank Medal ─────────────────────────────────────── */
+const RankMedal = ({ rank }) => {
+  if (rank === 1) return (
+    <div className="absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5">
+      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 flex items-center justify-center shadow-lg shadow-amber-400/40 ring-2 ring-amber-200/60">
+        <span className="text-[13px] font-black text-amber-900">1</span>
       </div>
-    );
-  }
+      <span className="text-[8px] font-extrabold text-amber-300 uppercase tracking-widest drop-shadow">GOLD</span>
+    </div>
+  );
+  if (rank === 2) return (
+    <div className="absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5">
+      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 flex items-center justify-center shadow-lg shadow-slate-300/40 ring-2 ring-slate-200/50">
+        <span className="text-[13px] font-black text-slate-700">2</span>
+      </div>
+      <span className="text-[8px] font-extrabold text-slate-300 uppercase tracking-widest drop-shadow">SILVER</span>
+    </div>
+  );
+  if (rank === 3) return (
+    <div className="absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5">
+      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-400/40 ring-2 ring-orange-200/50">
+        <span className="text-[13px] font-black text-orange-900">3</span>
+      </div>
+      <span className="text-[8px] font-extrabold text-orange-300 uppercase tracking-widest drop-shadow">BRONZE</span>
+    </div>
+  );
   return (
-    <div className={`absolute top-3 left-3 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold z-10 ${
-      dark ? "bg-white/10 text-white/60 border border-white/10" : "bg-black/20 text-white/70"
-    }`}>
-      {rank}
+    <div className="absolute top-3 left-3 z-20 w-7 h-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center border border-white/15">
+      <span className="text-[11px] font-bold text-white/70">#{rank}</span>
     </div>
   );
 };
@@ -106,19 +135,20 @@ const FilterSection = ({ label, children, dark }) => (
   </div>
 );
 
-/* ── Skeleton ────────────────────────────────────── */
+/* ── Skeleton ─────────────────────────────────────── */
 const SkeletonCard = ({ dark }) => (
   <div className={`rounded-2xl overflow-hidden border ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100"}`}>
-    <div className={`h-[200px] animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
-    <div className="p-4 space-y-3">
-      <div className={`h-3 rounded-full animate-pulse ${dark ? "bg-[#1d3050]" : "bg-gray-100"}`} />
-      <div className={`h-3 rounded-full w-2/3 animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-50"}`} />
+    <div className={`h-[240px] animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
+    <div className="p-5 space-y-3">
+      <div className={`h-3 rounded-full animate-pulse w-3/4 ${dark ? "bg-[#1d3050]" : "bg-gray-100"}`} />
+      <div className={`h-3 rounded-full w-1/2 animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-50"}`} />
+      <div className={`h-1.5 rounded-full animate-pulse mt-4 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
     </div>
   </div>
 );
 
 /* ══════════════════════════════════════════════════════
-   MAIN COMPONENT — Top List (merged)
+   MAIN COMPONENT — Top List
 ══════════════════════════════════════════════════════ */
 const TopList = () => {
   const { isDarkMode: dark } = useDarkMode();
@@ -136,7 +166,6 @@ const TopList = () => {
     sortActive:  "bg-[#1e3a5f] text-white shadow-lg shadow-[#1e3a5f]/30",
     sortIdle:    dark ? "bg-white/[0.04] text-gray-300 border-[#1d3454] hover:bg-white/[0.08] hover:text-gray-200" : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm",
     filterBtn:   dark ? "bg-white/[0.04] border-[#1d3454] text-gray-300 hover:bg-white/[0.08] hover:text-gray-200" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm",
-    filterBtnActive: "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm",
     tag:         dark ? "bg-blue-500/15 text-blue-300 border-blue-400/25" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-transparent",
     tagX:        dark ? "hover:bg-blue-500/25" : "hover:bg-[#1e3a5f]/10",
     statPill:    dark ? "text-gray-400" : "text-gray-400",
@@ -147,10 +176,10 @@ const TopList = () => {
   };
 
   /* ── State ── */
-  const [scripts, setScripts]           = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [sortBy, setSortBy]             = useState("platform");
-  const [filtersOpen, setFiltersOpen]   = useState(false);
+  const [scripts, setScripts]                         = useState([]);
+  const [loading, setLoading]                         = useState(true);
+  const [sortBy, setSortBy]                           = useState("platform");
+  const [filtersOpen, setFiltersOpen]                 = useState(false);
   const [selectedGenre, setSelectedGenre]             = useState("");
   const [selectedContentType, setSelectedContentType] = useState("");
   const [selectedBudget, setSelectedBudget]           = useState("");
@@ -190,30 +219,26 @@ const TopList = () => {
 
   /* ── Metrics ── */
   const getMetric = (script) => {
-    if (sortBy === "platform")  { const v = Math.round(script.platformScore || 0);   return { value: v, pct: Math.min(v, 100) }; }
-    if (sortBy === "score")     { const v = script.scriptScore?.overall || 0;         return { value: v, pct: Math.min(v, 100) }; }
-    if (sortBy === "featured" || sortBy === "trending")
-      { const v = Math.round(script.engagementScore || script.trendScore || 0); return { value: v, pct: Math.min(v, 100) }; }
+    if (sortBy === "platform")   { const v = Math.round(script.platformScore || 0);  return { value: v, pct: Math.min(v, 100) }; }
+    if (sortBy === "score")      { const v = script.scriptScore?.overall || 0;        return { value: v, pct: Math.min(v, 100) }; }
+    if (sortBy === "engagement") { const v = Math.round(script.engagementScore || 0); return { value: v, pct: Math.min(v, 100) }; }
     const v = script.views || 0;
     return { value: v.toLocaleString(), pct: Math.min((v / 1000) * 100, 100) };
   };
 
   const resolveImg = (url) => {
     if (!url) return "";
-    if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return url.startsWith("http") || url.startsWith("data:") ? url : `http://localhost:5001${url}`;
   };
 
-  const numericMetrics = scripts.map((s) => {
+  const numericMetrics = scripts.map(s => {
     const v = getMetric(s).value;
     return typeof v === "string" ? Number(v.replaceAll(",", "")) || 0 : Number(v) || 0;
   });
   const topScore  = numericMetrics.length ? Math.max(...numericMetrics) : 0;
-  const avgMetric = numericMetrics.length
-    ? Math.round(numericMetrics.reduce((a, b) => a + b, 0) / numericMetrics.length)
-    : 0;
+  const maxForBar = topScore || 1;
 
-  const activeTab = SORT_TABS.find((t) => t.key === sortBy) || SORT_TABS[0];
+  const activeTab = SORT_TABS.find((tab) => tab.key === sortBy) || SORT_TABS[0];
 
   /* ── Loading ── */
   if (loading && scripts.length === 0) return (
@@ -229,16 +254,21 @@ const TopList = () => {
   );
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto space-y-5">
 
       {/* ═══════ HEADER ═══════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease }}
-        className="mb-6"
+        className={`rounded-2xl border p-6 relative overflow-hidden ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-200/70 shadow-sm"}`}
       >
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div className={`absolute inset-0 pointer-events-none ${dark
+          ? "bg-gradient-to-br from-[#1e3a5f]/10 via-transparent to-transparent"
+          : "bg-gradient-to-br from-[#1e3a5f]/[0.03] via-transparent to-transparent"
+        }`} />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#1e3a5f] to-[#3a7bd5]" />
@@ -248,21 +278,16 @@ const TopList = () => {
             <p className={`text-[13px] font-medium ml-[18px] ${t.sub}`}>{activeTab.desc}</p>
           </div>
 
-          {/* Summary badges */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Scripts</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${t.statValue}`}>{scripts.length}</span>
+            <div className={`flex flex-col items-center px-5 py-3 rounded-xl border ${dark ? "bg-white/[0.03] border-white/[0.07]" : "bg-gray-50 border-gray-100"}`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Total</span>
+              <span className={`text-[22px] font-extrabold tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{scripts.length}</span>
             </div>
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Top</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${t.statValue}`}>{topScore.toLocaleString()}</span>
-            </div>
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
-              dark ? "bg-white/[0.04] border-[#1a2e47]" : "bg-gray-50 border-transparent"
+            <div className={`flex flex-col items-center px-5 py-3 rounded-xl border ${
+              dark ? "bg-[#1e3a5f]/15 border-[#1e3a5f]/25" : "bg-[#1e3a5f]/[0.05] border-[#1e3a5f]/15"
             }`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Avg</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-500"}`}>{avgMetric.toLocaleString()}</span>
+              <span className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${dark ? "text-[#7aafff]/50" : "text-[#1e3a5f]/50"}`}>#1 Score</span>
+              <span className={`text-[22px] font-extrabold tabular-nums leading-none ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>{topScore.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -272,8 +297,7 @@ const TopList = () => {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.08 }}
-        className="mb-5"
+        transition={{ duration: 0.35, delay: 0.07, ease }}
       >
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <div className="flex items-center gap-2 flex-wrap">
@@ -296,8 +320,12 @@ const TopList = () => {
 
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${
-                filtersOpen || activeFilterCount > 0 ? t.filterBtnActive : t.filterBtn
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${
+                filtersOpen || activeFilterCount > 0
+                  ? "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm"
+                  : dark
+                    ? "bg-[#0d1926] text-white/45 border-[#1d3454] hover:border-white/[0.15] hover:text-white/70"
+                    : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 shadow-sm"
               }`}
             >
               <FilterIcon />
@@ -309,41 +337,35 @@ const TopList = () => {
             </button>
           </div>
 
-          {/* Active filter tags */}
           {activeFilterCount > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
               {selectedGenre && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
-                  {selectedGenre}
-                  <button onClick={() => setSelectedGenre("")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                  {selectedGenre} <button onClick={() => setSelectedGenre("")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
               {selectedContentType && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
-                  {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label || selectedContentType}
-                  <button onClick={() => setSelectedContentType("")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                  {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label} <button onClick={() => setSelectedContentType("")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
               {selectedBudget && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
-                  {budgetLabel[selectedBudget]} Budget
-                  <button onClick={() => setSelectedBudget("")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                  {BUDGETS.find(b => b.key === selectedBudget)?.label} <button onClick={() => setSelectedBudget("")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
               {selectedPremium !== "all" && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${t.tag}`}>
-                  {selectedPremium === "premium" ? "Premium" : "Free"}
-                  <button onClick={() => setSelectedPremium("all")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                  {selectedPremium === "premium" ? "Premium" : "Free"} <button onClick={() => setSelectedPremium("all")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
-              <button onClick={clearAllFilters} className={`text-[11px] font-semibold px-2 py-1 transition-colors ${dark ? "text-gray-300 hover:text-red-400" : "text-gray-400 hover:text-red-500"}`}>
+              <button onClick={clearAllFilters} className={`text-[11px] font-semibold px-2 py-1 transition-colors ${dark ? "text-white/25 hover:text-red-400" : "text-gray-400 hover:text-red-500"}`}>
                 Clear all
               </button>
             </div>
           )}
         </div>
 
-        {/* ── Filter panel ── */}
         <AnimatePresence>
           {filtersOpen && (
             <motion.div
@@ -353,38 +375,30 @@ const TopList = () => {
               transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className={`rounded-2xl border p-5 sm:p-6 shadow-sm space-y-5 mb-4 ${t.filterPanel}`}>
+              <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 mb-3 ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100 shadow-sm"}`}>
                 <FilterSection label="Genre" dark={dark}>
                   <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")} dark={dark}>All Genres</Pill>
-                  {GENRES.map((g) => (
-                    <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)} dark={dark}>{g}</Pill>
-                  ))}
+                  {GENRES.map(g => <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)} dark={dark}>{g}</Pill>)}
                 </FilterSection>
                 <div className={`border-t ${t.divider}`} />
                 <FilterSection label="Content Type" dark={dark}>
                   <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")} dark={dark}>All Types</Pill>
-                  {CONTENT_TYPES.map((ct) => (
-                    <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)} dark={dark}>{ct.label}</Pill>
-                  ))}
+                  {CONTENT_TYPES.map(ct => <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)} dark={dark}>{ct.label}</Pill>)}
                 </FilterSection>
                 <div className={`border-t ${t.divider}`} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FilterSection label="Budget Range" dark={dark}>
+                  <FilterSection label="Budget" dark={dark}>
                     <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")} dark={dark}>Any</Pill>
-                    {BUDGETS.map((b) => (
-                      <Pill key={b.key} active={selectedBudget === b.key} onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)} dark={dark}>{b.label}</Pill>
-                    ))}
+                    {BUDGETS.map(b => <Pill key={b.key} active={selectedBudget === b.key} onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)} dark={dark}>{b.label}</Pill>)}
                   </FilterSection>
                   <FilterSection label="Pricing" dark={dark}>
-                    {PREMIUM_OPTIONS.map((p) => (
-                      <Pill key={p.key} active={selectedPremium === p.key} onClick={() => setSelectedPremium(p.key)} dark={dark}>{p.label}</Pill>
-                    ))}
+                    {PREMIUM_OPTIONS.map(p => <Pill key={p.key} active={selectedPremium === p.key} onClick={() => setSelectedPremium(p.key)} dark={dark}>{p.label}</Pill>)}
                   </FilterSection>
                 </div>
                 {activeFilterCount > 0 && (
-                  <div className="flex sm:hidden justify-end pt-1">
-                    <button onClick={clearAllFilters} className="text-[12px] font-semibold text-red-500 hover:text-red-600 transition-colors px-3 py-1.5 border border-red-400/30 rounded-xl bg-red-500/10">
-                      Clear all filters
+                  <div className="flex sm:hidden justify-end">
+                    <button onClick={clearAllFilters} className={`text-[12px] font-semibold px-3 py-1.5 rounded-xl border ${dark ? "text-red-400 border-red-500/30 bg-red-500/10" : "text-red-500 border-red-200 bg-red-50"}`}>
+                      Clear all
                     </button>
                   </div>
                 )}
@@ -399,7 +413,6 @@ const TopList = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
           className={`rounded-2xl border py-24 text-center ${t.emptyCard}`}
         >
           <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dark ? "bg-[#162236]" : "bg-gray-50"}`}>
@@ -407,7 +420,7 @@ const TopList = () => {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>
-          <p className={`text-[16px] font-bold mb-1 ${t.emptyTitle}`}>No projects found</p>
+          <p className={`text-[16px] font-bold mb-1.5 ${t.emptyTitle}`}>No projects found</p>
           <p className={`text-[13px] mb-5 ${t.sub}`}>Try adjusting your filters or check back later</p>
           {activeFilterCount > 0 && (
             <button onClick={clearAllFilters} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-semibold hover:bg-[#162d4a] transition-colors shadow-sm">
@@ -416,132 +429,177 @@ const TopList = () => {
           )}
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {scripts.map((script, index) => {
-            const metric   = getMetric(script);
-            const hasCover = !!script.coverImage;
-            const rank     = index + 1;
-            return (
-              <motion.div
-                key={script._id || index}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04, duration: 0.32, ease }}
-              >
-                <Link
-                  to={`/script/${script._id}`}
-                  className={`group block rounded-2xl overflow-hidden transition-all duration-300 border ${t.card} ${t.cardShadow} hover:-translate-y-1`}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={sortBy}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.3, ease }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+          >
+            {scripts.map((script, index) => {
+              const rank     = index + 1;
+              const metric   = getMetric(script);
+              const hasCover = !!script.coverImage;
+              const rawVal   = typeof metric.value === "string"
+                ? Number(metric.value.replaceAll(",", "")) || 0
+                : Number(metric.value) || 0;
+              const barPct   = Math.round((rawVal / maxForBar) * 100);
+
+              return (
+                <motion.div
+                  key={script._id || index}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(index * 0.04, 0.5), duration: 0.32, ease }}
                 >
-                  {/* ── Cover ── */}
-                  <div className="relative h-[200px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
-                    {hasCover ? (
-                      <>
-                        <img
-                          src={resolveImg(script.coverImage)}
-                          alt={script.title}
-                          className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#091a2f]/80 via-[#091a2f]/20 to-transparent" />
-                      </>
-                    ) : (
-                      <>
-                        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full border border-white/[0.04]" />
-                        <div className="absolute top-16 -right-4 w-20 h-20 rounded-full border border-white/[0.03]" />
-                        <div className="absolute bottom-12 -left-4 w-24 h-24 rounded-full border border-white/[0.03]" />
-                        <div className="absolute top-6 right-6 flex flex-col gap-1.5 items-end">
-                          <div className="w-10 h-[2px] rounded-full bg-white/10" />
-                          <div className="w-6 h-[2px] rounded-full bg-white/[0.06]" />
-                          <div className="w-8 h-[2px] rounded-full bg-white/[0.04]" />
-                        </div>
-                        <div className="absolute inset-0 flex flex-col justify-center items-center text-center px-6">
-                          <h4 className="text-lg font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-2">{script.title}</h4>
-                          <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed font-medium">
-                            {script.logline || script.description || script.synopsis || "No description available"}
-                          </p>
-                        </div>
-                      </>
-                    )}
+                  <Link
+                    to={`/script/${script._id}`}
+                    className={`group flex flex-col rounded-2xl overflow-hidden border transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl h-full ${t.card} ${t.cardShadow}`}
+                  >
+                    {/* ── Top accent bar ── */}
+                    <div className={`h-[3px] w-full bg-gradient-to-r ${
+                      rank === 1 ? "from-amber-400 to-yellow-300" :
+                      rank === 2 ? "from-slate-300 to-slate-400"  :
+                      rank === 3 ? "from-orange-400 to-amber-400" :
+                      "from-[#1e3a5f] to-[#3a7bd5]"
+                    }`} />
 
-                    <RankBadge rank={rank} dark={dark} />
-
-                    {(script.primaryGenre || script.genre) && (
-                      <span className="absolute top-3 right-3 text-[10px] font-bold text-white/90 bg-white/15 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
-                        {script.primaryGenre || script.genre}
-                      </span>
-                    )}
-
-                    {script.premium ? (
-                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg shadow-lg">
-                        <span className="text-[11px] font-extrabold text-white">${script.price}</span>
-                      </div>
-                    ) : (
-                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-emerald-500/80 backdrop-blur-sm rounded-lg">
-                        <span className="text-[10px] font-bold text-white">Free</span>
-                      </div>
-                    )}
-
-                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
-                      <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur flex items-center justify-center border border-white/20 overflow-hidden">
-                        {script.creator?.profileImage ? (
-                          <img src={resolveImg(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-[9px] font-bold text-white">{script.creator?.name?.charAt(0)?.toUpperCase()}</span>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-semibold text-white/80 drop-shadow">{script.creator?.name || "Unknown"}</span>
-                    </div>
-                  </div>
-
-                  {/* ── Info ── */}
-                  <div className="p-4">
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${t.sub}`}>{activeTab.label}</span>
-                        <span className={`text-[13px] font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-800"}`}>{metric.value}</span>
-                      </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${t.metricBar}`}>
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${metric.pct}%` }}
-                          transition={{ duration: 0.6, delay: index * 0.04 + 0.2, ease: "easeOut" }}
-                          className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5]"
-                        />
-                      </div>
-                    </div>
-                    <div className={`border-t ${t.divider} mb-3`} />
-                    <div className="flex items-center justify-between">
-                      <div className={`flex items-center gap-1 ${t.statPill}`}>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-[11px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-2.5">
-                        {script.scriptScore?.overall > 0 && (
-                          <div className="flex items-center gap-1">
-                            <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-                            </svg>
-                            <span className={`text-[11px] font-semibold tabular-nums ${t.statPill}`}>{script.scriptScore.overall}</span>
+                    {/* ── Cover ── */}
+                    <div className="relative h-[240px] overflow-hidden shrink-0">
+                      {hasCover ? (
+                        <>
+                          <img
+                            src={resolveImg(script.coverImage)}
+                            alt={script.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-700"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+                        </>
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-[#071525] via-[#0f2439] to-[#162f50] flex items-center justify-center p-6 relative overflow-hidden">
+                          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-[#3a7bd5]/[0.05] blur-2xl" />
+                          <div className="absolute text-8xl font-black text-white/[0.025] select-none leading-none bottom-0 right-2">#{rank}</div>
+                          <div className="relative z-10 text-center">
+                            <h4 className="text-[16px] font-extrabold text-white leading-snug line-clamp-3 tracking-tight">{script.title}</h4>
+                            {(script.logline || script.description) && (
+                              <p className="text-[11px] text-white/30 mt-2 line-clamp-2 leading-relaxed">{script.logline || script.description}</p>
+                            )}
                           </div>
-                        )}
-                        {script.pageCount && (
-                          <div className={`flex items-center gap-1 ${t.statPill}`}>
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                            </svg>
-                            <span className="text-[11px] font-semibold tabular-nums">{script.pageCount}p</span>
+                        </div>
+                      )}
+
+                      <RankMedal rank={rank} />
+
+                      {(script.genre || script.primaryGenre) && (
+                        <span className="absolute top-3 right-3 z-10 text-[10px] font-bold text-white bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
+                          {script.primaryGenre || script.genre}
+                        </span>
+                      )}
+
+                      {script.price > 0 ? (
+                        <div className="absolute bottom-3 right-3 z-10 px-2.5 py-1 bg-[#1e3a5f]/90 backdrop-blur-sm rounded-lg border border-white/10 shadow-lg">
+                          <span className="text-[12px] font-extrabold text-white">${script.price}</span>
+                        </div>
+                      ) : (
+                        <div className="absolute bottom-3 right-3 z-10 px-2.5 py-1 bg-white/15 backdrop-blur-sm rounded-lg border border-white/20">
+                          <span className="text-[10px] font-bold text-white">Free</span>
+                        </div>
+                      )}
+
+                      {hasCover && (
+                        <div className="absolute bottom-3 left-12 z-10 flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full overflow-hidden ring-1 ring-white/20 bg-white/10 shrink-0">
+                            {script.creator?.profileImage
+                              ? <img src={resolveImg(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
+                              : <span className="text-[8px] font-bold text-white flex items-center justify-center h-full">{script.creator?.name?.charAt(0)?.toUpperCase()}</span>
+                            }
                           </div>
-                        )}
+                          <span className="text-[11px] font-semibold text-white/75 drop-shadow truncate max-w-[90px]">{script.creator?.name || "Unknown"}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Info Panel ── */}
+                    <div className="flex flex-col flex-1 p-5">
+                      <h3 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${t.header}`}>
+                        {script.title}
+                      </h3>
+
+                      {(script.logline || script.description) && (
+                        <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${t.sub}`}>
+                          {script.logline || script.description}
+                        </p>
+                      )}
+
+                      {(script.contentType || script.budget) && (
+                        <div className="flex items-center gap-1.5 flex-wrap mb-4">
+                          {script.contentType && (
+                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${dark ? "bg-white/[0.04] text-white/35 border-white/[0.07]" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                              {script.contentType.replace(/_/g, " ")}
+                            </span>
+                          )}
+                          {script.budget && (
+                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${dark ? "bg-white/[0.03] text-white/25 border-white/[0.05]" : "bg-gray-50 text-gray-400 border-gray-100"}`}>
+                              {script.budget}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-[11px] font-bold uppercase tracking-wider ${t.sub}`}>
+                            {activeTab.label}
+                          </span>
+                          <span className={`text-[15px] font-extrabold tabular-nums ${t.statValue}`}>
+                            {metric.value}
+                          </span>
+                        </div>
+                        <div className={`h-1.5 rounded-full overflow-hidden ${t.metricBar}`}>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${barPct}%` }}
+                            transition={{ duration: 0.7, delay: index * 0.04 + 0.2, ease: "easeOut" }}
+                            className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className={`flex items-center justify-between pt-3.5 border-t mt-auto gap-2 ${t.divider}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`flex items-center gap-1.5 ${t.statPill}`}>
+                            <EyeIcon />
+                            <span className="text-[12px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
+                          </div>
+                          {script.scriptScore?.overall > 0 && (
+                            <div className="flex items-center gap-1 text-amber-400">
+                              <StarIcon cls="w-3.5 h-3.5" />
+                              <span className="text-[12px] font-semibold tabular-nums">{script.scriptScore.overall}</span>
+                            </div>
+                          )}
+                          {script.pageCount && (
+                            <div className={`flex items-center gap-1.5 ${t.statPill}`}>
+                              <PageIcon />
+                              <span className="text-[12px] font-semibold tabular-nums">{script.pageCount}p</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <span className={`shrink-0 text-[12px] font-bold px-3.5 py-1.5 rounded-xl border transition-all group-hover:scale-105 ${
+                          dark
+                            ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 group-hover:bg-[#243f6a]"
+                            : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm group-hover:bg-[#162d4a]"
+                        }`}>Read →</span>
                       </div>
                     </div>
-                  </div>
-                </Link>
-              </motion.div>
-            );
-          })}
-        </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </AnimatePresence>
       )}
     </div>
   );

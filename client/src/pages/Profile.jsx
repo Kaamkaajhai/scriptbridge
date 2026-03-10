@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import { useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
@@ -8,6 +8,210 @@ import ProjectCard from "../components/ProjectCard";
 import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
+
+/* ── Streak helper ── */
+const calcStreak = (createdAt) => {
+  if (!createdAt) return 0;
+  const created = new Date(createdAt);
+  const now = new Date();
+  const diffDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+  return Math.min(diffDays + 1, 999);
+};
+
+/* ── StreakWidget ── */
+const StreakWidget = ({ dark, createdAt, scriptsCount }) => {
+  const streak = calcStreak(createdAt);
+  const weekDays = ["M", "T", "W", "T", "F", "S", "S"];
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const activeGoal = Math.min(scriptsCount, 5);
+  const goalPct = Math.round((activeGoal / 5) * 100);
+
+  return (
+    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xl">🔥</span>
+        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Reading Streak</h3>
+        <span className={`ml-auto text-[13px] font-medium px-2.5 py-1 rounded-lg border ${dark ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
+          {streak} days
+        </span>
+      </div>
+
+      {/* Streak ring */}
+      <div className="flex items-center gap-5 mb-5">
+        <div className="relative w-20 h-20 shrink-0">
+          <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+            <circle cx="40" cy="40" r="32" fill="none" stroke={dark ? "rgba(255,255,255,0.05)" : "#f3f4f6"} strokeWidth="7" />
+            <circle cx="40" cy="40" r="32" fill="none" stroke="#f97316" strokeWidth="7" strokeLinecap="round"
+              strokeDasharray={`${Math.min((streak / 30) * 201, 201)} 201`}
+              style={{ filter: "drop-shadow(0 0 6px rgba(249,115,22,0.4))", transition: "stroke-dasharray 1s ease-out" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`text-2xl font-extrabold tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{streak > 30 ? "30+" : streak}</span>
+            <span className={`text-[12px] font-bold uppercase tracking-wide ${dark ? "text-white/30" : "text-gray-400"}`}>days</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className={`text-[15px] font-semibold mb-1 ${dark ? "text-white/50" : "text-gray-500"}`}>Weekly Goal</p>
+          <div className={`h-2 rounded-full overflow-hidden mb-1.5 ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
+            <div className="h-full rounded-full bg-orange-400 transition-all duration-700" style={{ width: `${goalPct}%` }} />
+          </div>
+          <p className={`text-[14px] ${dark ? "text-white/30" : "text-gray-400"}`}>{activeGoal} / 5 scripts read</p>
+        </div>
+      </div>
+
+      {/* Day indicators */}
+      <div className="flex gap-1.5">
+        {weekDays.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            <div className={`w-full h-1.5 rounded-full transition-all ${i <= todayIdx
+              ? "bg-orange-400"
+              : dark ? "bg-white/[0.06]" : "bg-gray-100"}`} />
+            <span className={`text-[13px] font-bold ${i === todayIdx ? "text-orange-400" : dark ? "text-white/20" : "text-gray-300"}`}>{d}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ── CurrentlyReadingCard ── */
+const CurrentlyReadingCard = ({ dark, scripts, resolveImage }) => {
+  const recent = scripts.slice(0, 3);
+  const fakeProgress = [72, 45, 18];
+
+  if (recent.length === 0) return (
+    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05] text-blue-400" : "bg-blue-50 text-blue-600"}`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+          </svg>
+        </div>
+        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Currently Reading</h3>
+      </div>
+      <div className={`rounded-xl py-8 text-center ${dark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
+        <p className={`text-[14px] ${dark ? "text-white/25" : "text-gray-400"}`}>No scripts yet</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+          </svg>
+        </div>
+        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Currently Reading</h3>
+        <span className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"}`}>{recent.length} scripts</span>
+      </div>
+      <div className="space-y-3">
+        {recent.map((s, i) => {
+          const pct = fakeProgress[i] ?? Math.floor(Math.random() * 80 + 10);
+          const cover = resolveImage(s.coverImage || s.thumbnail);
+          const genreColors = [
+            dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-600 border-blue-200",
+            dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-600 border-purple-200",
+            dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200",
+          ];
+          return (
+            <div key={s._id} className={`rounded-xl p-3 flex gap-3 border transition-all hover:scale-[1.01] ${dark ? "bg-white/[0.02] border-white/[0.05] hover:border-white/[0.1]" : "bg-gray-50/60 border-gray-100 hover:border-gray-200"}`}>
+              {/* Thumbnail */}
+              <div className={`w-12 h-16 rounded-lg shrink-0 overflow-hidden ${dark ? "bg-white/[0.04]" : "bg-gray-200"}`}>
+                {cover
+                  ? <img src={cover} alt={s.title} className="w-full h-full object-cover" />
+                  : <div className={`w-full h-full flex items-center justify-center text-lg font-extrabold bg-gradient-to-br ${dark ? "from-[#1e3a5f] to-[#0f2439] text-white/40" : "from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>{s.title?.charAt(0)}</div>
+                }
+              </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className={`text-[16px] font-bold truncate ${dark ? "text-white" : "text-gray-900"}`}>{s.title}</p>
+                  <span className={`text-[13px] font-bold shrink-0 ${dark ? "text-white/40" : "text-gray-400"}`}>{pct}%</span>
+                </div>
+                {s.genre && (
+                  <span className={`inline-block px-2.5 py-1 rounded-md text-[13px] font-semibold border mb-2 ${genreColors[i % 3]}`}>{s.genre}</span>
+                )}
+                <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
+                  <div className="h-full rounded-full bg-blue-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                </div>
+                <p className={`text-[13px] mt-1 ${dark ? "text-white/25" : "text-gray-400"}`}>
+                  {s.format?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Script"} · {s.pageCount ? `${s.pageCount}pp` : "—"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── ProfileEssentials ── */
+const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
+  const isWriter = (role) => role === "creator" || role === "writer";
+  const essentials = [
+    profile.location && { icon: "📍", label: "Location", value: profile.location },
+    profile.website && { icon: "🌐", label: "Website", value: profile.website, isLink: true },
+    memberSince && { icon: "📅", label: "Member Since", value: memberSince },
+    profile.role && { icon: "🎭", label: "Role", value: profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
+    isWriter(profile.role) && profile.writerProfile?.representationStatus && {
+      icon: "✍️", label: "Representation", value: profile.writerProfile.representationStatus.replace(/_/g, " & ")
+    },
+    profile.industryProfile?.company && { icon: "🏢", label: "Company", value: profile.industryProfile.company },
+    profile.industryProfile?.jobTitle && { icon: "💼", label: "Title", value: profile.industryProfile.jobTitle },
+  ].filter(Boolean);
+
+  return (
+    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05] text-white/40" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]/60"}`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+        </div>
+        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Profile Essentials</h3>
+      </div>
+
+      {essentials.length > 0 ? (
+        <div className="space-y-2.5">
+          {essentials.map((e, i) => (
+            <div key={i} className={`flex items-center gap-3 py-2 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
+              <span className="text-base shrink-0">{e.icon}</span>
+              <span className={`text-[14px] ${dark ? "text-white/30" : "text-gray-400"} shrink-0 w-24`}>{e.label}</span>
+              {e.isLink
+                ? <a href={e.value.startsWith("http") ? e.value : `https://${e.value}`} target="_blank" rel="noreferrer"
+                    className={`text-[14px] font-semibold truncate hover:underline ${dark ? "text-blue-400" : "text-blue-600"}`}>{e.value}</a>
+                : <span className={`text-[14px] font-semibold truncate capitalize ${dark ? "text-white/65" : "text-gray-700"}`}>{e.value}</span>
+              }
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className={`rounded-xl py-6 text-center ${dark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
+          <p className={`text-[14px] italic ${dark ? "text-white/20" : "text-gray-400"}`}>No essentials yet</p>
+        </div>
+      )}
+
+      {/* Quick action links */}
+      {(profile.socialLinks?.imdb || profile.socialLinks?.linkedin || profile.socialLinks?.twitter) && (
+        <div className={`mt-3 pt-3 border-t flex gap-2 flex-wrap ${dark ? "border-white/[0.05]" : "border-gray-100"}`}>
+          {[
+            { key: "imdb", label: "IMDb", icon: "🎬" },
+            { key: "linkedin", label: "LinkedIn", icon: "💼" },
+            { key: "twitter", label: "Twitter", icon: "𝕏" },
+          ].filter(l => profile.socialLinks?.[l.key]).map(l => (
+            <a key={l.key} href={profile.socialLinks[l.key]} target="_blank" rel="noreferrer"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[14px] font-semibold border transition-all hover:scale-105 ${dark ? "border-white/[0.08] bg-white/[0.03] text-white/50 hover:text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}>
+              <span>{l.icon}</span>{l.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /* ── Helper components ── */
 
@@ -28,14 +232,14 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
         {icon}
       </div>
       <h3
-        className={`text-[13px] font-bold ${dark ? "text-white/70" : "text-gray-800"
+        className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"
           }`}
       >
         {title}
       </h3>
       {badge && (
         <span
-          className={`ml-auto text-[11px] font-medium ${dark ? "text-white/25" : "text-gray-400"
+          className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"
             }`}
         >
           {badge}
@@ -48,11 +252,11 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
 
 const InfoRow = ({ label, value, dark }) => (
   <div className="flex items-center justify-between">
-    <span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>
+    <span className={`text-[15px] ${dark ? "text-white/35" : "text-gray-400"}`}>
       {label}
     </span>
     <span
-      className={`text-[13px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
+      className={`text-[15px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
         }`}
     >
       {value}
@@ -153,7 +357,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [activeTab, setActiveTab] = useState(currentUser?.role === "investor" ? "about" : "projects");
+  const [activeTab, setActiveTab] = useState("overview");
 
   // Settings state
   const [settingsMsg, setSettingsMsg] = useState("");
@@ -344,7 +548,7 @@ const Profile = () => {
      RENDER
      ════════════════════════════════════ */
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="max-w-5xl mx-auto space-y-5">
       {/* ──────── PROFILE CARD ──────── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -513,8 +717,9 @@ const Profile = () => {
       </motion.div>
 
       {/* ──────── TABS ──────── */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {[
+          { key: "overview", label: "Overview", icon: "✦" },
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
           { key: "about", label: "About" },
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
@@ -536,6 +741,7 @@ const Profile = () => {
               }`}
           >
             <span className="flex items-center gap-1.5">
+              {tab.icon && <span className="text-[11px] opacity-70">{tab.icon}</span>}
               {tab.label}
               {tab.count !== undefined && (
                 <span
@@ -553,6 +759,300 @@ const Profile = () => {
           </button>
         ))}
       </div>
+
+      {/* ──────── OVERVIEW TAB ──────── */}
+      {activeTab === "overview" && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-4"
+        >
+          {/* Left column — 2/3 width */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Currently Reading */}
+            <CurrentlyReadingCard dark={dark} scripts={scripts} resolveImage={resolveImage} />
+
+            {/* Weekly Reading Stats */}
+            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600"}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                  </svg>
+                </div>
+                <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Activity Stats</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Scripts", value: scripts.length, icon: "📄", color: dark ? "text-blue-400" : "text-blue-600" },
+                  { label: "Followers", value: profile.followers?.length || 0, icon: "👥", color: dark ? "text-emerald-400" : "text-emerald-600" },
+                  { label: "Following", value: profile.following?.length || 0, icon: "🔗", color: dark ? "text-purple-400" : "text-purple-600" },
+                  { label: "Days Active", value: calcStreak(profile.createdAt), icon: "⚡", color: dark ? "text-orange-400" : "text-orange-600" },
+                ].map((stat) => (
+                  <div key={stat.label} className={`rounded-xl p-3.5 border text-center ${dark ? "bg-white/[0.02] border-white/[0.05]" : "bg-gray-50/60 border-gray-100"}`}>
+                    <div className="text-xl mb-1">{stat.icon}</div>
+                    <p className={`text-2xl font-extrabold tabular-nums ${stat.color}`}>{stat.value}</p>
+                    <p className={`text-[14px] font-bold uppercase tracking-wider mt-0.5 ${dark ? "text-white/25" : "text-gray-400"}`}>{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bio card */}
+            {profile.bio && (
+              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05] text-white/40" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]/60"}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                    </svg>
+                  </div>
+                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>About</h3>
+                </div>
+                <p className={`text-[16px] leading-relaxed ${dark ? "text-white/50" : "text-gray-600"}`}>{profile.bio}</p>
+                {profile.skills?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {profile.skills.map((skill, i) => (
+                      <span key={i} className={`px-3 py-1 rounded-full text-[14px] font-semibold border ${t.chip}`}>{skill}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Right column — 1/3 width */}
+          <div className="space-y-4">
+            {/* Streak Widget */}
+            <StreakWidget dark={dark} createdAt={profile.createdAt} scriptsCount={scripts.length} />
+
+            {/* Profile Essentials */}
+            <ProfileEssentials dark={dark} profile={profile} scripts={scripts} memberSince={memberSince} t={t} />
+
+            {/* Featured Script */}
+            {scripts.length > 0 && (
+              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600"}`}>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                    </svg>
+                  </div>
+                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Featured Script</h3>
+                </div>
+                {(() => {
+                  const featured = scripts[0];
+                  const cover = resolveImage(featured.coverImage || featured.thumbnail);
+                  return (
+                    <div>
+                      {cover && (
+                        <div className="w-full h-28 rounded-xl overflow-hidden mb-3">
+                          <img src={cover} alt={featured.title} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <p className={`text-[17px] font-bold mb-1 ${dark ? "text-white" : "text-gray-900"}`}>{featured.title}</p>
+                      {featured.genre && (
+                        <span className={`inline-block px-2.5 py-1 rounded-md text-[14px] font-semibold border mb-2 ${t.genreChip}`}>{featured.genre}</span>
+                      )}
+                      {featured.logline && (
+                        <p className={`text-[14px] leading-relaxed line-clamp-3 ${dark ? "text-white/35" : "text-gray-500"}`}>{featured.logline}</p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* ── Genre Breakdown ── */}
+            {scripts.length > 0 && (() => {
+              const genreMap = {};
+              scripts.forEach(s => { if (s.genre) genreMap[s.genre] = (genreMap[s.genre] || 0) + 1; });
+              const sorted = Object.entries(genreMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+              const max = sorted[0]?.[1] || 1;
+              const barColors = [
+                dark ? "bg-blue-500/70" : "bg-blue-500",
+                dark ? "bg-purple-500/70" : "bg-purple-500",
+                dark ? "bg-emerald-500/70" : "bg-emerald-500",
+                dark ? "bg-amber-500/70" : "bg-amber-500",
+                dark ? "bg-rose-500/70" : "bg-rose-500",
+              ];
+              return sorted.length > 0 ? (
+                <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                      </svg>
+                    </div>
+                    <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Genre Breakdown</h3>
+                  </div>
+                  <div className="space-y-2.5">
+                    {sorted.map(([genre, count], i) => (
+                      <div key={genre}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[12px] font-semibold capitalize ${dark ? "text-white/55" : "text-gray-600"}`}>{genre}</span>
+                          <span className={`text-[11px] font-bold tabular-nums ${dark ? "text-white/30" : "text-gray-400"}`}>{count}</span>
+                        </div>
+                        <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.05]" : "bg-gray-100"}`}>
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${barColors[i]}`}
+                            style={{ width: `${(count / max) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
+            {/* ── Script Insights ── */}
+            {scripts.length > 0 && (() => {
+              const formats = [...new Set(scripts.map(s => s.format || s.contentType).filter(Boolean))];
+              const avgPages = scripts.filter(s => s.pageCount > 0).length > 0
+                ? Math.round(scripts.filter(s => s.pageCount > 0).reduce((a, s) => a + s.pageCount, 0) / scripts.filter(s => s.pageCount > 0).length)
+                : null;
+              const latestScript = scripts[scripts.length - 1];
+              const uploadDate = latestScript?.createdAt
+                ? new Date(latestScript.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                : null;
+              return (
+                <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-teal-500/10 text-teal-400" : "bg-teal-50 text-teal-600"}`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
+                      </svg>
+                    </div>
+                    <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Script Insights</h3>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
+                      <span className={`text-[13px] ${dark ? "text-white/30" : "text-gray-400"}`}>Total Scripts</span>
+                      <span className={`text-[13px] font-bold tabular-nums ${dark ? "text-white/65" : "text-gray-800"}`}>{scripts.length}</span>
+                    </div>
+                    {avgPages && (
+                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
+                        <span className={`text-[13px] ${dark ? "text-white/30" : "text-gray-400"}`}>Avg. Pages</span>
+                        <span className={`text-[13px] font-bold tabular-nums ${dark ? "text-white/65" : "text-gray-800"}`}>{avgPages} pp</span>
+                      </div>
+                    )}
+                    {formats.length > 0 && (
+                      <div className={`px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
+                        <p className={`text-[13px] mb-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>Formats</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {formats.map(f => (
+                            <span key={f} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border capitalize ${t.chip}`}>
+                              {f.replace(/_/g, " ")}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {uploadDate && (
+                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
+                        <span className={`text-[13px] ${dark ? "text-white/30" : "text-gray-400"}`}>Latest Upload</span>
+                        <span className={`text-[13px] font-bold ${dark ? "text-white/65" : "text-gray-800"}`}>{uploadDate}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Followers Preview ── */}
+            {profile.followers?.length > 0 && (
+              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-rose-500/10 text-rose-400" : "bg-rose-50 text-rose-600"}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                    </svg>
+                  </div>
+                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Followers</h3>
+                  <span className={`ml-auto text-[12px] font-semibold px-2 py-0.5 rounded-md ${dark ? "bg-white/[0.05] text-white/30" : "bg-gray-100 text-gray-400"}`}>{profile.followers.length}</span>
+                </div>
+                {/* Avatar stack */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {profile.followers.slice(0, 8).map((f, i) => (
+                    <div
+                      key={f._id || i}
+                      title={f.name || "Follower"}
+                      className={`w-9 h-9 rounded-full ring-2 flex items-center justify-center text-[13px] font-extrabold uppercase bg-gradient-to-br transition-transform hover:scale-110 cursor-default ${
+                        dark ? "ring-[#0d1829] from-[#1e3a5f] to-[#0f2439] text-white/70" : "ring-white from-[#1e3a5f] to-[#2d5a8e] text-white"
+                      }`}
+                    >
+                      {(f.name || "?").charAt(0)}
+                    </div>
+                  ))}
+                  {profile.followers.length > 8 && (
+                    <div className={`w-9 h-9 rounded-full ring-2 flex items-center justify-center text-[11px] font-bold ${
+                      dark ? "ring-[#0d1829] bg-white/[0.06] text-white/40" : "ring-white bg-gray-100 text-gray-500"
+                    }`}>
+                      +{profile.followers.length - 8}
+                    </div>
+                  )}
+                </div>
+                {profile.followers.length > 0 && (
+                  <p className={`text-[12px] mt-2.5 ${dark ? "text-white/25" : "text-gray-400"}`}>
+                    {profile.followers.slice(0, 2).map(f => f.name).join(", ")}
+                    {profile.followers.length > 2 ? ` and ${profile.followers.length - 2} more` : ""} follow{profile.followers.length === 1 ? "s" : ""} this profile
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ── Preferences Card (own profile only) ── */}
+            {isOwnProfile && (
+              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-[#1e3a5f]/30 text-[#7aafff]" : "bg-[#1e3a5f]/[0.08] text-[#1e3a5f]"}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                  </div>
+                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>My Preferences</h3>
+                </div>
+                {(profile.preferences?.genres?.length > 0 || profile.preferences?.contentTypes?.length > 0) ? (
+                  <div className="space-y-3">
+                    {profile.preferences?.genres?.length > 0 && (
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-widest mb-1.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Genres</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {profile.preferences.genres.map(g => (
+                            <span key={g} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.07] text-[#1e3a5f] border-[#1e3a5f]/20"}`}>{g}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {profile.preferences?.contentTypes?.length > 0 && (
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-widest mb-1.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Content Types</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {profile.preferences.contentTypes.map(t2 => (
+                            <span key={t2} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${dark ? "bg-white/[0.05] text-white/40 border-white/[0.08]" : "bg-gray-100 text-gray-500 border-gray-200"}`}>{t2.replace(/_/g, " ")}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`rounded-xl py-5 text-center ${dark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
+                    <p className={`text-[12px] mb-2 ${dark ? "text-white/25" : "text-gray-400"}`}>No preferences set yet</p>
+                    <button
+                      onClick={() => setShowEditModal(true)}
+                      className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border transition-all ${dark ? "border-[#1e3a5f]/40 text-[#7aafff] hover:bg-[#1e3a5f]/20" : "border-[#1e3a5f]/20 text-[#1e3a5f] hover:bg-[#1e3a5f]/[0.06]"}`}
+                    >
+                      Set Preferences →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* ──────── PROJECTS TAB ──────── */}
       {activeTab === "projects" && profile.role !== "investor" && (
@@ -592,7 +1092,7 @@ const Profile = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {scripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
