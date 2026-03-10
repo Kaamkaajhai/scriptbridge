@@ -343,7 +343,7 @@ const TopList = () => {
         <div className={`h-8 w-40 rounded-xl animate-pulse mb-2 ${dark ? "bg-slate-200" : "bg-gray-100"}`} />
         <div className={`h-4 w-64 rounded-lg animate-pulse ${dark ? "bg-[#6a6a6a]" : "bg-gray-50"}`} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} dark={dark} />)}
       </div>
     </div>
@@ -562,7 +562,7 @@ const TopList = () => {
           )}
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {scripts.map((script, index) => {
             const metric   = getMetric(script);
             const hasCover = !!script.coverImage;
@@ -582,7 +582,7 @@ const TopList = () => {
                   className={`group block rounded-2xl overflow-hidden transition-all duration-300 border ${t.card} ${t.cardShadow} hover:-translate-y-1.5`}
                 >
                   {/* ── Cover ── */}
-                  <div className="relative h-[200px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
+                  <div className="relative h-[400px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
                     {hasCover ? (
                       <>
                         <img
@@ -602,8 +602,8 @@ const TopList = () => {
                           <div className="w-6 h-[2px] rounded-full bg-white/[0.06]" />
                           <div className="w-8 h-[2px] rounded-full bg-white/[0.04]" />
                         </div>
-                        <div className="absolute inset-0 flex flex-col justify-center items-center text-center px-6">
-                          <h4 className="text-xl font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-2">
+                        <div className="absolute inset-0 flex flex-col justify-center items-center text-center px-8">
+                          <h4 className="text-2xl font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-3">
                             {script.title}
                           </h4>
                           <p className="text-[13px] text-white/40 line-clamp-2 leading-relaxed font-medium">
@@ -697,10 +697,10 @@ const TopList = () => {
                   </div>
 
                   {/* ── Info Section ── */}
-                  <div className="p-4">
+                  <div className="p-7">
                     {/* Title + rank change row */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className={`text-[16px] font-bold leading-snug line-clamp-1 flex-1 ${
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className={`text-[20px] font-bold leading-snug line-clamp-1 flex-1 ${
                         dark ? "text-gray-100 group-hover:text-white" : "text-gray-900 group-hover:text-[#111111]"
                       } transition-colors`}>
                         {script.title}
@@ -714,11 +714,11 @@ const TopList = () => {
                         <span className={`text-[12px] font-bold uppercase tracking-wider ${t.sub}`}>
                           {sortTabs.find(tab => tab.key === sortBy)?.label}
                         </span>
-                        <span className={`text-[15px] font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-800"}`}>
+                        <span className={`text-[17px] font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-800"}`}>
                           {metric.value}
                         </span>
                       </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${t.metricBar}`}>
+                      <div className={`h-2 rounded-full overflow-hidden ${t.metricBar}`}>
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${metric.pct}%` }}

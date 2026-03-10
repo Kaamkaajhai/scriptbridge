@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, TrendingUp, Crown, Star, Flame, Play,
   ChevronRight, ChevronLeft, BookOpen, LayoutGrid, Eye, Heart,
-  Search, Clock, Zap, CheckCircle,
+  Search, Clock, Zap, CheckCircle, Filter, X,
   Drama, Laugh, Crosshair, Skull,
   Atom, Wand2, Fingerprint, Clapperboard,
   Music2, Scroll, Globe, Shield
@@ -13,6 +13,7 @@ import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ScriptCard from "../components/ScriptCard";
+import FeaturedSection from "../components/FeaturedSection";
 
 /* ═══════════════════════════════════════════════════════
    THEME CONTEXT  (avoids prop-drilling isDarkMode)
@@ -30,24 +31,24 @@ const ALL_GENRES = [
 ];
 
 const GENRE_META = {
-  drama:       { color:"from-violet-600 to-purple-700",  dark:"bg-violet-500/15 text-violet-300 border-violet-500/30",  lite:"bg-violet-100 text-violet-700 border-violet-300"  },
-  thriller:    { color:"from-orange-600 to-red-700",     dark:"bg-orange-500/15 text-orange-300 border-orange-500/30",  lite:"bg-orange-100 text-orange-700 border-orange-300"  },
+  drama:       { color:"from-blue-800 to-blue-950",  dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",  lite:"bg-blue-100 text-blue-700 border-blue-300"  },
+  thriller:    { color:"from-blue-700 to-blue-900",     dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",  lite:"bg-blue-100 text-blue-700 border-blue-300"  },
   horror:      { color:"from-red-700 to-rose-900",       dark:"bg-red-500/15 text-red-300 border-red-500/30",           lite:"bg-red-100 text-red-700 border-red-300"           },
-  comedy:      { color:"from-yellow-500 to-amber-600",   dark:"bg-yellow-500/15 text-yellow-300 border-yellow-500/30",  lite:"bg-yellow-100 text-yellow-700 border-yellow-300"  },
-  romance:     { color:"from-pink-500 to-rose-600",      dark:"bg-pink-500/15 text-pink-300 border-pink-500/30",        lite:"bg-pink-100 text-pink-700 border-pink-300"        },
-  action:      { color:"from-amber-500 to-orange-600",   dark:"bg-amber-500/15 text-amber-300 border-amber-500/30",     lite:"bg-amber-100 text-amber-700 border-amber-300"     },
-  "sci-fi":    { color:"from-cyan-500 to-blue-700",      dark:"bg-cyan-500/15 text-cyan-300 border-cyan-500/30",        lite:"bg-cyan-100 text-cyan-700 border-cyan-300"        },
-  sci_fi:      { color:"from-cyan-500 to-blue-700",      dark:"bg-cyan-500/15 text-cyan-300 border-cyan-500/30",        lite:"bg-cyan-100 text-cyan-700 border-cyan-300"        },
-  fantasy:     { color:"from-purple-500 to-indigo-700",  dark:"bg-purple-500/15 text-purple-300 border-purple-500/30",  lite:"bg-purple-100 text-purple-700 border-purple-300"  },
-  mystery:     { color:"from-indigo-600 to-slate-700",   dark:"bg-indigo-500/15 text-indigo-300 border-indigo-500/30",  lite:"bg-indigo-100 text-indigo-700 border-indigo-300"  },
-  documentary: { color:"from-teal-500 to-cyan-700",      dark:"bg-teal-500/15 text-teal-300 border-teal-500/30",        lite:"bg-teal-100 text-teal-700 border-teal-300"        },
-  animation:   { color:"from-lime-500 to-green-600",     dark:"bg-lime-500/15 text-lime-300 border-lime-500/30",        lite:"bg-lime-100 text-lime-700 border-lime-300"        },
+  comedy:      { color:"from-blue-600 to-blue-800",   dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",  lite:"bg-blue-100 text-blue-700 border-blue-300"  },
+  romance:     { color:"from-gray-600 to-gray-800",      dark:"bg-gray-500/15 text-gray-300 border-gray-500/30",        lite:"bg-gray-100 text-gray-700 border-gray-300"        },
+  action:      { color:"from-blue-700 to-blue-900",   dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",     lite:"bg-blue-100 text-blue-700 border-blue-300"     },
+  "sci-fi":    { color:"from-blue-600 to-blue-800",      dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",        lite:"bg-blue-100 text-blue-700 border-blue-300"        },
+  sci_fi:      { color:"from-blue-600 to-blue-800",      dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",        lite:"bg-blue-100 text-blue-700 border-blue-300"        },
+  fantasy:     { color:"from-blue-700 to-blue-900",  dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",  lite:"bg-blue-100 text-blue-700 border-blue-300"  },
+  mystery:     { color:"from-gray-700 to-gray-900",   dark:"bg-gray-500/15 text-gray-300 border-gray-500/30",  lite:"bg-gray-100 text-gray-700 border-gray-300"  },
+  documentary: { color:"from-blue-600 to-gray-700",      dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",        lite:"bg-blue-100 text-blue-700 border-blue-300"        },
+  animation:   { color:"from-gray-600 to-gray-800",     dark:"bg-gray-500/15 text-gray-300 border-gray-500/30",        lite:"bg-gray-100 text-gray-700 border-gray-300"        },
   crime:       { color:"from-slate-600 to-gray-700",     dark:"bg-slate-500/15 text-slate-300 border-slate-500/30",     lite:"bg-slate-100 text-slate-700 border-slate-300"     },
-  musical:     { color:"from-pink-600 to-fuchsia-700",   dark:"bg-pink-500/15 text-pink-300 border-pink-500/30",        lite:"bg-fuchsia-100 text-fuchsia-700 border-fuchsia-300"},
-  biography:   { color:"from-amber-600 to-yellow-700",   dark:"bg-amber-500/15 text-amber-300 border-amber-500/30",     lite:"bg-amber-100 text-amber-700 border-amber-300"     },
+  musical:     { color:"from-gray-700 to-gray-900",   dark:"bg-gray-500/15 text-gray-300 border-gray-500/30",        lite:"bg-gray-100 text-gray-700 border-gray-300"},
+  biography:   { color:"from-blue-700 to-blue-900",   dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",     lite:"bg-blue-100 text-blue-700 border-blue-300"     },
   war:         { color:"from-red-800 to-slate-800",      dark:"bg-red-500/15 text-red-300 border-red-500/30",           lite:"bg-red-100 text-red-700 border-red-300"           },
-  historical:  { color:"from-amber-700 to-orange-800",   dark:"bg-amber-500/15 text-amber-300 border-amber-500/30",     lite:"bg-amber-100 text-amber-700 border-amber-300"     },
-  default:     { color:"from-violet-600 to-blue-700",    dark:"bg-white/10 text-gray-300 border-white/15",              lite:"bg-gray-100 text-gray-600 border-gray-300"        },
+  historical:  { color:"from-blue-800 to-blue-950",   dark:"bg-blue-500/15 text-blue-300 border-blue-500/30",     lite:"bg-blue-100 text-blue-700 border-blue-300"     },
+  default:     { color:"from-blue-700 to-blue-900",    dark:"bg-white/10 text-gray-300 border-white/15",              lite:"bg-gray-100 text-gray-600 border-gray-300"        },
 };
 
 const genreMeta = (g) =>
@@ -118,9 +119,9 @@ const PlaceholderCover = ({ script }) => {
   const Icon = getGenreIcon(script.genre);
   const m = genreMeta(script.genre);
   return (
-    <div className={`w-full h-full flex items-center justify-center ${dark ? "bg-[#0a1828]" : "bg-gray-100"}`}>
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${dark ? "bg-[#1a3050]" : "bg-slate-200"}`}>
-        <Icon size={16} strokeWidth={1.5} className={dark ? "text-white/40" : "text-slate-400"} />
+    <div className={`w-full h-full flex items-center justify-center ${dark ? "bg-gradient-to-br from-[#0a1628] via-[#1a2d45] to-[#0d1b2e]" : "bg-gradient-to-br from-blue-50 to-blue-100"}`}>
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${dark ? "bg-blue-600/20 border border-blue-500/30" : "bg-blue-200"}`}>
+        <Icon size={20} strokeWidth={1.5} className={dark ? "text-blue-400" : "text-blue-600"} />
       </div>
     </div>
   );
@@ -151,9 +152,9 @@ const FeedCard = ({ script, index = 0, showRank = null }) => {
     ? script.contentType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
     : null;
 
-  const cardBg    = dark ? "bg-[#0d1e30] border-[#1a3050] hover:border-violet-500/40 hover:shadow-violet-900/20" : "bg-white border-gray-200 hover:border-violet-400/50 hover:shadow-violet-100/60";
+  const cardBg    = dark ? "bg-[#0d1e30] border-[#1a3050] hover:border-blue-500/40 hover:shadow-blue-900/20" : "bg-white border-gray-200 hover:border-blue-400/50 hover:shadow-blue-100/60";
   const authorTxt = dark ? "text-gray-400" : "text-gray-500";
-  const titleTxt  = dark ? "text-gray-100 group-hover:text-violet-300" : "text-gray-800 group-hover:text-violet-600";
+  const titleTxt  = dark ? "text-gray-100 group-hover:text-blue-300" : "text-gray-800 group-hover:text-blue-600";
   const loglineTxt= dark ? "text-gray-600" : "text-gray-400";
   const footerBdr = dark ? "border-[#1a3050]"  : "border-gray-100";
   const ratingTxt = dark ? "text-gray-300"     : "text-gray-700";
@@ -175,7 +176,7 @@ const FeedCard = ({ script, index = 0, showRank = null }) => {
                 className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500 ease-out" />
             )}
             {showRank && (
-              <div className={`absolute top-2 left-2 w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-lg ${showRank === 1 ? "bg-yellow-400 text-yellow-900" : showRank === 2 ? "bg-gray-300 text-gray-800" : showRank === 3 ? "bg-amber-600 text-white" : "bg-black/60 text-white border border-white/15 backdrop-blur-sm"}`}>#{showRank}</div>
+              <div className={`absolute top-2 left-2 w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-lg ${showRank === 1 ? "bg-yellow-400 text-yellow-900" : showRank === 2 ? "bg-gray-300 text-gray-800" : showRank === 3 ? "bg-gray-600 text-white" : "bg-black/60 text-white border border-white/15 backdrop-blur-sm"}`}>#{showRank}</div>
             )}
             {!showRank && (
               <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -202,7 +203,7 @@ const FeedCard = ({ script, index = 0, showRank = null }) => {
                     <Heart size={12} className={saved ? "fill-white" : ""} />
                   </button>
                 )}
-                <span className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-gradient-to-r from-violet-600/80 to-blue-600/80 backdrop-blur-sm rounded-xl border border-violet-500/30 text-white font-bold text-[11px]">
+                <span className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600/90 backdrop-blur-sm rounded-xl border border-blue-400/30 text-white font-bold text-[11px]">
                   <Play size={10} fill="currentColor" /> Read Now
                 </span>
               </div>
@@ -212,7 +213,7 @@ const FeedCard = ({ script, index = 0, showRank = null }) => {
             <div className="flex items-center gap-1.5 mb-1.5">
               {script.creator?.profileImage
                 ? <img src={script.creator.profileImage} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
-                : <div className="w-4 h-4 rounded-full bg-violet-700/60 flex items-center justify-center text-[8px] font-bold text-violet-200 shrink-0">{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</div>
+                : <div className="w-4 h-4 rounded-full bg-blue-700/60 flex items-center justify-center text-[8px] font-bold text-blue-200 shrink-0">{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</div>
               }
               <span className={`text-[11px] font-medium truncate flex-1 ${authorTxt}`}>{script.creator?.name || "Unknown"}</span>
               {ctLabel && <span className={`text-[9px] font-bold px-1 py-0.5 rounded border shrink-0 ${dark ? "bg-white/5 text-gray-500 border-white/8" : "bg-gray-50 text-gray-400 border-gray-200"}`}>{ctLabel}</span>}
@@ -288,8 +289,8 @@ const SectionHeader = ({ icon: Icon, gradient, title, subtitle, badge = null }) 
   return (
     <div className="flex items-center justify-between mb-5">
       <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br ${gradient} shadow-lg`}>
-          <Icon size={18} className="text-white" strokeWidth={2.5} />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-600/20 border border-blue-500/30 shadow-lg">
+          <Icon size={18} className="text-blue-400" strokeWidth={2.5} />
         </div>
         <div>
           <div className="flex items-center gap-2">
@@ -382,7 +383,7 @@ const HeroBanner = ({ scripts, loading }) => {
                 onError={() => setImgErrs(p => ({ ...p, [script._id]: true }))}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
             ) : (
-              <div className={`absolute inset-0 bg-gradient-to-br ${m.color} opacity-40`} />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#0a1628] via-[#1a2d45] to-[#0d1b2e] opacity-60" />
             )}
             <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${overlayFrom} 0%, ${overlayFrom}99 30%, transparent 70%)` }} />
             <div className="absolute inset-0" style={{ background: `linear-gradient(to right, ${overlayFrom}e6 0%, ${overlayFrom}66 40%, transparent 75%)` }} />
@@ -399,7 +400,7 @@ const HeroBanner = ({ scripts, loading }) => {
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight mb-2.5 max-w-2xl group-hover:text-violet-200 transition-colors drop-shadow-lg">{script.title}</h1>
+              <h1 className="text-2xl sm:text-4xl font-black text-white leading-tight tracking-tight mb-2.5 max-w-2xl group-hover:text-blue-200 transition-colors drop-shadow-lg">{script.title}</h1>
               {(script.logline || script.synopsis) && (
                 <p className="text-sm text-white/60 mb-5 max-w-xl line-clamp-2 leading-relaxed">{script.logline || script.synopsis}</p>
               )}
@@ -447,7 +448,7 @@ const HeroBanner = ({ scripts, loading }) => {
       )}
       {total > 1 && !paused && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] z-20 bg-white/10">
-          <motion.div key={current} className="h-full bg-gradient-to-r from-violet-500 to-cyan-500" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 5.5, ease: "linear" }} />
+          <motion.div key={current} className="h-full bg-blue-600" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 5.5, ease: "linear" }} />
         </div>
       )}
     </div>
@@ -637,7 +638,7 @@ const RecentCard = ({ script, index = 0 }) => {
 };
 
 /* ═══════════════════════════════════════════════════════
-   INTEREST SELECTOR
+   FILTER MODAL
 ═══════════════════════════════════════════════════════ */
 const GENRE_ICONS = {
   Drama: Drama, Thriller: Fingerprint, Horror: Skull, Comedy: Laugh,
@@ -646,99 +647,129 @@ const GENRE_ICONS = {
   Historical: Globe, Crime: Crosshair, Musical: Music2, Biography: Scroll, War: Shield,
 };
 
-const InterestSelector = ({ onSave }) => {
+const FilterModal = ({ isOpen, onClose, selectedGenres, onApply }) => {
   const dark = useTh();
-  const [selected, setSelected] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [phase, setPhase] = useState("pick");
+  const [tempSelected, setTempSelected] = useState(selectedGenres);
 
-  const toggle = (g) => setSelected(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]);
+  useEffect(() => {
+    setTempSelected(selectedGenres);
+  }, [selectedGenres, isOpen]);
 
-  const handleSave = async () => {
-    if (!selected.length) return;
-    setSaving(true);
-    try { await api.post("/users/interests", { genres: selected }); } catch { }
-    onSave(selected);
-    setSaving(false);
+  const toggle = (g) => setTempSelected(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]);
+
+  const handleApply = () => {
+    onApply(tempSelected);
+    onClose();
   };
 
-  const wrapBg  = dark ? "border-white/[0.06]" : "border-gray-200 bg-white shadow-sm";
-  const titleTxt= dark ? "text-white" : "text-gray-900";
-  const subTxt  = dark ? "text-gray-500" : "text-gray-500";
-  const badgeBg = dark ? "bg-violet-500/15 border-violet-500/25 text-violet-300" : "bg-violet-50 border-violet-200 text-violet-700";
-  const btnDisabled = dark ? "bg-white/5 text-gray-600" : "bg-gray-100 text-gray-400";
-  const backBtn = dark ? "text-gray-400 border-white/10 hover:bg-white/5" : "text-gray-500 border-gray-200 hover:bg-gray-50";
+  const handleClear = () => {
+    setTempSelected([]);
+  };
+
+  if (!isOpen) return null;
+
+  const overlayBg = dark ? "bg-black/60" : "bg-black/40";
+  const modalBg = dark ? "bg-[#0a1219] border-white/10" : "bg-white border-gray-200";
+  const titleTxt = dark ? "text-white" : "text-gray-900";
+  const subTxt = dark ? "text-gray-400" : "text-gray-500";
+  const closeBg = dark ? "bg-white/5 hover:bg-white/10 text-gray-400" : "bg-gray-100 hover:bg-gray-200 text-gray-600";
 
   return (
-    <div className={`rounded-3xl border overflow-hidden ${wrapBg}`}
-      style={ dark ? { background: "linear-gradient(135deg,rgba(124,58,237,0.07),rgba(37,99,235,0.05))" } : {} }>
-      <div className="p-8 sm:p-12">
-        <AnimatePresence mode="wait">
-          {phase === "pick" ? (
-            <motion.div key="pick" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }}>
-              <div className="text-center mb-8">
-                <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border mb-4 ${badgeBg}`}>
-                  <Sparkles size={14} className={dark ? "text-violet-400" : "text-violet-600"} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Personalize Your Feed</span>
-                </div>
-                <h2 className={`text-2xl sm:text-3xl font-black mb-2 ${titleTxt}`}>What genres do you love?</h2>
-                <p className={`text-sm ${subTxt}`}>Pick your favorites and we will curate your perfect reading list</p>
-              </div>
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 mb-8">
-                {ALL_GENRES.map((g, i) => {
-                  const Icon = GENRE_ICONS[g] || BookOpen;
-                  const sel = selected.includes(g);
-                  const m = genreMeta(g);
-                  return (
-                    <motion.button key={g} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.03 }}
-                      onClick={() => toggle(g)}
-                      className={`relative flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all duration-200 ${sel ? `bg-gradient-to-br ${m.color} border-white/20 shadow-lg scale-105` : dark ? "bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.07] hover:border-white/15" : "bg-gray-50 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm"}`}>
-                      {sel && <CheckCircle size={12} className="absolute top-1.5 right-1.5 text-white/80" />}
-                      <Icon size={20} strokeWidth={1.5} className={sel ? "text-white" : dark ? "text-gray-400" : "text-gray-500"} />
-                      <span className={`text-[10px] font-bold text-center leading-tight ${sel ? "text-white" : dark ? "text-gray-500" : "text-gray-600"}`}>{g}</span>
-                    </motion.button>
-                  );
-                })}
-              </div>
-              <div className="flex justify-center">
-                <button onClick={() => { if (selected.length > 0) setPhase("confirm"); }} disabled={!selected.length}
-                  className={`flex items-center gap-2.5 px-8 py-3 rounded-2xl font-bold text-sm transition-all duration-200 ${selected.length > 0 ? "bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:scale-105 shadow-lg shadow-violet-900/30" : btnDisabled + " cursor-not-allowed"}`}>
-                  <Sparkles size={16} />
-                  Continue with {selected.length} genre{selected.length !== 1 ? "s" : ""}
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div key="confirm" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }}>
-              <div className="text-center mb-8">
-                <h2 className={`text-2xl font-black mb-1 ${titleTxt}`}>Your genres</h2>
-                <p className={`text-sm ${subTxt}`}>We will find the best scripts for you</p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-3 mb-8">
-                {selected.map((g, i) => {
-                  const Icon = GENRE_ICONS[g] || BookOpen;
-                  const m = genreMeta(g);
-                  return (
-                    <motion.div key={g} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r ${m.color} border border-white/15`}>
-                      <Icon size={14} className="text-white" />
-                      <span className="text-sm font-bold text-white">{g}</span>
-                    </motion.div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-center gap-3">
-                <button onClick={() => setPhase("pick")} className={`px-5 py-2.5 rounded-xl font-semibold text-sm border transition-colors ${backBtn}`}>Back</button>
-                <button onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-2 px-8 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-violet-600 to-blue-600 hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-violet-900/30">
-                  {saving ? <><Sparkles size={14} className="animate-spin" /> Setting up...</> : <><Play size={14} fill="currentColor" /> Launch My Feed</>}
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm ${overlayBg}`} onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.2 }}
+        onClick={(e) => e.stopPropagation()}
+        className={`w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-3xl border shadow-2xl ${modalBg}`}
+      >
+        {/* Header */}
+        <div className={`flex items-center justify-between p-6 border-b ${dark ? "border-white/10" : "border-gray-200"}`}>
+          <div>
+            <h2 className={`text-2xl font-black ${titleTxt}`}>Filter by Genre</h2>
+            <p className={`text-sm mt-1 ${subTxt}`}>Select genres to personalize your feed</p>
+          </div>
+          <button onClick={onClose} className={`p-2 rounded-xl transition-colors ${closeBg}`}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Genre Grid */}
+        <div className="p-6 overflow-y-auto max-h-[calc(85vh-180px)]">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {ALL_GENRES.map((g, i) => {
+              const Icon = GENRE_ICONS[g] || BookOpen;
+              const sel = tempSelected.includes(g);
+              const m = genreMeta(g);
+              return (
+                <motion.button
+                  key={g}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.02 }}
+                  onClick={() => toggle(g)}
+                  className={`relative flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-200 ${
+                    sel
+                      ? `${dark ? "bg-[#1a3050]" : "bg-violet-50"} ${dark ? "border-violet-500/50" : "border-violet-300"} shadow-lg scale-105`
+                      : dark
+                      ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/15"
+                      : "bg-gray-50 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm"
+                  }`}
+                >
+                  {sel && (
+                    <CheckCircle
+                      size={14}
+                      className={`absolute top-2 right-2 ${dark ? "text-violet-400" : "text-violet-600"}`}
+                    />
+                  )}
+                  <Icon
+                    size={22}
+                    strokeWidth={1.5}
+                    className={sel ? (dark ? "text-violet-300" : "text-violet-600") : dark ? "text-gray-500" : "text-gray-400"}
+                  />
+                  <span
+                    className={`text-xs font-bold text-center leading-tight ${
+                      sel ? (dark ? "text-violet-200" : "text-violet-700") : dark ? "text-gray-400" : "text-gray-600"
+                    }`}
+                  >
+                    {g}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className={`flex items-center justify-between p-6 border-t ${dark ? "border-white/10" : "border-gray-200"}`}>
+          <button
+            onClick={handleClear}
+            className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${
+              dark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+            }`}
+          >
+            Clear All
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className={`px-5 py-2.5 rounded-xl font-semibold text-sm border transition-colors ${
+                dark ? "text-gray-400 border-white/10 hover:bg-white/5" : "text-gray-600 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleApply}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-900/30"
+            >
+              <Filter size={14} />
+              Apply {tempSelected.length > 0 ? `(${tempSelected.length})` : ""}
+            </button>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };
@@ -756,17 +787,21 @@ const ReaderHome = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [featuredScripts, setFeaturedScripts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [hasInterests, setHasInterests] = useState(null);
-  const [feedRevealed, setFeedRevealed] = useState(false);
+  const [filterGenres, setFilterGenres] = useState([]);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const preferredGenres = [
-    ...(user?.favoriteGenres || []),
-    ...(user?.preferences?.genres || []),
-    ...(user?.skills || []),
-  ].filter(Boolean).map(g => g.toLowerCase());
-  const uniquePreferred = [...new Set(preferredGenres)];
-
-  useEffect(() => { setHasInterests(uniquePreferred.length > 0); }, [user]);
+  // Initialize filter genres from user preferences
+  useEffect(() => {
+    const preferredGenres = [
+      ...(user?.favoriteGenres || []),
+      ...(user?.preferences?.genres || []),
+      ...(user?.skills || []),
+    ].filter(Boolean).map(g => g.toLowerCase());
+    const uniquePreferred = [...new Set(preferredGenres)];
+    if (uniquePreferred.length > 0 && filterGenres.length === 0) {
+      setFilterGenres(uniquePreferred.map(g => g.charAt(0).toUpperCase() + g.slice(1)));
+    }
+  }, [user]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -792,28 +827,44 @@ const ReaderHome = () => {
       console.error("fetchData error:", err);
     }
     setLoading(false);
-  }, [uniquePreferred.join(",")]);
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const personalizedScripts = uniquePreferred.length > 0
+  // Filter scripts based on selected genres
+  const filterByGenres = (scripts) => {
+    if (filterGenres.length === 0) return scripts;
+    const lowerGenres = filterGenres.map(g => g.toLowerCase());
+    return scripts.filter(s => lowerGenres.some(g => (s.genre || "").toLowerCase().includes(g)));
+  };
+
+  const personalizedScripts = filterGenres.length > 0
     ? [
-      ...recommendations.filter(s => uniquePreferred.some(g => (s.genre || "").toLowerCase().includes(g))),
-      ...recommendations.filter(s => !uniquePreferred.some(g => (s.genre || "").toLowerCase().includes(g))),
+      ...filterByGenres(recommendations),
+      ...recommendations.filter(s => !filterGenres.some(g => (s.genre || "").toLowerCase().includes(g.toLowerCase()))),
     ]
     : recommendations;
 
-  const trendingScripts = [...latestScripts]
-    .sort((a, b) => (b.readsCount || 0) - (a.readsCount || 0))
-    .slice(0, 10);
+  const trendingScripts = filterByGenres(
+    [...latestScripts].sort((a, b) => (b.readsCount || 0) - (a.readsCount || 0))
+  ).slice(0, 10);
 
-  const handleInterestSaved = (genres) => {
-    const updated = { ...user, skills: genres };
-    setUser(updated);
-    localStorage.setItem("user", JSON.stringify(updated));
-    setHasInterests(true);
-    fetchData();
-    setTimeout(() => setFeedRevealed(true), 100);
+  const filteredLatest = filterByGenres(latestScripts);
+  const filteredTop = filterByGenres(topScripts);
+
+  const handleFilterApply = async (genres) => {
+    setFilterGenres(genres);
+    // Optionally save to user preferences
+    if (genres.length > 0) {
+      try {
+        await api.post("/users/interests", { genres: genres.map(g => g.toLowerCase()) });
+        const updated = { ...user, skills: genres.map(g => g.toLowerCase()) };
+        setUser(updated);
+        localStorage.setItem("user", JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to save interests:", err);
+      }
+    }
   };
 
   /* ── Theme-aware page background ── */
@@ -838,66 +889,74 @@ const ReaderHome = () => {
 
         <div className="w-full max-w-[1400px] mx-auto px-4 pt-4 space-y-12">
 
-          {/* 1. HERO - Featured Projects */}
-          <section>
-            <HeroBanner scripts={featuredScripts} loading={loading} />
-          </section>
+          {/* 1. FEATURED & SPONSORED - Premium Promotional Section */}
+          <FeaturedSection />
 
-          {/* Interest Selector for new users */}
-          <AnimatePresence>
-            {!loading && hasInterests === false && (
-              <motion.section key="interest-selector"
-                initial={{ opacity: 1 }}
-                exit={{ opacity: 0, y: -60, scale: 0.97 }}
-                transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}>
-                <InterestSelector onSave={handleInterestSaved} />
-              </motion.section>
+          {/* Filter Button Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-2xl font-black ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                {filterGenres.length > 0 ? "Filtered Feed" : "All Scripts"}
+              </h1>
+              {filterGenres.length > 0 && (
+                <p className={`text-sm mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  Showing {filterGenres.join(", ")} scripts
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm border transition-all ${
+                filterGenres.length > 0
+                  ? "bg-blue-600 text-white border-transparent shadow-lg hover:bg-blue-700 hover:scale-105"
+                  : isDarkMode
+                  ? "bg-white/5 text-gray-300 border-white/10 hover:bg-white/10"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-sm"
+              }`}
+            >
+              <Filter size={16} />
+              {filterGenres.length > 0 ? `Filters (${filterGenres.length})` : "Filter by Genre"}
+            </button>
+          </div>
+
+          <div className="space-y-12">
+            {/* 2. RECOMMENDED FOR YOU */}
+            {(loading || personalizedScripts.length > 0) && (
+              <section>
+                <SectionHeader
+                  icon={Sparkles}
+                  gradient="from-blue-700 to-blue-900"
+                  title="Recommended For You"
+                  subtitle={filterGenres.length > 0
+                    ? `Based on your interest in ${filterGenres.slice(0, 3).join(", ")}`
+                    : "Popular picks curated for you"}
+                />
+                <HScrollRow scripts={personalizedScripts.slice(0, 12)} loading={loading} />
+              </section>
             )}
-          </AnimatePresence>
 
-          <AnimatePresence>
-            {(hasInterests === true || feedRevealed) && (
-              <motion.div key="feed"
-                initial={feedRevealed ? { opacity: 0, y: 70 } : { opacity: 1, y: 0 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="space-y-12">
+            {/* 3. TOP LIST */}
+            {(loading || filteredTop.length > 0) && (
+              <section>
+                <SectionHeader icon={Crown} gradient="from-yellow-500 to-amber-600" title="Top List" subtitle="Most viewed and highest rated scripts" badge="Ranked" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                  {loading
+                    ? Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} className={`flex items-center gap-4 p-4 rounded-2xl animate-pulse ${skelBg}`}>
+                        <div className={`w-10 h-6 rounded ${skelBg}`} />
+                        <div className={`w-14 rounded-xl ${skelBg}`} style={{ aspectRatio: "2/3" }} />
+                        <div className="flex-1 space-y-2"><div className={`h-3 rounded w-4/5 ${skelBg}`} /><div className={`h-2.5 rounded w-1/2 ${skelBg2}`} /></div>
+                      </div>
+                    ))
+                    : filteredTop.slice(0, 12).map((s, i) => <TopListCard key={s._id} script={s} rank={i + 1} />)
+                  }
+                </div>
+              </section>
+            )}
 
-                {/* 2. RECOMMENDED FOR YOU */}
-                {(loading || personalizedScripts.length > 0) && (
-                  <section>
-                    <SectionHeader
-                      icon={Sparkles}
-                      gradient="from-violet-600 to-indigo-700"
-                      title="Recommended For You"
-                      subtitle={uniquePreferred.length > 0
-                        ? `Based on your interest in ${uniquePreferred.slice(0, 3).map(g => g.charAt(0).toUpperCase() + g.slice(1)).join(", ")}`
-                        : "Popular picks curated for you"}
-                    />
-                    <HScrollRow scripts={personalizedScripts.slice(0, 12)} loading={loading} />
-                  </section>
-                )}
-
-                {/* 3. TOP LIST */}
-                <section>
-                  <SectionHeader icon={Crown} gradient="from-yellow-500 to-amber-600" title="Top List" subtitle="Most viewed and highest rated scripts" badge="Ranked" />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                    {loading
-                      ? Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className={`flex items-center gap-4 p-4 rounded-2xl animate-pulse ${skelBg}`}>
-                          <div className={`w-10 h-6 rounded ${skelBg}`} />
-                          <div className={`w-14 rounded-xl ${skelBg}`} style={{ aspectRatio: "2/3" }} />
-                          <div className="flex-1 space-y-2"><div className={`h-3 rounded w-4/5 ${skelBg}`} /><div className={`h-2.5 rounded w-1/2 ${skelBg2}`} /></div>
-                        </div>
-                      ))
-                      : topScripts.slice(0, 12).map((s, i) => <TopListCard key={s._id} script={s} rank={i + 1} />)
-                    }
-                  </div>
-                </section>
-
-                {/* 4. TRENDING PROJECTS */}
-                {(loading || trendingScripts.length > 0) && (
-                  <section>
+            {/* 4. TRENDING PROJECTS */}
+            {(loading || trendingScripts.length > 0) && (
+              <section>
                     <SectionHeader icon={Flame} gradient="from-orange-500 to-red-600" title="Trending Projects" subtitle="Rapidly gaining reads right now" badge="Hot" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                       {loading
@@ -915,74 +974,72 @@ const ReaderHome = () => {
                 )}
 
                 {/* 5. RECENTLY ADDED */}
-                <section>
-                  <SectionHeader icon={Clock} gradient="from-cyan-500 to-blue-600" title="Recently Added" subtitle="Fresh scripts just uploaded" />
-                  <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {loading
-                      ? Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i}>
-                          <div className={`w-full rounded-2xl animate-pulse mb-2.5 ${skelBg}`} style={{ aspectRatio: "2/3" }} />
-                          <div className={`h-3 rounded mb-1.5 w-4/5 animate-pulse ${skelBg}`} />
-                          <div className={`h-2.5 rounded w-1/2 animate-pulse ${skelBg2}`} />
-                        </div>
-                      ))
-                      : latestScripts.slice(0, 12).map((s, i) => <RecentCard key={s._id} script={s} index={i} />)
-                    }
-                  </div>
-                </section>
+                {(loading || filteredLatest.length > 0) && (
+                  <section>
+                    <SectionHeader icon={Clock} gradient="from-cyan-500 to-blue-600" title="Recently Added" subtitle="Fresh scripts just uploaded" />
+                    <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                      {loading
+                        ? Array.from({ length: 8 }).map((_, i) => (
+                          <div key={i}>
+                            <div className={`w-full rounded-2xl animate-pulse mb-2.5 ${skelBg}`} style={{ aspectRatio: "2/3" }} />
+                            <div className={`h-3 rounded mb-1.5 w-4/5 animate-pulse ${skelBg}`} />
+                            <div className={`h-2.5 rounded w-1/2 animate-pulse ${skelBg2}`} />
+                          </div>
+                        ))
+                        : filteredLatest.slice(0, 12).map((s, i) => <RecentCard key={s._id} script={s} index={i} />)
+                      }
+                    </div>
+                  </section>
+                )}
 
                 {/* 6. BROWSE ALL */}
-                <section>
-                  <SectionHeader icon={LayoutGrid} gradient="from-slate-500 to-gray-700" title="Browse All Scripts" subtitle={uniquePreferred.length > 0 ? "Your preferred genres shown first" : "Explore everything on CKript"} />
-                  <div className="flex gap-2 overflow-x-auto pb-3 mb-6" style={{ scrollbarWidth: "none" }}>
-                    {["All", ...ALL_GENRES].map((g) => {
-                      const isAll = g === "All";
-                      return (
-                        <Link key={g} to={isAll ? "/reader" : `/reader?genre=${g.toLowerCase()}`}
-                          className={`flex-none px-4 py-1.5 rounded-full text-xs font-bold border transition-all whitespace-nowrap ${isAll
-                            ? isDarkMode ? "bg-white/[0.07] text-gray-300 border-white/[0.10] hover:bg-white/[0.11]" : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                            : genreBadgeClass(g, isDarkMode) + " hover:opacity-80"
-                          }`}>
-                          {g}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                  {loading ? (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {Array.from({ length: 12 }).map((_, i) => (
-                        <div key={i}>
-                          <div className={`w-full rounded-2xl animate-pulse mb-2.5 ${skelBg}`} style={{ aspectRatio: "2/3" }} />
-                          <div className={`h-3 rounded mb-1.5 w-4/5 animate-pulse ${skelBg}`} />
-                          <div className={`h-2.5 rounded w-1/2 animate-pulse ${skelBg2}`} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : latestScripts.length > 0 ? (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-                      className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {(uniquePreferred.length > 0
-                        ? [
-                          ...latestScripts.filter(s => uniquePreferred.some(g => (s.genre || "").toLowerCase().includes(g))),
-                          ...latestScripts.filter(s => !uniquePreferred.some(g => (s.genre || "").toLowerCase().includes(g))),
-                        ]
-                        : latestScripts
-                      ).map((s, i) => <FeedCard key={s._id} script={s} index={i} />)}
-                    </motion.div>
-                  ) : (
-                    <div className="text-center py-20">
-                      <BookOpen size={52} className={`mx-auto mb-4 ${isDarkMode ? "text-gray-700" : "text-gray-300"}`} strokeWidth={1.5} />
-                      <p className={`text-lg font-semibold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No scripts found</p>
-                      <p className={`text-sm mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>Check back soon for new content</p>
-                    </div>
-                  )}
-                </section>
+                {(loading || filteredLatest.length > 0) && (
+                  <section>
+                    <SectionHeader icon={LayoutGrid} gradient="from-slate-500 to-gray-700" title="Browse All Scripts" 
+                      subtitle={filterGenres.length > 0 ? "Filtered by your selected genres" : "Explore everything on CKript"} />
+                    {loading ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <div key={i}>
+                            <div className={`w-full rounded-2xl animate-pulse mb-2.5 ${skelBg}`} style={{ aspectRatio: "2/3" }} />
+                            <div className={`h-3 rounded mb-1.5 w-4/5 animate-pulse ${skelBg}`} />
+                            <div className={`h-2.5 rounded w-1/2 animate-pulse ${skelBg2}`} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : filteredLatest.length > 0 ? (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+                        className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {filteredLatest.map((s, i) => <FeedCard key={s._id} script={s} index={i} />)}
+                      </motion.div>
+                    ) : (
+                      <div className="text-center py-20">
+                        <BookOpen size={52} className={`mx-auto mb-4 ${isDarkMode ? "text-gray-700" : "text-gray-300"}`} strokeWidth={1.5} />
+                        <p className={`text-lg font-semibold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                          {filterGenres.length > 0 ? "No scripts found for selected genres" : "No scripts found"}
+                        </p>
+                        <p className={`text-sm mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
+                          {filterGenres.length > 0 ? "Try selecting different genres" : "Check back soon for new content"}
+                        </p>
+                      </div>
+                    )}
+                  </section>
+                )}
 
-              </motion.div>
-            )}
-          </AnimatePresence>
-
+          </div>
         </div>
+
+        {/* Filter Modal */}
+        <AnimatePresence>
+          {showFilterModal && (
+            <FilterModal
+              isOpen={showFilterModal}
+              onClose={() => setShowFilterModal(false)}
+              selectedGenres={filterGenres}
+              onApply={handleFilterApply}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </ThemeCtx.Provider>
   );

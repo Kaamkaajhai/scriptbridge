@@ -4,6 +4,43 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 
+/* ── Icons ─────────────────────────────────────────── */
+const SparklesIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+  </svg>
+);
+
+const TrendingIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+  </svg>
+);
+
+const StarIcon = ({ filled }) => (
+  <svg className="w-4 h-4" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+  </svg>
+);
+
+const EyeIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+const ChevronLeft = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+  </svg>
+);
+
 /* ── Filter Options ────────────────────────────────── */
 const GENRES = [
   "Thriller", "Drama", "Comedy", "Sci-Fi", "Horror", "Romance",
@@ -186,10 +223,10 @@ const AIDemo = ({ script, getImageUrl }) => {
         <div className="flex flex-col items-center gap-6 z-10 px-10 text-center w-full">
           {current && (
             <motion.div key={phase}
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.4 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
               className="flex flex-col items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">{current.label}</span>
               <p className={`text-white ${current.size} max-w-lg`}>{current.text}</p>
@@ -242,9 +279,9 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.92, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.92, opacity: 0, y: 20 }}
+          initial={{ scale: 0.96, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.96, opacity: 0 }}
           transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="relative w-full max-w-3xl rounded-2xl overflow-hidden bg-black shadow-2xl"
           onClick={(e) => e.stopPropagation()}
@@ -365,6 +402,22 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
             <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-10">
               {/* Badges row */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
+                {(script.premium || script.isFeatured) && (
+                  <span className="flex items-center gap-1 text-[10px] font-black text-white bg-[#1e3a5f] border border-blue-400/50 px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-lg">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    {script.premium ? "Premium" : "Sponsored"}
+                  </span>
+                )}
+                {!(script.premium || script.isFeatured) && (
+                  <span className="flex items-center gap-1 text-[10px] font-black text-white bg-gray-700 border border-gray-600 px-2.5 py-1 rounded-lg uppercase tracking-widest">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                    </svg>
+                    Trending
+                  </span>
+                )}
                 <span className="text-[10px] font-black text-white bg-[#111111] px-2.5 py-1 rounded-lg uppercase tracking-widest">
                   #{current + 1} Featured
                 </span>
@@ -379,7 +432,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
                   </span>
                 )}
                 {script.premium ? (
-                  <span className="text-[10px] font-black text-white bg-amber-500/90 px-2.5 py-1 rounded-lg">${script.price}</span>
+                  <span className="text-[10px] font-black text-white bg-gray-800 px-2.5 py-1 rounded-lg">${script.price}</span>
                 ) : (
                   <span className="text-[10px] font-black text-white bg-emerald-500/80 px-2.5 py-1 rounded-lg">Free</span>
                 )}
@@ -497,28 +550,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
         ))}
       </div>
 
-      {/* Thumbnail strip */}
-      <div className={`hidden sm:flex gap-2 px-4 pb-4 ${dark ? "" : ""}`}>
-        {SLIDES.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => goTo(i, i > current ? 1 : -1)}
-            className={`relative flex-1 h-14 rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-              i === current
-                ? "border-[#111111] shadow-lg shadow-[#111111]/30 scale-[1.02]"
-                : dark ? "border-transparent opacity-50 hover:opacity-80" : "border-transparent opacity-40 hover:opacity-70"
-            }`}
-          >
-            {s.coverImage ? (
-              <img src={resolveImg(s.coverImage)} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#0a1628] to-[#111111] flex items-center justify-center">
-                <span className="text-white/40 text-[9px] font-bold">#{i + 1}</span>
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
+
     </div>
   );
 };
@@ -555,10 +587,229 @@ const CardSaveBtn = ({ scriptId, dark }) => {
   );
 };
 
+/* ══════════════════════════════════════════════════════════════ */
+/* ── CARD COMPONENTS ── */
+/* ══════════════════════════════════════════════════════════════ */
+
+// Sponsored Project Card (Grid Layout)
+const SponsoredCard = ({ script, getImageUrl, dark }) => (
+  <Link to={`/scripts/${script._id}`}>
+    <motion.div
+      whileHover={{ y: -4 }}
+      className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
+        dark
+          ? "border-blue-500/40 bg-gradient-to-br from-[#0a1628] to-[#0d1b2e] hover:shadow-2xl hover:shadow-blue-500/20"
+          : "border-blue-300 bg-gradient-to-br from-blue-50 to-slate-50 hover:shadow-2xl hover:shadow-blue-200/50"
+      }`}
+    >
+      {/* Cover Image */}
+      <div className="relative h-[340px] overflow-hidden">
+        {script.coverImage && (
+          <img
+            src={getImageUrl(script.coverImage)}
+            alt={script.title}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+        
+        {/* Sponsored Badge */}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] border border-blue-400/50 rounded-full shadow-lg">
+          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          <span className="text-white text-xs font-bold">SPONSORED</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-6">
+        <h3 className={`text-xl font-bold mb-2 line-clamp-1 ${
+          dark ? "text-white group-hover:text-blue-400" : "text-gray-900 group-hover:text-blue-600"
+        } transition-colors`}>
+          {script.title}
+        </h3>
+        
+        {script.logline && (
+          <p className={`text-sm mb-4 line-clamp-2 leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+            {script.logline}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {script.genre && (
+              <span className={`text-xs font-semibold ${dark ? "text-gray-400" : "text-gray-600"}`}>
+                {script.genre}
+              </span>
+            )}
+            {script.rating && (
+              <div className="flex items-center gap-1">
+                <StarIcon filled />
+                <span className={`text-xs font-bold ${dark ? "text-white" : "text-gray-900"}`}>
+                  {script.rating.toFixed(1)}
+                </span>
+              </div>
+            )}
+          </div>
+          {script.views && (
+            <div className="flex items-center gap-1">
+              <EyeIcon />
+              <span className={`text-xs ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                {script.views.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Premium Glow Effect */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-900/20 via-transparent to-transparent" />
+      </div>
+    </motion.div>
+  </Link>
+);
+
+// Trending Card (Horizontal Scroll)
+const TrendingCard = ({ script, getImageUrl, dark }) => (
+  <Link to={`/scripts/${script._id}`}>
+    <motion.div
+      whileHover={{ scale: 1.03 }}
+      className={`group relative overflow-hidden rounded-2xl w-[360px] flex-shrink-0 border-2 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
+        dark ? "bg-[#0a1628] border-[#1a3050] hover:border-blue-500/40 hover:shadow-blue-500/10" : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-blue-100/60"
+      }`}
+    >
+      <div className="relative h-[240px] overflow-hidden">
+        {script.coverImage ? (
+          <img
+            src={getImageUrl(script.coverImage)}
+            alt={script.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+        
+        {/* Trending Badge */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] border border-blue-400/50 rounded-full shadow-lg backdrop-blur-sm">
+          <TrendingIcon />
+          <span className="text-white text-[11px] font-bold tracking-wide">TRENDING</span>
+        </div>
+
+        {/* Genre tag */}
+        {script.genre && (
+          <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/10 border border-white/20 rounded-lg backdrop-blur-sm">
+            <span className="text-white text-[11px] font-semibold">{script.genre}</span>
+          </div>
+        )}
+
+        {/* Title Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          <h3 className="text-white font-extrabold text-[17px] line-clamp-2 mb-2 leading-snug">
+            {script.title}
+          </h3>
+          <div className="flex items-center gap-3">
+            {script.rating && (
+              <div className="flex items-center gap-1">
+                <StarIcon filled />
+                <span className="text-white text-[13px] font-bold">{script.rating.toFixed(1)}</span>
+              </div>
+            )}
+            {script.views && (
+              <div className="flex items-center gap-1">
+                <EyeIcon />
+                <span className="text-white/80 text-[12px] font-medium">{script.views.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom info */}
+      <div className="px-4 py-3 flex items-center justify-between">
+        <div>
+          {script.logline && (
+            <p className={`text-[12px] line-clamp-1 ${dark ? "text-gray-400" : "text-gray-500"}`}>{script.logline}</p>
+          )}
+        </div>
+        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
+          dark ? "bg-blue-500/15 text-blue-400" : "bg-blue-50 text-blue-600"
+        }`}>View →</span>
+      </div>
+    </motion.div>
+  </Link>
+);
+
+// Newly Promoted Card (Horizontal Scroll)
+const NewlyPromotedCard = ({ script, getImageUrl, dark }) => (
+  <Link to={`/scripts/${script._id}`}>
+    <motion.div
+      whileHover={{ scale: 1.03 }}
+      className={`group relative overflow-hidden rounded-xl w-[240px] flex-shrink-0 ${
+        dark ? "bg-[#0d1e30] border border-[#1a3050]" : "bg-white border border-gray-200"
+      } hover:shadow-xl transition-all duration-300`}
+    >
+      <div className="relative aspect-[3/4] overflow-hidden">
+        {script.coverImage && (
+          <img
+            src={getImageUrl(script.coverImage)}
+            alt={script.title}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+        
+        {/* New Badge */}
+        <div className={`absolute top-2 left-2 px-2 py-1 rounded-full ${
+          dark ? "bg-blue-600 border border-blue-500" : "bg-blue-500"
+        }`}>
+          <span className="text-white text-xs font-bold">NEW</span>
+        </div>
+
+        {/* Content Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <h3 className="text-white font-bold text-sm line-clamp-2 mb-2">
+            {script.title}
+          </h3>
+          {script.genre && (
+            <span className="text-gray-400 text-xs font-semibold">
+              {script.genre}
+            </span>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  </Link>
+);
+
+// Horizontal Scroll Container
+const HorizontalScroll = ({ children }) => (
+  <div className="relative">
+    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
+      {children}
+    </div>
+    <style>{`
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    `}</style>
+  </div>
+);
+
 
 const FeaturedProjects = () => {
   const { isDarkMode: dark } = useDarkMode();
+  
+  // Data states
   const [scripts, setScripts] = useState([]);
+  const [heroScript, setHeroScript] = useState(null);
+  const [heroSlides, setHeroSlides] = useState([]);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [sponsoredScripts, setSponsoredScripts] = useState([]);
+  const [trendingPromotions, setTrendingPromotions] = useState([]);
+  const [newlyPromoted, setNewlyPromoted] = useState([]);
+  
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewScript, setPreviewScript] = useState(null);  // trailer modal
@@ -572,6 +823,15 @@ const FeaturedProjects = () => {
   const [hoveredCard, setHoveredCard] = useState(null);
 
   const filterRef = useRef(null);
+
+  // Auto-play hero carousel
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+    const timer = setInterval(() => {
+      setHeroIndex(i => (i + 1) % heroSlides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [heroSlides.length]);
 
   const activeFilterCount = [
     selectedGenre,
@@ -595,6 +855,40 @@ const FeaturedProjects = () => {
   const fetchFeatured = async () => {
     setLoading(true);
     try {
+      const [featuredRes, trendingRes, recentRes] = await Promise.all([
+        api.get("/scripts/featured"),
+        api.get("/scripts?sort=views&limit=12"),
+        api.get("/scripts?sort=createdAt&limit=8")
+      ]);
+
+      let allScripts = featuredRes.data || [];
+      const trendingData = trendingRes.data || [];
+      const recentData = recentRes.data || [];
+
+      // Separate sponsored/premium scripts
+      const sponsored = allScripts.filter(s => s.premium || s.isFeatured);
+      const regular = allScripts.filter(s => !s.premium && !s.isFeatured);
+
+      // Set hero (top sponsored or first featured)
+      setHeroScript(sponsored[0] || allScripts[0] || null);
+      setHeroSlides(sponsored.length > 0 ? sponsored.slice(0, 5) : allScripts.slice(0, 5));
+
+      // Sponsored section (exclude hero)
+      setSponsoredScripts(sponsored.slice(1, 7));
+
+      // Trending promotions (high engagement)
+      const trending = trendingData
+        .filter(s => s.premium || s.isFeatured || (s.views && s.views > 500))
+        .slice(0, 8);
+      setTrendingPromotions(trending);
+
+      // Newly promoted (recent featured)
+      const recent = recentData
+        .filter(s => s.premium || s.isFeatured)
+        .slice(0, 6);
+      setNewlyPromoted(recent);
+
+      setScripts(allScripts);
       const params = new URLSearchParams();
       params.append("sort", selectedSort);
       if (selectedGenre) params.append("genre", selectedGenre);
@@ -669,34 +963,313 @@ const FeaturedProjects = () => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* ── Header ── */}
+      {/* ── Premium Header with Promote CTA ── */}
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease }}
         className="mb-6"
       >
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#111111] to-[#3a7bd5]" />
-              <h1 className={`text-2xl font-extrabold tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>Featured Projects</h1>
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              {/* Sparkle Icon */}
+              <div className={`p-2 rounded-xl ${dark ? "bg-gray-800 border border-gray-700" : "bg-gray-100"}`}>
+                <svg className={`w-5 h-5 ${dark ? "text-gray-300" : "text-gray-700"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className={`text-3xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Featured Promotions
+                </h1>
+                <p className={`text-sm font-medium mt-1 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                  Sponsored projects and premium content • Higher visibility for creators
+                </p>
+              </div>
             </div>
-            <p className="text-[13px] text-gray-400 font-medium ml-[18px]">
-              Most talked-about scripts and highest-value projects
+          </div>
+
+          {/* Promote Your Project CTA */}
+          <button
+            onClick={() => alert("Promotion feature coming soon! Contact support to promote your project.")}
+            className="flex items-center gap-2 px-5 py-3 bg-[#1e3a5f] hover:bg-[#2c5282] text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all hover:scale-105 border border-blue-400/30"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Promote Your Project
+          </button>
+        </div>
+
+        {/* Info Banner */}
+        <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${
+          dark 
+            ? "bg-blue-500/10 border-blue-500/20 text-blue-200" 
+            : "bg-blue-50 border-blue-200 text-blue-900"
+        }`}>
+          <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-semibold mb-1">Sponsored Content</p>
+            <p className="text-xs opacity-90">
+              Projects displayed here are either paid promotions or trending content selected for increased visibility. 
+              Want to feature your project? Click "Promote Your Project" to get started.
             </p>
           </div>
-          <p className="text-sm text-gray-400 font-medium tabular-nums hidden sm:block">
-            {scripts.length} project{scripts.length !== 1 ? "s" : ""}
-          </p>
         </div>
       </motion.div>
 
+      {/* ══ AD PAGE TOP HEADER BAR ══ */}
+      <div className={`rounded-2xl mb-6 overflow-hidden border ${
+        dark ? "bg-gradient-to-r from-[#0a1628] via-[#0d1f3a] to-[#0a1628] border-blue-500/20" : "bg-gradient-to-r from-[#0f2044] via-[#1a3a6e] to-[#0f2044] border-blue-400/30"
+      }`}>
+        <div className="flex items-center justify-between px-6 py-4 flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg">
+              <svg className="w-4 h-4 text-blue-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+              <span className="text-white text-xs font-black tracking-widest uppercase">Promoted Content</span>
+            </div>
+            <span className={`text-sm font-medium ${ dark ? "text-blue-200/70" : "text-blue-100/80"}`}>Premium placements for maximum visibility</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-white/70 text-xs font-semibold">Live Ads Running</span>
+            </div>
+            <Link to="/promote" className="flex items-center gap-2 px-4 py-2 bg-white text-[#0f2044] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all shadow-lg">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Advertise Your Project
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ FEATURED CAROUSEL ══ */}}
+      {heroSlides.length > 0 && (() => {
+        const slide = heroSlides[heroIndex];
+        return (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.1, ease }}
+            className="mb-8"
+          >
+            <div className="relative overflow-hidden rounded-2xl h-[560px] group border-2 border-blue-500/20 shadow-2xl shadow-blue-500/10">
+              {/* Slides */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={slide._id}
+                  initial={{ opacity: 0, x: 60 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -60 }}
+                  transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="absolute inset-0"
+                >
+                  {/* Cover Image */}
+                  {slide.coverImage ? (
+                    <>
+                      <img src={getImageUrl(slide.coverImage)} alt={slide.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
+                    </>
+                  ) : (
+                    <div className={`w-full h-full ${dark ? "bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#1e293b]" : "bg-gradient-to-br from-gray-900 via-[#0f1c30] to-[#1e3a5f]"}`} />
+                  )}
+
+                  {/* Content */}
+                  <div className="absolute inset-0 flex flex-col justify-end p-10">
+                    {/* Top badges row */}
+                    <div className="absolute top-5 left-5 flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 rounded-lg shadow-lg">
+                        <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span className="text-white font-black text-[11px] tracking-widest uppercase">{slide.premium ? "Premium Ad" : "Sponsored"}</span>
+                      </div>
+                      {slide.genre && <span className="px-2.5 py-1.5 bg-black/40 backdrop-blur-sm text-white/90 text-[11px] font-bold rounded-lg border border-white/15">{slide.genre}</span>}
+                    </div>
+
+                    {/* Slide counter top-right */}
+                    <div className="absolute top-6 right-6 px-3 py-1.5 bg-black/40 backdrop-blur-sm rounded-full border border-white/20">
+                      <span className="text-white/80 text-xs font-semibold">{heroIndex + 1} / {heroSlides.length}</span>
+                    </div>
+
+                    <div className="max-w-3xl">
+                      <h2 className="text-5xl font-black text-white mb-4 leading-tight drop-shadow-2xl">
+                        {slide.title}
+                      </h2>
+                      {slide.logline && (
+                        <p className="text-lg text-gray-200 font-medium mb-6 line-clamp-2 drop-shadow-lg">{slide.logline}</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 mb-8">
+                        {slide.genre && <span className="px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg text-white text-sm font-semibold border border-white/20">{slide.genre}</span>}
+                        {slide.rating && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                            <StarIcon filled />
+                            <span className="text-white text-sm font-bold">{slide.rating.toFixed(1)}</span>
+                          </div>
+                        )}
+                        {slide.views && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                            <EyeIcon />
+                            <span className="text-white text-sm font-semibold">{slide.views.toLocaleString()} views</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Link to={`/scripts/${slide._id}`} className="px-8 py-4 bg-white text-gray-900 rounded-xl font-black text-base shadow-2xl hover:bg-blue-50 transition-all hover:scale-105">
+                          View Project →
+                        </Link>
+                        <Link to={`/scripts/${slide._id}`} className="px-6 py-4 bg-blue-600/80 hover:bg-blue-600 backdrop-blur-sm text-white rounded-xl font-bold text-base border border-blue-400/50 transition-all">
+                          Quick Preview
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Prev / Next arrows */}
+              {heroSlides.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setHeroIndex(i => (i - 1 + heroSlides.length) % heroSlides.length)}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white transition-all hover:scale-110"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                  </button>
+                  <button
+                    onClick={() => setHeroIndex(i => (i + 1) % heroSlides.length)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white transition-all hover:scale-110"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                  </button>
+                </>
+              )}
+
+              {/* Dot indicators */}
+              {heroSlides.length > 1 && (
+                <div className="absolute bottom-5 right-10 flex items-center gap-2 z-20">
+                  {heroSlides.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setHeroIndex(i)}
+                      className={`transition-all duration-300 rounded-full ${
+                        i === heroIndex ? "w-7 h-2.5 bg-white" : "w-2.5 h-2.5 bg-white/40 hover:bg-white/70"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ── SPONSORED PROJECTS CAROUSEL ── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {sponsoredScripts.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2, ease }}
+          className="mb-10"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1 bg-blue-600 rounded-lg">
+                <span className="text-white text-[11px] font-black tracking-widest">AD</span>
+              </div>
+              <div>
+                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Sponsored Projects
+                </h2>
+                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>Premium promoted content</p>
+              </div>
+            </div>
+            <Link to="/promote" className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+              dark ? "border-blue-500/30 text-blue-400 hover:bg-blue-500/10" : "border-blue-300 text-blue-600 hover:bg-blue-50"
+            }`}>+ Promote your project</Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sponsoredScripts.map((script, idx) => (
+              <SponsoredCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ── TRENDING PROMOTIONS CAROUSEL ── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {trendingPromotions.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.3, ease }}
+          className="mb-10"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg">
+                <TrendingIcon />
+                <span className="text-white text-[11px] font-black tracking-widest">TRENDING</span>
+              </div>
+              <div>
+                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Trending Promotions
+                </h2>
+                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>High engagement featured projects</p>
+              </div>
+            </div>
+          </div>
+
+          <HorizontalScroll>
+            {trendingPromotions.map((script) => (
+              <TrendingCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
+            ))}
+          </HorizontalScroll>
+        </motion.div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ── NEWLY PROMOTED CAROUSEL ── */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {newlyPromoted.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.4, ease }}
+          className="mb-10"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className={`h-8 w-1 rounded-full bg-gradient-to-b from-green-500 to-emerald-500`} />
+              <div>
+                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Newly Promoted
+                </h2>
+                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                  Recently featured projects
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <HorizontalScroll>
+            {newlyPromoted.map((script) => (
+              <NewlyPromotedCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
+            ))}
+          </HorizontalScroll>
+        </motion.div>
+      )}
+
       {/* ── Filter bar ── */}
       <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.35, delay: 0.08, ease }}
         className="mb-6"
       >
@@ -888,8 +1461,8 @@ const FeaturedProjects = () => {
       {/* ── Empty state ── */}
       {!loading && scripts.length === 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           className={`text-center py-24 rounded-2xl border ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}
         >
           <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
@@ -926,9 +1499,9 @@ const FeaturedProjects = () => {
         <AnimatePresence mode="wait">
           <motion.div
             key={`${selectedSort}-${selectedGenre}-${selectedContentType}-${selectedBudget}-${selectedPremium}`}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.35, ease }}
           >
             {/* ── Featured Carousel (top 5) ── */}
@@ -939,10 +1512,49 @@ const FeaturedProjects = () => {
               onWatchPreview={setPreviewScript}
             />
 
-            {/* ── Grid cards (#6+, or all if carousel didn't consume them) ── */}
+            {/* ── More Promoted Projects Section Header ── */}
             {scripts.length > 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {scripts.slice(1).map((script, idx) => {
+              <>
+                <div className="flex items-center justify-between mb-5 mt-8">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-blue-600 rounded-lg">
+                      <span className="text-white text-[11px] font-black tracking-widest">AD</span>
+                    </div>
+                    <div>
+                      <h2 className={`text-xl font-black ${dark ? "text-white" : "text-gray-900"}`}>
+                        More Promoted Projects
+                      </h2>
+                      <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                        Sponsored content & trending scripts
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                    {scripts.length - 1} projects
+                  </span>
+                </div>
+
+                {/* ══ MID-PAGE ADVERTISE BANNER ══ */}
+                <div className={`rounded-2xl p-6 mb-6 flex items-center justify-between flex-wrap gap-4 border ${
+                  dark ? "bg-gradient-to-r from-[#0d1f3a] to-[#0a1628] border-blue-500/20" : "bg-gradient-to-r from-[#1a3a6e] to-[#0f2044] border-blue-400/20"
+                }`}>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <SparklesIcon />
+                      <span className="text-blue-300 font-black text-sm tracking-wide uppercase">Boost Your Reach</span>
+                    </div>
+                    <p className="text-white font-bold text-lg">Get your script in front of 10,000+ readers & investors</p>
+                    <p className="text-white/50 text-sm mt-0.5">Premium placements starting from ₹999/month</p>
+                  </div>
+                  <Link to="/promote" className="flex items-center gap-2 px-6 py-3 bg-white text-[#0f2044] rounded-xl font-black text-sm hover:bg-blue-50 transition-all shadow-xl whitespace-nowrap">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    Start Advertising
+                  </Link>
+                </div>
+                
+                {/* ── Grid cards (#2+) ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+                  {scripts.slice(1).map((script, idx) => {
                   const rank = rankBadge(idx + 1);
                   const metric = getFeaturedMetric(script);
                   const hasCover = !!script.coverImage;
@@ -959,8 +1571,8 @@ const FeaturedProjects = () => {
                   return (
                     <motion.div
                       key={script._id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       transition={{ delay: Math.min(idx * 0.04, 0.4), duration: 0.3, ease }}
                       onMouseEnter={() => setHoveredCard(script._id || idx)}
                       onMouseLeave={() => setHoveredCard(null)}
@@ -968,13 +1580,17 @@ const FeaturedProjects = () => {
                       <Link
                         to={`/script/${script._id}`}
                         className={`group block rounded-2xl overflow-hidden hover:-translate-y-1.5 transition-all duration-300 shadow-sm hover:shadow-2xl border ${
-                          dark
+                          script.premium || script.isFeatured
+                            ? dark
+                              ? "border-2 border-blue-500/40 bg-gradient-to-br from-[#0a1628] to-[#0d1b2e] hover:border-blue-500/60 hover:shadow-blue-500/20 shadow-blue-500/10"
+                              : "border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-slate-50 hover:border-blue-400 hover:shadow-blue-300/60 shadow-blue-200/40"
+                            : dark
                             ? `border-[#1a3050] bg-[#080f1e] hover:border-[#2a4570] hover:shadow-blue-500/10`
                             : `border-gray-100 bg-white hover:border-[#111111]/20 hover:shadow-gray-200/60`
                         }`}
                       >
                         {/* ── Cover Section ── */}
-                        <div className="relative h-[200px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
+                        <div className="relative h-[300px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
                           {hasCover ? (
                             <>
                               <img src={getImageUrl(script.coverImage)} alt={script.title} className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500" />
@@ -991,13 +1607,24 @@ const FeaturedProjects = () => {
                             </>
                           )}
 
-                          {/* Rank badge */}
-                          <div className="absolute top-3 left-3">
-                            {rank ? (
+                          {/* Sponsored/Premium Badge - Top Left */}
+                          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                            {(script.premium || script.isFeatured) && (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-[#1e3a5f] border border-blue-400/50 rounded-lg shadow-lg">
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-[9px] font-black text-white uppercase tracking-wide">
+                                  {script.premium ? "Premium" : "Sponsored"}
+                                </span>
+                              </div>
+                            )}
+                            {rank && (
                               <div className={`w-7 h-7 ${rank.bg} rounded-lg flex items-center justify-center shadow-lg ring-1 ring-white/10`}>
                                 <span className={`text-[10px] font-extrabold ${rank.text}`}>{rank.label}</span>
                               </div>
-                            ) : (
+                            )}
+                            {!rank && !(script.premium || script.isFeatured) && (
                               <div className="w-7 h-7 bg-black/30 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/15">
                                 <span className="text-[10px] font-bold text-white">#{idx + 2}</span>
                               </div>
@@ -1078,9 +1705,9 @@ const FeaturedProjects = () => {
                         </div>
 
                         {/* ── Info Section ── */}
-                        <div className="p-4">
+                        <div className="p-6">
                           {/* Title */}
-                          <h3 className={`text-[14px] font-bold leading-snug line-clamp-1 mb-2 transition-colors ${
+                          <h3 className={`text-[18px] font-bold leading-snug line-clamp-1 mb-2.5 transition-colors ${
                             dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"
                           }`}>
                             {script.title}
@@ -1149,7 +1776,8 @@ const FeaturedProjects = () => {
                     </motion.div>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )}
           </motion.div>
         </AnimatePresence>
