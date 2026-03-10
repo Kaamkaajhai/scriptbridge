@@ -123,6 +123,20 @@ const PlaceholderCover = ({ script }) => {
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${dark ? "bg-blue-600/20 border border-blue-500/30" : "bg-blue-200"}`}>
         <Icon size={20} strokeWidth={1.5} className={dark ? "text-blue-400" : "text-blue-600"} />
       </div>
+
+      {/* ── Quick Preference Modal ── */}
+      <AnimatePresence>
+        {showPrefModal && (
+          <QuickPrefModal
+            dark={dark}
+            initialGenres={prefGenres}
+            initialTypes={prefTypes}
+            onSave={savePreferences}
+            onClose={() => setShowPrefModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

@@ -184,6 +184,8 @@ const ScriptCard = ({ script, index = 0, rank = null }) => {
                 </span>
               )}
             </div>
+
+            {/* Top-right rating chip */}
             {script.rating > 0 && (
               <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 backdrop-blur-sm ${dark ? "bg-black/50 text-white border border-white/10" : "bg-white/90 text-gray-900 border border-gray-200"}`}>
                 <svg className="w-3 h-3 text-yellow-500 fill-yellow-500" viewBox="0 0 20 20">

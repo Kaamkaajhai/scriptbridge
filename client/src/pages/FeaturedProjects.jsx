@@ -898,7 +898,22 @@ const FeaturedProjects = () => {
       else if (selectedPremium === "free") params.append("premium", "false");
 
       const { data } = await api.get(`/scripts?${params.toString()}`);
-      setScripts(Array.isArray(data) ? data.slice(0, 24) : []);
+      const raw = Array.isArray(data) ? data : [];
+
+      /* ── Client-side sort guarantee ── */
+      const sorted = [...raw].sort((a, b) => {
+        if (selectedSort === "views") return (b.views || 0) - (a.views || 0);
+        if (selectedSort === "score") return (b.scriptScore?.overall || 0) - (a.scriptScore?.overall || 0);
+        if (selectedSort === "price_high") return (Number(b.price) || 0) - (Number(a.price) || 0);
+        if (selectedSort === "price_low") return (Number(a.price) || 0) - (Number(b.price) || 0);
+        if (selectedSort === "createdAt") return new Date(b.createdAt) - new Date(a.createdAt);
+        /* engagement / trending default */
+        const engA = a.engagementScore || a.views || 0;
+        const engB = b.engagementScore || b.views || 0;
+        return engB - engA;
+      });
+
+      setScripts(sorted.slice(0, 24));
     } catch {
       setScripts([]);
     }
@@ -1556,7 +1571,6 @@ const FeaturedProjects = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
                   {scripts.slice(1).map((script, idx) => {
                   const rank = rankBadge(idx + 1);
-                  const metric = getFeaturedMetric(script);
                   const hasCover = !!script.coverImage;
                   const isHovered = hoveredCard === (script._id || idx);
                   // Popularity bar relative to top metric
@@ -1604,7 +1618,7 @@ const FeaturedProjects = () => {
                                 <h4 className="text-lg font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-1.5">{script.title}</h4>
                                 <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed">{script.logline || script.description || script.synopsis || ""}</p>
                               </div>
-                            </>
+                            </div>
                           )}
 
                           {/* Sponsored/Premium Badge - Top Left */}
@@ -1759,7 +1773,7 @@ const FeaturedProjects = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                <span className="text-[11px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
+                                <span className="text-[11px] font-semibold">{(script.views || 0).toLocaleString()}</span>
                               </div>
                               {script.pageCount && (
                                 <div className="flex items-center gap-1">
@@ -1770,6 +1784,109 @@ const FeaturedProjects = () => {
                                 </div>
                               )}
                             </div>
+                          </div>
+                        </div>
+
+                        {/* ── Info panel ── */}
+                        <div className="p-5">
+                          {/* Title */}
+                          <h4 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${dark ? "text-white" : "text-gray-900"}`}>
+                            {script.title}
+                          </h4>
+
+                          {/* Logline / description */}
+                          {(script.logline || script.description || script.synopsis) && (
+                            <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${dark ? "text-white/40" : "text-gray-500"}`}>
+                              {script.logline || script.description || script.synopsis}
+                            </p>
+                          )}
+
+                          {/* Badges row */}
+                          <div className="flex items-center gap-2 flex-wrap mb-4">
+                            {script.genre && (
+                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                                dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"
+                              }`}>{script.genre}</span>
+                            )}
+                            {script.contentType && (
+                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${
+                                dark ? "bg-white/[0.05] text-white/40 border-white/[0.07]" : "bg-gray-100 text-gray-500 border-gray-200"
+                              }`}>{script.contentType.replace(/_/g, " ")}</span>
+                            )}
+                            {script.budget && (
+                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${
+                                dark ? "bg-white/[0.04] text-white/30 border-white/[0.06]" : "bg-gray-50 text-gray-400 border-gray-100"
+                              }`}>{script.budget} budget</span>
+                            )}
+                          </div>
+
+                          {/* Rank bar */}
+                          <div className="mb-4">
+                            <div className={`flex items-center justify-between mb-1`}>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/25" : "text-gray-400"}`}>
+                                {SORT_OPTIONS.find(s => s.key === selectedSort)?.label || "Rank"}
+                              </span>
+                              <span className={`text-[11px] font-bold tabular-nums ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>
+                                {getRankValue(script)}
+                              </span>
+                            </div>
+                            <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5] transition-all duration-700"
+                                style={{ width: `${getRankBarPct(script)}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Stats row */}
+                          <div className={`flex items-center gap-4 pb-4 mb-4 border-b ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                            <div className={`flex items-center gap-1.5 ${dark ? "text-white/35" : "text-gray-400"}`}>
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span className="text-[12px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
+                            </div>
+                            {script.pageCount && (
+                              <div className={`flex items-center gap-1.5 ${dark ? "text-white/35" : "text-gray-400"}`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <span className="text-[12px] font-semibold tabular-nums">{script.pageCount}pp</span>
+                              </div>
+                            )}
+                            {script.scriptScore?.overall > 0 && (
+                              <div className={`ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                                dark ? "bg-[#1e3a5f]/15 border-[#1e3a5f]/25" : "bg-[#1e3a5f]/[0.05] border-[#1e3a5f]/10"
+                              }`}>
+                                <svg className={`w-3.5 h-3.5 ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`} fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
+                                </svg>
+                                <span className={`text-[12px] font-bold ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>{script.scriptScore.overall}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Creator row + CTA */}
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-8 h-8 rounded-full overflow-hidden ring-2 shrink-0 ${dark ? "ring-white/10" : "ring-gray-200"}`}>
+                              {script.creator?.profileImage ? (
+                                <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-bold ${dark ? "bg-[#1e3a5f] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"}`}>
+                                  {script.creator?.name?.charAt(0)?.toUpperCase() || "?"}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[12px] font-semibold truncate ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.creator?.name || "Unknown"}</p>
+                              <p className={`text-[10px] ${dark ? "text-white/25" : "text-gray-400"}`}>Author</p>
+                            </div>
+                            <span className={`text-[12px] font-bold px-4 py-2 rounded-xl border transition-all group-hover:scale-105 ${
+                              dark
+                                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 group-hover:bg-[#243f6a]"
+                                : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm group-hover:bg-[#162d4a]"
+                            }`}>Read →</span>
                           </div>
                         </div>
                       </Link>

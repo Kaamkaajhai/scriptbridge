@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, Bell, User, CreditCard, Briefcase, Globe, Target, Heart } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { AuthContext } from "../context/AuthContext";
 
 const GENRE_OPTIONS = [
   "Action", "Comedy", "Drama", "Horror", "Thriller",
@@ -51,8 +52,43 @@ const FORMAT_OPTIONS = [
   "Short Film", "Anime", "Limited Series", "Reality Show"
 ];
 
+const READER_GENRE_OPTIONS = [
+  { label: "Action", emoji: "💥" },
+  { label: "Comedy", emoji: "😂" },
+  { label: "Drama", emoji: "🎭" },
+  { label: "Horror", emoji: "👻" },
+  { label: "Thriller", emoji: "🔪" },
+  { label: "Romance", emoji: "❤️" },
+  { label: "Sci-Fi", emoji: "🚀" },
+  { label: "Fantasy", emoji: "🧙" },
+  { label: "Mystery", emoji: "🔍" },
+  { label: "Adventure", emoji: "🗺️" },
+  { label: "Crime", emoji: "🚔" },
+  { label: "Animation", emoji: "🎨" },
+  { label: "Documentary", emoji: "🎥" },
+  { label: "Historical", emoji: "🏛️" },
+  { label: "Biographical", emoji: "📖" },
+  { label: "Sports", emoji: "⚽" },
+  { label: "Musical", emoji: "🎵" },
+  { label: "Family", emoji: "👨‍👩‍👧" },
+  { label: "Psychological", emoji: "🧠" },
+  { label: "Dark Comedy", emoji: "🖤" },
+];
+
+const READER_CONTENT_TYPES = [
+  { label: "feature_film", display: "Feature Film", emoji: "🎬" },
+  { label: "tv_pilot", display: "TV Pilot", emoji: "📺" },
+  { label: "web_series", display: "Web Series", emoji: "📱" },
+  { label: "short_film", display: "Short Film", emoji: "⏱️" },
+  { label: "documentary", display: "Documentary", emoji: "🎥" },
+  { label: "animation", display: "Animation", emoji: "🎨" },
+  { label: "limited_series", display: "Limited Series", emoji: "🗂️" },
+  { label: "reality_show", display: "Reality Show", emoji: "👁️" },
+];
+
 const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const { isDarkMode: dark } = useDarkMode();
+  const { setUser } = useContext(AuthContext);
   const isWriter = profile.role === "creator" || profile.role === "writer";
   const isInvestor = profile.role === "investor";
   const wp = profile.writerProfile || {};
@@ -109,6 +145,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   });
   const [showTagError, setShowTagError] = useState(false);
 
+  // Reader preferences state
+  const isReader = profile.role === "reader";
+  const [readerGenres, setReaderGenres] = useState(profile.preferences?.genres || []);
+  const [readerContentTypes, setReaderContentTypes] = useState(profile.preferences?.contentTypes || []);
+
+  const toggleReaderGenre = (genre) => {
+    setReaderGenres((prev) => prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]);
+  };
+  const toggleReaderContentType = (ct) => {
+    setReaderContentTypes((prev) => prev.includes(ct) ? prev.filter(c => c !== ct) : [...prev, ct]);
+  };
+
   // Bank details state
   const [bankDetails, setBankDetails] = useState({
     accountHolderName: profile.bankDetails?.accountHolderName || "",
@@ -148,10 +196,16 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         { key: "notifications", label: "Alerts", icon: <Bell size={13} /> },
         { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
       ]
-      : [
-        { key: "basic", label: "Basic", icon: <User size={13} /> },
-        { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
-      ];
+      : isReader
+        ? [
+          { key: "basic", label: "Basic", icon: <User size={13} /> },
+          { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
+          { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
+        ]
+        : [
+          { key: "basic", label: "Basic", icon: <User size={13} /> },
+          { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
+        ];
 
   const toggleGenre = (genre) => {
     setSelectedGenres((prev) =>
@@ -277,12 +331,22 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         payload.notificationPrefs = notifPrefs;
       }
 
+      // Reader preferences
+      if (isReader) {
+        payload.preferences = {
+          genres: readerGenres,
+          contentTypes: readerContentTypes,
+        };
+      }
+
       // Include bank details if any field is filled
       if (Object.values(bankDetails).some(val => val && val !== "checking" && val !== "US" && val !== "USD")) {
         payload.bankDetails = bankDetails;
       }
 
       const { data } = await api.put("/users/update", payload);
+      // Sync AuthContext so ReaderHome / For You bar picks up new preferences
+      setUser((prev) => prev ? { ...prev, ...data } : prev);
       onUpdate(data);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update profile");
@@ -851,6 +915,121 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   </div>
                 </label>
               ))}
+            </motion.div>
+          )}
+
+          {/* === READER PREFERENCES SECTION === */}
+          {activeSection === "preferences" && isReader && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {/* Genres */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className={`text-sm font-bold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Favourite Genres</h3>
+                  {readerGenres.length > 0 && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${dark ? 'bg-[#1e3a5f]/30 text-[#7aafff]' : 'bg-[#1e3a5f]/10 text-[#1e3a5f]'}`}>
+                      {readerGenres.length} selected
+                    </span>
+                  )}
+                </div>
+                <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Tap to select genres you love — we'll show those scripts first</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {READER_GENRE_OPTIONS.map(({ label, emoji }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleReaderGenre(label)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl font-medium text-xs transition-all border-2 text-left ${
+                        readerGenres.includes(label)
+                          ? dark
+                            ? 'bg-[#1e3a5f] text-white border-[#3a7bd5] shadow-md shadow-[#1e3a5f]/30'
+                            : 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                          : dark
+                            ? 'bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50 hover:text-gray-200'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-gray-900'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{emoji}</span>
+                      <span>{label}</span>
+                      {readerGenres.includes(label) && (
+                        <svg className="w-3 h-3 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {readerGenres.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReaderGenres([])}
+                    className={`mt-2 text-[11px] font-semibold hover:underline ${dark ? 'text-white/30 hover:text-white/50' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* Content Types */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className={`text-sm font-bold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Content Types</h3>
+                  {readerContentTypes.length > 0 && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${dark ? 'bg-[#1e3a5f]/30 text-[#7aafff]' : 'bg-[#1e3a5f]/10 text-[#1e3a5f]'}`}>
+                      {readerContentTypes.length} selected
+                    </span>
+                  )}
+                </div>
+                <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>What formats do you enjoy watching?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {READER_CONTENT_TYPES.map(({ label, display, emoji }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleReaderContentType(label)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl font-medium text-xs transition-all border-2 text-left ${
+                        readerContentTypes.includes(label)
+                          ? dark
+                            ? 'bg-[#1e3a5f] text-white border-[#3a7bd5] shadow-md shadow-[#1e3a5f]/30'
+                            : 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                          : dark
+                            ? 'bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50 hover:text-gray-200'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-gray-900'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{emoji}</span>
+                      <span>{display}</span>
+                      {readerContentTypes.includes(label) && (
+                        <svg className="w-3 h-3 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {readerContentTypes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReaderContentTypes([])}
+                    className={`mt-2 text-[11px] font-semibold hover:underline ${dark ? 'text-white/30 hover:text-white/50' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* Summary banner */}
+              {(readerGenres.length > 0 || readerContentTypes.length > 0) && (
+                <div className={`flex items-start gap-2.5 p-3 rounded-xl border ${
+                  dark ? 'bg-[#1e3a5f]/10 border-[#1e3a5f]/25' : 'bg-[#1e3a5f]/[0.04] border-[#1e3a5f]/15'
+                }`}>
+                  <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? 'text-[#7aafff]' : 'text-[#1e3a5f]'}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  </svg>
+                  <p className={`text-xs leading-relaxed ${dark ? 'text-[#7aafff]/70' : 'text-[#1e3a5f]/70'}`}>
+                    Your home feed will prioritise <strong>{readerGenres.length > 0 ? readerGenres.slice(0, 3).join(", ") : ""}{readerGenres.length > 3 ? ` +${readerGenres.length - 3} more` : ""}</strong>{readerGenres.length > 0 && readerContentTypes.length > 0 ? " · " : ""}<strong>{readerContentTypes.length > 0 ? readerContentTypes.map(c => READER_CONTENT_TYPES.find(x => x.label === c)?.display).join(", ") : ""}</strong> content.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 

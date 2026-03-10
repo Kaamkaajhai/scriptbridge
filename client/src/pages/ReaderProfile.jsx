@@ -23,6 +23,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const [skills, setSkills] = useState(profile.skills?.join(", ") || "");
   const [previewImage, setPreviewImage] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -43,7 +44,15 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     }
     setImageFile(file);
     setPreviewImage(URL.createObjectURL(file));
+    setImageRemoved(false);
     setError("");
+  };
+
+  const handleRemoveImage = () => {
+    setPreviewImage(null);
+    setImageFile(null);
+    setImageRemoved(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSave = async () => {
@@ -51,7 +60,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     setSaving(true);
     setError("");
     try {
-      let profileImageUrl = profile.profileImage;
+      let profileImageUrl = imageRemoved ? "" : profile.profileImage;
 
       // Upload image first if changed
       if (imageFile) {
@@ -92,7 +101,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     setSaving(false);
   };
 
-  const currentImage = previewImage || resolveImage(profile.profileImage);
+  const currentImage = imageRemoved ? "" : (previewImage || resolveImage(profile.profileImage));
 
   return (
     <motion.div
@@ -612,6 +621,42 @@ const ReaderProfile = () => {
     { key: "reviews",  label: "Reviews",         icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];
 
+  /* ── Derived helpers ── */
+  const daysActive = profile.createdAt
+    ? Math.max(1, Math.floor((Date.now() - new Date(profile.createdAt)) / 86_400_000))
+    : 0;
+  const streak = Math.min(daysActive, 30);
+  const streakPct = Math.round((streak / 30) * 100);
+  const today = new Date().getDay(); // 0=Sun
+  const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  const navTabs = [
+    { key: "overview",  label: "Overview",  icon: LayoutDashboard },
+    { key: "projects",  label: "Projects",  icon: FolderOpen },
+    { key: "about",     label: "About",     icon: Info },
+    { key: "settings",  label: "Settings",  icon: Settings },
+  ];
+
+  const activityStats = [
+    { label: "Scripts Read", value: profile.scriptsRead?.length || 0,   icon: BookOpen,  color: "blue" },
+    { label: "Followers",    value: profile.followers?.length || 0,      icon: Users,     color: "violet" },
+    { label: "Following",    value: profile.following?.length || 0,      icon: UserPlus,  color: "emerald" },
+    { label: "Days Active",  value: daysActive,                          icon: TrendingUp, color: "amber" },
+  ];
+
+  const colorMap = {
+    blue:    dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20"      : "bg-blue-50 text-blue-600 border-blue-100",
+    violet:  dark ? "bg-violet-500/10 text-violet-400 border-violet-500/20": "bg-violet-50 text-violet-600 border-violet-100",
+    emerald: dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20": "bg-emerald-50 text-emerald-600 border-emerald-100",
+    amber:   dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20"   : "bg-amber-50 text-amber-600 border-amber-100",
+    rose:    dark ? "bg-rose-500/10 text-rose-400 border-rose-500/20"      : "bg-rose-50 text-rose-500 border-rose-100",
+  };
+
+  /* ── card wrapper shorthand ── */
+  const card = `rounded-2xl border ${
+    dark ? "bg-[#0b1929] border-[#16263d] shadow-[0_2px_12px_rgba(0,0,0,0.35)]" : "bg-white border-gray-100/90 shadow-sm"
+  }`;
+
   return (
     <div
       className="min-h-screen pb-20"
@@ -980,6 +1025,7 @@ const ReaderProfile = () => {
           <EditProfileModal profile={profile} onClose={() => setEditOpen(false)} onSaved={handleProfileSaved} />
         )}
       </AnimatePresence>
+    </div>
     </div>
   );
 };
