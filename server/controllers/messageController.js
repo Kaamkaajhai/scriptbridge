@@ -10,7 +10,7 @@ const buildChatId = (idA, idB) => {
 /* ── Send a message ─────────────────────────────────────────── */
 export const sendMessage = async (req, res) => {
   try {
-    const { receiverId, text, fileUrl, fileType, fileName } = req.body;
+    const { receiverId, text, fileUrl, fileType, fileName, scriptId } = req.body;
     if (!receiverId) return res.status(400).json({ message: "receiverId is required." });
     if (!text?.trim() && !fileUrl) return res.status(400).json({ message: "Message cannot be empty." });
 
@@ -47,9 +47,13 @@ export const sendMessage = async (req, res) => {
     if (fileUrl) messageData.fileUrl = fileUrl;
     if (fileType) messageData.fileType = fileType;
     if (fileName) messageData.fileName = fileName;
+    if (scriptId) messageData.script = scriptId;
 
     const message = await Message.create(messageData);
-    const populated = await message.populate("sender", "name profileImage role");
+    const populated = await message.populate([
+      { path: "sender", select: "name profileImage role" },
+      { path: "script", select: "title" },
+    ]);
     res.status(201).json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -69,6 +73,7 @@ export const getMessages = async (req, res) => {
 
     const messages = await Message.find({ chatId, deleted: { $ne: true } })
       .populate("sender", "name profileImage role")
+      .populate("script", "title")
       .sort({ createdAt: 1 });
 
     const unreadIds = messages
@@ -120,7 +125,13 @@ export const getConversations = async (req, res) => {
       conversations.push({
         chatId: msg.chatId,
         user: otherUser,
-        lastMessage: msg.text || (msg.fileType === "image" ? "📷 Image" : "📎 File"),
+        lastMessage:
+          msg.text ||
+          (msg.fileType === "image"
+            ? "📷 Image"
+            : msg.fileType === "video"
+              ? "🎬 Trailer Video"
+              : "📎 File"),
         timestamp: msg.createdAt,
         unreadCount,
       });

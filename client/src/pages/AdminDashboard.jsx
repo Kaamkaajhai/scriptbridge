@@ -455,14 +455,39 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleTrailerApprove = async (id) => {
+    const handleTrailerApprove = async (script) => {
+        const isRegeneration = script?.trailerWriterFeedback?.status === "revision_requested";
+        const trailerUrl = window.prompt(isRegeneration
+            ? "Paste regenerated AI trailer video URL (required):"
+            : "Paste AI trailer video URL (required):");
+        if (trailerUrl === null) return;
+
+        const trimmedTrailerUrl = trailerUrl.trim();
+        if (!trimmedTrailerUrl) {
+            showToast("Trailer URL is required", "error");
+            return;
+        }
+
+        const trailerThumbnail = window.prompt("Paste trailer thumbnail URL (optional):") || "";
+        const defaultCaption = isRegeneration
+            ? `We've regenerated your AI trailer for \"${script?.title || "this script"}\". Please review this updated version.`
+            : "";
+        const caption = window.prompt("Message caption to writer (optional):", defaultCaption) || "";
+
         try {
-            await adminApi.put(`/admin/scripts/${id}/trailer-approve`);
-            showToast("Trailer approved and published");
+            await adminApi.put(`/admin/scripts/${script._id}/trailer-approve`, {
+                trailerUrl: trimmedTrailerUrl,
+                trailerThumbnail: trailerThumbnail.trim() || undefined,
+                caption: caption.trim() || undefined,
+            });
+            showToast(isRegeneration
+                ? "Regenerated trailer sent to writer via message"
+                : "Trailer approved and sent to writer via message");
             fetchData();
         } catch (err) {
             console.error(err);
-            showToast("Failed to approve trailer", "error");
+            const msg = err?.response?.data?.message || (isRegeneration ? "Failed to regenerate trailer" : "Failed to approve trailer");
+            showToast(msg, "error");
         }
     };
 
@@ -730,6 +755,7 @@ const AdminDashboard = () => {
                 );
 
             case "trailers":
+                const regenerationRequests = scripts.filter((s) => s.trailerWriterFeedback?.status === "revision_requested");
                 return (
                     <div>
                         <div className="flex items-center justify-between mb-5">
@@ -742,18 +768,52 @@ const AdminDashboard = () => {
                             </div>
                             <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                                 This section shows projects that requested AI-generated trailers. The AI generation pipeline will be connected later.
-                                For now, you can review requests and mark trailers as approved once they are ready.
+                                For now, you can review requests, send the first trailer, and regenerate a better version when a writer asks for changes.
                             </p>
                         </div>
+                        {regenerationRequests.length > 0 && (
+                            <div className={`rounded-2xl border p-5 mb-5 ${isDark ? "bg-amber-500/5 border-amber-500/20" : "bg-amber-50 border-amber-200/60"}`}>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Icon d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.992 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865A8.25 8.25 0 0117.834 6.165l3.181 3.183" className={`w-5 h-5 ${isDark ? "text-amber-300" : "text-amber-700"}`} />
+                                    <h3 className={`text-sm font-bold ${isDark ? "text-amber-200" : "text-amber-900"}`}>Writer Requested Better Trailer</h3>
+                                </div>
+                                <div className="space-y-3">
+                                    {regenerationRequests.map((script) => (
+                                        <div key={script._id} className={`rounded-xl border px-4 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 ${isDark ? "bg-white/[0.03] border-white/[0.08]" : "bg-white border-amber-100"}`}>
+                                            <div>
+                                                <p className={`text-sm font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{script.title}</p>
+                                                <p className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                                    Writer: {script.creator?.name || "Unknown"}
+                                                    {script.trailerWriterFeedback?.updatedAt ? ` • ${new Date(script.trailerWriterFeedback.updatedAt).toLocaleString()}` : ""}
+                                                </p>
+                                                <p className={`text-xs mt-1.5 ${isDark ? "text-amber-200" : "text-amber-800"}`}>
+                                                    {script.trailerWriterFeedback?.note || "Writer requested a better AI trailer version."}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleTrailerApprove(script)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/10" : "text-amber-700 hover:bg-amber-100"}`}>Regenerate AI Trailer</button>
+                                                <a href={`/messages`} target="_blank" rel="noreferrer" className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? "text-blue-300 hover:text-blue-200 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50"}`}>Open Messages</a>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         <ScriptTable scripts={scripts} isDark={isDark} showScore={false}
                             actions={(s) => (
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${s.trailerStatus === "ready" ? "bg-emerald-100 text-emerald-700" :
                                         s.trailerStatus === "generating" ? "bg-amber-100 text-amber-700" :
                                             "bg-gray-100 text-gray-600"
                                         }`}>{s.trailerStatus || "none"}</span>
+                                    {s.trailerWriterFeedback?.status === "revision_requested" && (
+                                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>writer requested changes</span>
+                                    )}
                                     {s.trailerStatus !== "ready" && (
-                                        <button onClick={() => handleTrailerApprove(s._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">Approve</button>
+                                        <button onClick={() => handleTrailerApprove(s)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${s.trailerWriterFeedback?.status === "revision_requested"
+                                            ? isDark ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/10" : "text-amber-700 hover:bg-amber-100"
+                                            : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                                            }`}>{s.trailerWriterFeedback?.status === "revision_requested" ? "Regenerate AI Trailer" : "Send Trailer"}</button>
                                     )}
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
                                 </div>
