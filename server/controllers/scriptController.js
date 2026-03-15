@@ -1814,11 +1814,11 @@ const imageFileFilter = (req, file, cb) => {
 };
 
 const videoFileFilter = (req, file, cb) => {
-  const allowed = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm"];
+  const allowed = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-m4v"];
   if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Only MP4, MPEG, MOV and WebM videos are allowed"), false);
+    cb(new Error("Only MP4, MPEG, MOV, M4V and WebM videos are allowed"), false);
   }
 };
 
@@ -1892,6 +1892,11 @@ export const uploadScriptTrailer = async (req, res) => {
     script.uploadedTrailerUrl = trailerUrl;
     script.trailerSource = "uploaded";
     script.trailerStatus = "ready";
+    script.trailerWriterFeedback = {
+      status: "approved",
+      note: "",
+      updatedAt: new Date(),
+    };
     await script.save();
 
     res.json({ 
@@ -1902,6 +1907,123 @@ export const uploadScriptTrailer = async (req, res) => {
     });
   } catch (error) {
     console.error("Trailer upload error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Writer Requests AI Trailer from Platform ──
+export const requestScriptAITrailer = async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const { note } = req.body || {};
+
+    const script = await Script.findById(scriptId);
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the script creator can request an AI trailer" });
+    }
+
+    if (script.trailerStatus === "ready" && script.trailerUrl) {
+      return res.status(400).json({ message: "AI trailer is already ready for this script" });
+    }
+
+    script.services = {
+      hosting: script.services?.hosting ?? true,
+      evaluation: script.services?.evaluation ?? false,
+      aiTrailer: true,
+    };
+    script.trailerStatus = "requested";
+    script.trailerWriterFeedback = {
+      status: "pending",
+      note: note?.trim() || "",
+      updatedAt: new Date(),
+    };
+    await script.save();
+
+    const admins = await User.find({ role: "admin" }).select("_id");
+    if (admins.length > 0) {
+      const payload = admins.map((admin) => ({
+        user: admin._id,
+        type: "trailer_ready",
+        from: req.user._id,
+        script: script._id,
+        message: `AI trailer requested by writer for \"${script.title}\"${note ? `. Note: ${note}` : ""}`,
+      }));
+      await Notification.insertMany(payload);
+    }
+
+    res.json({
+      message: "AI trailer request submitted to platform",
+      script,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Writer Feedback for Platform AI Trailer ──
+export const submitTrailerFeedback = async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const { action, note } = req.body || {};
+
+    if (!["approved", "revision_requested"].includes(action)) {
+      return res.status(400).json({ message: "action must be approved or revision_requested" });
+    }
+
+    const script = await Script.findById(scriptId);
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the script creator can submit trailer feedback" });
+    }
+
+    if (!script.trailerUrl) {
+      return res.status(400).json({ message: "No AI trailer available for feedback" });
+    }
+
+    script.trailerWriterFeedback = {
+      status: action,
+      note: note?.trim() || "",
+      updatedAt: new Date(),
+    };
+
+    if (action === "revision_requested") {
+      script.trailerStatus = "requested";
+    } else {
+      script.trailerStatus = "ready";
+    }
+
+    await script.save();
+
+    const admins = await User.find({ role: "admin" }).select("_id");
+    if (admins.length > 0) {
+      const payload = admins.map((admin) => ({
+        user: admin._id,
+        type: "trailer_ready",
+        from: req.user._id,
+        script: script._id,
+        message:
+          action === "approved"
+            ? `Writer approved AI trailer for "${script.title}".`
+            : `Writer requested a better AI trailer version for "${script.title}"${note?.trim() ? `. Note: ${note.trim()}` : ""}`,
+      }));
+      await Notification.insertMany(payload);
+    }
+
+    res.json({
+      message:
+        action === "approved"
+          ? "Trailer marked as approved"
+          : "Trailer revision request submitted",
+      script,
+    });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };

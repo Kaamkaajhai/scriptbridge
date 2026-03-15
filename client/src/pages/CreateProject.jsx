@@ -2,23 +2,28 @@ import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
+import Cropper from "react-easy-crop";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import Highlight from "@tiptap/extension-highlight";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
+import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
+import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
 import api from "../services/api";
 
 /* ── Constants ─────────────────────────────────────── */
 const formats = [
-  { value: "feature", label: "Feature Film" },
-  { value: "tv_1hour", label: "TV 1hr" },
-  { value: "tv_halfhour", label: "TV 1/2hr" },
-  { value: "short", label: "Short Film" },
+  { value: "feature", label: "Feature Film", icon: "🎬" },
+  { value: "tv_1hour", label: "TV 1-Hour", icon: "📺" },
+  { value: "tv_halfhour", label: "TV Half-Hour", icon: "📡" },
+  { value: "short", label: "Short Film", icon: "🎞️" },
+  { value: "limited_series", label: "Limited Series", icon: "🎭" },
+  { value: "documentary", label: "Documentary", icon: "🎥" },
 ];
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Fantasy",
@@ -43,6 +48,67 @@ const settingOptions = [
   "Big City", "Wilderness", "Ocean/Sea", "Desert", "Medieval", "Future",
 ];
 const SERVICE_PRICES = { hosting: 0, evaluation: 10, aiTrailer: 15 };
+const THUMBNAIL_ASPECT = 3 / 4;
+const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
+const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
+
+const createImage = (url) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.addEventListener("load", () => resolve(image));
+  image.addEventListener("error", reject);
+  image.setAttribute("crossOrigin", "anonymous");
+  image.src = url;
+});
+
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+
+const getRotatedSize = (width, height, rotation) => {
+  const r = toRadians(rotation);
+  return {
+    width: Math.abs(Math.cos(r) * width) + Math.abs(Math.sin(r) * height),
+    height: Math.abs(Math.sin(r) * width) + Math.abs(Math.cos(r) * height),
+  };
+};
+
+const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return null;
+
+  const rotated = getRotatedSize(image.width, image.height, rotation);
+  canvas.width = rotated.width;
+  canvas.height = rotated.height;
+
+  ctx.translate(rotated.width / 2, rotated.height / 2);
+  ctx.rotate(toRadians(rotation));
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+  const cropCanvas = document.createElement("canvas");
+  const cropCtx = cropCanvas.getContext("2d");
+
+  if (!cropCtx) return null;
+
+  cropCanvas.width = pixelCrop.width;
+  cropCanvas.height = pixelCrop.height;
+
+  cropCtx.drawImage(
+    canvas,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return new Promise((resolve) => {
+    cropCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
+  });
+};
 
 /* ── Format-aware page ranges (industry standards) ── */
 const FORMAT_PAGE_RANGES = {
@@ -50,95 +116,233 @@ const FORMAT_PAGE_RANGES = {
   tv_1hour: { min: 45, max: 75, typical: "50–65", label: "TV 1-Hour", wordsPerPage: 250 },
   tv_halfhour: { min: 22, max: 45, typical: "25–35", label: "TV Half-Hour", wordsPerPage: 250 },
   short: { min: 1, max: 40, typical: "5–25", label: "Short Film", wordsPerPage: 250 },
+  limited_series: { min: 45, max: 75, typical: "50–65", label: "Limited Series", wordsPerPage: 250 },
+  documentary: { min: 60, max: 120, typical: "70–100", label: "Documentary", wordsPerPage: 250 },
 };
 const LEGAL_AGREEMENT = `SUBMISSION RELEASE AGREEMENT\n\nBy submitting your script ("Work") to Ckript ("Platform"), you agree to the following terms:\n\n1. REPRESENTATIONS AND WARRANTIES\nYou represent and warrant that:\n- You are the sole owner of the Work or have full authority to submit it\n- The Work is original and does not infringe upon any third-party rights\n\n2. LICENSE GRANT\nYou grant Ckript a non-exclusive, worldwide, royalty-free license to display, distribute, and promote your Work on the Platform.\n\n3. PAYMENT TERMS\n- Hosting fees are charged monthly and are non-refundable\n- One-time service fees are non-refundable once processing begins\n\n4. INTELLECTUAL PROPERTY\nYou retain all ownership rights to your Work.\n\n5. TERMINATION\nYou may remove your Work from the Platform at any time.\n\nBy clicking "I Agree" you acknowledge that you have read and agree to these terms.\n\nLast Updated: ${new Date().toLocaleDateString()}`;
 
-const COLORS = [
-  "#ffffff", "#f87171", "#fb923c", "#fbbf24", "#34d399",
-  "#22d3ee", "#60a5fa", "#a78bfa", "#f472b6", "#94a3b8",
+const TEXT_COLORS = [
+  { label: "Default", value: null },
+  { label: "Black", value: "#000000" },
+  { label: "Slate", value: "#64748b" },
+  { label: "Red", value: "#ef4444" },
+  { label: "Orange", value: "#f97316" },
+  { label: "Amber", value: "#f59e0b" },
+  { label: "Yellow", value: "#eab308" },
+  { label: "Lime", value: "#84cc16" },
+  { label: "Green", value: "#22c55e" },
+  { label: "Teal", value: "#14b8a6" },
+  { label: "Cyan", value: "#06b6d4" },
+  { label: "Blue", value: "#3b82f6" },
+  { label: "Indigo", value: "#6366f1" },
+  { label: "Violet", value: "#8b5cf6" },
+  { label: "Purple", value: "#a855f7" },
+  { label: "Pink", value: "#ec4899" },
+  { label: "Rose", value: "#f43f5e" },
+  { label: "White", value: "#ffffff" },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: "Yellow", value: "#fef08a" },
+  { label: "Green", value: "#bbf7d0" },
+  { label: "Blue", value: "#bfdbfe" },
+  { label: "Pink", value: "#fbcfe8" },
+  { label: "Purple", value: "#e9d5ff" },
+  { label: "Orange", value: "#fed7aa" },
 ];
 
 const STEPS = [
-  { num: 1, label: "Write", icon: "✍️" },
-  { num: 2, label: "Details", icon: "📋" },
-  { num: 3, label: "Classify", icon: "🏷️" },
-  { num: 4, label: "Publish", icon: "🚀" },
+  { num: 1, label: "Write", desc: "Script content" },
+  { num: 2, label: "Details", desc: "Genre & media" },
+  { num: 3, label: "Classify", desc: "Tones & themes" },
+  { num: 4, label: "Publish", desc: "Pricing & services" },
+  { num: 5, label: "Review", desc: "Final review & invoice" },
 ];
 
-/* ── Toolbar Button ────────────────────────────────── */
-const TBtn = ({ active, onClick, title, children, dark }) => (
-  <button type="button" onClick={onClick} title={title}
-    className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all duration-150 ${active
-      ? "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/25"
-      : dark ? "text-gray-400 hover:bg-white/[0.06] hover:text-gray-200" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-      }`}
-  >{children}</button>
+/* ── Toolbar Icon Button ──────────────────────────── */
+const TBtn = ({ active, onClick, title, children, dark, disabled = false }) => (
+  <button type="button" onClick={onClick} title={title} disabled={disabled}
+    className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed ${active
+        ? "bg-[#1e3a5f] text-white shadow-sm"
+        : dark ? "text-gray-400 hover:bg-white/[0.08] hover:text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+      }`}>{children}</button>
 );
 
-/* ── Toolbar ───────────────────────────────────────── */
+/* ── Divider ───────────────────────────────────────── */
+const D = ({ dark }) => <div className={`w-px self-stretch mx-0.5 ${dark ? "bg-white/[0.08]" : "bg-gray-200"}`} />;
+
+/* ── Editor Toolbar ────────────────────────────────── */
 const EditorToolbar = ({ editor, dark }) => {
-  const [showCP, setShowCP] = useState(false);
+  const [showTextColor, setShowTextColor] = useState(false);
+  const [showHighlight, setShowHighlight] = useState(false);
+  const textColorRef = useRef(null);
+  const highlightRef = useRef(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (textColorRef.current && !textColorRef.current.contains(e.target)) setShowTextColor(false);
+      if (highlightRef.current && !highlightRef.current.contains(e.target)) setShowHighlight(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   if (!editor) return null;
-  const D = () => <div className={`w-px h-6 mx-1 ${dark ? "bg-white/[0.08]" : "bg-gray-200"}`} />;
+
+  const Section = ({ children }) => <div className="flex items-center gap-0.5">{children}</div>;
+
   return (
-    <div className={`flex flex-wrap items-center gap-0.5 px-3 py-2 border-b ${dark ? "border-[#182840] bg-[#0d1520]" : "border-gray-200 bg-gray-50/80"}`}>
-      <TBtn dark={dark} active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="H1">H1</TBtn>
-      <TBtn dark={dark} active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="H2">H2</TBtn>
-      <TBtn dark={dark} active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="H3">H3</TBtn>
-      <D />
-      <TBtn dark={dark} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z" /></svg>
-      </TBtn>
-      <TBtn dark={dark} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z" /></svg>
-      </TBtn>
-      <TBtn dark={dark} active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strike">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z" /></svg>
-      </TBtn>
-      <D />
-      <TBtn dark={dark} active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} title="Left">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z" /></svg>
-      </TBtn>
-      <TBtn dark={dark} active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()} title="Center">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z" /></svg>
-      </TBtn>
-      <D />
-      <TBtn dark={dark} active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullets">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z" /></svg>
-      </TBtn>
-      <TBtn dark={dark} active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbers">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z" /></svg>
-      </TBtn>
-      <D />
-      <TBtn dark={dark} active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z" /></svg>
-      </TBtn>
-      <TBtn dark={dark} onClick={() => editor.chain().focus().setHorizontalRule().run()} title="HR">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 11h18v2H3z" /></svg>
-      </TBtn>
-      <D />
-      <div className="relative">
-        <TBtn dark={dark} active={showCP} onClick={() => setShowCP(!showCP)} title="Color">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11 2L5.5 16h2.25l1.12-3h6.25l1.12 3h2.25L13 2h-2zm-1.38 9L12 4.67 14.38 11H9.62z" /></svg>
+    <div className={`flex flex-wrap items-center gap-1 px-3 py-2 border-b ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-200 bg-white"
+      }`}>
+
+      {/* ── Headings ── */}
+      <Section>
+        <TBtn dark={dark} active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1">H1</TBtn>
+        <TBtn dark={dark} active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading 2">H2</TBtn>
+        <TBtn dark={dark} active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="Heading 3">H3</TBtn>
+      </Section>
+
+      <D dark={dark} />
+
+      {/* ── Text Style ── */}
+      <Section>
+        {/* Bold */}
+        <TBtn dark={dark} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z" /></svg>
         </TBtn>
-        {showCP && (
-          <div className={`absolute top-full left-0 mt-2 p-2 rounded-xl border shadow-xl z-50 grid grid-cols-5 gap-1 ${dark ? "bg-[#101e30] border-[#1d3350]" : "bg-white border-gray-200"}`}>
-            {COLORS.map(c => (
-              <button key={c} onClick={() => { editor.chain().focus().setColor(c).run(); setShowCP(false); }}
-                className="w-5 h-5 rounded-md border border-white/20 hover:scale-125 transition-transform" style={{ backgroundColor: c }} />
-            ))}
-            <button onClick={() => { editor.chain().focus().unsetColor().run(); setShowCP(false); }}
-              className={`col-span-5 mt-1 text-[10px] py-1 rounded-md ${dark ? "text-gray-400 hover:bg-white/[0.06]" : "text-gray-500 hover:bg-gray-100"}`}>Reset</button>
+        {/* Italic */}
+        <TBtn dark={dark} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z" /></svg>
+        </TBtn>
+        {/* Underline */}
+        <TBtn dark={dark} active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} title="Underline">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z" /></svg>
+        </TBtn>
+        {/* Strikethrough */}
+        <TBtn dark={dark} active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strikethrough">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z" /></svg>
+        </TBtn>
+        {/* Inline Code */}
+        <TBtn dark={dark} active={editor.isActive("code")} onClick={() => editor.chain().focus().toggleCode().run()} title="Inline Code">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" /></svg>
+        </TBtn>
+      </Section>
+
+      <D dark={dark} />
+
+      {/* ── Alignment ── */}
+      <Section>
+        <TBtn dark={dark} active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} title="Align Left">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()} title="Align Center">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()} title="Align Right">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z" /></svg>
+        </TBtn>
+      </Section>
+
+      <D dark={dark} />
+
+      {/* ── Lists ── */}
+      <Section>
+        <TBtn dark={dark} active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet List">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered List">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Blockquote">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code Block">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z" /><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-2 10h-3v3h-2v-3H9v-2h3V8h2v3h3v2z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M3 11h18v2H3z" /></svg>
+        </TBtn>
+      </Section>
+
+      <D dark={dark} />
+
+      {/* ── Text Color ── */}
+      <div className="relative" ref={textColorRef}>
+        <button type="button" title="Text Color"
+          onClick={() => { setShowTextColor(v => !v); setShowHighlight(false); }}
+          className={`flex flex-col items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 ${showTextColor ? "bg-[#1e3a5f] text-white" : dark ? "text-gray-400 hover:bg-white/[0.08] hover:text-white" : "text-gray-500 hover:bg-gray-100"
+            }`}>
+          <svg className="w-[13px] h-[13px]" fill="currentColor" viewBox="0 0 24 24"><path d="M11 2L5.5 16h2.25l1.12-3h6.25l1.12 3h2.25L13 2h-2zm-1.38 9L12 4.67 14.38 11H9.62z" /></svg>
+          <div className="w-4 h-[3px] rounded-full mt-0.5" style={{ backgroundColor: editor.getAttributes("textStyle").color || (dark ? "#6b7280" : "#374151") }} />
+        </button>
+        {showTextColor && (
+          <div className={`absolute top-full left-0 mt-2 z-50 rounded-2xl border shadow-2xl overflow-hidden ${dark ? "bg-[#0a1624] border-[#1d3350]" : "bg-white border-gray-200"
+            }`} style={{ width: 220 }}>
+            <div className={`px-3 py-2 border-b text-[10px] font-bold tracking-widest uppercase ${dark ? "border-[#182840] text-gray-600" : "border-gray-100 text-gray-400"
+              }`}>Text Color</div>
+            <div className="p-3 grid grid-cols-6 gap-1.5">
+              {TEXT_COLORS.map(c => (
+                <button key={c.label} type="button" title={c.label}
+                  onClick={() => { c.value ? editor.chain().focus().setColor(c.value).run() : editor.chain().focus().unsetColor().run(); setShowTextColor(false); }}
+                  className={`w-7 h-7 rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center ${(editor.getAttributes("textStyle").color === c.value) ? "border-[#1e3a5f] scale-110" : dark ? "border-white/10" : "border-gray-200"
+                    }`}
+                  style={{ backgroundColor: c.value || (dark ? "#1a2a3a" : "#f3f4f6") }}>
+                  {!c.value && <svg className={`w-3.5 h-3.5 ${dark ? "text-gray-500" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
-      <D />
-      <TBtn dark={dark} onClick={() => editor.chain().focus().undo().run()} title="Undo">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" /></svg>
-      </TBtn>
-      <TBtn dark={dark} onClick={() => editor.chain().focus().redo().run()} title="Redo">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" /></svg>
-      </TBtn>
+
+      {/* ── Highlight ── */}
+      <div className="relative" ref={highlightRef}>
+        <button type="button" title="Highlight"
+          onClick={() => { setShowHighlight(v => !v); setShowTextColor(false); }}
+          className={`flex flex-col items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 ${showHighlight ? "bg-[#1e3a5f] text-white" : dark ? "text-gray-400 hover:bg-white/[0.08] hover:text-white" : "text-gray-500 hover:bg-gray-100"
+            }`}>
+          <svg className="w-[13px] h-[13px]" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
+          <div className="w-4 h-[3px] rounded-full mt-0.5 bg-yellow-300" />
+        </button>
+        {showHighlight && (
+          <div className={`absolute top-full left-0 mt-2 z-50 rounded-2xl border shadow-2xl overflow-hidden ${dark ? "bg-[#0a1624] border-[#1d3350]" : "bg-white border-gray-200"
+            }`} style={{ width: 200 }}>
+            <div className={`px-3 py-2 border-b text-[10px] font-bold tracking-widest uppercase ${dark ? "border-[#182840] text-gray-600" : "border-gray-100 text-gray-400"
+              }`}>Highlight</div>
+            <div className="p-3 grid grid-cols-6 gap-1.5">
+              {HIGHLIGHT_COLORS.map(c => (
+                <button key={c.label} type="button" title={c.label}
+                  onClick={() => { editor.chain().focus().toggleHighlight({ color: c.value }).run(); setShowHighlight(false); }}
+                  className={`w-7 h-7 rounded-lg border-2 transition-all hover:scale-110 ${editor.isActive("highlight", { color: c.value }) ? "border-[#1e3a5f] scale-110" : dark ? "border-white/10" : "border-gray-200"
+                    }`}
+                  style={{ backgroundColor: c.value }} />
+              ))}
+              <button type="button" title="Remove Highlight"
+                onClick={() => { editor.chain().focus().unsetHighlight().run(); setShowHighlight(false); }}
+                className={`w-7 h-7 rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center ${dark ? "border-white/10 bg-white/5" : "border-gray-200 bg-gray-50"
+                  }`}>
+                <svg className={`w-3.5 h-3.5 ${dark ? "text-gray-500" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <D dark={dark} />
+
+      {/* ── History ── */}
+      <Section>
+        <TBtn dark={dark} disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()} title="Undo">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()} title="Redo">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" /></svg>
+        </TBtn>
+        <TBtn dark={dark} onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Clear Formatting">
+          <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M5.13 3L4 4.13l7.36 7.37-4.6 9.5H9l3.64-7.54 5.23 5.23L17 17.87 5.13 3zm11.93-1.01l-3.09 3.09L12 4 9.38 9.38l1.41 1.41 1.62-3.35L16.87 12H13l1.41 1.41 2.09-2.09L18.87 13l1.13-1.13-2.94-9.88z" /></svg>
+        </TBtn>
+      </Section>
     </div>
   );
 };
@@ -208,10 +412,196 @@ const CreateProject = () => {
   // Step 2: Details
   const [formData, setFormData] = useState({ format: "feature", primaryGenre: "", logline: "", description: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
 
+  // File Upload State
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState("");
+  const [trailerFile, setTrailerFile] = useState(null);
+  const [trailerPreviewUrl, setTrailerPreviewUrl] = useState("");
+  const [trailerMeta, setTrailerMeta] = useState(null);
+  const [trailerMetaLoading, setTrailerMetaLoading] = useState(false);
+  const thumbnailInputRef = useRef(null);
+  const trailerInputRef = useRef(null);
+  const stepContentRef = useRef(null);
+
+  const [isThumbnailEditorOpen, setIsThumbnailEditorOpen] = useState(false);
+  const [thumbnailSourceUrl, setThumbnailSourceUrl] = useState("");
+  const [thumbnailCrop, setThumbnailCrop] = useState({ x: 0, y: 0 });
+  const [thumbnailZoom, setThumbnailZoom] = useState(1);
+  const [thumbnailRotation, setThumbnailRotation] = useState(0);
+  const [thumbnailCropPixels, setThumbnailCropPixels] = useState(null);
+  const [thumbnailApplying, setThumbnailApplying] = useState(false);
+
+  const resetThumbnailEditor = useCallback(() => {
+    setIsThumbnailEditorOpen(false);
+    setThumbnailCrop({ x: 0, y: 0 });
+    setThumbnailZoom(1);
+    setThumbnailRotation(0);
+    setThumbnailCropPixels(null);
+    setThumbnailSourceUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
+  }, []);
+
+  const openThumbnailEditor = useCallback((file) => {
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      setError("Please select an image file for thumbnail.");
+      return;
+    }
+    if (file.size > MAX_THUMBNAIL_SIZE) {
+      setError("Thumbnail must be an image under 5MB.");
+      return;
+    }
+
+    setError("");
+    const sourceUrl = URL.createObjectURL(file);
+    setThumbnailSourceUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return sourceUrl;
+    });
+    setThumbnailCrop({ x: 0, y: 0 });
+    setThumbnailZoom(1);
+    setThumbnailRotation(0);
+    setThumbnailCropPixels(null);
+    setIsThumbnailEditorOpen(true);
+  }, []);
+
+  const handleThumbnailSelect = (file) => {
+    if (!file) return;
+    openThumbnailEditor(file);
+  };
+
+  const handleApplyThumbnail = async () => {
+    if (!thumbnailSourceUrl || !thumbnailCropPixels) {
+      setError("Adjust thumbnail and try again.");
+      return;
+    }
+
+    setThumbnailApplying(true);
+    try {
+      const croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation);
+      if (!croppedBlob) throw new Error("thumbnail-processing-failed");
+      if (croppedBlob.size > MAX_THUMBNAIL_SIZE) {
+        setError("Processed thumbnail exceeds 5MB. Reduce zoom/area and retry.");
+        return;
+      }
+
+      const baseName = (thumbnailFile?.name || "thumbnail").replace(/\.[^/.]+$/, "");
+      const processedFile = new File([croppedBlob], `${baseName}-cover.jpg`, { type: "image/jpeg" });
+      setThumbnailFile(processedFile);
+      setError("");
+      resetThumbnailEditor();
+    } catch {
+      setError("Could not process thumbnail. Please try another image.");
+    } finally {
+      setThumbnailApplying(false);
+    }
+  };
+
+  const handleTrailerSelect = (file) => {
+    if (!file) return;
+
+    if (!file.type?.startsWith("video/")) {
+      setError("Please select a valid video file for trailer.");
+      return;
+    }
+
+    if (file.size > MAX_TRAILER_SIZE) {
+      setError("Trailer must be under 250MB for high-quality upload.");
+      return;
+    }
+
+    setTrailerFile(file);
+    setError("");
+  };
+
+  useEffect(() => {
+    if (!thumbnailFile) {
+      setThumbnailPreviewUrl("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(thumbnailFile);
+    setThumbnailPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [thumbnailFile]);
+
+  useEffect(() => {
+    if (!trailerFile) {
+      setTrailerPreviewUrl("");
+      setTrailerMeta(null);
+      setTrailerMetaLoading(false);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(trailerFile);
+    setTrailerPreviewUrl(previewUrl);
+    setTrailerMeta(null);
+    setTrailerMetaLoading(true);
+
+    let active = true;
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.src = previewUrl;
+
+    video.onloadedmetadata = () => {
+      if (!active) return;
+      setTrailerMeta({
+        duration: Number.isFinite(video.duration) ? video.duration : 0,
+        width: video.videoWidth || 0,
+        height: video.videoHeight || 0,
+      });
+      setTrailerMetaLoading(false);
+    };
+
+    video.onerror = () => {
+      if (!active) return;
+      setTrailerMetaLoading(false);
+      setTrailerMeta(null);
+    };
+
+    return () => {
+      active = false;
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [trailerFile]);
+
+  const formatDuration = (seconds) => {
+    if (!seconds || !Number.isFinite(seconds)) return "--:--";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${String(secs).padStart(2, "0")}`;
+  };
+
+  useEffect(() => {
+    const scrollToTop = () => {
+      stepContentRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+      window.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    const frameId = window.requestAnimationFrame(scrollToTop);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [step]);
+
   // Auto-calculated page count from word count + format
   const formatInfo = FORMAT_PAGE_RANGES[formData.format] || FORMAT_PAGE_RANGES.feature;
   const estimatedPages = Math.max(1, Math.round(wordCount / formatInfo.wordsPerPage));
   const pageStatus = estimatedPages < formatInfo.min ? "short" : estimatedPages > formatInfo.max ? "long" : "good";
+  const renderPageMarkers = () => Array.from({ length: Math.max(estimatedPages, 1) }, (_, pageIndex) => (
+    <div
+      key={pageIndex}
+      className="absolute left-3 flex items-center justify-center"
+      style={{ top: pageIndex * 1122 + 48, height: 28 }}
+    >
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-[#0d1520] text-gray-600 border border-[#182840]" : "bg-white text-gray-400 border border-gray-300 shadow-sm"}`}>
+        {pageIndex + 1}
+      </span>
+    </div>
+  ));
   const [tagsInput, setTagsInput] = useState("");
 
   // Step 3: Classification
@@ -232,10 +622,10 @@ const CreateProject = () => {
   const effectivePrice = isPremium ? (useCustomPrice ? Number(customPriceInput) || 0 : scriptPrice) : 0;
   const writerEarns = Math.round(effectivePrice * (1 - PLATFORM_FEE) * 100) / 100;
   const FORMAT_PRICE_GUIDE = {
-    feature:      { label: "Feature Film",    min: 15, max: 50, suggest: 25 },
-    tv_1hour:     { label: "TV 1-Hour",       min: 10, max: 30, suggest: 15 },
-    tv_halfhour:  { label: "TV Half-Hour",    min: 5,  max: 20, suggest: 10 },
-    short:        { label: "Short Film",      min: 5,  max: 15, suggest: 5  },
+    feature: { label: "Feature Film", min: 15, max: 50, suggest: 25 },
+    tv_1hour: { label: "TV 1-Hour", min: 10, max: 30, suggest: 15 },
+    tv_halfhour: { label: "TV Half-Hour", min: 5, max: 20, suggest: 10 },
+    short: { label: "Short Film", min: 5, max: 15, suggest: 5 },
   };
 
   // TipTap Editor
@@ -244,10 +634,10 @@ const CreateProject = () => {
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
-      TextStyle, Color,
-      Placeholder.configure({ placeholder: "Start writing your script...\n\nINT. LIVING ROOM - DAY\n\nA dimly lit room. The curtains sway gently..." }),
+      TextStyle, Color, Underline,
+      Placeholder.configure({ placeholder: "Start writing your script here...  e.g.  INT. LIVING ROOM – DAY" }),
     ],
-    editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[420px] px-8 py-6 ${dark ? "prose-invert" : ""}` } },
+    editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[1056px] px-16 py-14 ${dark ? "prose-invert" : ""}` } },
     onUpdate: ({ editor }) => {
       const t = editor.getText();
       setWordCount(t.split(/\s+/).filter(Boolean).length);
@@ -320,6 +710,46 @@ const CreateProject = () => {
     });
   };
   const calculateTotal = () => (services.evaluation ? SERVICE_PRICES.evaluation : 0) + (services.aiTrailer ? SERVICE_PRICES.aiTrailer : 0);
+  const totalServiceCost = calculateTotal();
+  const selectedPublishServices = [
+    { key: "hosting", name: "Hosting & Discovery", price: 0, enabled: true, desc: "Listed in the marketplace for discovery" },
+    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader" },
+    { key: "aiTrailer", name: "AI Concept Trailer", price: SERVICE_PRICES.aiTrailer, enabled: services.aiTrailer, desc: "60-second cinematic concept trailer" },
+  ];
+  const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
+  const creditsAfterPublish = creditsBalance - totalServiceCost;
+  const publishInvoiceRows = [
+    {
+      item: "Script Access",
+      detail: isPremium ? "Premium reader purchase model" : "Public free access model",
+      type: "Revenue Setting",
+      amount: isPremium ? `$${effectivePrice}` : "Free",
+    },
+    {
+      item: "Optional Services",
+      detail: paidPublishServices.length > 0 ? `${paidPublishServices.length} paid add-on${paidPublishServices.length === 1 ? "" : "s"} selected` : "No paid add-ons selected",
+      type: "Credit Charge",
+      amount: `${totalServiceCost} cr`,
+    },
+    {
+      item: "Projected Writer Payout",
+      detail: isPremium ? "Estimated per premium purchase" : "No payout on free access",
+      type: "Future Earnings",
+      amount: isPremium ? `$${writerEarns}` : "$0",
+    },
+  ];
+  const publishReviewItems = [
+    { label: "Format", value: formats.find((item) => item.value === formData.format)?.label || "Not selected" },
+    { label: "Primary Genre", value: formData.primaryGenre || "Not selected" },
+    { label: "Estimated Pages", value: `${estimatedPages} pages` },
+    { label: "Access", value: isPremium ? "Premium paid access" : "Free public access" },
+  ];
+  const publishReadiness = [
+    { label: "Title added", done: Boolean(title.trim()) },
+    { label: "Logline added", done: Boolean(formData.logline.trim()) },
+    { label: "Primary genre selected", done: Boolean(formData.primaryGenre) },
+    { label: "Agreement accepted", done: Boolean(legal.agreedToTerms) },
+  ];
 
   // Validation
   const validateStep = (s) => {
@@ -336,13 +766,13 @@ const CreateProject = () => {
       return true;
     }
     if (s === 3) return true;
-    if (s === 4) {
+    if (s === 5) {
       if (!legal.agreedToTerms) { setError("You must agree to the terms."); return false; }
       return true;
     }
     return true;
   };
-  const handleNext = () => { if (validateStep(step) && step < 4) { setStep(step + 1); setError(""); } };
+  const handleNext = () => { if (validateStep(step) && step < 5) { setStep(step + 1); setError(""); } };
   const handleBack = () => { if (step > 1) { setStep(step - 1); setError(""); } };
 
   // Publish
@@ -516,34 +946,37 @@ const CreateProject = () => {
           </div>
         </div>
 
-        {/* ── Gradient accent line ── */}
-        <div className="mt-4 h-px bg-gradient-to-r from-transparent via-[#1e3a5f]/40 to-transparent" />
-
         {/* ── Step Indicator ── */}
-        <div className="mt-5 flex items-center justify-center gap-0">
-          {STEPS.map((s, i) => (
-            <div key={s.num} className="flex items-center">
-              <button onClick={() => s.num < step && setStep(s.num)} disabled={s.num > step}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 ${step === s.num
-                  ? dark ? "bg-[#1e3a5f]/20 border border-[#1e3a5f]/40 text-white shadow-lg shadow-[#1e3a5f]/10" : "bg-[#1e3a5f]/[0.07] border border-[#1e3a5f]/30 text-[#1e3a5f] shadow-lg shadow-[#1e3a5f]/10"
-                  : step > s.num
-                    ? dark ? "text-green-400 hover:bg-white/[0.04]" : "text-green-800 hover:bg-green-50"
-                    : dark ? "text-gray-600" : "text-gray-300"
-                  } ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
-              >
-                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${step === s.num
-                  ? dark ? "bg-[#1e3a5f] text-white" : "bg-[#1e3a5f] text-white"
-                  : step > s.num
-                    ? dark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
-                    : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-100 text-gray-400"
-                  }`}>
-                  {step > s.num ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> : s.num}
-                </span>
-                <span className="text-xs font-semibold hidden sm:inline">{s.label}</span>
-              </button>
-              {i < STEPS.length - 1 && <div className={`w-8 h-px mx-1 ${step > s.num ? dark ? "bg-green-500/30" : "bg-green-400" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`} />}
-            </div>
-          ))}
+        <div className={`mt-5 rounded-2xl border p-4 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
+          <div className="flex items-center">
+            {STEPS.map((s, i) => (
+              <div key={s.num} className="flex items-center flex-1">
+                <button
+                  onClick={() => s.num < step && setStep(s.num)}
+                  disabled={s.num > step}
+                  className={`flex items-center gap-2.5 transition-all ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
+                      : step > s.num ? dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                        : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-200 text-gray-400"
+                    }`}>
+                    {step > s.num ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> : s.num}
+                  </span>
+                  <div className="hidden sm:block text-left">
+                    <p className={`text-xs font-bold leading-none ${step === s.num ? dark ? "text-white" : "text-gray-900"
+                        : step > s.num ? dark ? "text-emerald-400" : "text-emerald-700"
+                          : dark ? "text-gray-600" : "text-gray-400"
+                      }`}>{s.label}</p>
+                    <p className={`text-[10px] mt-0.5 ${dark ? "text-gray-700" : "text-gray-400"}`}>{s.desc}</p>
+                  </div>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div className={`flex-1 h-[2px] mx-3 rounded-full ${step > s.num ? dark ? "bg-emerald-500/40" : "bg-emerald-300" : dark ? "bg-white/[0.06]" : "bg-gray-200"
+                    }`} />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </motion.div>
 
@@ -778,6 +1211,150 @@ const CreateProject = () => {
         document.body
       )}
 
+      {/* ═══ Thumbnail Crop/Rotate Modal ═══ */}
+      {isThumbnailEditorOpen && thumbnailSourceUrl && createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="thumbnail-modal-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
+            style={{ background: "rgba(0,0,0,0.76)", backdropFilter: "blur(8px)" }}
+            onClick={resetThumbnailEditor}
+          >
+            <motion.div
+              key="thumbnail-modal"
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.96 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-3xl max-h-[92vh] my-2 rounded-2xl shadow-2xl overflow-hidden flex flex-col ${dark
+                ? "bg-[#091322] border border-white/[0.08]"
+                : "bg-white border border-gray-200"
+                }`}
+            >
+              <div className={`px-4 sm:px-5 py-3 sm:py-4 border-b flex items-center justify-between shrink-0 ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
+                <div>
+                  <h3 className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>Set Script Cover Image</h3>
+                  <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Drag to frame the best angle. Cover ratio is 3:4.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetThumbnailEditor}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${dark
+                    ? "text-gray-400 hover:bg-white/[0.08]"
+                    : "text-gray-500 hover:bg-gray-100"
+                    }`}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                <div className={`relative w-full h-[45vh] sm:h-[380px] min-h-[220px] rounded-xl overflow-hidden ${dark ? "bg-black/50" : "bg-gray-100"}`}>
+                  <Cropper
+                    image={thumbnailSourceUrl}
+                    crop={thumbnailCrop}
+                    zoom={thumbnailZoom}
+                    rotation={thumbnailRotation}
+                    aspect={THUMBNAIL_ASPECT}
+                    showGrid
+                    objectFit="cover"
+                    onCropChange={setThumbnailCrop}
+                    onZoomChange={setThumbnailZoom}
+                    onRotationChange={setThumbnailRotation}
+                    onCropComplete={(_, croppedAreaPixels) => setThumbnailCropPixels(croppedAreaPixels)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`rounded-xl p-3 border ${dark ? "border-white/[0.08] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <ZoomIn className={`w-4 h-4 ${dark ? "text-gray-400" : "text-gray-600"}`} />
+                      <label className={`text-xs font-semibold ${dark ? "text-gray-300" : "text-gray-700"}`}>Zoom</label>
+                      <span className={`ml-auto text-[11px] ${dark ? "text-gray-500" : "text-gray-500"}`}>{thumbnailZoom.toFixed(2)}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={3}
+                      step={0.01}
+                      value={thumbnailZoom}
+                      onChange={(e) => setThumbnailZoom(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className={`rounded-xl p-3 border ${dark ? "border-white/[0.08] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <RotateCw className={`w-4 h-4 ${dark ? "text-gray-400" : "text-gray-600"}`} />
+                      <label className={`text-xs font-semibold ${dark ? "text-gray-300" : "text-gray-700"}`}>Rotation</label>
+                      <span className={`ml-auto text-[11px] ${dark ? "text-gray-500" : "text-gray-500"}`}>{Math.round(thumbnailRotation)}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={-180}
+                      max={180}
+                      step={1}
+                      value={thumbnailRotation}
+                      onChange={(e) => setThumbnailRotation(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                <div className={`rounded-xl px-3 py-2 border flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-between ${dark ? "border-white/[0.08] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}>
+                  <div className="flex items-center gap-2">
+                    <Move className={`w-3.5 h-3.5 ${dark ? "text-gray-500" : "text-gray-500"}`} />
+                    <p className={`text-[11px] ${dark ? "text-gray-400" : "text-gray-500"}`}>Tip: drag image to choose focal point, then fine-tune zoom and angle.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setThumbnailCrop({ x: 0, y: 0 });
+                      setThumbnailZoom(1);
+                      setThumbnailRotation(0);
+                    }}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition ${dark
+                      ? "bg-white/[0.08] text-gray-300 hover:bg-white/[0.12]"
+                      : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                      }`}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <div className={`px-4 sm:px-5 pb-4 sm:pb-5 pt-3 flex gap-3 shrink-0 ${dark ? "border-t border-white/[0.06]" : "border-t border-gray-100"}`}>
+                <button
+                  type="button"
+                  onClick={resetThumbnailEditor}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition ${dark
+                    ? "bg-white/[0.05] text-gray-400 hover:bg-white/[0.08]"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyThumbnail}
+                  disabled={thumbnailApplying}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white"
+                >
+                  {thumbnailApplying ? "Saving Cover..." : "Save Cover"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      <div ref={stepContentRef} />
+
       {/* ── Error ── */}
       <AnimatePresence>
         {error && (
@@ -794,65 +1371,94 @@ const CreateProject = () => {
         {/* ── STEP 1: Write ── */}
         {step === 1 && (
           <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
-            <div className={cardCls}>
-              {/* Title */}
-              <div className={`px-6 py-4 border-b ${dark ? "border-[#182840]" : "border-gray-100"}`}>
-                <input type="text" value={title} onChange={e => { setTitle(e.target.value); setSaved(false); }} placeholder="Your Project Title"
-                  className={`editor-title w-full text-xl font-bold bg-transparent outline-none ${dark ? "text-gray-100 placeholder:text-gray-600" : "text-gray-900 placeholder:text-gray-300"}`} />
-              </div>
-              {/* Toolbar */}
-              <EditorToolbar editor={editor} dark={dark} />
-              {/* Editor */}
-              <div className={`${dark
-                ? "[&_.tiptap]:text-gray-200 [&_.tiptap_p.is-editor-empty:first-child::before]:text-gray-600 [&_.tiptap_h1]:text-white [&_.tiptap_h2]:text-gray-100 [&_.tiptap_blockquote]:border-[#1d3350] [&_.tiptap_blockquote]:text-gray-400 [&_.tiptap_code]:bg-white/[0.06] [&_.tiptap_pre]:bg-[#0f1e30] [&_.tiptap_hr]:border-[#182840]"
-                : "[&_.tiptap_code]:bg-gray-100 [&_.tiptap_pre]:bg-gray-50 [&_.tiptap_blockquote]:border-gray-300 [&_.tiptap_hr]:border-gray-200"}`}>
-                <EditorContent editor={editor} />
-              </div>
-              {/* Status */}
-              <div className={`flex items-center justify-between px-4 py-2.5 border-t text-xs ${dark ? "border-[#182840] text-gray-500" : "border-gray-100 text-gray-400"}`}>
-                <div className="flex gap-4"><span>{wordCount} words</span><span>{charCount} chars</span></div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleGrammarClick}
-                    disabled={grammarLoading || saving}
-                    className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all disabled:opacity-50 active:scale-[0.97] ${dark
-                      ? "border-emerald-500/20 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-400/30"
-                      : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300"
-                      }`}
-                  >
-                    {grammarLoading ? (
-                      <>
-                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Fixing...
-                      </>
-                    ) : (
-                      <>
-                        <span>📝</span>
-                        Fix Grammar
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${dark
-                          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                          : "bg-amber-50 text-amber-600 border border-amber-200"
-                        }`}>{GRAMMAR_COST}cr</span>
-                      </>
-                    )}
-                  </button>
+            {/* ── Editor Shell ── */}
+            <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-white border-gray-200 shadow-sm"}`}>
+
+              {/* ── Top Bar: title + save ── */}
+              <div className={`flex items-center gap-3 px-5 py-3 border-b ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={e => { setTitle(e.target.value); setSaved(false); }}
+                    placeholder="Untitled Script"
+                    className={`w-full text-base font-bold bg-transparent outline-none truncate ${dark ? "text-gray-100 placeholder:text-gray-700" : "text-gray-900 placeholder:text-gray-300"}`}
+                  />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {saving && <span className={`flex items-center gap-1.5 text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving…</span>}
+                  {saved && !saving && <span className={`flex items-center gap-1 text-xs ${dark ? "text-emerald-400" : "text-emerald-600"}`}><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
                   <button onClick={() => handleSave(false)} disabled={saving}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${dark ? "hover:bg-white/[0.06] text-gray-400" : "hover:bg-gray-100 text-gray-500"}`}>
-                    {saving ? "Saving..." : "Save Draft"}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
+                    Save Draft
+                  </button>
+                  <button onClick={handleGrammarClick} disabled={grammarLoading || saving}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-40 ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
+                    {grammarLoading ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Fixing…</> : <>✏️ Fix Grammar <span className={`text-[9px] px-1 py-0.5 rounded ${dark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>{GRAMMAR_COST}cr</span></>}
                   </button>
                 </div>
               </div>
+
+              {/* ── Toolbar ── */}
+              <EditorToolbar editor={editor} dark={dark} />
+
+              {/* ── Page Gutter + Document Canvas ── */}
+              <div className={`relative overflow-y-auto max-h-[72vh] ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`}
+                style={{ backgroundImage: dark ? "radial-gradient(circle, #1a2a3a 1px, transparent 1px)" : "radial-gradient(circle, #c8cdd5 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
+
+                {/* Page number gutter labels */}
+                <div className="sticky top-0 left-0 z-10 pointer-events-none">
+                  {renderPageMarkers()}
+                </div>
+
+                {/* The actual page(s) */}
+                <div className="flex flex-col items-center gap-0 py-8 px-14">
+                  <div
+                    className={`relative w-full shadow-2xl ${dark ? "bg-[#111827]" : "bg-white"}`}
+                    style={{ maxWidth: 760, minHeight: Math.max(estimatedPages, 1) * 1056 + "px" }}>
+
+                    {/* Page break lines */}
+                    {Array.from({ length: Math.max(estimatedPages - 1, 0) }).map((_, i) => (
+                      <div key={i} style={{ position: "absolute", top: (i + 1) * 1056, left: 0, right: 0, zIndex: 5 }}>
+                        <div className={`w-full flex items-center gap-3 px-4 ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`} style={{ height: 32 }}>
+                          <div className={`flex-1 h-px ${dark ? "bg-[#1a2a3a]" : "bg-gray-300"}`} />
+                          <span className={`text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded ${dark ? "bg-[#0d1520] text-gray-600 border border-[#182840]" : "bg-white text-gray-400 border border-gray-300"}`}>
+                            Page {i + 2}
+                          </span>
+                          <div className={`flex-1 h-px ${dark ? "bg-[#1a2a3a]" : "bg-gray-300"}`} />
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* TipTap content */}
+                    <div className={`relative z-0 ${dark
+                      ? "[&_.tiptap]:text-gray-200 [&_.tiptap_p.is-editor-empty:first-child::before]:text-gray-700 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_h1]:text-white [&_.tiptap_h2]:text-gray-100 [&_.tiptap_blockquote]:border-[#1d3350] [&_.tiptap_blockquote]:text-gray-400 [&_.tiptap_code]:bg-white/[0.06] [&_.tiptap_pre]:bg-[#0a1220] [&_.tiptap_hr]:border-[#1e2a3a]"
+                      : "[&_.tiptap_p.is-editor-empty:first-child::before]:text-gray-300 [&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.tiptap_p.is-editor-empty:first-child::before]:float-left [&_.tiptap_p.is-editor-empty:first-child::before]:pointer-events-none [&_.tiptap_code]:bg-gray-100 [&_.tiptap_pre]:bg-gray-50 [&_.tiptap_blockquote]:border-gray-200 [&_.tiptap_hr]:border-gray-200 [&_.tiptap]:text-gray-900"}`}>
+                      <EditorContent editor={editor} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Status Bar ── */}
+              <div className={`flex items-center justify-between px-4 py-2 border-t text-[11px] ${dark ? "border-[#182840] bg-[#080f1a] text-gray-600" : "border-gray-100 bg-gray-50 text-gray-400"}`}>
+                <div className="flex items-center gap-4">
+                  <span>{wordCount} <span className={dark ? "text-gray-700" : "text-gray-300"}>words</span></span>
+                  <span>{charCount} <span className={dark ? "text-gray-700" : "text-gray-300"}>chars</span></span>
+                  <span className={`font-semibold ${pageStatus === "good" ? dark ? "text-emerald-400" : "text-emerald-600" : pageStatus === "short" ? dark ? "text-amber-400" : "text-amber-600" : dark ? "text-blue-400" : "text-blue-600"}`}>
+                    ~{estimatedPages} page{estimatedPages !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className={`flex items-center gap-1.5 text-[10px] ${pageStatus === "good" ? dark ? "text-emerald-500" : "text-emerald-600" : pageStatus === "short" ? dark ? "text-amber-500" : "text-amber-600" : dark ? "text-blue-400" : "text-blue-600"}`}>
+                  {pageStatus === "good" ? "✓ Good length" : pageStatus === "short" ? "⬆ Keep writing" : "⬆ Consider trimming"}
+                  <span className={dark ? "text-gray-700" : "text-gray-300"}>· {formatInfo.label} typical: {formatInfo.typical} pages</span>
+                </div>
+              </div>
+
               {grammarNotes.length > 0 && (
                 <div className={`px-4 py-3 text-xs border-t ${dark ? "border-[#182840] text-gray-400" : "border-gray-100 text-gray-600"}`}>
                   <p className={`font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>AI Notes</p>
-                  <ul className="space-y-0.5">
-                    {grammarNotes.slice(0, 3).map((note, idx) => (
-                      <li key={`${note}-${idx}`}>• {note}</li>
-                    ))}
-                  </ul>
+                  <ul className="space-y-0.5">{grammarNotes.slice(0, 3).map((note, idx) => <li key={`${note}-${idx}`}>• {note}</li>)}</ul>
                 </div>
               )}
             </div>
@@ -921,11 +1527,17 @@ const CreateProject = () => {
                 </div>
               </div>
               <div>
-                <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Primary Genre *</label>
-                <select name="primaryGenre" value={formData.primaryGenre} onChange={handleChange} className={inputCls}>
-                  <option value="">Select genre...</option>
-                  {genres.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+                <label className={`block text-sm font-medium mb-2 ${dark ? "text-gray-300" : "text-gray-700"}`}>Primary Genre *</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {genres.map(g => (
+                    <button key={g} type="button"
+                      onClick={() => setFormData(fd => ({ ...fd, primaryGenre: fd.primaryGenre === g ? "" : g }))}
+                      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all ${formData.primaryGenre === g
+                          ? "bg-[#1e3a5f] border-[#1e3a5f] text-white"
+                          : dark ? "border-[#1d3350] text-gray-400 hover:border-[#2a4a6a] hover:text-gray-200" : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                        }`}>{g}</button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Logline * <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>({formData.logline.length}/300)</span></label>
@@ -940,6 +1552,130 @@ const CreateProject = () => {
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Tags <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(comma separated)</span></label>
                 <input type="text" value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="e.g. heist, ensemble, twist ending" className={inputCls} />
+              </div>
+
+              {/* Media Uploads */}
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                {/* Thumbnail Upload */}
+                <div>
+                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                    Script Thumbnail <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                  </label>
+                  {!thumbnailFile ? (
+                    <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                      <ImageIcon className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
+                      <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
+                      <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
+                      <input
+                        ref={thumbnailInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => {
+                          handleThumbnailSelect(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+                    </div>
+                  ) : (
+                    <div className={`border rounded-xl p-3 flex items-center gap-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                      <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
+                        <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB • Cover ready</p>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openThumbnailEditor(thumbnailFile)}
+                          className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
+                        >
+                          Adjust
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setThumbnailFile(null);
+                            setError("");
+                          }}
+                          className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Trailer Upload */}
+                <div>
+                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                    Trailer Video <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                  </label>
+                  <input
+                    ref={trailerInputRef}
+                    type="file"
+                    accept="video/mp4,video/mpeg,video/quicktime,video/webm,video/x-m4v"
+                    onChange={(e) => {
+                      handleTrailerSelect(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                    className="hidden"
+                  />
+
+                  {!trailerFile ? (
+                    <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                      <Film className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
+                      <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
+                      <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
+                      <p className={`text-[10px] mt-1 ${dark ? "text-gray-600" : "text-gray-400"}`}>Best results: 1080p+, H.264/H.265</p>
+                    </div>
+                  ) : (
+                    <div className={`border rounded-xl p-3 space-y-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                      <div className="relative overflow-hidden rounded-lg">
+                        <video
+                          src={trailerPreviewUrl}
+                          controls
+                          preload="metadata"
+                          className="w-full h-44 object-contain bg-black"
+                        />
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="w-6 h-6 text-green-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
+                          <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>
+                            {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
+                            {trailerMetaLoading ? " • reading video info..." : trailerMeta ? ` • ${formatDuration(trailerMeta.duration)} • ${trailerMeta.width}x${trailerMeta.height}` : ""}
+                          </p>
+                          <p className={`text-[10px] mt-1 ${dark ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => trailerInputRef.current?.click()}
+                            className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
+                          >
+                            Replace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTrailerFile(null);
+                              setError("");
+                            }}
+                            className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -965,204 +1701,363 @@ const CreateProject = () => {
           </motion.div>
         )}
 
-        {/* ── STEP 4: Review & Publish ── */}
+        {/* ── STEP 4: Publish Setup ── */}
         {step === 4 && (
           <motion.div key="s4" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
-            <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
-              <div>
-                <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Review & Publish</h2>
-                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Set your script's price, choose optional services, and agree to our terms.</p>
-              </div>
-
-              {/* ── Pricing ── */}
-              <div className={`rounded-2xl border p-5 space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
-                    <svg className={`w-4 h-4 ${dark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </div>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_380px] gap-6 items-start">
+              <div className="space-y-6">
+                <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
                   <div>
-                    <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Script Access & Pricing</h3>
-                    <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Decide whether your full script is freely readable or paid</p>
+                    <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Publish Setup</h2>
+                    <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Configure public access, pricing, services, and legal details before final review.</p>
                   </div>
-                </div>
 
-                {/* Free / Premium toggle */}
-                <div className={`grid grid-cols-2 gap-2.5 p-1 rounded-xl ${dark ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
-                  <button type="button" onClick={() => setIsPremium(false)}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                      !isPremium
-                        ? dark ? "bg-white/[0.1] text-white shadow" : "bg-[#1e3a5f] text-white shadow-sm"
-                        : dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"
-                    }`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                    Free Access
-                  </button>
-                  <button type="button" onClick={() => setIsPremium(true)}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                      isPremium
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm"
-                        : dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"
-                    }`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                    Premium (Paid)
-                  </button>
-                </div>
-
-                {/* Free description */}
-                {!isPremium && (
-                  <div className={`flex items-start gap-3 px-4 py-3 rounded-xl ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
-                    <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? "text-blue-400" : "text-blue-500"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    <p className={`text-[12px] leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>
-                      Anyone can read your full script for free. Great for building your audience and getting discovered by more industry professionals.
-                    </p>
-                  </div>
-                )}
-
-                {/* Paid price picker */}
-                {isPremium && (
-                  <div className="space-y-4">
-                    {/* Suggested range */}
-                    {FORMAT_PRICE_GUIDE[formData.format] && (
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] ${dark ? "bg-amber-500/10 border border-amber-500/20 text-amber-400" : "bg-amber-50 border border-amber-200 text-amber-700"}`}>
-                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
-                        <span><strong>Industry guide for {FORMAT_PRICE_GUIDE[formData.format].label}:</strong> ${FORMAT_PRICE_GUIDE[formData.format].min}–${FORMAT_PRICE_GUIDE[formData.format].max} · Suggested: ${FORMAT_PRICE_GUIDE[formData.format].suggest}</span>
+                  <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Publication Plan</p>
+                        <h3 className={`text-base font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
+                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Choose whether this project stays publicly readable or becomes a paid premium listing.</p>
                       </div>
-                    )}
-
-                    {/* Quick-select presets */}
-                    <div>
-                      <p className={`text-[11px] font-semibold mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>QUICK SELECT</p>
-                      <div className="flex flex-wrap gap-2">
-                        {PRICE_PRESETS.map(p => (
-                          <button key={p} type="button"
-                            onClick={() => { setScriptPrice(p); setUseCustomPrice(false); setCustomPriceInput(""); }}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${
-                              !useCustomPrice && scriptPrice === p
-                                ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25"
-                                : dark
-                                  ? "border-[#1d3350] text-gray-400 hover:border-emerald-500/50 hover:text-emerald-400"
-                                  : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-600"
-                            }`}>
-                            ${p}
-                          </button>
-                        ))}
-                        <button type="button"
-                          onClick={() => { setUseCustomPrice(true); setCustomPriceInput(String(scriptPrice)); }}
-                          className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${
-                            useCustomPrice
-                              ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25"
-                              : dark
-                                ? "border-[#1d3350] text-gray-400 hover:border-emerald-500/50 hover:text-emerald-400"
-                                : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-600"
-                          }`}>
-                          Custom
-                        </button>
+                      <div className={`px-3 py-2 rounded-xl text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-gray-500" : "text-gray-400"}`}>Current Plan</p>
+                        <p className={`text-sm font-bold mt-1 ${isPremium ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-blue-300" : "text-blue-700"}`}>{isPremium ? "Premium Access" : "Free Public Access"}</p>
                       </div>
                     </div>
 
-                    {/* Custom input */}
-                    {useCustomPrice && (
-                      <div className="flex items-center gap-2">
-                        <div className="relative w-36">
-                          <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>$</span>
-                          <input
-                            type="number" min="1" max="500" step="1"
-                            value={customPriceInput}
-                            onChange={e => setCustomPriceInput(e.target.value)}
-                            placeholder="0"
-                            className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${
-                              dark
-                                ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500"
-                                : "bg-white border-emerald-400 text-gray-900 focus:border-emerald-500"
-                            }`}
-                          />
+                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 p-1.5 rounded-2xl ${dark ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
+                      <button type="button" onClick={() => setIsPremium(false)}
+                        className={`text-left rounded-xl px-4 py-4 border transition-all ${!isPremium
+                          ? dark ? "bg-[#122338] border-[#24456b] text-white shadow-lg shadow-black/20" : "bg-[#1e3a5f] border-[#1e3a5f] text-white shadow-sm"
+                          : dark ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
+                        }`}>
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${!isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-blue-50"}`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold">Free Access</p>
+                            <p className={`text-[11px] ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for visibility and discovery</p>
+                          </div>
                         </div>
-                        <span className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Enter a value between $1 and $500</span>
-                      </div>
-                    )}
+                        <ul className={`space-y-1.5 text-[12px] leading-relaxed ${!isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
+                          <li>Full script can be read publicly</li>
+                          <li>Ideal for building reach with producers</li>
+                          <li>No buyer payment required</li>
+                        </ul>
+                      </button>
 
-                    {/* Earnings preview */}
-                    {effectivePrice > 0 && (
-                      <div className={`grid grid-cols-3 gap-3 p-4 rounded-xl ${
-                        dark ? "bg-emerald-500/[0.07] border border-emerald-500/20" : "bg-emerald-50 border border-emerald-200"
-                      }`}>
-                        <div className="text-center">
-                          <p className={`text-[11px] font-semibold mb-1 ${ dark ? "text-gray-500" : "text-gray-400"}`}>Buyer Pays</p>
-                          <p className={`text-xl font-black ${ dark ? "text-white" : "text-gray-900"}`}>${effectivePrice}</p>
+                      <button type="button" onClick={() => setIsPremium(true)}
+                        className={`text-left rounded-xl px-4 py-4 border transition-all ${isPremium
+                          ? dark ? "bg-emerald-600/15 border-emerald-500/40 text-white shadow-lg shadow-black/20" : "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                          : dark ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
+                        }`}>
+                        <div className="flex items-center gap-2.5 mb-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-emerald-50"}`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold">Premium Access</p>
+                            <p className={`text-[11px] ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script access</p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className={`text-[11px] font-semibold mb-1 ${ dark ? "text-gray-500" : "text-gray-400"}`}>Platform Fee</p>
-                          <p className={`text-xl font-black text-gray-400`}>${(effectivePrice * PLATFORM_FEE).toFixed(2)}</p>
+                        <ul className={`space-y-1.5 text-[12px] leading-relaxed ${isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
+                          <li>Set your own reader purchase price</li>
+                          <li>Platform handles payment split automatically</li>
+                          <li>Better for high-intent readers</li>
+                        </ul>
+                      </button>
+                    </div>
+
+                    {!isPremium ? (
+                      <div className={`rounded-xl px-4 py-3 flex items-start gap-3 ${dark ? "bg-blue-500/8 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
+                        <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                        <div>
+                          <p className={`text-sm font-semibold ${dark ? "text-white" : "text-gray-900"}`}>Public discovery mode</p>
+                          <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Your project stays open for reading, which is often the cleanest path for early audience growth and inbound interest.</p>
                         </div>
-                        <div className="text-center">
-                          <p className={`text-[11px] font-semibold mb-1 ${ dark ? "text-emerald-400" : "text-emerald-600"}`}>You Earn</p>
-                          <p className={`text-xl font-black ${ dark ? "text-emerald-400" : "text-emerald-600"}`}>${writerEarns}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {FORMAT_PRICE_GUIDE[formData.format] && (
+                          <div className={`flex items-start gap-2.5 px-4 py-3 rounded-xl ${dark ? "bg-amber-500/10 border border-amber-500/20 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                            <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
+                            <div className="text-[12px] leading-relaxed">
+                              <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
+                              <p className="mt-0.5">${FORMAT_PRICE_GUIDE[formData.format].min} to ${FORMAT_PRICE_GUIDE[formData.format].max} with a recommended starting point of ${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <p className={`text-[11px] font-bold uppercase tracking-[0.16em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose Price</p>
+                          <div className="flex flex-wrap gap-2">
+                            {PRICE_PRESETS.map(p => (
+                              <button key={p} type="button"
+                                onClick={() => { setScriptPrice(p); setUseCustomPrice(false); setCustomPriceInput(""); }}
+                                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${!useCustomPrice && scriptPrice === p
+                                  ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                  : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
+                                }`}>
+                                ${p}
+                              </button>
+                            ))}
+                            <button type="button"
+                              onClick={() => { setUseCustomPrice(true); setCustomPriceInput(String(scriptPrice)); }}
+                              className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${useCustomPrice
+                                ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
+                              }`}>
+                              Custom
+                            </button>
+                          </div>
                         </div>
+
+                        {useCustomPrice && (
+                          <div className={`rounded-xl p-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                            <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Custom Price</label>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                              <div className="relative w-full sm:w-40">
+                                <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>$</span>
+                                <input
+                                  type="number" min="1" max="500" step="1"
+                                  value={customPriceInput}
+                                  onChange={e => setCustomPriceInput(e.target.value)}
+                                  placeholder="0"
+                                  className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
+                                />
+                              </div>
+                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Set a value between $1 and $500. Readers will see this as the full purchase price.</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {/* Services */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { key: "hosting", icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>, name: "Hosting & Discovery", price: "FREE", desc: "Your script listed on the marketplace" },
-                  { key: "evaluation", icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Scorecard & feedback from a vetted reader" },
-                  { key: "aiTrailer", iconOffset: "pl-10", icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>, name: "AI Concept Trailer", price: `${SERVICE_PRICES.aiTrailer} credits`, desc: "60-second cinematic teaser", badge: "BETA" },
-                ].map(s => (
-                  <div key={s.key} onClick={() => s.key !== "hosting" && setServices(sv => ({ ...sv, [s.key]: !sv[s.key] }))}
-                    className={`rounded-xl border-2 p-4 transition-all cursor-pointer text-center ${services[s.key]
-                      ? dark ? "border-[#1e3a5f] bg-[#1e3a5f]/10" : "border-[#1e3a5f]/50 bg-[#1e3a5f]/[0.06]"
-                      : dark ? "border-[#182840] hover:border-[#1d3350]" : "border-gray-200 hover:border-gray-300"
-                      } ${s.key === "hosting" ? "cursor-default opacity-80" : ""}`}>
-                    {s.badge && <span className="float-right text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-white">{s.badge}</span>}
-                    <div className={`mb-2 flex justify-center ${s.iconOffset || ""} ${dark ? "text-gray-400" : "text-gray-500"}`}>{s.icon}</div>
-                    <h4 className={`text-sm font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{s.name}</h4>
-                    <p className={`text-lg font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{s.price}</p>
-                    <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-400"}`}>{s.desc}</p>
-                    {s.key !== "hosting" && <div className="mt-2 flex items-center gap-1.5">
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition ${services[s.key] ? dark ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-[#1e3a5f] bg-[#1e3a5f]" : dark ? "border-gray-600" : "border-gray-300"}`}>
-                        {services[s.key] && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-center gap-2.5 mb-5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
+                        <svg className={`w-4 h-4 ${dark ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h16.5A2.25 2.25 0 0122.5 5.25V9M3.75 3l5.25 5.25m0 0L12 11.25m-3-3L6 11.25m3-3v8.25" /></svg>
                       </div>
-                      <span className={`text-[11px] ${dark ? "text-gray-400" : "text-gray-500"}`}>{services[s.key] ? "Selected" : "Optional"}</span>
-                    </div>}
+                      <div>
+                        <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Optional Services</h3>
+                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Add professional support services before you publish.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {[
+                        { key: "hosting", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" /></svg>, name: "Hosting & Discovery", price: "FREE", desc: "Marketplace listing and public discovery", locked: true },
+                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses" },
+                        { key: "aiTrailer", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>, name: "AI Concept Trailer", price: `${SERVICE_PRICES.aiTrailer} credits`, desc: "60-second cinematic teaser", badge: "BETA" },
+                      ].map((service) => (
+                        <button
+                          key={service.key}
+                          type="button"
+                          onClick={() => !service.locked && setServices((current) => ({ ...current, [service.key]: !current[service.key] }))}
+                          className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${service.locked
+                            ? dark ? "border-[#22405f] bg-[#0e2032] cursor-default" : "border-blue-100 bg-blue-50/70 cursor-default"
+                            : services[service.key]
+                              ? dark ? "border-[#2b5d8f] bg-[#122338]" : "border-[#1e3a5f]/25 bg-[#1e3a5f]/[0.05]"
+                              : dark ? "border-[#182840] hover:border-[#22405f] hover:bg-white/[0.02]" : "border-gray-200 hover:border-gray-300 hover:bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${services[service.key] || service.locked ? dark ? "bg-white/[0.08] text-white" : "bg-white text-[#1e3a5f]" : dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+                              {service.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
+                                {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
+                                {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                              </div>
+                              <p className={`text-[12px] mt-1 ${dark ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
+                              {!service.locked && (
+                                <p className={`text-[11px] mt-1 ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
 
-              {/* Credits */}
-              <div className={`rounded-xl p-4 flex items-center justify-between ${dark ? "bg-[#1e3a5f]/10 border border-[#1e3a5f]/20" : "bg-[#1e3a5f]/[0.06] border border-[#1e3a5f]/15"}`}>
-                <div>
-                  <p className={`text-xs ${dark ? "text-gray-400" : "text-gray-500"}`}>Your Balance</p>
-                  <p className={`text-lg font-bold ${dark ? "text-white" : "text-gray-900"}`}>{creditsBalance} credits</p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-xs ${dark ? "text-gray-400" : "text-gray-500"}`}>Total Cost</p>
-                  <p className={`text-lg font-bold ${calculateTotal() > creditsBalance ? "text-red-400" : dark ? "text-green-400" : "text-green-600"}`}>{calculateTotal()} credits</p>
+                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
+                        <svg className={`w-4 h-4 ${dark ? "text-purple-300" : "text-purple-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h3.75A2.625 2.625 0 0116.5 4.875v1.5H7.5v-1.5A2.625 2.625 0 0110.125 2.25zM7.5 9h9m-9 0v8.625A2.625 2.625 0 0010.125 20.25h3.75A2.625 2.625 0 0016.5 17.625V9m-9 0h9" /></svg>
+                      </div>
+                      <div>
+                        <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Submission Agreement</h3>
+                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Review the publishing terms before you make the project live.</p>
+                      </div>
+                    </div>
+
+                    <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 ${dark ? "text-gray-400" : "text-gray-600"}`}>
+                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Rights</p>
+                        <p className="text-[12px] mt-2 leading-relaxed">You retain ownership of your script.</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${dark ? "text-gray-500" : "text-gray-400"}`}>License</p>
+                        <p className="text-[12px] mt-2 leading-relaxed">Platform gets a non-exclusive display and promotion license.</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Refunds</p>
+                        <p className="text-[12px] mt-2 leading-relaxed">Service charges are not refundable after processing starts.</p>
+                      </div>
+                    </div>
+
+                    <div ref={agreementRef} className={`rounded-xl p-4 h-48 overflow-y-auto text-xs leading-relaxed border ${dark ? "border-[#182840] text-gray-400 bg-[#050b14]" : "border-gray-200 text-gray-500 bg-white"}`}>
+                      <pre className="whitespace-pre-wrap font-sans">{LEGAL_AGREEMENT}</pre>
+                    </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer mt-4">
+                      <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal({ agreedToTerms: e.target.checked })}
+                        className="w-5 h-5 rounded mt-0.5 accent-[#1e3a5f]" />
+                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I have read and agree to the Submission Release Agreement and confirm that I have the right to publish this script.</span>
+                    </label>
+                  </div>
+                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Publish Snapshot</p>
+                        <h3 className={`text-base font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>Single-Page Summary</h3>
+                      </div>
+                      <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full ${isPremium ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>{isPremium ? "Premium" : "Public"}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mb-4">
+                      {publishReviewItems.map((item) => (
+                        <div key={item.label} className={`rounded-xl px-3 py-3 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-gray-500" : "text-gray-400"}`}>{item.label}</p>
+                          <p className={`text-[12px] mt-1.5 font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
+                        <p className={`text-lg font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : dark ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-emerald-500/10 border border-emerald-500/15" : "bg-emerald-50 border border-emerald-100"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-emerald-300" : "text-emerald-700"}`}>Credits After Publish</p>
+                        <p className={`text-lg font-black mt-1 ${creditsAfterPublish < 0 ? "text-red-400" : dark ? "text-emerald-300" : "text-emerald-700"}`}>{creditsAfterPublish}</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
+                        <p className={`text-lg font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `$${writerEarns}` : "$0"}</p>
+                      </div>
+                    </div>
+
+                    <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                      <p className={`text-sm font-bold mb-3 ${dark ? "text-white" : "text-gray-900"}`}>Readiness Checklist</p>
+                      <div className="space-y-2">
+                        {publishReadiness.map((item) => (
+                          <div key={item.label} className="flex items-center gap-2.5">
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${item.done ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-white/[0.05] text-gray-500" : "bg-gray-200 text-gray-500"}`}>{item.done ? "✓" : "•"}</span>
+                            <span className={`text-[12px] ${item.done ? dark ? "text-gray-200" : "text-gray-800" : dark ? "text-gray-500" : "text-gray-500"}`}>{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-xl px-4 py-3 text-[11px] text-center mt-4 ${dark ? "bg-blue-500/8 border border-blue-500/15 text-blue-300" : "bg-blue-50 border border-blue-100 text-blue-700"}`}>
+                      Continue to the next step for final review and publish confirmation.
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
+          </motion.div>
+        )}
 
-              {/* Legal */}
+        {/* ── STEP 5: Final Review ── */}
+        {step === 5 && (
+          <motion.div key="s5" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
+            <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
               <div>
-                <label className={`block text-sm font-medium mb-2 ${dark ? "text-gray-300" : "text-gray-700"}`}>Submission Agreement</label>
-                <div ref={agreementRef} className={`rounded-xl p-4 h-48 overflow-y-auto text-xs leading-relaxed border ${dark ? "border-[#182840] text-gray-400" : "border-gray-200 text-gray-500"}`}>
-                  <pre className="whitespace-pre-wrap font-sans">{LEGAL_AGREEMENT}</pre>
+                <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Final Review</h2>
+                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and publishing details, then make your project live.</p>
+              </div>
+
+              <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
+                <div className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+                  <span>Invoice Item</span>
+                  <span>Type</span>
+                  <span className="text-right">Amount</span>
+                </div>
+                <div>
+                  {publishInvoiceRows.map((row) => (
+                    <div key={row.item} className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                      <div>
+                        <p className={`font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
+                        <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
+                      </div>
+                      <div className="pt-0.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
+                          ? dark ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                          : row.type === "Future Earnings"
+                            ? dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
+                            : dark ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
+                          }`}>{row.type}</span>
+                      </div>
+                      <p className={`text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal({ agreedToTerms: e.target.checked })}
-                  className="w-5 h-5 rounded mt-0.5 accent-[#1e3a5f]" />
-                <span className={`text-sm ${dark ? "text-gray-300" : "text-gray-600"}`}>I have read and agree to the Submission Release Agreement</span>
-              </label>
 
-              {/* Publish Button */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className={`rounded-xl px-4 py-4 ${dark ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
+                  <p className={`text-xl font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : dark ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
+                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Charged from current balance</p>
+                </div>
+                <div className={`rounded-xl px-4 py-4 ${dark ? "bg-emerald-500/10 border border-emerald-500/15" : "bg-emerald-50 border border-emerald-100"}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-emerald-300" : "text-emerald-700"}`}>Remaining Credits</p>
+                  <p className={`text-xl font-black mt-1 ${creditsAfterPublish < 0 ? "text-red-400" : dark ? "text-emerald-300" : "text-emerald-700"}`}>{creditsAfterPublish}</p>
+                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>After this publish action</p>
+                </div>
+                <div className={`rounded-xl px-4 py-4 ${dark ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
+                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `$${writerEarns}` : "$0"}</p>
+                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
+                </div>
+              </div>
+
+              <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
+                <div className="flex items-start gap-2.5">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>{legal.agreedToTerms ? "✓" : "!"}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-[12px] font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{legal.agreedToTerms ? "Agreement confirmed" : "Agreement required"}</p>
+                    <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can publish now." : "Please accept the submission agreement to continue."}</p>
+                    {!legal.agreedToTerms && (
+                      <label className="flex items-start gap-2.5 cursor-pointer mt-3">
+                        <input
+                          type="checkbox"
+                          checked={legal.agreedToTerms}
+                          onChange={e => setLegal({ agreedToTerms: e.target.checked })}
+                          className="w-4 h-4 rounded mt-0.5 accent-[#1e3a5f]"
+                        />
+                        <span className={`text-[11px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I agree to the Submission Release Agreement and confirm publishing rights.</span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <button onClick={handlePublish} disabled={loading || !legal.agreedToTerms}
-                className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed ${dark
-                  ? "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white hover:shadow-lg hover:shadow-[#1e3a5f]/30"
-                  : "bg-gradient-to-r from-[#1e3a5f] to-[#2a5a8f] text-white hover:shadow-lg hover:shadow-[#1e3a5f]/20"}`}>
+                className="w-full py-3.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white shadow-md">
                 {loading ? "Publishing..." : "Publish Project"}
               </button>
+              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Publishing will make your project live with the current pricing, services, and invoice settings.</p>
             </div>
           </motion.div>
         )}
@@ -1176,7 +2071,7 @@ const CreateProject = () => {
               ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
             ← Back
           </button>
-          {step < 4 && (
+          {step < 5 && (
             <button onClick={handleNext}
               className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${dark
                 ? "bg-[#1e3a5f] text-white hover:bg-[#2a4a70] shadow-lg shadow-[#1e3a5f]/20"

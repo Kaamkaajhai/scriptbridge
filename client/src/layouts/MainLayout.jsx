@@ -389,7 +389,7 @@ const MainLayout = ({ children }) => {
           {/* Credits Button - Hidden for investors */}
           {user?.role !== "investor" && (
             <button
-              onClick={() => navigate("/credits")}
+              onClick={() => setShowBuyCredits(true)}
               className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
                 isDarkMode
                   ? "bg-[#0a1628] border-white/[0.07] hover:bg-[#0d1c2e] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
@@ -432,16 +432,7 @@ const MainLayout = ({ children }) => {
                   </svg>
                   Profile
                 </button>
-                {/* Credits menu item - Hidden for investors */}
-                {user?.role !== "investor" && (
-                  <button onClick={() => { navigate("/credits"); setDropdownOpen(false); }}
-                    className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                    Credits
-                  </button>
-                )}
+
                 <div className={`border-t my-1 ${isDarkMode ? "border-[#1c2a3a]" : "border-gray-100"}`}></div>
                 <button onClick={() => { logout(); navigate("/login"); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-red-400" : "text-gray-500 hover:bg-gray-50"}`}>

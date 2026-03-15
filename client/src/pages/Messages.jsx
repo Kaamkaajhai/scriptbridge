@@ -7,7 +7,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import {
   MessageCircle, ChevronLeft, Send, Lock, Info, Search, X,
-  Check, CheckCheck, Smile, Trash2, MoreVertical, Image,
+  Check, CheckCheck, Smile, Trash2, MoreVertical, Image, Video, FileText,
   ShieldCheck, ArrowRight,
 } from "lucide-react";
 
@@ -32,6 +32,16 @@ const formatDay = (date) => {
 
 const isSameDay = (a, b) =>
   new Date(a).toDateString() === new Date(b).toDateString();
+
+const getMessagePreview = (msg) =>
+  msg?.text ||
+  (msg?.fileType === "video"
+    ? "🎬 Trailer Video"
+    : msg?.fileType === "image"
+      ? "📷 Image"
+      : msg?.fileUrl
+        ? "📎 File"
+        : "");
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -59,6 +69,7 @@ const Messages = () => {
   const [emojiPicker, setEmojiPicker] = useState(null); // messageId
   const [hoveredMsg, setHoveredMsg] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // messageId
+  const [trailerActionLoading, setTrailerActionLoading] = useState("");
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -81,7 +92,7 @@ const Messages = () => {
       setConversations((prev) =>
         prev.map((c) =>
           c.chatId === msg.chatId
-            ? { ...c, lastMessage: msg.text || "📷", timestamp: msg.createdAt || new Date() }
+            ? { ...c, lastMessage: getMessagePreview(msg), timestamp: msg.createdAt || new Date() }
             : c
         )
       );
@@ -203,10 +214,9 @@ const Messages = () => {
   }, []);
 
   /* ── Send message ───────────────────────────────────────── */
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
+  const sendTextMessage = async (textToSend, extraPayload = {}) => {
     setSendError("");
-    if (!newMessage.trim() || !activeChat) return;
+    if (!textToSend?.trim() || !activeChat) return;
 
     if (isWriter && !messagesLoading && messages.length === 0) {
       setSendError("You cannot initiate a conversation. Only investors can message first.");
@@ -219,19 +229,19 @@ const Messages = () => {
       chatId: activeChat.chatId,
       sender: { _id: user._id, name: user.name, profileImage: user.profileImage, role: user.role },
       receiver: activeChat.user._id,
-      text: newMessage,
+      text: textToSend,
       createdAt: new Date().toISOString(),
       read: false,
     };
 
     setMessages((prev) => [...prev, optimistic]);
-    const sentText = newMessage;
-    setNewMessage("");
+    const sentText = textToSend;
 
     try {
       const { data: saved } = await api.post("/messages/send", {
         receiverId: activeChat.user._id,
         text: sentText,
+        ...extraPayload,
       });
 
       // Replace optimistic with saved
@@ -262,6 +272,41 @@ const Messages = () => {
           : err.response?.data?.message || "Failed to send message."
       );
     }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    const text = newMessage.trim();
+    if (!text) return;
+    setNewMessage("");
+    await sendTextMessage(text);
+  };
+
+  const handleTrailerFeedback = async (msg, action) => {
+    if (!msg || !["approved", "revision_requested"].includes(action)) return;
+
+    const scriptId = msg.script?._id || msg.script;
+    const feedbackText =
+      action === "approved"
+        ? `Looks good. I approve this AI trailer: ${msg.fileUrl}`
+        : "Please provide a better AI trailer version with improved quality/story impact.";
+
+    if (scriptId) {
+      setTrailerActionLoading(msg._id);
+      try {
+        await api.post(`/scripts/${scriptId}/trailer-feedback`, {
+          action,
+          note: action === "revision_requested" ? "Writer requested a better trailer version" : "",
+        });
+      } catch (err) {
+        setSendError(err.response?.data?.message || "Failed to update trailer status.");
+        setTrailerActionLoading("");
+        return;
+      }
+      setTrailerActionLoading("");
+    }
+
+    await sendTextMessage(feedbackText.trim(), scriptId ? { scriptId } : {});
   };
 
   /* ── Typing indicator emit ──────────────────────────────── */
@@ -554,9 +599,44 @@ const Messages = () => {
                             {isDeleted ? (
                               <span className="text-xs">This message was deleted</span>
                             ) : msg.fileUrl && msg.fileType === "image" ? (
-                              <img src={msg.fileUrl} alt="attachment" className="max-w-full rounded-xl" />
+                              <div className="space-y-2">
+                                <img src={msg.fileUrl} alt="attachment" className="max-w-full rounded-xl" />
+                                {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
+                              </div>
+                            ) : msg.fileUrl && msg.fileType === "video" ? (
+                              <div className="space-y-2.5">
+                                <div className={`rounded-xl overflow-hidden ${isMine ? "bg-black/20" : dark ? "bg-black/30" : "bg-black/10"}`}>
+                                  <video src={msg.fileUrl} controls preload="metadata" className="w-full max-h-64" />
+                                </div>
+                                <a
+                                  href={msg.fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`inline-flex items-center gap-1.5 text-[11px] font-semibold underline ${isMine ? "text-blue-100" : dark ? "text-blue-300" : "text-blue-600"}`}
+                                >
+                                  <Video size={12} /> Open trailer in new tab
+                                </a>
+                                {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
+                              </div>
+                            ) : msg.fileUrl ? (
+                              <div className="space-y-2">
+                                <a
+                                  href={msg.fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`inline-flex items-center gap-1.5 text-[12px] font-semibold underline ${isMine ? "text-blue-100" : dark ? "text-blue-300" : "text-blue-600"}`}
+                                >
+                                  <FileText size={13} /> {msg.fileName || "Open attachment"}
+                                </a>
+                                {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
+                              </div>
                             ) : (
                               <p className="break-words leading-relaxed">{msg.text}</p>
+                            )}
+                            {!isMine && msg.sender?.role === "admin" && (
+                              <div className={`text-[10px] font-semibold mb-1 ${dark ? "text-amber-300" : "text-amber-700"}`}>
+                                Platform Admin
+                              </div>
                             )}
                             <div className={`flex items-center justify-end gap-1 mt-1 ${isMine ? "text-[#c3d5e8]" : t.muted} text-[10px]`}>
                               <span>{formatTime(msg.createdAt)}</span>
@@ -585,6 +665,25 @@ const Messages = () => {
                                   {emoji} <span className={t.muted}>{count}</span>
                                 </button>
                               ))}
+                            </div>
+                          )}
+
+                          {!isMine && isWriter && msg.sender?.role === "admin" && msg.fileType === "video" && msg.fileUrl && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <button
+                                onClick={() => handleTrailerFeedback(msg, "approved")}
+                                disabled={trailerActionLoading === msg._id}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition ${dark ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+                              >
+                                {trailerActionLoading === msg._id ? "Saving..." : "Use This Trailer"}
+                              </button>
+                              <button
+                                onClick={() => handleTrailerFeedback(msg, "revision_requested")}
+                                disabled={trailerActionLoading === msg._id}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition ${dark ? "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                              >
+                                {trailerActionLoading === msg._id ? "Saving..." : "Request Better Version"}
+                              </button>
                             </div>
                           )}
 
