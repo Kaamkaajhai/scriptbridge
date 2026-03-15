@@ -2,8 +2,14 @@ import User from "../models/User.js";
 import Script from "../models/Script.js";
 import Transaction from "../models/Transaction.js";
 import Notification from "../models/Notification.js";
+import Message from "../models/Message.js";
 import jwt from "jsonwebtoken";
 import { sendInvestorApprovalEmail } from "../utils/emailService.js";
+
+const buildChatId = (idA, idB) => {
+    const sorted = [idA.toString(), idB.toString()].sort();
+    return `${sorted[0]}_${sorted[1]}`;
+};
 
 // ─── Dashboard Stats ───
 export const getStats = async (req, res) => {
@@ -313,7 +319,10 @@ export const scoreScript = async (req, res) => {
 export const getTrailerRequests = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
-        const filter = { "services.aiTrailer": true };
+        const filter = {
+            "services.aiTrailer": true,
+            trailerStatus: { $in: ["requested", "generating"] },
+        };
         const total = await Script.countDocuments(filter);
         const scripts = await Script.find(filter)
             .populate("creator", "name email role profileImage")
@@ -328,11 +337,48 @@ export const getTrailerRequests = async (req, res) => {
 
 export const approveTrailer = async (req, res) => {
     try {
-        const script = await Script.findById(req.params.id);
+        const { trailerUrl, trailerThumbnail, caption } = req.body || {};
+
+        if (!trailerUrl) {
+            return res.status(400).json({ message: "trailerUrl is required" });
+        }
+
+        const script = await Script.findById(req.params.id).populate("creator", "_id");
         if (!script) return res.status(404).json({ message: "Script not found" });
+
+        script.trailerUrl = trailerUrl;
+        if (trailerThumbnail) script.trailerThumbnail = trailerThumbnail;
+        script.trailerSource = "ai";
         script.trailerStatus = "ready";
+        script.trailerWriterFeedback = {
+            status: "pending",
+            note: "",
+            updatedAt: new Date(),
+        };
         await script.save();
-        res.json({ message: "Trailer approved", script });
+
+        const writerId = script.creator?._id || script.creator;
+
+        await Notification.create({
+            user: writerId,
+            type: "trailer_ready",
+            from: req.user._id,
+            script: script._id,
+            message: `Your AI trailer for "${script.title}" is ready. Check messages to view it.`,
+        });
+
+        await Message.create({
+            chatId: buildChatId(req.user._id, writerId),
+            sender: req.user._id,
+            receiver: writerId,
+            script: script._id,
+            text: caption?.trim() || `Your AI trailer for "${script.title}" is ready.`,
+            fileUrl: trailerUrl,
+            fileType: "video",
+            fileName: `${script.title} - AI Trailer`,
+        });
+
+        res.json({ message: "Trailer approved and sent to writer via message", script });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
