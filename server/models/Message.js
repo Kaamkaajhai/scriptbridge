@@ -14,6 +14,7 @@ const messageSchema = new mongoose.Schema({
   fileUrl: { type: String },
   fileType: { type: String, enum: ["image", "document", "audio", "video"] },
   fileName: { type: String },
+  fileSize: { type: Number },
   read: { type: Boolean, default: false },
   readAt: { type: Date },
   deleted: { type: Boolean, default: false },

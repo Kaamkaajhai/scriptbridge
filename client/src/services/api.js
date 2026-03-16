@@ -5,7 +5,7 @@ const api = axios.create({
 });
 
 // Auth endpoints that should never receive an Authorization header
-const AUTH_ROUTES = ["/auth/login", "/auth/join", "/auth/verify-otp", "/auth/resend-otp"];
+const AUTH_ROUTES = ["/auth/login", "/auth/join", "/auth/verify-otp", "/auth/resend-otp", "/auth/validate-address"];
 
 // Attach token & check client-side expiry before every request
 api.interceptors.request.use((config) => {

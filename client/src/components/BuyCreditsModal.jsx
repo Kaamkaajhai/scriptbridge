@@ -174,8 +174,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const getCurrency = (c) => {
-    const map = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
-    return map[c] || "₹";
+    return "₹";
   };
 
   const getGradient = (name) => {

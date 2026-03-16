@@ -6,6 +6,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { Film } from "lucide-react";
 import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
+import { formatCurrency } from "../utils/currency";
 
 const ScriptDetail = () => {
   const { id } = useParams();
@@ -651,8 +652,8 @@ const ScriptDetail = () => {
                   <div className={`rounded-xl p-5 border ${t.priceSub}`}>
                     <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${t.label}`}>Price</p>
                     <p className={`text-3xl font-extrabold mb-3 ${t.title}`}>
-                      ${script.price}
-                      <span className={`text-sm font-medium ml-1 ${t.muted}`}>USD</span>
+                      {formatCurrency(script.price)}
+                      <span className={`text-sm font-medium ml-1 ${t.muted}`}>INR</span>
                     </p>
                     <div className={`grid grid-cols-2 gap-3 pt-3 border-t ${t.divider}`}>
                       <div>

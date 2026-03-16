@@ -7,7 +7,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import {
   MessageCircle, ChevronLeft, Send, Lock, Info, Search, X,
-  Check, CheckCheck, Smile, Trash2, MoreVertical, Image, Video, FileText,
+  Check, CheckCheck, Smile, Trash2, Video, FileText, Paperclip, Loader2, Download,
   ShieldCheck, ArrowRight,
 } from "lucide-react";
 
@@ -43,6 +43,21 @@ const getMessagePreview = (msg) =>
         ? "📎 File"
         : "");
 
+const resolveMediaUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `http://localhost:5001${url}`;
+};
+
+const formatFileSize = (bytes = 0) => {
+  const size = Number(bytes || 0);
+  if (!size) return "0 B";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
+
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 /* ═══════════════════════════════════════════════════════════════
@@ -70,10 +85,13 @@ const Messages = () => {
   const [hoveredMsg, setHoveredMsg] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // messageId
   const [trailerActionLoading, setTrailerActionLoading] = useState("");
+  const [attachment, setAttachment] = useState(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const isWriter = user && ["writer", "creator"].includes(user.role);
   const isInvestor = user && user.role === "investor";
@@ -216,11 +234,12 @@ const Messages = () => {
   /* ── Send message ───────────────────────────────────────── */
   const sendTextMessage = async (textToSend, extraPayload = {}) => {
     setSendError("");
-    if (!textToSend?.trim() || !activeChat) return;
+    const hasAttachment = Boolean(extraPayload?.fileUrl);
+    if ((!textToSend?.trim() && !hasAttachment) || !activeChat) return false;
 
     if (isWriter && !messagesLoading && messages.length === 0) {
       setSendError("You cannot initiate a conversation. Only investors can message first.");
-      return;
+      return false;
     }
 
     const tempId = `temp_${Date.now()}`;
@@ -229,7 +248,11 @@ const Messages = () => {
       chatId: activeChat.chatId,
       sender: { _id: user._id, name: user.name, profileImage: user.profileImage, role: user.role },
       receiver: activeChat.user._id,
-      text: textToSend,
+      text: textToSend || "",
+      fileUrl: extraPayload.fileUrl,
+      fileType: extraPayload.fileType,
+      fileName: extraPayload.fileName,
+      fileSize: extraPayload.fileSize,
       createdAt: new Date().toISOString(),
       read: false,
     };
@@ -240,7 +263,7 @@ const Messages = () => {
     try {
       const { data: saved } = await api.post("/messages/send", {
         receiverId: activeChat.user._id,
-        text: sentText,
+        text: sentText || "",
         ...extraPayload,
       });
 
@@ -250,7 +273,7 @@ const Messages = () => {
       socket?.emit("send-message", { ...saved, chatId: activeChat.chatId });
 
       if (activeChat.isPending) {
-        const promoted = { ...activeChat, lastMessage: sentText, isPending: false };
+        const promoted = { ...activeChat, lastMessage: getMessagePreview(saved), isPending: false };
         setConversations((prev) => [promoted, ...prev]);
         setFilteredConvs((prev) => [promoted, ...prev]);
         setActiveChat(promoted);
@@ -258,11 +281,12 @@ const Messages = () => {
         setConversations((prev) =>
           prev.map((c) =>
             c.chatId === activeChat.chatId
-              ? { ...c, lastMessage: sentText, timestamp: new Date().toISOString() }
+              ? { ...c, lastMessage: getMessagePreview(saved), timestamp: new Date().toISOString() }
               : c
           )
         );
       }
+      return true;
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
       const code = err.response?.data?.code;
@@ -271,15 +295,58 @@ const Messages = () => {
           ? "Purchase a project from this writer first to unlock messaging."
           : err.response?.data?.message || "Failed to send message."
       );
+      return false;
     }
   };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const text = newMessage.trim();
-    if (!text) return;
+    if (!text && !attachment) return;
+
+    const attachmentPayload = attachment
+      ? {
+          fileUrl: attachment.fileUrl,
+          fileType: attachment.fileType,
+          fileName: attachment.fileName,
+          fileSize: attachment.fileSize,
+        }
+      : {};
+
     setNewMessage("");
-    await sendTextMessage(text);
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    const sent = await sendTextMessage(text, attachmentPayload);
+    if (!sent && attachmentPayload.fileUrl) {
+      setAttachment(attachment);
+    }
+  };
+
+  const handlePickAttachment = () => {
+    if (!activeChat || uploadingAttachment) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSendError("");
+    setUploadingAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/messages/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setAttachment(data);
+    } catch (err) {
+      setSendError(err.response?.data?.message || "Failed to upload attachment.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } finally {
+      setUploadingAttachment(false);
+    }
   };
 
   const handleTrailerFeedback = async (msg, action) => {
@@ -373,7 +440,7 @@ const Messages = () => {
   const showList = !activeChat;
 
   return (
-    <div className={`flex h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] rounded-2xl shadow-sm border overflow-hidden ${t.page}`}>
+    <div className={`flex h-[500px] rounded-2xl shadow-sm border overflow-hidden ${t.page}`}>
 
       {/* ════════════════════════════════════════
           LEFT — Conversation Sidebar
@@ -414,7 +481,7 @@ const Messages = () => {
         </div>
 
         {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {filteredConvs.length === 0 ? (
             <div className="p-8 text-center">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
@@ -539,7 +606,7 @@ const Messages = () => {
             </div>
 
             {/* ── Messages List ── */}
-            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-1">
+            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 sm:px-6 py-4 space-y-1">
               {messagesLoading ? (
                 <div className="flex justify-center items-center h-32">
                   <div className={`w-7 h-7 border-[3px] rounded-full animate-spin ${dark ? "border-[#0d1520] border-t-[#8896a7]" : "border-gray-200 border-t-[#1e3a5f]"}`} />
@@ -600,16 +667,16 @@ const Messages = () => {
                               <span className="text-xs">This message was deleted</span>
                             ) : msg.fileUrl && msg.fileType === "image" ? (
                               <div className="space-y-2">
-                                <img src={msg.fileUrl} alt="attachment" className="max-w-full rounded-xl" />
+                                <img src={resolveMediaUrl(msg.fileUrl)} alt="attachment" className="max-w-full rounded-xl" />
                                 {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
                               </div>
                             ) : msg.fileUrl && msg.fileType === "video" ? (
                               <div className="space-y-2.5">
                                 <div className={`rounded-xl overflow-hidden ${isMine ? "bg-black/20" : dark ? "bg-black/30" : "bg-black/10"}`}>
-                                  <video src={msg.fileUrl} controls preload="metadata" className="w-full max-h-64" />
+                                  <video src={resolveMediaUrl(msg.fileUrl)} controls preload="metadata" className="w-full max-h-64" />
                                 </div>
                                 <a
-                                  href={msg.fileUrl}
+                                  href={resolveMediaUrl(msg.fileUrl)}
                                   target="_blank"
                                   rel="noreferrer"
                                   className={`inline-flex items-center gap-1.5 text-[11px] font-semibold underline ${isMine ? "text-blue-100" : dark ? "text-blue-300" : "text-blue-600"}`}
@@ -619,15 +686,27 @@ const Messages = () => {
                                 {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
                               </div>
                             ) : msg.fileUrl ? (
-                              <div className="space-y-2">
-                                <a
-                                  href={msg.fileUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={`inline-flex items-center gap-1.5 text-[12px] font-semibold underline ${isMine ? "text-blue-100" : dark ? "text-blue-300" : "text-blue-600"}`}
-                                >
-                                  <FileText size={13} /> {msg.fileName || "Open attachment"}
-                                </a>
+                              <div className="space-y-2.5">
+                                <div className={`rounded-xl px-3 py-2.5 ${isMine ? "bg-black/15" : dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold truncate flex items-center gap-1.5">
+                                        <FileText size={13} /> {msg.fileName || "Attachment"}
+                                      </p>
+                                      <p className={`text-[10px] mt-0.5 ${isMine ? "text-blue-100/80" : t.muted}`}>
+                                        {formatFileSize(msg.fileSize)}
+                                      </p>
+                                    </div>
+                                    <a
+                                      href={resolveMediaUrl(msg.fileUrl)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold ${isMine ? "bg-white/20 text-white hover:bg-white/25" : dark ? "bg-[#1c2a3a] text-gray-200 hover:bg-[#243447]" : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"}`}
+                                    >
+                                      <Download size={11} /> Open
+                                    </a>
+                                  </div>
+                                </div>
                                 {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
                               </div>
                             ) : (
@@ -771,24 +850,52 @@ const Messages = () => {
                     <Lock size={12} className="flex-shrink-0" /> {sendError}
                   </div>
                 )}
-                {isWriter && (
-                  <div className={`flex items-center gap-1.5 text-[11px] mb-2 ${t.muted}`}>
-                    <Info size={11} /> Replying to investor message
+                {attachment && (
+                  <div className={`mb-2 rounded-xl px-3 py-2 border flex items-center justify-between gap-2 ${dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-semibold truncate ${t.title}`}>{attachment.fileName || "Attachment"}</p>
+                      <p className={`text-[10px] ${t.muted}`}>{attachment.fileType} · {formatFileSize(attachment.fileSize)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachment(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className={`p-1.5 rounded-lg ${dark ? "hover:bg-white/[0.05]" : "hover:bg-gray-200"}`}
+                    >
+                      <X size={14} className={t.sub} />
+                    </button>
                   </div>
                 )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleAttachmentChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePickAttachment}
+                    disabled={uploadingAttachment}
+                    className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border transition-all ${dark ? "bg-[#0d1520] border-[#1c2a3a] text-gray-300 hover:bg-[#152235]" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                    title="Attach file"
+                  >
+                    {uploadingAttachment ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                  </button>
                   <input
                     ref={inputRef}
                     type="text"
                     value={newMessage}
                     onChange={handleInputChange}
-                    placeholder={isWriter ? "Reply to investor…" : "Type a message…"}
+                    placeholder={isWriter ? "Reply with text or attach file..." : "Type a message or attach file..."}
                     className={`flex-1 px-4 py-2.5 rounded-xl text-sm border focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/15 focus:border-[#1e3a5f] transition-all ${t.input}`}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSendMessage(e); }}
                   />
                   <button
                     type="submit"
-                    disabled={!newMessage.trim()}
+                    disabled={uploadingAttachment || (!newMessage.trim() && !attachment)}
                     className="w-10 h-10 flex-shrink-0 bg-[#1e3a5f] hover:bg-[#162d4a] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all hover:shadow-md hover:shadow-[#1e3a5f]/20"
                   >
                     <Send size={17} />

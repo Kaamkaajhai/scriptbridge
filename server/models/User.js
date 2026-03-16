@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  pendingEmail: { type: String },
   password: { type: String, required: true },
   role: { type: String, enum: ["creator", "investor", "producer", "director", "actor", "reader", "writer", "industry", "professional", "admin"], required: true },
   bio: { type: String },
@@ -59,6 +60,7 @@ const userSchema = new mongoose.Schema({
     imdbUrl: { type: String },
     linkedInUrl: { type: String },
     previousCredits: { type: String },
+    investmentRange: { type: String },
     isVerified: { type: Boolean, default: false },
     // Mandates (what they're looking for)
     mandates: {
@@ -131,15 +133,15 @@ const userSchema = new mongoose.Schema({
     },
     swiftCode: { type: String }, // For international transfers
     iban: { type: String }, // For international transfers
-    country: { type: String, default: "US" },
-    currency: { type: String, default: "USD" },
+    country: { type: String, default: "IN" },
+    currency: { type: String, default: "INR" },
     isVerified: { type: Boolean, default: false },
     verifiedAt: { type: Date },
     addedAt: { type: Date }
   },
   wallet: {
     balance: { type: Number, default: 0 },
-    currency: { type: String, default: "USD" },
+    currency: { type: String, default: "INR" },
     pendingBalance: { type: Number, default: 0 }, // Funds being processed
     totalEarnings: { type: Number, default: 0 },
     totalWithdrawals: { type: Number, default: 0 }

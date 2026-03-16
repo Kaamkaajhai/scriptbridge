@@ -16,6 +16,7 @@ import { AuthContext } from "../context/AuthContext";
 import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
 import { jsPDF } from "jspdf";
 import api from "../services/api";
+import { formatCurrency } from "../utils/currency";
 
 /* -- Constants --------------------------------------- */
 const formats = [
@@ -724,7 +725,7 @@ const CreateProject = () => {
       item: "Script Access",
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
       type: "Revenue Setting",
-      amount: isPremium ? `$${effectivePrice}` : "Free",
+      amount: isPremium ? formatCurrency(effectivePrice) : "Free",
     },
     {
       item: "Optional Services",
@@ -736,7 +737,7 @@ const CreateProject = () => {
       item: "Projected Writer Payout",
       detail: isPremium ? "Estimated per premium purchase" : "No payout on free access",
       type: "Future Earnings",
-      amount: isPremium ? `$${writerEarns}` : "$0",
+      amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
     },
   ];
   const invoiceDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
@@ -843,7 +844,7 @@ const CreateProject = () => {
     y += 14;
     doc.text(`Remaining Credits: ${creditsAfterPublish}`, left, y);
     y += 14;
-    doc.text(`Net per Premium Sale: ${isPremium ? `$${writerEarns}` : "$0"}`, left, y);
+    doc.text(`Net per Premium Sale: ${isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}`, left, y);
 
     y += 34;
     doc.setFont("times", "italic");
@@ -1910,7 +1911,7 @@ const CreateProject = () => {
                             <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
                             <div className="text-[12px] leading-relaxed">
                               <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
-                              <p className="mt-0.5">Use ${FORMAT_PRICE_GUIDE[formData.format].min}-${FORMAT_PRICE_GUIDE[formData.format].max}. Recommended start: ${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
+                              <p className="mt-0.5">Use ₹${FORMAT_PRICE_GUIDE[formData.format].min}-₹${FORMAT_PRICE_GUIDE[formData.format].max}. Recommended start: ₹${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
                             </div>
                           </div>
                         )}
@@ -1925,7 +1926,7 @@ const CreateProject = () => {
                                   ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
                                   : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
                                 }`}>
-                                ${p}
+                                ₹{p}
                               </button>
                             ))}
                             <button type="button"
@@ -1944,7 +1945,7 @@ const CreateProject = () => {
                             <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Custom Price</label>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                               <div className="relative w-full sm:w-40">
-                                <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>$</span>
+                                <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>₹</span>
                                 <input
                                   type="number" min="1" max="500" step="1"
                                   value={customPriceInput}
@@ -1953,7 +1954,7 @@ const CreateProject = () => {
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
                               </div>
-                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from $1 to $500.</p>
+                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
                             </div>
                           </div>
                         )}
