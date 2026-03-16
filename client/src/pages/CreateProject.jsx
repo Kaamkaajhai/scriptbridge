@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
@@ -14,16 +14,17 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
+import { jsPDF } from "jspdf";
 import api from "../services/api";
 
-/* ── Constants ─────────────────────────────────────── */
+/* -- Constants --------------------------------------- */
 const formats = [
-  { value: "feature", label: "Feature Film", icon: "🎬" },
-  { value: "tv_1hour", label: "TV 1-Hour", icon: "📺" },
-  { value: "tv_halfhour", label: "TV Half-Hour", icon: "📡" },
-  { value: "short", label: "Short Film", icon: "🎞️" },
-  { value: "limited_series", label: "Limited Series", icon: "🎭" },
-  { value: "documentary", label: "Documentary", icon: "🎥" },
+  { value: "feature", label: "Feature Film", icon: "FILM" },
+  { value: "tv_1hour", label: "TV 1-Hour", icon: "TV" },
+  { value: "tv_halfhour", label: "TV Half-Hour", icon: "TV" },
+  { value: "short", label: "Short Film", icon: "SHORT" },
+  { value: "limited_series", label: "Limited Series", icon: "SERIES" },
+  { value: "documentary", label: "Documentary", icon: "DOC" },
 ];
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Fantasy",
@@ -110,16 +111,16 @@ const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
   });
 };
 
-/* ── Format-aware page ranges (industry standards) ── */
+/* -- Format-aware page ranges (industry standards) -- */
 const FORMAT_PAGE_RANGES = {
-  feature: { min: 70, max: 180, typical: "90–120", label: "Feature Film", wordsPerPage: 250 },
-  tv_1hour: { min: 45, max: 75, typical: "50–65", label: "TV 1-Hour", wordsPerPage: 250 },
-  tv_halfhour: { min: 22, max: 45, typical: "25–35", label: "TV Half-Hour", wordsPerPage: 250 },
-  short: { min: 1, max: 40, typical: "5–25", label: "Short Film", wordsPerPage: 250 },
-  limited_series: { min: 45, max: 75, typical: "50–65", label: "Limited Series", wordsPerPage: 250 },
-  documentary: { min: 60, max: 120, typical: "70–100", label: "Documentary", wordsPerPage: 250 },
+  feature: { min: 70, max: 180, typical: "90-120", label: "Feature Film", wordsPerPage: 250 },
+  tv_1hour: { min: 45, max: 75, typical: "50-65", label: "TV 1-Hour", wordsPerPage: 250 },
+  tv_halfhour: { min: 22, max: 45, typical: "25-35", label: "TV Half-Hour", wordsPerPage: 250 },
+  short: { min: 1, max: 40, typical: "5-25", label: "Short Film", wordsPerPage: 250 },
+  limited_series: { min: 45, max: 75, typical: "50-65", label: "Limited Series", wordsPerPage: 250 },
+  documentary: { min: 60, max: 120, typical: "70-100", label: "Documentary", wordsPerPage: 250 },
 };
-const LEGAL_AGREEMENT = `SUBMISSION RELEASE AGREEMENT\n\nBy submitting your script ("Work") to Ckript ("Platform"), you agree to the following terms:\n\n1. REPRESENTATIONS AND WARRANTIES\nYou represent and warrant that:\n- You are the sole owner of the Work or have full authority to submit it\n- The Work is original and does not infringe upon any third-party rights\n\n2. LICENSE GRANT\nYou grant Ckript a non-exclusive, worldwide, royalty-free license to display, distribute, and promote your Work on the Platform.\n\n3. PAYMENT TERMS\n- Hosting fees are charged monthly and are non-refundable\n- One-time service fees are non-refundable once processing begins\n\n4. INTELLECTUAL PROPERTY\nYou retain all ownership rights to your Work.\n\n5. TERMINATION\nYou may remove your Work from the Platform at any time.\n\nBy clicking "I Agree" you acknowledge that you have read and agree to these terms.\n\nLast Updated: ${new Date().toLocaleDateString()}`;
+const LEGAL_AGREEMENT = `SUBMISSION RELEASE AGREEMENT\n\nBy submitting your script ("Work") to Ckript ("Platform"), you agree to these terms:\n\n1. OWNERSHIP AND AUTHORITY\nYou confirm that you own the Work or have legal authority to publish it.\n\n2. ORIGINALITY AND NON-INFRINGEMENT\nYou confirm the Work is original and does not violate third-party rights.\n\n3. PLATFORM LICENSE\nYou grant Ckript a non-exclusive, worldwide, royalty-free license to host, display, distribute, and promote the Work on the Platform.\n\n4. FEES AND REFUNDS\nHosting fees are recurring and non-refundable. One-time service fees are non-refundable once processing starts.\n\n5. YOUR RIGHTS\nYou keep ownership of your Work.\n\n6. REMOVAL\nYou may request removal of your Work from the Platform at any time, subject to platform policy and completed transactions.\n\nBy selecting "I agree," you confirm that you read and accept this agreement.\n\nLast Updated: ${new Date().toLocaleDateString()}`;
 
 const TEXT_COLORS = [
   { label: "Default", value: null },
@@ -159,7 +160,7 @@ const STEPS = [
   { num: 5, label: "Review", desc: "Final review & invoice" },
 ];
 
-/* ── Toolbar Icon Button ──────────────────────────── */
+/* -- Toolbar Icon Button ---------------------------- */
 const TBtn = ({ active, onClick, title, children, dark, disabled = false }) => (
   <button type="button" onClick={onClick} title={title} disabled={disabled}
     className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed ${active
@@ -168,10 +169,10 @@ const TBtn = ({ active, onClick, title, children, dark, disabled = false }) => (
       }`}>{children}</button>
 );
 
-/* ── Divider ───────────────────────────────────────── */
+/* -- Divider ----------------------------------------- */
 const D = ({ dark }) => <div className={`w-px self-stretch mx-0.5 ${dark ? "bg-white/[0.08]" : "bg-gray-200"}`} />;
 
-/* ── Editor Toolbar ────────────────────────────────── */
+/* -- Editor Toolbar ---------------------------------- */
 const EditorToolbar = ({ editor, dark }) => {
   const [showTextColor, setShowTextColor] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
@@ -196,7 +197,7 @@ const EditorToolbar = ({ editor, dark }) => {
     <div className={`flex flex-wrap items-center gap-1 px-3 py-2 border-b ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-200 bg-white"
       }`}>
 
-      {/* ── Headings ── */}
+      {/* -- Headings -- */}
       <Section>
         <TBtn dark={dark} active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1">H1</TBtn>
         <TBtn dark={dark} active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading 2">H2</TBtn>
@@ -205,7 +206,7 @@ const EditorToolbar = ({ editor, dark }) => {
 
       <D dark={dark} />
 
-      {/* ── Text Style ── */}
+      {/* -- Text Style -- */}
       <Section>
         {/* Bold */}
         <TBtn dark={dark} active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
@@ -231,7 +232,7 @@ const EditorToolbar = ({ editor, dark }) => {
 
       <D dark={dark} />
 
-      {/* ── Alignment ── */}
+      {/* -- Alignment -- */}
       <Section>
         <TBtn dark={dark} active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()} title="Align Left">
           <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z" /></svg>
@@ -246,7 +247,7 @@ const EditorToolbar = ({ editor, dark }) => {
 
       <D dark={dark} />
 
-      {/* ── Lists ── */}
+      {/* -- Lists -- */}
       <Section>
         <TBtn dark={dark} active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet List">
           <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z" /></svg>
@@ -267,7 +268,7 @@ const EditorToolbar = ({ editor, dark }) => {
 
       <D dark={dark} />
 
-      {/* ── Text Color ── */}
+      {/* -- Text Color -- */}
       <div className="relative" ref={textColorRef}>
         <button type="button" title="Text Color"
           onClick={() => { setShowTextColor(v => !v); setShowHighlight(false); }}
@@ -296,7 +297,7 @@ const EditorToolbar = ({ editor, dark }) => {
         )}
       </div>
 
-      {/* ── Highlight ── */}
+      {/* -- Highlight -- */}
       <div className="relative" ref={highlightRef}>
         <button type="button" title="Highlight"
           onClick={() => { setShowHighlight(v => !v); setShowTextColor(false); }}
@@ -331,7 +332,7 @@ const EditorToolbar = ({ editor, dark }) => {
 
       <D dark={dark} />
 
-      {/* ── History ── */}
+      {/* -- History -- */}
       <Section>
         <TBtn dark={dark} disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()} title="Undo">
           <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" /></svg>
@@ -347,7 +348,7 @@ const EditorToolbar = ({ editor, dark }) => {
   );
 };
 
-/* ── Draft Card ────────────────────────────────────── */
+/* -- Draft Card -------------------------------------- */
 const DraftCard = ({ draft, onClick, onDelete, dark, isActive }) => {
   const wc = draft.textContent ? draft.textContent.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length : 0;
   const updated = new Date(draft.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -361,7 +362,7 @@ const DraftCard = ({ draft, onClick, onDelete, dark, isActive }) => {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <h4 className={`font-semibold text-sm truncate ${dark ? "text-gray-100" : "text-gray-900"}`}>{draft.title || "Untitled"}</h4>
-          <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-400"}`}>{wc} words · {updated}</p>
+          <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-400"}`}>{wc} words -+ {updated}</p>
         </div>
         <button onClick={e => { e.stopPropagation(); onDelete(draft._id); }}
           className={`opacity-0 group-hover:opacity-100 p-1 rounded-lg transition ${dark ? "hover:bg-red-500/10 text-gray-600 hover:text-red-400" : "hover:bg-red-50 text-gray-300 hover:text-red-500"}`}>
@@ -374,9 +375,9 @@ const DraftCard = ({ draft, onClick, onDelete, dark, isActive }) => {
   );
 };
 
-/* ═══════════════════════════════════════════════════════
-   CREATE PROJECT — 4-Step Wizard
-   ═══════════════════════════════════════════════════════ */
+/* -------------------------------------------------------
+   CREATE PROJECT - 4-Step Wizard
+   ------------------------------------------------------- */
 const CreateProject = () => {
   const { isDarkMode: dark } = useDarkMode();
   const { user } = useContext(AuthContext);
@@ -635,7 +636,7 @@ const CreateProject = () => {
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
       TextStyle, Color, Underline,
-      Placeholder.configure({ placeholder: "Start writing your script here...  e.g.  INT. LIVING ROOM – DAY" }),
+      Placeholder.configure({ placeholder: "Start writing your script here...  e.g.  INT. LIVING ROOM - DAY" }),
     ],
     editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[1056px] px-16 py-14 ${dark ? "prose-invert" : ""}` } },
     onUpdate: ({ editor }) => {
@@ -738,6 +739,134 @@ const CreateProject = () => {
       amount: isPremium ? `$${writerEarns}` : "$0",
     },
   ];
+  const invoiceDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+  const invoiceNumber = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${(scriptId || "NEW").slice(-4).toUpperCase()}`;
+  const companyAddress = "India, Maharashtra, Pune";
+  const companyEmail = "info.ckript@gmail.com";
+
+  const handleDownloadInvoice = async () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const left = 44;
+    const right = pageWidth - 44;
+    let y = 56;
+
+    const blobToDataUrl = (blob) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+    let logoAdded = false;
+    try {
+      const logoRes = await fetch("/cklogo-nobg.png");
+      if (logoRes.ok) {
+        const logoBlob = await logoRes.blob();
+        const logoDataUrl = await blobToDataUrl(logoBlob);
+        doc.addImage(String(logoDataUrl), "PNG", left, y - 26, 110, 26);
+        logoAdded = true;
+      }
+    } catch {
+      logoAdded = false;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Script Publish Invoice", logoAdded ? left + 124 : left, y);
+
+    if (!logoAdded) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("CKRIPT", left, y - 20);
+    }
+
+    y += 24;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`Invoice: ${invoiceNumber}`, left, y);
+    doc.text(`Date: ${invoiceDate}`, right, y, { align: "right" });
+
+    y += 16;
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Address: ${companyAddress}`, left, y);
+    doc.text(`Email: ${companyEmail}`, right, y, { align: "right" });
+    doc.setTextColor(15, 23, 42);
+
+    y += 18;
+    doc.setDrawColor(220, 226, 236);
+    doc.line(left, y, right, y);
+
+    y += 20;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("ITEM", left, y);
+    doc.text("TYPE", left + 290, y);
+    doc.text("AMOUNT", right, y, { align: "right" });
+
+    y += 10;
+    doc.line(left, y, right, y);
+
+    publishInvoiceRows.forEach((row) => {
+      y += 18;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(String(row.item), left, y);
+
+      y += 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const detailLines = doc.splitTextToSize(String(row.detail), 270);
+      doc.text(detailLines, left, y);
+
+      doc.setFontSize(10);
+      doc.text(String(row.type), left + 290, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(row.amount), right, y, { align: "right" });
+
+      y += Math.max(detailLines.length * 11, 16) + 6;
+      doc.setDrawColor(237, 240, 245);
+      doc.line(left, y, right, y);
+    });
+
+    y += 24;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("SUMMARY", left, y);
+
+    y += 18;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`Due Now: ${totalServiceCost} cr`, left, y);
+    y += 14;
+    doc.text(`Remaining Credits: ${creditsAfterPublish}`, left, y);
+    y += 14;
+    doc.text(`Net per Premium Sale: ${isPremium ? `$${writerEarns}` : "$0"}`, left, y);
+
+    y += 34;
+    doc.setFont("times", "italic");
+    doc.setFontSize(18);
+    doc.text("Yash", left + 8, y);
+    doc.setDrawColor(170, 179, 193);
+    doc.line(left, y + 8, left + 170, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Founder Signature", left, y + 20);
+    doc.setTextColor(15, 23, 42);
+
+    doc.save(`${invoiceNumber}.pdf`);
+  };
+
+  const offerInvoiceDownload = async () => {
+    const shouldDownload = window.confirm("Project published successfully. Do you want to download the invoice now?");
+    if (shouldDownload) {
+      await handleDownloadInvoice();
+    }
+  };
+
   const publishReviewItems = [
     { label: "Format", value: formats.find((item) => item.value === formData.format)?.label || "Not selected" },
     { label: "Primary Genre", value: formData.primaryGenre || "Not selected" },
@@ -796,6 +925,7 @@ const CreateProject = () => {
       };
       await api.post("/scripts/upload", payload);
       if (scriptId) { try { await api.delete(`/scripts/${scriptId}`); } catch { } }
+      await offerInvoiceDownload();
       navigate("/dashboard");
     } catch (err) { setError(err.response?.data?.message || "Failed to publish."); } finally { setLoading(false); }
   };
@@ -834,7 +964,7 @@ const CreateProject = () => {
     }
   }, []);
 
-  // Click "Fix Grammar" → show credit confirmation first
+  // Click "Fix Grammar" - show credit confirmation first
   const handleGrammarClick = () => {
     if (!editor) return;
     const plainText = editor.getText().trim();
@@ -846,7 +976,7 @@ const CreateProject = () => {
     setShowGrammarModal(true);
   };
 
-  // Confirmed → actually run grammar fix
+  // Confirmed - actually run grammar fix
   const handleFixGrammar = async () => {
     setShowGrammarModal(false);
     if (!editor) return;
@@ -918,7 +1048,7 @@ const CreateProject = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-4">
-      {/* ── Header ──────────────────────────────── */}
+      {/* -- Header -------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -927,7 +1057,7 @@ const CreateProject = () => {
             </button>
             <div>
               <h1 className={`text-2xl font-bold tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>Create Project</h1>
-              <p className={`text-xs mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Write, classify, and publish your script — all in one place</p>
+              <p className={`text-xs mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Write, classify, and publish your script - all in one place</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -946,7 +1076,7 @@ const CreateProject = () => {
           </div>
         </div>
 
-        {/* ── Step Indicator ── */}
+        {/* -- Step Indicator -- */}
         <div className={`mt-5 rounded-2xl border p-4 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
           <div className="flex items-center">
             {STEPS.map((s, i) => (
@@ -980,7 +1110,7 @@ const CreateProject = () => {
         </div>
       </motion.div>
 
-      {/* ── Drafts Drawer ── */}
+      {/* -- Drafts Drawer -- */}
       <AnimatePresence>
         {showDrafts && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
@@ -1000,7 +1130,7 @@ const CreateProject = () => {
         )}
       </AnimatePresence>
 
-      {/* ═══ Grammar Credit Confirmation Modal (portal) ═══ */}
+      {/* --- Grammar Credit Confirmation Modal (portal) --- */}
       {showGrammarModal && createPortal(
         <AnimatePresence>
           <motion.div
@@ -1035,7 +1165,7 @@ const CreateProject = () => {
                       ? "bg-gradient-to-br from-emerald-500/15 to-teal-600/15 border border-emerald-500/20"
                       : "bg-emerald-50 border border-emerald-200"
                   }`}>
-                    <span className="text-xl">📝</span>
+                    <span className="text-xs font-bold">AI</span>
                   </div>
                   <div>
                     <h3 className={`text-base font-bold ${
@@ -1059,7 +1189,7 @@ const CreateProject = () => {
                   dark ? "bg-white/[0.03] border border-white/[0.05]" : "bg-gray-50 border border-gray-100"
                 }`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-base">⚡</span>
+                    <span className="text-base">$</span>
                     <span className={`text-xs font-medium ${
                       dark ? "text-neutral-300" : "text-gray-600"
                     }`}>Cost</span>
@@ -1073,7 +1203,7 @@ const CreateProject = () => {
                   dark ? "bg-white/[0.03] border border-white/[0.05]" : "bg-gray-50 border border-gray-100"
                 }`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-base">💰</span>
+                    <span className="text-xs font-bold">CR</span>
                     <span className={`text-xs font-medium ${
                       dark ? "text-neutral-300" : "text-gray-600"
                     }`}>Your Balance</span>
@@ -1088,7 +1218,7 @@ const CreateProject = () => {
                         ? dark ? "text-emerald-400" : "text-emerald-600"
                         : "text-red-400"
                     }`}>
-                      {grammarCreditBalance ?? "—"} credits
+                      {grammarCreditBalance ?? "-"} credits
                     </span>
                   )}
                 </div>
@@ -1138,7 +1268,7 @@ const CreateProject = () => {
         document.body
       )}
 
-      {/* ═══ Undo/Keep Bar — fixed bottom (always visible) ═══ */}
+      {/* --- Undo/Keep Bar - fixed bottom (always visible) --- */}
       {showUndoBar && createPortal(
         <AnimatePresence>
           <motion.div
@@ -1163,7 +1293,7 @@ const CreateProject = () => {
                   }`}>Grammar Fixed</span>
                   <span className={`text-[10px] ${
                     dark ? "text-neutral-500" : "text-gray-400"
-                  }`}>— {GRAMMAR_COST} credits used</span>
+                  }`}>- {GRAMMAR_COST} credits used</span>
                 </div>
                 {grammarNotes.length > 0 && (
                   <p className={`text-[10px] truncate leading-snug ${
@@ -1211,7 +1341,7 @@ const CreateProject = () => {
         document.body
       )}
 
-      {/* ═══ Thumbnail Crop/Rotate Modal ═══ */}
+      {/* --- Thumbnail Crop/Rotate Modal --- */}
       {isThumbnailEditorOpen && thumbnailSourceUrl && createPortal(
         <AnimatePresence>
           <motion.div
@@ -1291,7 +1421,7 @@ const CreateProject = () => {
                     <div className="flex items-center gap-2 mb-2">
                       <RotateCw className={`w-4 h-4 ${dark ? "text-gray-400" : "text-gray-600"}`} />
                       <label className={`text-xs font-semibold ${dark ? "text-gray-300" : "text-gray-700"}`}>Rotation</label>
-                      <span className={`ml-auto text-[11px] ${dark ? "text-gray-500" : "text-gray-500"}`}>{Math.round(thumbnailRotation)}°</span>
+                      <span className={`ml-auto text-[11px] ${dark ? "text-gray-500" : "text-gray-500"}`}>{Math.round(thumbnailRotation)} deg</span>
                     </div>
                     <input
                       type="range"
@@ -1355,7 +1485,7 @@ const CreateProject = () => {
 
       <div ref={stepContentRef} />
 
-      {/* ── Error ── */}
+      {/* -- Error -- */}
       <AnimatePresence>
         {error && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
@@ -1366,15 +1496,15 @@ const CreateProject = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Step Content ─────────────────────────── */}
+      {/* -- Step Content --------------------------- */}
       <AnimatePresence mode="wait">
-        {/* ── STEP 1: Write ── */}
+        {/* -- STEP 1: Write -- */}
         {step === 1 && (
           <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
-            {/* ── Editor Shell ── */}
+            {/* -- Editor Shell -- */}
             <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-white border-gray-200 shadow-sm"}`}>
 
-              {/* ── Top Bar: title + save ── */}
+              {/* -- Top Bar: title + save -- */}
               <div className={`flex items-center gap-3 px-5 py-3 border-b ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
                 <div className="flex-1 min-w-0">
                   <input
@@ -1386,7 +1516,7 @@ const CreateProject = () => {
                   />
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {saving && <span className={`flex items-center gap-1.5 text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving…</span>}
+                  {saving && <span className={`flex items-center gap-1.5 text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving...</span>}
                   {saved && !saving && <span className={`flex items-center gap-1 text-xs ${dark ? "text-emerald-400" : "text-emerald-600"}`}><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
                   <button onClick={() => handleSave(false)} disabled={saving}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
@@ -1394,15 +1524,15 @@ const CreateProject = () => {
                   </button>
                   <button onClick={handleGrammarClick} disabled={grammarLoading || saving}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-40 ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
-                    {grammarLoading ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Fixing…</> : <>✏️ Fix Grammar <span className={`text-[9px] px-1 py-0.5 rounded ${dark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>{GRAMMAR_COST}cr</span></>}
+                    {grammarLoading ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Fixing...</> : <>AI Fix Grammar <span className={`text-[9px] px-1 py-0.5 rounded ${dark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>{GRAMMAR_COST}cr</span></>}
                   </button>
                 </div>
               </div>
 
-              {/* ── Toolbar ── */}
+              {/* -- Toolbar -- */}
               <EditorToolbar editor={editor} dark={dark} />
 
-              {/* ── Page Gutter + Document Canvas ── */}
+              {/* -- Page Gutter + Document Canvas -- */}
               <div className={`relative overflow-y-auto max-h-[72vh] ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`}
                 style={{ backgroundImage: dark ? "radial-gradient(circle, #1a2a3a 1px, transparent 1px)" : "radial-gradient(circle, #c8cdd5 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
 
@@ -1440,7 +1570,7 @@ const CreateProject = () => {
                 </div>
               </div>
 
-              {/* ── Status Bar ── */}
+              {/* -- Status Bar -- */}
               <div className={`flex items-center justify-between px-4 py-2 border-t text-[11px] ${dark ? "border-[#182840] bg-[#080f1a] text-gray-600" : "border-gray-100 bg-gray-50 text-gray-400"}`}>
                 <div className="flex items-center gap-4">
                   <span>{wordCount} <span className={dark ? "text-gray-700" : "text-gray-300"}>words</span></span>
@@ -1450,22 +1580,22 @@ const CreateProject = () => {
                   </span>
                 </div>
                 <div className={`flex items-center gap-1.5 text-[10px] ${pageStatus === "good" ? dark ? "text-emerald-500" : "text-emerald-600" : pageStatus === "short" ? dark ? "text-amber-500" : "text-amber-600" : dark ? "text-blue-400" : "text-blue-600"}`}>
-                  {pageStatus === "good" ? "✓ Good length" : pageStatus === "short" ? "⬆ Keep writing" : "⬆ Consider trimming"}
-                  <span className={dark ? "text-gray-700" : "text-gray-300"}>· {formatInfo.label} typical: {formatInfo.typical} pages</span>
+                  {pageStatus === "good" ? "- Good length" : pageStatus === "short" ? "- Keep writing" : "- Consider trimming"}
+                  <span className={dark ? "text-gray-700" : "text-gray-300"}>-+ {formatInfo.label} typical: {formatInfo.typical} pages</span>
                 </div>
               </div>
 
               {grammarNotes.length > 0 && (
                 <div className={`px-4 py-3 text-xs border-t ${dark ? "border-[#182840] text-gray-400" : "border-gray-100 text-gray-600"}`}>
                   <p className={`font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>AI Notes</p>
-                  <ul className="space-y-0.5">{grammarNotes.slice(0, 3).map((note, idx) => <li key={`${note}-${idx}`}>• {note}</li>)}</ul>
+                  <ul className="space-y-0.5">{grammarNotes.slice(0, 3).map((note, idx) => <li key={`${note}-${idx}`}>- {note}</li>)}</ul>
                 </div>
               )}
             </div>
           </motion.div>
         )}
 
-        {/* ── STEP 2: Details ── */}
+        {/* -- STEP 2: Details -- */}
         {step === 2 && (
           <motion.div key="s2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={`${cardCls} p-6 sm:p-8 space-y-5`}>
@@ -1521,7 +1651,7 @@ const CreateProject = () => {
                   <p className="font-medium">{formatInfo.label}: typical range is {formatInfo.typical} pages</p>
                   <p className={`mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>
                     {pageStatus === "good" ? "Your script length looks good for this format!"
-                      : pageStatus === "short" ? `Your script is shorter than typical. That's okay for early drafts — keep writing!`
+                      : pageStatus === "short" ? `Your script is shorter than typical. That's okay for early drafts - keep writing!`
                         : `Your script exceeds the typical range. Consider trimming or changing the format.`}
                   </p>
                 </div>
@@ -1582,7 +1712,7 @@ const CreateProject = () => {
                       <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
-                        <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB • Cover ready</p>
+                        <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB - Cover ready</p>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <button
@@ -1649,7 +1779,7 @@ const CreateProject = () => {
                           <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
                           <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>
                             {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
-                            {trailerMetaLoading ? " • reading video info..." : trailerMeta ? ` • ${formatDuration(trailerMeta.duration)} • ${trailerMeta.width}x${trailerMeta.height}` : ""}
+                            {trailerMetaLoading ? " - reading video info..." : trailerMeta ? ` - ${formatDuration(trailerMeta.duration)} - ${trailerMeta.width}x${trailerMeta.height}` : ""}
                           </p>
                           <p className={`text-[10px] mt-1 ${dark ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
                         </div>
@@ -1681,7 +1811,7 @@ const CreateProject = () => {
           </motion.div>
         )}
 
-        {/* ── STEP 3: Classification ── */}
+        {/* -- STEP 3: Classification -- */}
         {step === 3 && (
           <motion.div key="s3" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
@@ -1701,23 +1831,21 @@ const CreateProject = () => {
           </motion.div>
         )}
 
-        {/* ── STEP 4: Publish Setup ── */}
+        {/* -- STEP 4: Publish Setup -- */}
         {step === 4 && (
           <motion.div key="s4" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_380px] gap-6 items-start">
-              <div className="space-y-6">
+            <div className="space-y-6">
                 <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
                   <div>
                     <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Publish Setup</h2>
-                    <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Configure public access, pricing, services, and legal details before final review.</p>
+                    <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
                   </div>
 
                   <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Publication Plan</p>
                         <h3 className={`text-base font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
-                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Choose whether this project stays publicly readable or becomes a paid premium listing.</p>
+                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
                       </div>
                       <div className={`px-3 py-2 rounded-xl text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
                         <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-gray-500" : "text-gray-400"}`}>Current Plan</p>
@@ -1737,13 +1865,12 @@ const CreateProject = () => {
                           </div>
                           <div>
                             <p className="text-sm font-bold">Free Access</p>
-                            <p className={`text-[11px] ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for visibility and discovery</p>
+                            <p className={`text-[11px] ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
                           </div>
                         </div>
                         <ul className={`space-y-1.5 text-[12px] leading-relaxed ${!isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
-                          <li>Full script can be read publicly</li>
-                          <li>Ideal for building reach with producers</li>
-                          <li>No buyer payment required</li>
+                          <li>Anyone can read the full script</li>
+                          <li>Good for early audience growth</li>
                         </ul>
                       </button>
 
@@ -1758,13 +1885,12 @@ const CreateProject = () => {
                           </div>
                           <div>
                             <p className="text-sm font-bold">Premium Access</p>
-                            <p className={`text-[11px] ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script access</p>
+                            <p className={`text-[11px] ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
                           </div>
                         </div>
                         <ul className={`space-y-1.5 text-[12px] leading-relaxed ${isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
-                          <li>Set your own reader purchase price</li>
-                          <li>Platform handles payment split automatically</li>
-                          <li>Better for high-intent readers</li>
+                          <li>You set the main script price investors pay</li>
+                          <li>Best for monetization-ready scripts</li>
                         </ul>
                       </button>
                     </div>
@@ -1774,7 +1900,7 @@ const CreateProject = () => {
                         <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
                         <div>
                           <p className={`text-sm font-semibold ${dark ? "text-white" : "text-gray-900"}`}>Public discovery mode</p>
-                          <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Your project stays open for reading, which is often the cleanest path for early audience growth and inbound interest.</p>
+                          <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Your script is fully readable to all users.</p>
                         </div>
                       </div>
                     ) : (
@@ -1784,7 +1910,7 @@ const CreateProject = () => {
                             <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
                             <div className="text-[12px] leading-relaxed">
                               <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
-                              <p className="mt-0.5">${FORMAT_PRICE_GUIDE[formData.format].min} to ${FORMAT_PRICE_GUIDE[formData.format].max} with a recommended starting point of ${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
+                              <p className="mt-0.5">Use ${FORMAT_PRICE_GUIDE[formData.format].min}-${FORMAT_PRICE_GUIDE[formData.format].max}. Recommended start: ${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
                             </div>
                           </div>
                         )}
@@ -1827,7 +1953,7 @@ const CreateProject = () => {
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
                               </div>
-                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Set a value between $1 and $500. Readers will see this as the full purchase price.</p>
+                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from $1 to $500.</p>
                             </div>
                           </div>
                         )}
@@ -1842,7 +1968,7 @@ const CreateProject = () => {
                       </div>
                       <div>
                         <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Optional Services</h3>
-                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Add professional support services before you publish.</p>
+                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Select only services you want to add now.</p>
                       </div>
                     </div>
 
@@ -1894,7 +2020,7 @@ const CreateProject = () => {
                       </div>
                       <div>
                         <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Submission Agreement</h3>
-                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Review the publishing terms before you make the project live.</p>
+                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>Read and accept before publishing.</p>
                       </div>
                     </div>
 
@@ -1920,65 +2046,15 @@ const CreateProject = () => {
                     <label className="flex items-start gap-3 cursor-pointer mt-4">
                       <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal({ agreedToTerms: e.target.checked })}
                         className="w-5 h-5 rounded mt-0.5 accent-[#1e3a5f]" />
-                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I have read and agree to the Submission Release Agreement and confirm that I have the right to publish this script.</span>
+                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I confirm I own or control the rights to this script and agree to the Submission Release Agreement.</span>
                     </label>
                   </div>
-                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div>
-                        <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Publish Snapshot</p>
-                        <h3 className={`text-base font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>Single-Page Summary</h3>
-                      </div>
-                      <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full ${isPremium ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>{isPremium ? "Premium" : "Public"}</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mb-4">
-                      {publishReviewItems.map((item) => (
-                        <div key={item.label} className={`rounded-xl px-3 py-3 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
-                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-gray-500" : "text-gray-400"}`}>{item.label}</p>
-                          <p className={`text-[12px] mt-1.5 font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{item.value}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
-                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
-                        <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
-                        <p className={`text-lg font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : dark ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
-                      </div>
-                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-emerald-500/10 border border-emerald-500/15" : "bg-emerald-50 border border-emerald-100"}`}>
-                        <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-emerald-300" : "text-emerald-700"}`}>Credits After Publish</p>
-                        <p className={`text-lg font-black mt-1 ${creditsAfterPublish < 0 ? "text-red-400" : dark ? "text-emerald-300" : "text-emerald-700"}`}>{creditsAfterPublish}</p>
-                      </div>
-                      <div className={`rounded-xl px-3 py-3 ${dark ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
-                        <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                        <p className={`text-lg font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `$${writerEarns}` : "$0"}</p>
-                      </div>
-                    </div>
-
-                    <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
-                      <p className={`text-sm font-bold mb-3 ${dark ? "text-white" : "text-gray-900"}`}>Readiness Checklist</p>
-                      <div className="space-y-2">
-                        {publishReadiness.map((item) => (
-                          <div key={item.label} className="flex items-center gap-2.5">
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${item.done ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-white/[0.05] text-gray-500" : "bg-gray-200 text-gray-500"}`}>{item.done ? "✓" : "•"}</span>
-                            <span className={`text-[12px] ${item.done ? dark ? "text-gray-200" : "text-gray-800" : dark ? "text-gray-500" : "text-gray-500"}`}>{item.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={`rounded-xl px-4 py-3 text-[11px] text-center mt-4 ${dark ? "bg-blue-500/8 border border-blue-500/15 text-blue-300" : "bg-blue-50 border border-blue-100 text-blue-700"}`}>
-                      Continue to the next step for final review and publish confirmation.
-                    </div>
-                  </div>
                 </div>
-              </div>
             </div>
           </motion.div>
         )}
 
-        {/* ── STEP 5: Final Review ── */}
+        {/* -- STEP 5: Final Review -- */}
         {step === 5 && (
           <motion.div key="s5" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
@@ -1988,7 +2064,7 @@ const CreateProject = () => {
               </div>
 
               <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
-                <div className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+                <div className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
                   <span>Invoice Item</span>
                   <span>Type</span>
                   <span className="text-right">Amount</span>
@@ -2034,7 +2110,15 @@ const CreateProject = () => {
 
               <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
                 <div className="flex items-start gap-2.5">
-                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>{legal.agreedToTerms ? "✓" : "!"}</span>
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>
+                    {legal.agreedToTerms ? (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      "!"
+                    )}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-[12px] font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{legal.agreedToTerms ? "Agreement confirmed" : "Agreement required"}</p>
                     <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can publish now." : "Please accept the submission agreement to continue."}</p>
@@ -2063,20 +2147,20 @@ const CreateProject = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Navigation Buttons ── */}
+      {/* -- Navigation Buttons -- */}
       {step > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-between mt-5">
           <button onClick={handleBack} disabled={step === 1}
             className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all disabled:opacity-30 ${dark
               ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-            ← Back
+            Back
           </button>
           {step < 5 && (
             <button onClick={handleNext}
               className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${dark
                 ? "bg-[#1e3a5f] text-white hover:bg-[#2a4a70] shadow-lg shadow-[#1e3a5f]/20"
                 : "bg-[#1e3a5f] text-white hover:bg-[#162d4a] shadow-lg shadow-[#1e3a5f]/20"}`}>
-              Next →
+              Next -
             </button>
           )}
         </motion.div>
@@ -2086,3 +2170,6 @@ const CreateProject = () => {
 };
 
 export default CreateProject;
+
+
+

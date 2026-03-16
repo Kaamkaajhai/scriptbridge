@@ -4,6 +4,7 @@ import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
+import Invoice from "../models/Invoice.js";
 import {
   sendPurchaseRequestEmail,
   sendPurchaseApprovedEmail,
@@ -242,15 +243,28 @@ export const uploadScript = async (req, res) => {
       return res.status(400).json({ message: "Script file or text content is required" });
     }
 
+    const invoiceDate = new Date();
+    const invoiceNumber = `INV-${invoiceDate.toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-4)}`;
+    const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
+    const effectivePrice = isPremiumAccess ? Number(price || 0) : 0;
+    const platformFeeRate = 0.2;
+    const writerEarnsPerSale = Math.round(effectivePrice * (1 - platformFeeRate) * 100) / 100;
+
     // Calculate credits needed for selected services
     let creditsRequired = 0;
     if (services?.evaluation) creditsRequired += CREDIT_PRICES.AI_EVALUATION;
     if (services?.aiTrailer) creditsRequired += CREDIT_PRICES.AI_TRAILER;
 
+    const creator = await User.findById(req.user._id);
+    if (!creator) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const creditsBalanceBefore = creator.credits?.balance || 0;
+    let creditsBalanceAfter = creditsBalanceBefore;
+
     // Check and deduct credits if services are selected
     if (creditsRequired > 0) {
-      const user = await User.findById(req.user._id);
-      const userBalance = user.credits?.balance || 0;
+      const userBalance = creator.credits?.balance || 0;
 
       if (userBalance < creditsRequired) {
         return res.status(402).json({
@@ -263,12 +277,12 @@ export const uploadScript = async (req, res) => {
       }
 
       // Deduct credits
-      user.credits.balance -= creditsRequired;
-      user.credits.totalSpent += creditsRequired;
+      creator.credits.balance -= creditsRequired;
+      creator.credits.totalSpent += creditsRequired;
 
       // Add transaction record for each service
       if (services?.evaluation) {
-        user.credits.transactions.push({
+        creator.credits.transactions.push({
           type: "spent",
           amount: -CREDIT_PRICES.AI_EVALUATION,
           description: `AI Evaluation for "${title}"`,
@@ -278,7 +292,7 @@ export const uploadScript = async (req, res) => {
       }
 
       if (services?.aiTrailer) {
-        user.credits.transactions.push({
+        creator.credits.transactions.push({
           type: "spent",
           amount: -CREDIT_PRICES.AI_TRAILER,
           description: `AI Trailer for "${title}"`,
@@ -287,7 +301,8 @@ export const uploadScript = async (req, res) => {
         });
       }
 
-      await user.save();
+      await creator.save();
+      creditsBalanceAfter = creator.credits?.balance || 0;
     }
 
     // Build the script document
@@ -345,6 +360,49 @@ export const uploadScript = async (req, res) => {
     // If updating from a draft (if we pass draftId in the future), we could update instead of create.
     // For now, assume it's a new or finalized creation.
     const script = await Script.create(scriptData);
+
+    await Invoice.create({
+      invoiceNumber,
+      invoiceDate,
+      creator: req.user._id,
+      script: script._id,
+      accessType: isPremiumAccess ? "premium" : "free",
+      scriptPrice: effectivePrice,
+      platformFeeRate,
+      writerEarnsPerSale,
+      services: {
+        hosting: services?.hosting !== undefined ? services.hosting : true,
+        evaluation: Boolean(services?.evaluation),
+        aiTrailer: Boolean(services?.aiTrailer),
+        trailerUpload: !services?.aiTrailer,
+      },
+      totalCreditsRequired: creditsRequired,
+      creditsBalanceBefore,
+      creditsBalanceAfter,
+      rows: [
+        {
+          item: "Script Access Model",
+          type: "Configuration",
+          detail: isPremiumAccess ? `Premium access at $${effectivePrice}` : "Free public access",
+          amountLabel: "$0",
+          amountValue: 0,
+        },
+        {
+          item: "Publish Services",
+          type: "Credit Charge",
+          detail: creditsRequired > 0 ? "Paid add-ons selected" : "No paid add-ons selected",
+          amountLabel: `${creditsRequired} cr`,
+          amountValue: creditsRequired,
+        },
+        {
+          item: "Writer Earnings Per Premium Sale",
+          type: "Future Earnings",
+          detail: isPremiumAccess ? `Buyer pays $${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
+          amountLabel: isPremiumAccess ? `$${writerEarnsPerSale}` : "$0",
+          amountValue: writerEarnsPerSale,
+        },
+      ],
+    });
 
     // --- Async Service Processing ---
     // TODO: Implement these async workflows:

@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import Script from "../models/Script.js";
 import Transaction from "../models/Transaction.js";
+import Invoice from "../models/Invoice.js";
 import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
 import jwt from "jsonwebtoken";
@@ -165,6 +166,94 @@ export const getPayments = async (req, res) => {
             .skip((page - 1) * limit)
             .limit(Number(limit));
         res.json({ transactions, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Invoices ───
+export const getInvoices = async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = "" } = req.query;
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const pipeline = [
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "creator",
+                    foreignField: "_id",
+                    as: "creator",
+                },
+            },
+            { $unwind: { path: "$creator", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "scripts",
+                    localField: "script",
+                    foreignField: "_id",
+                    as: "script",
+                },
+            },
+            { $unwind: { path: "$script", preserveNullAndEmptyArrays: true } },
+        ];
+
+        if (search) {
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { invoiceNumber: { $regex: search, $options: "i" } },
+                        { "creator.name": { $regex: search, $options: "i" } },
+                        { "script.title": { $regex: search, $options: "i" } },
+                    ],
+                },
+            });
+        }
+
+        pipeline.push(
+            { $sort: { createdAt: -1 } },
+            {
+                $facet: {
+                    rows: [
+                        { $skip: skip },
+                        { $limit: Number(limit) },
+                        {
+                            $project: {
+                                invoiceNumber: 1,
+                                invoiceDate: 1,
+                                accessType: 1,
+                                scriptPrice: 1,
+                                platformFeeRate: 1,
+                                writerEarnsPerSale: 1,
+                                services: 1,
+                                totalCreditsRequired: 1,
+                                creditsBalanceBefore: 1,
+                                creditsBalanceAfter: 1,
+                                rows: 1,
+                                createdAt: 1,
+                                creator: {
+                                    _id: "$creator._id",
+                                    name: "$creator.name",
+                                    email: "$creator.email",
+                                    role: "$creator.role",
+                                },
+                                script: {
+                                    _id: "$script._id",
+                                    title: "$script.title",
+                                },
+                            },
+                        },
+                    ],
+                    meta: [{ $count: "total" }],
+                },
+            }
+        );
+
+        const [result] = await Invoice.aggregate(pipeline);
+        const invoices = result?.rows || [];
+        const total = result?.meta?.[0]?.total || 0;
+
+        res.json({ invoices, total, page: Number(page), totalPages: Math.max(1, Math.ceil(total / Number(limit))) });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
