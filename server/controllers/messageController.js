@@ -22,17 +22,24 @@ export const sendMessage = async (req, res) => {
     const existingMessageCount = await Message.countDocuments({ chatId });
 
     if (existingMessageCount === 0) {
-      if (sender.role !== "investor") {
-        return res.status(403).json({ message: "Only investors can start a new conversation." });
+      const isInvestor = sender.role === "investor";
+      const isWriter = ["writer", "creator"].includes(sender.role);
+
+      const receiverUser = await User.findById(receiverId).select("role");
+      const isReceiverInvestor = receiverUser.role === "investor";
+      const isReceiverWriter = ["writer", "creator"].includes(receiverUser.role);
+
+      if (!((isInvestor && isReceiverWriter) || (isWriter && isReceiverInvestor))) {
+        return res.status(403).json({ message: "Conversations can only be started between writers and investors." });
       }
-      const writerRoles = ["writer", "creator"];
-      if (!writerRoles.includes(receiver.role)) {
-        return res.status(403).json({ message: "Investors can only start conversations with writers." });
-      }
-      const hasPurchased = await Script.exists({ creator: receiverId, unlockedBy: sender._id });
+
+      const investorId = isInvestor ? sender._id : receiverId;
+      const writerId = isWriter ? sender._id : receiverId;
+
+      const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
       if (!hasPurchased) {
         return res.status(403).json({
-          message: "You can only message a writer after purchasing one of their projects.",
+          message: "Messaging is locked. An investor must first purchase a script from the writer.",
           code: "PURCHASE_REQUIRED",
         });
       }
@@ -132,27 +139,33 @@ export const getConversations = async (req, res) => {
   }
 };
 
-/* ── Check if investor can message a writer ─────────────────── */
+/* ── Check if a user can message another user ─────────────────── */
 export const checkCanMessage = async (req, res) => {
   try {
-    const investor = req.user;
-    const { writerId } = req.params;
+    const user = req.user;
+    const { targetId } = req.params;
 
-    if (investor.role !== "investor")
-      return res.json({ allowed: false, reason: "Only investors can initiate messages." });
+    const targetUser = await User.findById(targetId).select("role");
+    if (!targetUser) return res.status(404).json({ message: "User not found." });
 
-    const writer = await User.findById(writerId).select("role");
-    if (!writer) return res.status(404).json({ message: "Writer not found." });
+    const isUserInvestor = user.role === "investor";
+    const isUserWriter = ["writer", "creator"].includes(user.role);
+    
+    const isTargetInvestor = targetUser.role === "investor";
+    const isTargetWriter = ["writer", "creator"].includes(targetUser.role);
 
-    const writerRoles = ["writer", "creator"];
-    if (!writerRoles.includes(writer.role))
-      return res.json({ allowed: false, reason: "Recipient is not a writer." });
+    if (!((isUserInvestor && isTargetWriter) || (isUserWriter && isTargetInvestor))) {
+         return res.json({ allowed: false, reason: "Conversations are only between investors and writers." });
+    }
 
-    const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investor._id });
+    const investorId = isUserInvestor ? user._id : targetId;
+    const writerId = isUserWriter ? user._id : targetId;
+
+    const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
     if (!hasPurchased)
       return res.json({
         allowed: false,
-        reason: "Purchase a project from this writer to unlock messaging.",
+        reason: "An investor must purchase a project from the writer to unlock messaging.",
         code: "PURCHASE_REQUIRED",
       });
 

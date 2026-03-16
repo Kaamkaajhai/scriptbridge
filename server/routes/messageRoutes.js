@@ -15,7 +15,7 @@ const router = express.Router();
 
 router.get("/unread-count", protect, getUnreadCount);
 router.get("/conversations", protect, getConversations);
-router.get("/can-message/:writerId", protect, checkCanMessage);
+router.get("/can-message/:targetId", protect, checkCanMessage);
 router.post("/send", protect, sendMessage);
 router.get("/:chatId", protect, getMessages);
 router.patch("/:chatId/read", protect, markChatRead);
