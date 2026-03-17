@@ -70,7 +70,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const [investorData, setInvestorData] = useState({
     company: ip.company || "",
     linkedInUrl: ip.linkedInUrl || "",
-    investmentRange: "",
+    investmentRange: ip.investmentRange || "",
   });
   const [investorGenres, setInvestorGenres] = useState(mandates.genres || profile.preferences?.genres || []);
   const [investorBudgets, setInvestorBudgets] = useState(mandates.budgetTiers || []);
@@ -93,18 +93,23 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     ethnicity: wp.diversity?.ethnicity || "",
   });
   const [showTagError, setShowTagError] = useState(false);
+  const maskedAccountNumber =
+    typeof profile.bankDetails?.accountNumber === "string" &&
+      profile.bankDetails.accountNumber.startsWith("****")
+      ? profile.bankDetails.accountNumber
+      : "";
 
   // Bank details state
   const [bankDetails, setBankDetails] = useState({
     accountHolderName: profile.bankDetails?.accountHolderName || "",
     bankName: profile.bankDetails?.bankName || "",
-    accountNumber: profile.bankDetails?.accountNumber || "",
+    accountNumber: "",
     routingNumber: profile.bankDetails?.routingNumber || "",
     accountType: profile.bankDetails?.accountType || "checking",
     swiftCode: profile.bankDetails?.swiftCode || "",
     iban: profile.bankDetails?.iban || "",
-    country: profile.bankDetails?.country || "US",
-    currency: profile.bankDetails?.currency || "USD"
+    country: profile.bankDetails?.country || "IN",
+    currency: profile.bankDetails?.currency || "INR"
   });
 
   const [loading, setLoading] = useState(false);
@@ -210,6 +215,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         .map((s) => s.trim())
         .filter((s) => s);
 
+      if (isWriter && ["agent", "manager", "manager_and_agent"].includes(representationStatus) && !agencyName.trim()) {
+        setError("Agency name is required when representation is selected.");
+        setLoading(false);
+        return;
+      }
+
+      if (isWriter && specializedTags.length > 5) {
+        setError("Please keep specialized tags to 5 or fewer.");
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         ...formData,
         skills: skillsArray,
@@ -236,9 +253,45 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         payload.notificationPrefs = notifPrefs;
       }
 
-      // Include bank details if any field is filled
-      if (Object.values(bankDetails).some(val => val && val !== "checking" && val !== "US" && val !== "USD")) {
-        payload.bankDetails = bankDetails;
+      const normalizedBankDetails = {
+        accountHolderName: bankDetails.accountHolderName.trim(),
+        bankName: bankDetails.bankName.trim(),
+        accountNumber: bankDetails.accountNumber.replace(/\s+/g, ""),
+        routingNumber: bankDetails.routingNumber.replace(/\s+/g, ""),
+        accountType: bankDetails.accountType || "checking",
+        swiftCode: bankDetails.swiftCode.trim().toUpperCase(),
+        iban: bankDetails.iban.trim().toUpperCase(),
+        country: (bankDetails.country || "IN").trim().toUpperCase(),
+        currency: (bankDetails.currency || "INR").trim().toUpperCase(),
+      };
+
+      const hasEditableBankValues =
+        normalizedBankDetails.accountHolderName ||
+        normalizedBankDetails.bankName ||
+        normalizedBankDetails.accountNumber ||
+        normalizedBankDetails.routingNumber ||
+        normalizedBankDetails.swiftCode ||
+        normalizedBankDetails.iban;
+
+      if (hasEditableBankValues) {
+        if (!normalizedBankDetails.accountHolderName || !normalizedBankDetails.bankName) {
+          setError("Account holder name and bank name are required for bank details.");
+          setLoading(false);
+          return;
+        }
+
+        if (!normalizedBankDetails.accountNumber && !maskedAccountNumber) {
+          setError("Account number is required for bank details.");
+          setLoading(false);
+          return;
+        }
+
+        // Keep existing account number if the user did not provide a new one.
+        if (!normalizedBankDetails.accountNumber && maskedAccountNumber) {
+          delete normalizedBankDetails.accountNumber;
+        }
+
+        payload.bankDetails = normalizedBankDetails;
       }
 
       const { data } = await api.put("/users/update", payload);
@@ -779,7 +832,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   value={bankDetails.bankName}
                   onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
                   className={inputClass}
-                  placeholder="e.g., Wells Fargo, Chase"
+                  placeholder="e.g., HDFC Bank, ICICI Bank, SBI"
                 />
               </div>
 
@@ -787,11 +840,11 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 <div>
                   <label className={labelClass}>Account Number</label>
                   <input
-                    type="password"
+                    type="text"
                     value={bankDetails.accountNumber}
                     onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
                     className={inputClass}
-                    placeholder="Account number"
+                    placeholder={maskedAccountNumber ? `Current: ${maskedAccountNumber}` : "Account number"}
                   />
                 </div>
                 <div>
@@ -827,7 +880,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     value={bankDetails.country}
                     onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
                     className={inputClass}
-                    placeholder="US"
+                    placeholder="IN"
                   />
                 </div>
                 <div>
@@ -837,7 +890,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     value={bankDetails.currency}
                     onChange={(e) => setBankDetails({ ...bankDetails, currency: e.target.value })}
                     className={inputClass}
-                    placeholder="USD"
+                    placeholder="INR"
                   />
                 </div>
               </div>

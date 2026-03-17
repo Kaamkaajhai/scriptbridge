@@ -1,5 +1,9 @@
-﻿import { useNavigate } from "react-router-dom";
+﻿import { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
+import { formatCurrency } from "../utils/currency";
+import { AuthContext } from "../context/AuthContext";
+import api from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
@@ -22,6 +26,8 @@ const STATUS = {
 const ProjectCard = ({ project, userName }) => {
   const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
+  const { user, setUser } = useContext(AuthContext);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   const isClickable  = project?.status === "published";
   const genre        = project?.primaryGenre || project?.genre || null;
@@ -33,6 +39,48 @@ const ProjectCard = ({ project, userName }) => {
   const status       = STATUS[project?.status] || STATUS.draft;
   const coverImage   = project?.coverImage || null;
   const initials     = (project?.title || "SC").replace(/[^a-zA-Z0-9 ]/g, "").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "SC";
+  const canBookmark  = Boolean(user?._id && project?._id && project?.creator?._id !== user?._id);
+
+  useEffect(() => {
+    const ids = user?.favoriteScripts || [];
+    const scriptId = project?._id;
+    if (!scriptId || !Array.isArray(ids)) {
+      setIsBookmarked(false);
+      return;
+    }
+    const hasBookmark = ids.some((item) => (typeof item === "string" ? item : item?._id) === scriptId);
+    setIsBookmarked(hasBookmark);
+  }, [user?.favoriteScripts, project?._id]);
+
+  const handleToggleBookmark = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!canBookmark) return;
+    try {
+      const { data } = await api.post(`/scripts/${project._id}/favorite`);
+      const nextFavorited = Boolean(data?.favorited);
+      setIsBookmarked(nextFavorited);
+
+      setUser((prev) => {
+        if (!prev) return prev;
+        const currentIds = Array.isArray(prev.favoriteScripts)
+          ? prev.favoriteScripts.map((item) => (typeof item === "string" ? item : item?._id)).filter(Boolean)
+          : [];
+        const updatedIds = nextFavorited
+          ? Array.from(new Set([...currentIds, project._id]))
+          : currentIds.filter((item) => item !== project._id);
+        const updatedUser = { ...prev, favoriteScripts: updatedIds };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        return updatedUser;
+      });
+
+      window.dispatchEvent(new CustomEvent("bookmarkUpdated", {
+        detail: { scriptId: project._id, bookmarked: nextFavorited },
+      }));
+    } catch {
+      // keep card interaction silent on toggle failure
+    }
+  };
 
   const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
@@ -74,11 +122,11 @@ const ProjectCard = ({ project, userName }) => {
               dark ? "bg-[#1a5aaa]/20" : "bg-[#90b0f0]/25"
             }`}/>
             {/* icon container */}
-            <div className={`relative flex items-center justify-center w-[62px] h-[62px]`}>
-              {/* subtle glow effect */}
-              <div className={`absolute inset-0 rounded-[18px] ${
-                dark ? "bg-[#1a5aaa]/10 blur-xl" : "bg-[#4080d0]/8 blur-xl"
-              }`} />
+            <div className={`relative flex items-center justify-center w-[62px] h-[62px] rounded-[18px] ${
+              dark
+                ? "bg-gradient-to-b from-[#121f32] to-[#0b1622] border border-[#1c3654] shadow-[0_0_0_1px_rgba(60,120,220,0.07),0_12px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.05)]"
+                : "bg-gradient-to-b from-white to-[#eaf0ff] border border-[#c4d4ee] shadow-[0_4px_24px_rgba(80,120,210,0.16),inset_0_1px_0_rgba(255,255,255,1)]"
+            }`}>
               {/* clapperboard SVG */}
               <svg viewBox="0 0 48 48" fill="none" className={`w-[34px] h-[34px] ${dark ? "text-[#3d7ac0]" : "text-[#4e6ec0]"}`}>
                 {/* body */}
@@ -139,9 +187,25 @@ const ProjectCard = ({ project, userName }) => {
           </span>
         </div>
 
+        {/* Bookmark â€” top-right */}
+        {canBookmark && (
+          <button
+            onClick={handleToggleBookmark}
+            aria-label={isBookmarked ? "Remove bookmark" : "Bookmark project"}
+            className={`absolute top-3 right-3 z-20 w-8 h-8 rounded-lg border backdrop-blur-sm flex items-center justify-center transition ${isBookmarked
+              ? dark ? "bg-amber-500/20 border-amber-400/30 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-600"
+              : dark ? "bg-black/45 border-white/[0.08] text-white/60 hover:text-white" : "bg-white/85 border-gray-200 text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <svg className={`w-4 h-4 ${isBookmarked ? "fill-current" : ""}`} viewBox="0 0 24 24" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 4.5h13.5a.75.75 0 01.75.75v15.69a.75.75 0 01-1.219.594L12 16.34l-6.281 5.194a.75.75 0 01-1.219-.594V5.25a.75.75 0 01.75-.75z" />
+            </svg>
+          </button>
+        )}
+
         {/* Score â€” top-right */}
         {score != null && (
-          <div className={`absolute top-3 right-3 flex items-baseline gap-0.5 px-2.5 py-1.5 rounded-lg backdrop-blur-sm ${
+          <div className={`absolute top-3 ${canBookmark ? "right-12" : "right-3"} flex items-baseline gap-0.5 px-2.5 py-1.5 rounded-lg backdrop-blur-sm ${
             dark
               ? "bg-black/45 border border-white/[0.07]"
               : "bg-white/80 border border-gray-200/80 shadow-sm"
@@ -181,13 +245,13 @@ const ProjectCard = ({ project, userName }) => {
         {/* Divider */}
         <div className={`my-3 h-px ${dark ? "bg-[#182535]" : "bg-gray-100"}`} />
 
-        {/* Logline â€” always rendered, fills vertical space */}
+        {/* Logline/Synopsis preview */}
         <p className={`text-[12px] leading-[1.65] line-clamp-2 flex-1 ${
-          (project?.logline || project?.description)
+          (project?.logline || project?.synopsis || project?.description)
             ? (dark ? "text-[#68788a]" : "text-gray-500")
             : (dark ? "text-[#253545]/60" : "text-gray-300")
         }`}>
-          {project?.logline || project?.description || "No description provided."}
+          {project?.logline || project?.synopsis || project?.description || "No synopsis provided."}
         </p>
 
         {/* Tags */}
@@ -255,7 +319,7 @@ const ProjectCard = ({ project, userName }) => {
             dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600"
           }`}>On Hold</span>
         ) : project?.premium && project?.price ? (
-          <span className={`text-[14px] font-extrabold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>${project.price}</span>
+          <span className={`text-[14px] font-extrabold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>{formatCurrency(project.price)}</span>
         ) : (
           <span className={`text-[10px] font-bold tracking-wide uppercase ${dark ? "text-[#3b4f63]" : "text-gray-300"}`}>Free</span>
         )}

@@ -11,7 +11,7 @@ const roleSchema = new mongoose.Schema({
 const scriptSchema = new mongoose.Schema({
   creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   title: { type: String, required: true },
-  logline: { type: String }, // Max 300 chars hook for search cards
+  logline: { type: String }, // Max 50 chars hook for compact cards
   description: { type: String },
   synopsis: { type: String }, // Short visible teaser
   fullContent: { type: String }, // Locked full content
@@ -74,10 +74,15 @@ const scriptSchema = new mongoose.Schema({
   // AI Trailer (Text-to-Trailer)
   trailerUrl: { type: String },
   trailerThumbnail: { type: String },
-  trailerStatus: { type: String, enum: ["none", "generating", "ready", "failed"], default: "none" },
+  trailerStatus: { type: String, enum: ["none", "requested", "generating", "ready", "failed"], default: "none" },
   // Uploaded Trailer (User uploaded, no credits required)
   uploadedTrailerUrl: { type: String },
   trailerSource: { type: String, enum: ["ai", "uploaded", "none"], default: "none" }, // Track trailer source
+  trailerWriterFeedback: {
+    status: { type: String, enum: ["pending", "approved", "revision_requested"], default: "pending" },
+    note: { type: String, default: "" },
+    updatedAt: { type: Date },
+  },
   // Script Score (Pro Analysis)
   scriptScore: {
     overall: { type: Number, min: 0, max: 100 },

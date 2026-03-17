@@ -1,10 +1,13 @@
-import { useState, useContext, useRef, useEffect } from "react";
+import { useState, useContext, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import Cropper from "react-easy-crop";
+import { jsPDF } from "jspdf";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
-import AiWritingAssistant from "../components/AiWritingAssistant";
+import { formatCurrency } from "../utils/currency";
 
 // Format options
 const formats = [
@@ -51,6 +54,7 @@ const settingOptions = [
   "Future", "Alternate Reality", "Virtual Reality", "Underground",
   "Prison", "Hospital", "School/College", "Military Base"
 ];
+const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
 
 // Service pricing (in credits)
 const SERVICE_PRICES = {
@@ -58,6 +62,76 @@ const SERVICE_PRICES = {
   evaluation: 10, // 10 credits for AI evaluation
   aiTrailer: 15, // 15 credits for AI trailer
 };
+
+const THUMBNAIL_ASPECT = 3 / 4;
+const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
+const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
+
+const createImage = (url) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.addEventListener("load", () => resolve(image));
+  image.addEventListener("error", reject);
+  image.setAttribute("crossOrigin", "anonymous");
+  image.src = url;
+});
+
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+
+const getRotatedSize = (width, height, rotation) => {
+  const r = toRadians(rotation);
+  return {
+    width: Math.abs(Math.cos(r) * width) + Math.abs(Math.sin(r) * height),
+    height: Math.abs(Math.sin(r) * width) + Math.abs(Math.cos(r) * height),
+  };
+};
+
+const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return null;
+
+  const rotated = getRotatedSize(image.width, image.height, rotation);
+  canvas.width = rotated.width;
+  canvas.height = rotated.height;
+
+  ctx.translate(rotated.width / 2, rotated.height / 2);
+  ctx.rotate(toRadians(rotation));
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+  const cropCanvas = document.createElement("canvas");
+  const cropCtx = cropCanvas.getContext("2d");
+
+  if (!cropCtx) return null;
+
+  cropCanvas.width = pixelCrop.width;
+  cropCanvas.height = pixelCrop.height;
+
+  cropCtx.drawImage(
+    canvas,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return new Promise((resolve) => {
+    cropCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
+  });
+};
+
+const STEPS = [
+  { num: 1, label: "Basics", desc: "Essentials" },
+  { num: 2, label: "Classify", desc: "Tags & tone" },
+  { num: 3, label: "Upload", desc: "Files" },
+  { num: 4, label: "Publish", desc: "Plan & pricing" },
+  { num: 5, label: "Review", desc: "Legal & checkout" },
+];
 
 // Legal agreement text (placeholder - replace with actual legal text)
 const LEGAL_AGREEMENT = `
@@ -96,6 +170,13 @@ By clicking "I Agree" and proceeding with payment, you acknowledge that you have
 Last Updated: ${new Date().toLocaleDateString()}
 `.trim();
 
+const formatDuration = (seconds) => {
+  const total = Math.max(0, Math.floor(seconds || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+};
+
 const ScriptUpload = () => {
   const { user } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
@@ -123,6 +204,18 @@ const ScriptUpload = () => {
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [trailerFile, setTrailerFile] = useState(null);
   const [trailerOption, setTrailerOption] = useState("none"); // "none", "ai", "upload"
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState("");
+  const [trailerPreviewUrl, setTrailerPreviewUrl] = useState("");
+  const [trailerMeta, setTrailerMeta] = useState(null);
+  const [trailerMetaLoading, setTrailerMetaLoading] = useState(false);
+  const [thumbnailSourceName, setThumbnailSourceName] = useState("thumbnail");
+  const [isThumbnailEditorOpen, setIsThumbnailEditorOpen] = useState(false);
+  const [thumbnailSourceUrl, setThumbnailSourceUrl] = useState("");
+  const [thumbnailCrop, setThumbnailCrop] = useState({ x: 0, y: 0 });
+  const [thumbnailZoom, setThumbnailZoom] = useState(1);
+  const [thumbnailRotation, setThumbnailRotation] = useState(0);
+  const [thumbnailCropPixels, setThumbnailCropPixels] = useState(null);
+  const [thumbnailApplying, setThumbnailApplying] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -131,7 +224,7 @@ const ScriptUpload = () => {
     pageCount: "",
     primaryGenre: "",
     logline: "",
-    description: "",
+    synopsis: "",
   });
 
   // Classification data
@@ -155,6 +248,7 @@ const ScriptUpload = () => {
 
   // Tags as comma-separated input
   const [tagsInput, setTagsInput] = useState("");
+  const [roles, setRoles] = useState([]);
 
   // Script pricing
   const PRICE_PRESETS = [5, 10, 15, 25, 50];
@@ -200,7 +294,7 @@ const ScriptUpload = () => {
           format: data.format || "feature",
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || data.genre || "",
-          description: data.description || data.logline || "",
+          synopsis: data.synopsis || data.description || "",
         });
         setTagsInput((data.tags || []).join(", "));
         setClassification({
@@ -208,6 +302,18 @@ const ScriptUpload = () => {
           themes: data.classification?.themes || [],
           settings: data.classification?.settings || [],
         });
+        if (Array.isArray(data.roles)) {
+          setRoles(data.roles.map((role) => ({
+            characterName: role?.characterName || "",
+            type: role?.type || "",
+            description: role?.description || "",
+            gender: role?.gender || "Any",
+            ageRange: {
+              min: role?.ageRange?.min ?? "",
+              max: role?.ageRange?.max ?? "",
+            },
+          })));
+        }
         setServices({
           hosting: data.services?.hosting ?? true,
           evaluation: data.services?.evaluation ?? false,
@@ -236,8 +342,20 @@ const ScriptUpload = () => {
           format: data.format || "feature",
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || "",
-          description: data.description || data.logline || "",
+          synopsis: data.synopsis || data.description || "",
         }));
+        if (Array.isArray(data.roles)) {
+          setRoles(data.roles.map((role) => ({
+            characterName: role?.characterName || "",
+            type: role?.type || "",
+            description: role?.description || "",
+            gender: role?.gender || "Any",
+            ageRange: {
+              min: role?.ageRange?.min ?? "",
+              max: role?.ageRange?.max ?? "",
+            },
+          })));
+        }
         setFromDraft(true);
       } catch {
         // Draft not found, proceed normally
@@ -255,6 +373,35 @@ const ScriptUpload = () => {
     if (name === "pageCount" || name === "format") {
       validatePageCount();
     }
+  };
+
+  const addRole = () => {
+    setRoles((prev) => ([
+      ...prev,
+      {
+        characterName: "",
+        type: "",
+        description: "",
+        gender: "Any",
+        ageRange: { min: "", max: "" },
+      },
+    ]));
+  };
+
+  const updateRoleField = (index, field, value) => {
+    setRoles((prev) => prev.map((role, i) => (i === index ? { ...role, [field]: value } : role)));
+  };
+
+  const updateRoleAge = (index, field, value) => {
+    setRoles((prev) => prev.map((role, i) => (
+      i === index
+        ? { ...role, ageRange: { ...role.ageRange, [field]: value === "" ? "" : Number(value) } }
+        : role
+    )));
+  };
+
+  const removeRole = (index) => {
+    setRoles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Validate page count based on format
@@ -348,26 +495,77 @@ const ScriptUpload = () => {
     e.preventDefault();
   };
 
+  const resetThumbnailEditor = useCallback(() => {
+    setIsThumbnailEditorOpen(false);
+    setThumbnailCrop({ x: 0, y: 0 });
+    setThumbnailZoom(1);
+    setThumbnailRotation(0);
+    setThumbnailCropPixels(null);
+    setThumbnailSourceUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
+  }, []);
+
+  const openThumbnailEditor = useCallback((file) => {
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      setError("Please select an image file for thumbnail.");
+      return;
+    }
+
+    if (file.size > MAX_THUMBNAIL_SIZE) {
+      setError("Thumbnail must be an image under 5MB.");
+      return;
+    }
+
+    setError("");
+    setThumbnailSourceName(file.name || "thumbnail");
+    const sourceUrl = URL.createObjectURL(file);
+    setThumbnailSourceUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return sourceUrl;
+    });
+    setThumbnailCrop({ x: 0, y: 0 });
+    setThumbnailZoom(1);
+    setThumbnailRotation(0);
+    setThumbnailCropPixels(null);
+    setIsThumbnailEditorOpen(true);
+  }, []);
+
   // Handle thumbnail selection
   const handleThumbnailSelect = (file) => {
     if (!file) return;
-    
-    console.log("Thumbnail file selected:", file.name, file.type, file.size);
-    
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowedTypes.includes(file.type)) {
-      setError("Please upload a valid image file (JPEG, PNG, WebP, or GIF).");
+    openThumbnailEditor(file);
+  };
+
+  const handleApplyThumbnail = async () => {
+    if (!thumbnailSourceUrl || !thumbnailCropPixels) {
+      setError("Adjust thumbnail and try again.");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Thumbnail file size must be less than 5MB.");
-      return;
-    }
+    setThumbnailApplying(true);
+    try {
+      const croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation);
+      if (!croppedBlob) throw new Error("thumbnail-processing-failed");
 
-    setThumbnailFile(file);
-    setError("");
-    console.log("Thumbnail file set successfully");
+      if (croppedBlob.size > MAX_THUMBNAIL_SIZE) {
+        setError("Processed thumbnail exceeds 5MB. Reduce zoom/area and retry.");
+        return;
+      }
+
+      const baseName = (thumbnailSourceName || "thumbnail").replace(/\.[^/.]+$/, "");
+      const processedFile = new File([croppedBlob], `${baseName}-cover.jpg`, { type: "image/jpeg" });
+      setThumbnailFile(processedFile);
+      setError("");
+      resetThumbnailEditor();
+    } catch {
+      setError("Could not process thumbnail. Please try another image.");
+    } finally {
+      setThumbnailApplying(false);
+    }
   };
 
   // Handle trailer selection
@@ -376,14 +574,14 @@ const ScriptUpload = () => {
     
     console.log("Trailer file selected:", file.name, file.type, file.size);
     
-    const allowedTypes = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm"];
+    const allowedTypes = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-m4v"];
     if (!allowedTypes.includes(file.type)) {
       setError("Please upload a valid video file (MP4, MPEG, MOV, or WebM).");
       return;
     }
 
-    if (file.size > 100 * 1024 * 1024) {
-      setError("Trailer file size must be less than 100MB.");
+    if (file.size > MAX_TRAILER_SIZE) {
+      setError("Trailer must be under 250MB for high-quality upload.");
       return;
     }
 
@@ -392,6 +590,56 @@ const ScriptUpload = () => {
     setError("");
     console.log("Trailer file set successfully, trailerOption set to 'upload'");
   };
+
+  useEffect(() => {
+    if (!thumbnailFile) {
+      setThumbnailPreviewUrl("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(thumbnailFile);
+    setThumbnailPreviewUrl(previewUrl);
+
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [thumbnailFile]);
+
+  useEffect(() => {
+    if (!trailerFile) {
+      setTrailerPreviewUrl("");
+      setTrailerMeta(null);
+      setTrailerMetaLoading(false);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(trailerFile);
+    setTrailerPreviewUrl(previewUrl);
+    setTrailerMeta(null);
+    setTrailerMetaLoading(true);
+
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.src = previewUrl;
+
+    video.onloadedmetadata = () => {
+      setTrailerMeta({
+        duration: Number.isFinite(video.duration) ? video.duration : 0,
+        width: video.videoWidth || 0,
+        height: video.videoHeight || 0,
+      });
+      setTrailerMetaLoading(false);
+    };
+
+    video.onerror = () => {
+      setTrailerMetaLoading(false);
+      setTrailerMeta(null);
+    };
+
+    return () => {
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [trailerFile]);
 
   // Handle agreement scroll
   useEffect(() => {
@@ -454,8 +702,12 @@ const ScriptUpload = () => {
           setError("Primary genre is required.");
           return false;
         }
-        if (!formData.logline || formData.logline.length > 300) {
-          setError("Logline is required and must be 300 characters or less.");
+        if (formData.logline && formData.logline.length > 50) {
+          setError("Logline must be 50 characters or less.");
+          return false;
+        }
+        if (!formData.synopsis || !formData.synopsis.trim()) {
+          setError("Synopsis is required.");
           return false;
         }
         return true;
@@ -468,7 +720,7 @@ const ScriptUpload = () => {
         // If coming from the Create Project editor or in edit mode, content is already provided — skip validation
         if ((fromDraft || editId) && textContent.trim()) return true;
         if (!uploadedFile && !textContent.trim()) {
-          setError("Please either upload a PDF or write your script in the editor.");
+          setError("Please upload a PDF file to continue.");
           return false;
         }
         return true;
@@ -518,9 +770,22 @@ const ScriptUpload = () => {
       const payload = {
         title: formData.title || "Untitled Draft",
         logline: formData.logline,
+        synopsis: formData.synopsis,
         format: formData.format,
         pageCount: Number(formData.pageCount) || 0,
         textContent: textContent,
+        roles: roles
+          .filter((role) => role.characterName?.trim())
+          .map((role) => ({
+            characterName: role.characterName.trim(),
+            type: role.type?.trim() || "",
+            description: role.description?.trim() || "",
+            gender: role.gender || "Any",
+            ageRange: {
+              min: role.ageRange?.min === "" ? undefined : Number(role.ageRange?.min),
+              max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
+            },
+          })),
         classification: {
           primaryGenre: formData.primaryGenre,
           tones: classification.tones,
@@ -537,6 +802,159 @@ const ScriptUpload = () => {
       setError(err.response?.data?.message || "Failed to save draft.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const buildInvoiceNumber = (publishedId) => {
+    const idTail = (publishedId || scriptId || editId || "NEW").toString().slice(-4).toUpperCase();
+    return `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${idTail}`;
+  };
+
+  const handleDownloadInvoice = async (publishedId) => {
+    const invoiceNum = buildInvoiceNumber(publishedId);
+    const invoiceDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+    const companyAddress = "India, Maharashtra, Pune";
+    const companyEmail = "info.ckript@gmail.com";
+    const invoiceRows = [
+      {
+        item: "Script Access Model",
+        type: "Configuration",
+        detail: isPremium ? `Premium access at ${formatCurrency(effectivePrice)}` : "Free public access",
+        amount: formatCurrency(0),
+      },
+      {
+        item: "Publish Services",
+        type: "Credit Charge",
+        detail: paidPublishServices.length > 0 ? `${paidPublishServices.length} paid add-on${paidPublishServices.length === 1 ? "" : "s"} selected` : "No paid add-ons selected",
+        amount: `${totalServiceCost} cr`,
+      },
+      {
+        item: "Writer Earnings Per Premium Sale",
+        type: "Future Earnings",
+        detail: isPremium ? `Buyer pays ${formatCurrency(effectivePrice)}, you receive after platform fee` : "Upgrade to premium to monetize full script access",
+        amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
+      },
+    ];
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const left = 44;
+    const right = pageWidth - 44;
+    let y = 56;
+
+    const blobToDataUrl = (blob) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+    let logoAdded = false;
+    try {
+      const logoRes = await fetch("/cklogo-nobg.png");
+      if (logoRes.ok) {
+        const logoBlob = await logoRes.blob();
+        const logoDataUrl = await blobToDataUrl(logoBlob);
+        doc.addImage(String(logoDataUrl), "PNG", left, y - 26, 110, 26);
+        logoAdded = true;
+      }
+    } catch {
+      logoAdded = false;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Script Publish Invoice", logoAdded ? left + 124 : left, y);
+
+    if (!logoAdded) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("CKRIPT", left, y - 20);
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    y += 18;
+    doc.text(`Invoice: ${invoiceNum}`, left, y);
+    doc.text(`Date: ${invoiceDate}`, right, y, { align: "right" });
+
+    y += 16;
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Address: ${companyAddress}`, left, y);
+    doc.text(`Email: ${companyEmail}`, right, y, { align: "right" });
+    doc.setTextColor(15, 23, 42);
+
+    y += 18;
+
+    doc.setDrawColor(230, 235, 242);
+    doc.line(left, y, right, y);
+    y += 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("ITEM", left, y);
+    doc.text("TYPE", left + 280, y);
+    doc.text("AMOUNT", right, y, { align: "right" });
+    y += 12;
+    doc.setDrawColor(230, 235, 242);
+    doc.line(left, y, right, y);
+
+    invoiceRows.forEach((row) => {
+      y += 18;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(String(row.item), left, y);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      y += 12;
+      doc.setTextColor(93, 104, 122);
+      const detailLines = doc.splitTextToSize(String(row.detail), 270);
+      doc.text(detailLines, left, y);
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(10);
+      doc.text(String(row.type), left + 280, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(row.amount), right, y, { align: "right" });
+      y += Math.max(detailLines.length * 11, 16) + 6;
+      doc.setDrawColor(237, 240, 245);
+      doc.line(left, y, right, y);
+    });
+
+    y += 24;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("SUMMARY", left, y);
+    y += 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`Due Now: ${totalServiceCost} cr`, left, y);
+    y += 14;
+    doc.text(`Remaining Credits: ${creditsAfterPublish}`, left, y);
+    y += 14;
+    doc.text(`Net per Premium Sale: ${isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}`, left, y);
+
+    y += 34;
+    doc.setFont("times", "italic");
+    doc.setFontSize(18);
+    doc.text("Yash", left + 8, y);
+    doc.setDrawColor(170, 179, 193);
+    doc.line(left, y + 8, left + 170, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Founder Signature", left, y + 20);
+    doc.setTextColor(15, 23, 42);
+
+    doc.save(`${invoiceNum}.pdf`);
+  };
+
+  const offerInvoiceDownload = async (publishedId) => {
+    const shouldDownload = window.confirm("Your project has been submitted for admin approval. It will be visible after approval. Would you like to download the invoice now?");
+    if (shouldDownload) {
+      await handleDownloadInvoice(publishedId);
     }
   };
 
@@ -568,11 +986,23 @@ const ScriptUpload = () => {
       const payload = {
         title: formData.title,
         logline: formData.logline,
-        description: formData.description || formData.logline,
-        synopsis: formData.description || formData.logline,
+        synopsis: formData.synopsis,
+        description: formData.synopsis,
         format: formData.format,
         pageCount: Number(formData.pageCount),
         textContent: textContent,
+        roles: roles
+          .filter((role) => role.characterName?.trim())
+          .map((role) => ({
+            characterName: role.characterName.trim(),
+            type: role.type?.trim() || "",
+            description: role.description?.trim() || "",
+            gender: role.gender || "Any",
+            ageRange: {
+              min: role.ageRange?.min === "" ? undefined : Number(role.ageRange?.min),
+              max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
+            },
+          })),
         tags: tagsArr,
         classification: {
           primaryGenre: formData.primaryGenre,
@@ -633,6 +1063,7 @@ const ScriptUpload = () => {
           }
         }
 
+        await offerInvoiceDownload(editId);
         navigate(`/script/${editId}`);
       } else {
         const response = await api.post("/scripts/upload", payload);
@@ -678,6 +1109,7 @@ const ScriptUpload = () => {
         if (scriptId) {
           try { await api.delete(`/scripts/${scriptId}`); } catch { /* ok */ }
         }
+        await offerInvoiceDownload(newScriptId);
         navigate("/dashboard");
       }
     } catch (err) {
@@ -718,6 +1150,34 @@ const ScriptUpload = () => {
       : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
     }`;
   const labelCls = isDarkMode ? "text-white" : "text-[#1e3a5f]";
+  const totalServiceCost = calculateTotal();
+  const creditsAfterPublish = creditsBalance - totalServiceCost;
+  const selectedPublishServices = [
+    { key: "hosting", label: "Hosting & Discovery", enabled: true, price: 0 },
+    { key: "evaluation", label: "Professional Evaluation", enabled: services.evaluation, price: SERVICE_PRICES.evaluation },
+    { key: "aiTrailer", label: "AI Concept Trailer", enabled: trailerOption === "ai", price: SERVICE_PRICES.aiTrailer },
+  ];
+  const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
+  const publishInvoiceRows = [
+    {
+      item: "Script Access Model",
+      type: "Configuration",
+      detail: isPremium ? `Premium access at ${formatCurrency(effectivePrice)}` : "Free public access",
+      amount: formatCurrency(0),
+    },
+    {
+      item: "Publish Services",
+      type: "Credit Charge",
+      detail: paidPublishServices.length > 0 ? `${paidPublishServices.length} paid add-on${paidPublishServices.length === 1 ? "" : "s"} selected` : "No paid add-ons selected",
+      amount: `${totalServiceCost} cr`,
+    },
+    {
+      item: "Writer Earnings Per Premium Sale",
+      type: "Future Earnings",
+      detail: isPremium ? `Buyer pays ${formatCurrency(effectivePrice)}, you receive after platform fee` : "Upgrade to premium to monetize full script access",
+      amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
+    },
+  ];
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
@@ -731,28 +1191,47 @@ const ScriptUpload = () => {
         </div>
 
         {/* Step indicators */}
-        <div className="flex gap-2 mb-4">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <button
-              key={s}
-              onClick={() => s < step && setStep(s)}
-              className={`flex-1 h-2 rounded-full transition ${step >= s ? "bg-white" : "bg-white/[0.08]"
-                } ${s < step ? "cursor-pointer hover:bg-neutral-200" : ""}`}
-            />
-          ))}
+        <div className={`mb-6 rounded-2xl border p-4 ${isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
+          <div className="flex items-center">
+            {STEPS.map((s, i) => (
+              <div key={s.num} className="flex items-center flex-1">
+                <button
+                  onClick={() => s.num < step && setStep(s.num)}
+                  disabled={s.num > step}
+                  className={`flex items-center gap-2.5 transition-all ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${step === s.num
+                    ? "bg-[#1e3a5f] text-white shadow-md"
+                    : step > s.num
+                      ? isDarkMode ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-100 text-emerald-700"
+                      : isDarkMode ? "bg-white/[0.06] text-neutral-500" : "bg-gray-200 text-gray-400"
+                    }`}>
+                    {step > s.num ? (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : s.num}
+                  </span>
+                  <div className="hidden sm:block text-left">
+                    <p className={`text-xs font-bold leading-none ${step === s.num
+                      ? isDarkMode ? "text-white" : "text-[#1e3a5f]"
+                      : step > s.num
+                        ? isDarkMode ? "text-emerald-300" : "text-emerald-700"
+                        : isDarkMode ? "text-neutral-500" : "text-gray-400"
+                      }`}>{s.label}</p>
+                    <p className={`text-[10px] mt-0.5 ${isDarkMode ? "text-neutral-600" : "text-gray-400"}`}>{s.desc}</p>
+                  </div>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div className={`flex-1 h-[2px] mx-3 rounded-full ${step > s.num
+                    ? isDarkMode ? "bg-emerald-500/40" : "bg-emerald-300"
+                    : isDarkMode ? "bg-white/[0.06]" : "bg-gray-200"
+                    }`} />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="text-xs text-neutral-500 mb-6">
-          Step {step} of 5 —{" "}
-          {step === 1
-            ? "Project Essentials"
-            : step === 2
-              ? "Deep Classification"
-              : step === 3
-                ? "File Upload"
-                : step === 4
-                  ? "Services & Strategy"
-                  : "Legal & Checkout"}
-        </p>
 
         {/* Main form container */}
         <div className={`rounded-2xl border p-6 sm:p-8 ${isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200 shadow-sm"}`}>
@@ -852,33 +1331,33 @@ const ScriptUpload = () => {
 
                   <div>
                     <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
-                      Logline * <span className="text-neutral-500">(Max 300 characters)</span>
+                      Logline <span className="text-neutral-500">(optional, max 50 characters)</span>
                     </label>
                     <textarea
                       name="logline"
                       value={formData.logline}
                       onChange={handleChange}
-                      required
                       rows={3}
-                      maxLength={300}
+                      maxLength={50}
                       placeholder="A one-line hook that sells your concept..."
                       className={inputCls}
                     />
                     <p className="text-xs text-neutral-500 mt-1 text-right">
-                      {formData.logline.length}/300
+                      {formData.logline.length}/50
                     </p>
                   </div>
 
                   <div>
                     <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
-                      Description <span className="text-neutral-500">(shown on your project page)</span>
+                      Synopsis * <span className="text-neutral-500">(shown on your project page)</span>
                     </label>
                     <textarea
-                      name="description"
-                      value={formData.description}
+                      name="synopsis"
+                      value={formData.synopsis}
                       onChange={handleChange}
+                      required
                       rows={3}
-                      placeholder="A short description of your project..."
+                      placeholder="A short synopsis of your project..."
                       className={inputCls}
                     />
                   </div>
@@ -978,6 +1457,89 @@ const ScriptUpload = () => {
                     </div>
                   </div>
 
+                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div>
+                        <h3 className={`text-sm font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Role Studio</h3>
+                        <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Build a professional role sheet for casting and investor clarity.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addRole}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isDarkMode ? "bg-white/[0.06] border-[#2a4a6a] text-blue-300 hover:bg-white/[0.1]" : "bg-white border-blue-200 text-[#1e3a5f] hover:bg-blue-50"}`}
+                      >
+                        + Add Role
+                      </button>
+                    </div>
+
+                    {roles.length === 0 ? (
+                      <div className={`rounded-xl border border-dashed px-4 py-5 text-center ${isDarkMode ? "border-[#1d3350] text-gray-500" : "border-gray-300 text-gray-400"}`}>
+                        No roles added yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {roles.map((role, idx) => (
+                          <div key={`role-${idx}`} className={`rounded-xl border p-3 ${isDarkMode ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-white"}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <p className={`text-xs font-bold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Role {idx + 1}</p>
+                              <button
+                                type="button"
+                                onClick={() => removeRole(idx)}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "text-red-300 border-red-500/30 hover:bg-red-500/10" : "text-red-600 border-red-200 hover:bg-red-50"}`}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                value={role.characterName}
+                                onChange={(e) => updateRoleField(idx, "characterName", e.target.value)}
+                                placeholder="Character name"
+                                className={inputCls}
+                              />
+                              <input
+                                type="text"
+                                value={role.type}
+                                onChange={(e) => updateRoleField(idx, "type", e.target.value)}
+                                placeholder="Archetype (e.g. Lead, Antagonist)"
+                                className={inputCls}
+                              />
+                              <select value={role.gender} onChange={(e) => updateRoleField(idx, "gender", e.target.value)} className={inputCls}>
+                                {ROLE_GENDER_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
+                              </select>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Min age"
+                                  value={role.ageRange?.min ?? ""}
+                                  onChange={(e) => updateRoleAge(idx, "min", e.target.value)}
+                                  className={inputCls}
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Max age"
+                                  value={role.ageRange?.max ?? ""}
+                                  onChange={(e) => updateRoleAge(idx, "max", e.target.value)}
+                                  className={inputCls}
+                                />
+                              </div>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={role.description}
+                              onChange={(e) => updateRoleField(idx, "description", e.target.value)}
+                              placeholder="Performance notes, emotional range, or casting vibe..."
+                              className={`${inputCls} mt-3 resize-none`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex gap-3 justify-between pt-2">
                     <button
                       type="button"
@@ -1004,38 +1566,38 @@ const ScriptUpload = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="space-y-5"
+                  className="space-y-6"
                 >
-                  <div>
+                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
                     <div className="flex items-center justify-between mb-2">
                       <label className={`block text-sm ${labelCls} font-medium`}>
-                        Script File (PDF) & Editor *
+                        Script File (PDF) *
                       </label>
                       {!fromDraft && (
                         <button
                           type="button"
                           onClick={handleSaveDraft}
                           disabled={loading}
-                          className="text-xs font-bold text-white bg-white/[0.06] px-3 py-1.5 rounded-lg hover:bg-white/[0.08] transition disabled:opacity-50"
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50 ${isDarkMode ? "text-white bg-white/[0.08] hover:bg-white/[0.12]" : "text-[#1e3a5f] bg-white border border-gray-200 hover:bg-gray-50"}`}
                         >
-                          {loading ? "Saving..." : "💾 Save Draft"}
+                          {loading ? "Saving..." : "Save Draft"}
                         </button>
                       )}
                     </div>
 
                     {fromDraft && textContent ? (
-                      <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4">
+                      <div className={`flex items-center gap-3 p-4 rounded-xl mb-4 ${isDarkMode ? "bg-green-500/10 border border-green-500/20" : "bg-green-50 border border-green-200"}`}>
                         <svg className="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <div>
-                          <p className="text-sm text-green-400 font-semibold">Script content loaded from editor</p>
-                          <p className="text-xs text-neutral-500 mt-0.5">Your draft has been imported. You can optionally replace it with a PDF below.</p>
+                          <p className={`text-sm font-semibold ${isDarkMode ? "text-green-300" : "text-green-700"}`}>Script content loaded from editor</p>
+                          <p className={`text-xs mt-0.5 ${isDarkMode ? "text-green-500/80" : "text-green-700/80"}`}>Your draft has been imported. You can optionally replace it with a PDF below.</p>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-neutral-500 mb-4">
-                        Upload your PDF to automatically extract the text. You can then edit it directly in the editor below.
+                      <p className={`text-sm mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                        Upload your PDF to automatically extract script content.
                       </p>
                     )}
 
@@ -1045,13 +1607,18 @@ const ScriptUpload = () => {
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
                         onClick={() => !isExtracting && fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-xl p-8 text-center transition ${isExtracting ? 'border-[#1c2a3a] bg-[#0d1520] cursor-wait' : 'border-white/[0.12] cursor-pointer hover:border-white'}`}
+                        className={`border-2 border-dashed rounded-xl p-8 text-center transition ${isExtracting ? isDarkMode ? "border-[#28415f] bg-[#0f1e30] cursor-wait" : "border-blue-300 bg-blue-50 cursor-wait" : isDarkMode ? "border-white/[0.12] cursor-pointer hover:border-white/40" : "border-gray-300 cursor-pointer hover:border-[#1e3a5f]/40 hover:bg-gray-50"}`}
                       >
-                        <div className="text-3xl mb-2">{isExtracting ? "⏳" : "📄"}</div>
+                        <div className="mb-2 flex justify-center">
+                          <svg className={`w-9 h-9 ${isExtracting ? isDarkMode ? "text-blue-300" : "text-blue-600" : isDarkMode ? "text-gray-300" : "text-gray-500"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H6.75A2.25 2.25 0 0 0 4.5 4.5v15A2.25 2.25 0 0 0 6.75 21.75h10.5A2.25 2.25 0 0 0 19.5 19.5v-1.125m-6.75-6.75h6.75m-6.75 3h4.5" />
+                          </svg>
+                        </div>
                         <p className={`text-sm font-medium ${labelCls} mb-1`}>
-                          {isExtracting ? "Extracting text from PDF..." : "Drag & drop your PDF here to auto-fill editor"}
+                          {isExtracting ? "Extracting text from PDF..." : "Drag & drop your PDF here"}
                         </p>
-                        <p className="text-xs text-neutral-500">{isExtracting ? "Please wait..." : "or click to browse"}</p>
+                        <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{isExtracting ? "Please wait..." : "or click to browse"}</p>
+                        <p className={`text-[10px] mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>Accepted format: PDF only</p>
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -1062,14 +1629,18 @@ const ScriptUpload = () => {
                         />
                       </div>
                     ) : (
-                      <div className="border border-green-500/20 rounded-xl p-3 bg-green-500/10 mb-4">
+                      <div className={`rounded-xl p-3 mb-4 ${isDarkMode ? "border border-green-500/20 bg-green-500/10" : "border border-green-200 bg-green-50"}`}>
                         <div className="flex items-center gap-3">
-                          <div className="text-2xl">✅</div>
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDarkMode ? "bg-black/20" : "bg-white"}`}>
+                            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
                           <div className="flex-1">
-                            <p className="text-sm font-bold text-green-400">
+                            <p className={`text-sm font-bold ${isDarkMode ? "text-green-400" : "text-green-700"}`}>
                               {uploadedFile.name} (Text Extracted)
                             </p>
-                            <p className="text-xs text-green-400">
+                            <p className={`text-xs ${isDarkMode ? "text-green-500/90" : "text-green-700/80"}`}>
                               {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
                             </p>
                           </div>
@@ -1080,7 +1651,7 @@ const ScriptUpload = () => {
                               setUploadProgress(0);
                               setTextContent("");
                             }}
-                            className="text-red-400 hover:text-red-400 text-sm font-bold px-2 py-1 bg-white/[0.08] rounded-md border border-red-500/20"
+                            className={`text-sm font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "text-red-400 bg-white/[0.08] border-red-500/20 hover:bg-white/[0.12]" : "text-red-600 bg-white border-red-200 hover:bg-red-50"}`}
                           >
                             Remove
                           </button>
@@ -1090,244 +1661,163 @@ const ScriptUpload = () => {
 
                     {uploadProgress > 0 && uploadProgress < 100 && (
                       <div className="my-4">
-                        <div className="w-full bg-white/[0.08] rounded-full h-2 overflow-hidden relative">
+                        <div className={`w-full rounded-full h-2 overflow-hidden relative ${isDarkMode ? "bg-white/[0.08]" : "bg-gray-200"}`}>
                           <div
-                            className="bg-white h-2 rounded-full transition-all duration-300 relative"
+                            className={`h-2 rounded-full transition-all duration-300 relative ${isDarkMode ? "bg-white" : "bg-[#1e3a5f]"}`}
                             style={{ width: `${uploadProgress}%` }}
                           />
                         </div>
-                        <p className="text-xs text-neutral-500 mt-1 text-center font-medium animate-pulse">
+                        <p className={`text-xs mt-1 text-center font-medium animate-pulse ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
                           Processing file... {uploadProgress}%
                         </p>
                       </div>
                     )}
 
-                    {/* ── AI Writing Assistant + Script Editor ── */}
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm text-neutral-300 font-medium">
-                          Script Editor
-                        </label>
-                        <AiWritingAssistant
-                          textContent={textContent}
-                          onApply={(newText) => setTextContent(newText)}
-                          isDarkMode={isDarkMode}
-                        />
-                      </div>
-                      <textarea
-                        value={textContent}
-                        onChange={(e) => setTextContent(e.target.value)}
-                        rows={18}
-                        placeholder="Paste or write your script here... then use the AI Assistant above to improve it instantly."
-                        className="w-full p-4 bg-white/[0.03] border border-white/[0.1] rounded-xl text-sm text-neutral-200 placeholder-neutral-600 focus:ring-2 focus:ring-purple-500/30 focus:border-transparent transition font-mono leading-relaxed resize-y"
-                      />
-                      <div className="flex items-center justify-between mt-1.5">
-                        <p className="text-[10px] text-neutral-600">
-                          {textContent.length > 0
-                            ? `${textContent.split(/\s+/).filter(Boolean).length} words · ${textContent.length} chars`
-                            : "Start writing or upload a PDF above"}
-                        </p>
-                        <p className="text-[10px] text-purple-400/60">
-                          🤖 Use AI Assistant to improve, polish & professionalize your script
-                        </p>
-                      </div>
-                    </div>
-
                   </div>
 
-                  {/* ── Thumbnail Upload ── */}
-                  <div>
-                    <label className={`block text-sm ${labelCls} font-medium mb-2`}>
-                      Script Thumbnail (Optional)
-                    </label>
-                    <p className="text-xs text-neutral-500 mb-3">
-                      Upload a cover image for your script. This will be displayed on your script card.
-                    </p>
-                    
-                    {!thumbnailFile ? (
-                      <div
-                        onClick={() => thumbnailInputRef.current?.click()}
-                        className="border-2 border-dashed border-white/[0.12] rounded-xl p-6 text-center cursor-pointer hover:border-white transition"
-                      >
-                        <div className="text-3xl mb-2">🖼️</div>
-                        <p className={`text-sm font-medium ${labelCls} mb-1`}>
-                          Upload Thumbnail Image
-                        </p>
-                        <p className="text-xs text-neutral-500">JPEG, PNG, WebP, or GIF (Max 5MB)</p>
-                        <input
-                          ref={thumbnailInputRef}
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif"
-                          onChange={(e) => handleThumbnailSelect(e.target.files[0])}
-                          className="hidden"
-                        />
-                      </div>
-                    ) : (
-                      <div className="border border-green-500/20 rounded-xl p-3 bg-green-500/10">
-                        <div className="flex items-center gap-3">
-                          <img 
-                            src={URL.createObjectURL(thumbnailFile)} 
-                            alt="Thumbnail preview" 
-                            className="w-16 h-16 object-cover rounded"
-                          />
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-green-400">
-                              {thumbnailFile.name}
-                            </p>
-                            <p className="text-xs text-green-400">
-                              {(thumbnailFile.size / 1024).toFixed(2)} KB
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setThumbnailFile(null)}
-                            className="text-red-400 hover:text-red-400 text-sm font-bold px-2 py-1 bg-white/[0.08] rounded-md border border-red-500/20"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── Trailer Upload or AI Generation ── */}
-                  <div>
-                    <label className={`block text-sm ${labelCls} font-medium mb-2`}>
-                      Trailer (Optional)
-                    </label>
-                    <p className="text-xs text-neutral-500 mb-3">
-                      Choose to upload your own trailer (FREE) or generate one with AI (costs credits in next step).
-                    </p>
-                    
-                    {/* Hidden file input - always rendered so ref works */}
-                    <input
-                      ref={trailerInputRef}
-                      type="file"
-                      accept="video/mp4,video/mpeg,video/quicktime,video/webm"
-                      onChange={(e) => handleTrailerSelect(e.target.files[0])}
-                      className="hidden"
-                    />
-                    
-                    {/* Trailer Options */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTrailerOption("none");
-                          setTrailerFile(null);
-                        }}
-                        className={`p-3 rounded-xl text-sm font-medium transition ${
-                          trailerOption === "none"
-                            ? isDarkMode ? "bg-white text-black" : "bg-[#1e3a5f] text-white"
-                            : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">🚫</div>
-                        No Trailer
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={() => trailerInputRef.current?.click()}
-                        className={`p-3 rounded-xl text-sm font-medium transition ${
-                          trailerOption === "upload"
-                            ? isDarkMode ? "bg-white text-black" : "bg-[#1e3a5f] text-white"
-                            : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">📤</div>
-                        Upload (FREE)
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTrailerOption("ai");
-                          setTrailerFile(null);
-                        }}
-                        className={`p-3 rounded-xl text-sm font-medium transition relative ${
-                          trailerOption === "ai"
-                            ? isDarkMode ? "bg-white text-black" : "bg-[#1e3a5f] text-white"
-                            : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">🤖</div>
-                        AI Generate
-                        <span className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                          {SERVICE_PRICES.aiTrailer} credits
-                        </span>
-                      </button>
+                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
+                    <div className="mb-4">
+                      <h3 className={`text-sm font-semibold ${isDarkMode ? "text-white" : "text-[#1e3a5f]"}`}>Visual Assets</h3>
+                      <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Add a cover image and trailer to improve profile quality and discovery.</p>
                     </div>
 
-                    {/* Trailer File Upload Prompt */}
-                    {trailerOption === "upload" && !trailerFile && (
-                      <div
-                        onClick={() => trailerInputRef.current?.click()}
-                        className="border-2 border-dashed border-white/[0.12] rounded-xl p-6 text-center cursor-pointer hover:border-white transition"
-                      >
-                        <div className="text-3xl mb-2">🎬</div>
-                        <p className={`text-sm font-medium ${labelCls} mb-1`}>
-                          Click to Upload Your Trailer Video
-                        </p>
-                        <p className="text-xs text-neutral-500">MP4, MPEG, MOV, or WebM (Max 100MB)</p>
-                      </div>
-                    )}
-
-                    {trailerFile && trailerOption === "upload" && (
-                      <div className="border border-green-500/20 rounded-xl p-3 bg-green-500/10">
-                        <div className="flex items-center gap-3">
-                          <div className="text-3xl">✅</div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-green-400">
-                              {trailerFile.name}
-                            </p>
-                            <p className="text-xs text-green-400">
-                              {(trailerFile.size / 1024 / 1024).toFixed(2)} MB - Will be uploaded for FREE
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTrailerFile(null);
-                              setTrailerOption("none");
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${isDarkMode ? "border-white/[0.06]" : "border-gray-100"}`}>
+                    {/* Thumbnail Upload */}
+                    <div className={`rounded-2xl border p-4 ${isDarkMode ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                      <label className={`block text-sm font-medium mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Script Thumbnail <span className={`text-xs font-normal ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                      </label>
+                      {!thumbnailFile ? (
+                        <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${isDarkMode ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                          <svg className={`w-8 h-8 mb-2 ${isDarkMode ? "text-[#1d3350]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0L21.75 15m-10.5-9h.008v.008h-.008V6ZM3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" /></svg>
+                          <p className={`text-xs font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
+                          <p className={`text-[10px] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
+                          <input
+                            ref={thumbnailInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(e) => {
+                              handleThumbnailSelect(e.target.files?.[0]);
+                              e.target.value = "";
                             }}
-                            className="text-red-400 hover:text-red-400 text-sm font-bold px-2 py-1 bg-white/[0.08] rounded-md border border-red-500/20"
-                          >
-                            Remove
-                          </button>
+                            className="hidden"
+                          />
                         </div>
-                      </div>
-                    )}
-
-                    {trailerOption === "ai" && (
-                      <div className="border border-[#1c2a3a] rounded-xl p-4 bg-[#0d1520]">
-                        <div className="flex items-center gap-3">
-                          <div className="text-3xl">🤖</div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-[#8896a7]">
-                              AI Trailer Generation Selected
-                            </p>
-                            <p className="text-xs text-neutral-400">
-                              {SERVICE_PRICES.aiTrailer} credits will be charged in the next step. Ready within 2 business days.
-                            </p>
+                      ) : (
+                        <div className={`border rounded-xl p-3 flex items-center gap-3 ${isDarkMode ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                          <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-bold truncate ${isDarkMode ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
+                            <p className={`text-[10px] ${isDarkMode ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB - Cover ready</p>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openThumbnailEditor(thumbnailFile)}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
+                            >
+                              Adjust
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setThumbnailFile(null);
+                                setError("");
+                              }}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
+                            >
+                              Remove
+                            </button>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+
+                    {/* Trailer Upload */}
+                    <div className={`rounded-2xl border p-4 ${isDarkMode ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                      <label className={`block text-sm font-medium mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                        Trailer Video <span className={`text-xs font-normal ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                      </label>
+                      <input
+                        ref={trailerInputRef}
+                        type="file"
+                        accept="video/mp4,video/mpeg,video/quicktime,video/webm,video/x-m4v"
+                        onChange={(e) => {
+                          handleTrailerSelect(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+
+                      {!trailerFile ? (
+                        <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${isDarkMode ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                          <svg className={`w-8 h-8 mb-2 ${isDarkMode ? "text-[#1d3350]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-2.36A.75.75 0 0 1 21.75 8.8v6.4a.75.75 0 0 1-1.28.53l-4.72-2.36m-1.5 3.98V6.67A2.25 2.25 0 0 0 12 4.42H4.5a2.25 2.25 0 0 0-2.25 2.25v10.66A2.25 2.25 0 0 0 4.5 19.58H12a2.25 2.25 0 0 0 2.25-2.25Z" /></svg>
+                          <p className={`text-xs font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
+                          <p className={`text-[10px] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
+                        </div>
+                      ) : (
+                        <div className={`border rounded-xl p-3 space-y-3 ${isDarkMode ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                          <div className="relative overflow-hidden rounded-lg">
+                            <video
+                              src={trailerPreviewUrl}
+                              controls
+                              preload="metadata"
+                              className="w-full h-44 object-contain bg-black"
+                            />
+                          </div>
+
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
+                              <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-bold truncate ${isDarkMode ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
+                              <p className={`text-[10px] ${isDarkMode ? "text-green-500/80" : "text-green-600/80"}`}>
+                                {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
+                                {trailerMetaLoading ? " - reading video info..." : trailerMeta ? ` - ${formatDuration(trailerMeta.duration)} - ${trailerMeta.width}x${trailerMeta.height}` : ""}
+                              </p>
+                              <p className={`text-[10px] mt-1 ${isDarkMode ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => trailerInputRef.current?.click()}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
+                              >
+                                Replace
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTrailerFile(null);
+                                  setTrailerOption("none");
+                                  setError("");
+                                }}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  </div>
                   </div>
 
                   <div className="flex gap-3 justify-between pt-2">
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="px-6 py-2.5 border border-white/[0.08] text-neutral-400 rounded-xl text-sm hover:bg-white/[0.05] transition"
+                      className={`px-6 py-2.5 rounded-xl text-sm transition ${isDarkMode ? "border border-white/[0.08] text-neutral-400 hover:bg-white/[0.05]" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
                     >
                       ← Back
                     </button>
                     <button
                       type="button"
                       onClick={handleNext}
-                      className="px-6 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition"
+                      className={`px-6 py-2.5 rounded-xl text-sm font-medium transition ${isDarkMode ? "bg-white text-black hover:bg-neutral-200" : "bg-[#1e3a5f] text-white hover:bg-[#22456f]"}`}
                     >
                       Next →
                     </button>
@@ -1344,268 +1834,261 @@ const ScriptUpload = () => {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-5"
                 >
-                  <p className="text-sm text-neutral-400 mb-4">
-                    Set your script's price and select optional services.
-                  </p>
-
-                  {/* ── Pricing Panel ── */}
-                  <div className="border border-white/[0.08] bg-white/[0.03] rounded-2xl p-5 space-y-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-white">Script Access & Pricing</h3>
-                        <p className="text-[11px] text-neutral-500">Decide whether your full script is freely readable or paid</p>
-                      </div>
+                  <div className={`rounded-2xl border p-6 sm:p-8 space-y-6 ${isDarkMode ? "border-white/[0.06] bg-[#0d1829]" : "border-gray-200 bg-white shadow-sm"}`}>
+                    <div>
+                      <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
+                      <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, and select services.</p>
                     </div>
 
-                    {/* Free / Premium toggle */}
-                    <div className="grid grid-cols-2 gap-2.5 p-1 rounded-xl bg-white/[0.04]">
-                      <button
-                        type="button"
-                        onClick={() => setIsPremium(false)}
-                        className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                          !isPremium ? "bg-white/[0.12] text-white shadow" : "text-neutral-500 hover:text-neutral-300"
-                        }`}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                        Free Access
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsPremium(true)}
-                        className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                          isPremium
-                            ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm"
-                            : "text-neutral-500 hover:text-neutral-300"
-                        }`}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                        Premium (Paid)
-                      </button>
-                    </div>
-
-                    {/* Free description */}
-                    {!isPremium && (
-                      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                        <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#8896a7]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                        <p className="text-[12px] leading-relaxed text-neutral-400">
-                          Anyone can read your full script for free. Great for building your audience and getting discovered by more industry professionals.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Premium price picker */}
-                    {isPremium && (
-                      <div className="space-y-4">
-                        {/* Suggested range */}
-                        {FORMAT_PRICE_GUIDE[formData.format] && (
-                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
-                            <span><strong>Industry guide for {FORMAT_PRICE_GUIDE[formData.format].label}:</strong> ${FORMAT_PRICE_GUIDE[formData.format].min}–${FORMAT_PRICE_GUIDE[formData.format].max} · Suggested: ${FORMAT_PRICE_GUIDE[formData.format].suggest}</span>
-                          </div>
-                        )}
-
-                        {/* Quick-select presets */}
+                    <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                      <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-[11px] font-semibold mb-2 text-neutral-500">QUICK SELECT</p>
-                          <div className="flex flex-wrap gap-2">
-                            {PRICE_PRESETS.map(p => (
-                              <button
-                                key={p}
-                                type="button"
-                                onClick={() => { setScriptPrice(p); setUseCustomPrice(false); setCustomPriceInput(""); }}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${
-                                  !useCustomPrice && scriptPrice === p
-                                    ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25"
-                                    : "border-white/[0.1] text-neutral-400 hover:border-emerald-500/50 hover:text-emerald-400"
-                                }`}
-                              >
-                                ${p}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => { setUseCustomPrice(true); setCustomPriceInput(String(scriptPrice)); }}
-                              className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all ${
-                                useCustomPrice
-                                  ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/25"
-                                  : "border-white/[0.1] text-neutral-400 hover:border-emerald-500/50 hover:text-emerald-400"
-                              }`}
-                            >
-                              Custom
-                            </button>
+                          <h3 className={`text-base font-bold mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
+                          <p className={`text-[12px] mt-1 leading-relaxed ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
+                        </div>
+                        <div className={`px-3 py-2 rounded-xl text-right ${isDarkMode ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-wide ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Current Plan</p>
+                          <p className={`text-sm font-bold mt-1 ${isPremium ? isDarkMode ? "text-emerald-300" : "text-emerald-700" : isDarkMode ? "text-blue-300" : "text-blue-700"}`}>{isPremium ? "Premium Access" : "Free Public Access"}</p>
+                        </div>
+                      </div>
+
+                      <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 p-1.5 rounded-2xl ${isDarkMode ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
+                        <button
+                          type="button"
+                          onClick={() => setIsPremium(false)}
+                          className={`text-left rounded-xl px-4 py-4 border transition-all ${!isPremium
+                            ? isDarkMode ? "bg-[#122338] border-[#24456b] text-white shadow-lg shadow-black/20" : "bg-[#1e3a5f] border-[#1e3a5f] text-white shadow-sm"
+                            : isDarkMode ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 mb-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${!isPremium ? "bg-white/15" : isDarkMode ? "bg-white/[0.06]" : "bg-blue-50"}`}>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold">Free Access</p>
+                              <p className={`text-[11px] ${!isPremium ? "text-white/80" : isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
+                            </div>
+                          </div>
+                          <ul className={`space-y-1.5 text-[12px] leading-relaxed ${!isPremium ? "text-white/85" : isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                            <li>Anyone can read the full script</li>
+                            <li>Good for early audience growth</li>
+                          </ul>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsPremium(true)}
+                          className={`text-left rounded-xl px-4 py-4 border transition-all ${isPremium
+                            ? isDarkMode ? "bg-emerald-600/15 border-emerald-500/40 text-white shadow-lg shadow-black/20" : "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                            : isDarkMode ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 mb-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isPremium ? "bg-white/15" : isDarkMode ? "bg-white/[0.06]" : "bg-emerald-50"}`}>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold">Premium Access</p>
+                              <p className={`text-[11px] ${isPremium ? "text-white/80" : isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
+                            </div>
+                          </div>
+                          <ul className={`space-y-1.5 text-[12px] leading-relaxed ${isPremium ? "text-white/85" : isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                            <li>You set the main script price investors pay</li>
+                            <li>Best for monetization-ready scripts</li>
+                          </ul>
+                        </button>
+                      </div>
+
+                      {!isPremium ? (
+                        <div className={`rounded-xl px-4 py-3 flex items-start gap-3 ${isDarkMode ? "bg-blue-500/8 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
+                          <svg className={`w-4 h-4 mt-0.5 shrink-0 ${isDarkMode ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                          <div>
+                            <p className={`text-sm font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Public discovery mode</p>
+                            <p className={`text-[12px] mt-1 leading-relaxed ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Your script is fully readable to all users.</p>
                           </div>
                         </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {FORMAT_PRICE_GUIDE[formData.format] && (
+                            <div className={`flex items-start gap-2.5 px-4 py-3 rounded-xl ${isDarkMode ? "bg-amber-500/10 border border-amber-500/20 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
+                              <div className="text-[12px] leading-relaxed">
+                                <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
+                                <p className="mt-0.5">Use {formatCurrency(FORMAT_PRICE_GUIDE[formData.format].min)}-{formatCurrency(FORMAT_PRICE_GUIDE[formData.format].max)}. Recommended start: {formatCurrency(FORMAT_PRICE_GUIDE[formData.format].suggest)}.</p>
+                              </div>
+                            </div>
+                          )}
 
-                        {/* Custom input */}
-                        {useCustomPrice && (
-                          <div className="flex items-center gap-2">
-                            <div className="relative w-36">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-neutral-400">$</span>
-                              <input
-                                type="number" min="1" max="500" step="1"
-                                value={customPriceInput}
-                                onChange={e => setCustomPriceInput(e.target.value)}
-                                placeholder="0"
-                                className="w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500 transition-all"
-                              />
+                          <div>
+                            <p className={`text-[11px] font-bold uppercase tracking-[0.16em] mb-2 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Choose Price</p>
+                            <div className="flex flex-wrap gap-2">
+                              {PRICE_PRESETS.map((p) => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => { setScriptPrice(p); setUseCustomPrice(false); setCustomPriceInput(""); }}
+                                  className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${!useCustomPrice && scriptPrice === p
+                                    ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                    : isDarkMode ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
+                                  }`}
+                                >
+                                  {formatCurrency(p)}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => { setUseCustomPrice(true); setCustomPriceInput(String(scriptPrice)); }}
+                                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${useCustomPrice
+                                  ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                  : isDarkMode ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
+                                }`}
+                              >
+                                Custom
+                              </button>
                             </div>
-                            <span className="text-[11px] text-neutral-500">Enter a value between $1 and $500</span>
                           </div>
-                        )}
 
-                        {/* Earnings preview */}
-                        {effectivePrice > 0 && (
-                          <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-emerald-500/[0.07] border border-emerald-500/20">
-                            <div className="text-center">
-                              <p className="text-[11px] font-semibold mb-1 text-neutral-500">Buyer Pays</p>
-                              <p className="text-xl font-black text-white">${effectivePrice}</p>
+                          {useCustomPrice && (
+                            <div className={`rounded-xl p-4 ${isDarkMode ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                              <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Custom Price</label>
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                <div className="relative w-full sm:w-40">
+                                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>₹</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="500"
+                                    step="1"
+                                    value={customPriceInput}
+                                    onChange={(e) => setCustomPriceInput(e.target.value)}
+                                    placeholder="0"
+                                    className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${isDarkMode ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
+                                  />
+                                </div>
+                                <p className={`text-[12px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
+                              </div>
                             </div>
-                            <div className="text-center">
-                              <p className="text-[11px] font-semibold mb-1 text-neutral-500">Platform Fee</p>
-                              <p className="text-xl font-black text-neutral-400">${(effectivePrice * PLATFORM_FEE).toFixed(2)}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-[11px] font-semibold mb-1 text-emerald-400">You Earn</p>
-                              <p className="text-xl font-black text-emerald-400">${writerEarns}</p>
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`rounded-2xl border p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                      <div className="flex items-center gap-2.5 mb-5">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
+                          <svg className={`w-4 h-4 ${isDarkMode ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h16.5A2.25 2.25 0 0122.5 5.25V9M3.75 3l5.25 5.25m0 0L12 11.25m-3-3L6 11.25m3-3v8.25" /></svg>
+                        </div>
+                        <div>
+                          <h3 className={`text-sm font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Optional Services</h3>
+                          <p className={`text-[11px] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Select only services you want to add now.</p>
+                        </div>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Hosting Card */}
-                    <div
-                      className={`border-2 rounded-xl p-5 cursor-pointer transition ${services.hosting
-                        ? "border-white bg-white/[0.08]"
-                        : "border-white/[0.08] hover:border-white/[0.12]"
-                        }`}
-                      onClick={() => {
-                        // Hosting is required, so we don't allow toggling off
-                        setError("Hosting is required for your script to be searchable.");
-                      }}
-                    >
-                      <div className="text-3xl mb-3">☁️</div>
-                      <h3 className="font-semibold text-white mb-1">Hosting</h3>
-                      <p className="text-2xl font-bold text-green-400 mb-2">
-                        FREE
-                      </p>
-                      <p className="text-xs text-neutral-400 mb-3">
-                        Required to be searchable by industry professionals.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={services.hosting}
-                          readOnly
-                          className="w-4 h-4 text-white rounded"
-                        />
-                        <span className={`text-xs ${labelCls}`}>Selected (Required)</span>
+                      <div className="space-y-3">
+                        {[
+                          {
+                            key: "hosting",
+                            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" /></svg>,
+                            name: "Hosting & Discovery",
+                            price: "FREE",
+                            desc: "Marketplace listing and public discovery",
+                            locked: true,
+                            enabled: true,
+                          },
+                          {
+                            key: "evaluation",
+                            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>,
+                            name: "Professional Evaluation",
+                            price: `${SERVICE_PRICES.evaluation} credits`,
+                            desc: "Reader scorecard with strengths and weaknesses",
+                            enabled: services.evaluation,
+                          },
+                          {
+                            key: "aiTrailer",
+                            icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>,
+                            name: "AI Concept Trailer",
+                            price: `${SERVICE_PRICES.aiTrailer} credits`,
+                            desc: "60-second cinematic teaser",
+                            badge: "BETA",
+                            enabled: trailerOption === "ai",
+                          },
+                        ].map((service) => (
+                          <button
+                            key={service.key}
+                            type="button"
+                            onClick={() => {
+                              if (service.locked) {
+                                setError("Hosting is required for your script to be searchable.");
+                                return;
+                              }
+
+                              if (service.key === "evaluation") {
+                                setServices((current) => ({ ...current, evaluation: !current.evaluation }));
+                              }
+
+                              if (service.key === "aiTrailer") {
+                                if (trailerOption === "ai") {
+                                  setTrailerOption(trailerFile ? "upload" : "none");
+                                } else {
+                                  setTrailerOption("ai");
+                                }
+                              }
+
+                              setError("");
+                            }}
+                            className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${service.locked
+                              ? isDarkMode ? "border-[#22405f] bg-[#0e2032] cursor-default" : "border-blue-100 bg-blue-50/70 cursor-default"
+                              : service.enabled
+                                ? isDarkMode ? "border-[#2b5d8f] bg-[#122338]" : "border-[#1e3a5f]/25 bg-[#1e3a5f]/[0.05]"
+                                : isDarkMode ? "border-[#182840] hover:border-[#22405f] hover:bg-white/[0.02]" : "border-gray-200 hover:border-gray-300 hover:bg-white"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${service.enabled || service.locked ? isDarkMode ? "bg-white/[0.08] text-white" : "bg-white text-[#1e3a5f]" : isDarkMode ? "bg-white/[0.04] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+                                {service.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
+                                  {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
+                                  {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDarkMode ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                                  {service.key === "aiTrailer" && trailerOption === "upload" && trailerFile && (
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDarkMode ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Replaces uploaded trailer</span>
+                                  )}
+                                </div>
+                                <p className={`text-[12px] mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{service.price}</p>
+                                {!service.locked && (
+                                  <p className={`text-[11px] mt-1 ${service.enabled ? isDarkMode ? "text-emerald-300" : "text-emerald-700" : isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{service.enabled ? "Selected" : "Optional"}</p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Evaluation Card */}
-                    <div
-                      className={`border-2 rounded-xl p-5 cursor-pointer transition ${services.evaluation
-                        ? "border-white bg-white/[0.08]"
-                        : "border-white/[0.08] hover:border-white/[0.12]"
-                        }`}
-                      onClick={() =>
-                        setServices({ ...services, evaluation: !services.evaluation })
-                      }
-                    >
-                      <div className="text-3xl mb-3">⭐</div>
-                      <h3 className="font-semibold text-white mb-1">
-                        Professional Evaluation
-                      </h3>
-                      <p className="text-2xl font-bold text-white mb-2">
-                        {SERVICE_PRICES.evaluation} credits
-                      </p>
-                      <p className="text-xs text-neutral-400 mb-3">
-                        Get a scorecard and written feedback from a vetted reader.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={services.evaluation}
-                          readOnly
-                          className="w-4 h-4 text-white rounded"
-                        />
-                        <span className={`text-xs ${labelCls}`}>
-                          {services.evaluation ? "Selected" : "Optional"}
-                        </span>
+                    <div className={`rounded-xl p-4 border ${isDarkMode ? "bg-white/[0.03] border-white/[0.08]" : "bg-gray-50 border-gray-200"}`}>
+                      <div className="flex justify-between items-center">
+                        <span className={`text-sm font-medium ${labelCls}`}>Total Credits Required</span>
+                        <span className={`text-2xl font-black ${isDarkMode ? "text-white" : "text-[#1e3a5f]"}`}>{calculateTotal()} credits</span>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Trailer Selection Display */}
-                  <div className="bg-white/[0.04] rounded-xl p-4 mt-4 border border-white/[0.08]">
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl">
-                        {trailerOption === "none" && "🚫"}
-                        {trailerOption === "upload" && "📤"}
-                        {trailerOption === "ai" && "🤖"}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white mb-1">Trailer Option</h3>
-                        {trailerOption === "none" && (
-                          <p className="text-sm text-neutral-400">No trailer selected</p>
-                        )}
-                        {trailerOption === "upload" && (
-                          <p className="text-sm text-green-400">
-                            {trailerFile ? `Uploaded: ${trailerFile.name}` : "Custom trailer to be uploaded"} (FREE)
-                          </p>
+                      <p className={`text-xs mt-2 ${isDarkMode ? "text-neutral-500" : "text-gray-500"}`}>
+                        {services.hosting && <span>Hosting (FREE)</span>}
+                        {services.evaluation && (
+                          <span>{services.hosting ? " + " : ""}{SERVICE_PRICES.evaluation} credits evaluation</span>
                         )}
                         {trailerOption === "ai" && (
-                          <p className="text-sm text-[#8896a7]">
-                            AI Trailer Generation - {SERVICE_PRICES.aiTrailer} credits
-                          </p>
+                          <span>{services.hosting || services.evaluation ? " + " : ""}{SERVICE_PRICES.aiTrailer} credits AI trailer</span>
                         )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setStep(3)}
-                        className="text-xs text-neutral-400 hover:text-white underline"
-                      >
-                        Change
-                      </button>
+                        {trailerOption === "upload" && trailerFile && (
+                          <span>{services.hosting || services.evaluation ? " + " : ""}Trailer upload (FREE)</span>
+                        )}
+                      </p>
                     </div>
-                  </div>
-
-                  {/* Total Preview */}
-                  <div className="bg-white/[0.04] rounded-xl p-4 mt-6">
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm font-medium ${labelCls}`}>Total Credits Required:</span>
-                      <span className="text-2xl font-bold text-white">
-                        {calculateTotal()} credits
-                      </span>
-                    </div>
-                    <p className="text-xs text-neutral-500 mt-2">
-                      {services.hosting && (
-                        <span>Hosting (FREE)</span>
-                      )}
-                      {services.evaluation && (
-                        <span>
-                          {services.hosting ? " + " : ""}{SERVICE_PRICES.evaluation} credits evaluation
-                        </span>
-                      )}
-                      {trailerOption === "ai" && (
-                        <span>
-                          {services.hosting || services.evaluation ? " + " : ""}
-                          {SERVICE_PRICES.aiTrailer} credits AI trailer
-                        </span>
-                      )}
-                      {trailerOption === "upload" && trailerFile && (
-                        <span>
-                          {services.hosting || services.evaluation ? " + " : ""}
-                          Trailer upload (FREE)
-                        </span>
-                      )}
-                    </p>
                   </div>
 
                   <div className="flex gap-3 justify-between pt-2">
@@ -1634,92 +2117,115 @@ const ScriptUpload = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="space-y-5"
+                  className="space-y-6"
                 >
-                  {/* Credits Balance Display */}
-                  <div className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-neutral-400">Your Credits Balance</p>
-                        <p className="text-2xl font-bold text-white">{creditsBalance} credits</p>
-                      </div>
-                      {calculateTotal() > creditsBalance && (
-                        <div className="text-right">
-                          <p className="text-sm text-red-400 font-medium">Insufficient credits</p>
-                          <p className="text-xs text-neutral-400">Need {calculateTotal() - creditsBalance} more</p>
+                  <div>
+                    <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Final Review</h2>
+                    <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and submission details, then submit your project for admin review.</p>
+                  </div>
+
+                  <div className={`rounded-xl px-3 py-2 ${isDarkMode ? "bg-white/[0.04] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Available Credits</p>
+                    <p className={`text-sm font-bold mt-1 ${creditsBalance < totalServiceCost ? "text-red-400" : isDarkMode ? "text-emerald-300" : "text-emerald-700"}`}>{creditsBalance} credits</p>
+                  </div>
+
+                  <div className={`rounded-2xl border overflow-hidden ${isDarkMode ? "border-[#1d3350]" : "border-gray-200"}`}>
+                    <div className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+                      <span>Invoice Item</span>
+                      <span>Type</span>
+                      <span className="text-right">Amount</span>
+                    </div>
+                    <div>
+                      {publishInvoiceRows.map((row) => (
+                        <div key={row.item} className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${isDarkMode ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                          <div>
+                            <p className={`font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
+                            <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
+                          </div>
+                          <div className="pt-0.5">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
+                              ? isDarkMode ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                              : row.type === "Future Earnings"
+                                ? isDarkMode ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
+                                : isDarkMode ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
+                              }`}>{row.type}</span>
+                          </div>
+                          <p className={`text-right font-bold pt-0.5 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
                         </div>
-                      )}
+                      ))}
                     </div>
                   </div>
 
-                  {/* Agreement */}
-                  <div>
-                    <label className={`block text-sm ${labelCls} font-medium mb-2`}>
-                      Submission Release Agreement *
-                    </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className={`rounded-xl px-4 py-4 ${isDarkMode ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
+                      <p className={`text-xl font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : isDarkMode ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
+                      <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Charged from current balance</p>
+                    </div>
+                    <div className={`rounded-xl px-4 py-4 ${isDarkMode ? "bg-emerald-500/10 border border-emerald-500/15" : "bg-emerald-50 border border-emerald-100"}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-emerald-300" : "text-emerald-700"}`}>Remaining Credits</p>
+                      <p className={`text-xl font-black mt-1 ${creditsAfterPublish < 0 ? "text-red-400" : isDarkMode ? "text-emerald-300" : "text-emerald-700"}`}>{creditsAfterPublish}</p>
+                      <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>After this publish action</p>
+                    </div>
+                    <div className={`rounded-xl px-4 py-4 ${isDarkMode ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
+                      <p className={`text-xl font-black mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}</p>
+                      <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
+                    </div>
+                  </div>
+
+                  <div className={`rounded-2xl border p-5 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                      <div className={`rounded-xl px-3 py-3 ${isDarkMode ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Rights</p>
+                        <p className={`text-[12px] mt-2 leading-relaxed ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>You retain ownership of your script.</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-3 ${isDarkMode ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>License</p>
+                        <p className={`text-[12px] mt-2 leading-relaxed ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Platform gets a non-exclusive display and promotion license.</p>
+                      </div>
+                      <div className={`rounded-xl px-3 py-3 ${isDarkMode ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Refunds</p>
+                        <p className={`text-[12px] mt-2 leading-relaxed ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Service charges are non-refundable after processing starts.</p>
+                      </div>
+                    </div>
+
                     <div
                       ref={agreementRef}
-                      className={`rounded-xl p-4 h-64 overflow-y-auto text-xs leading-relaxed ${isDarkMode ? "border border-white/[0.08] text-neutral-300" : "border border-gray-200 text-[#1e3a5f]"}`}
+                      className={`rounded-xl p-4 h-48 overflow-y-auto text-xs leading-relaxed border ${isDarkMode ? "border-[#182840] text-gray-400 bg-[#050b14]" : "border-gray-200 text-gray-500 bg-white"}`}
                     >
                       <pre className="whitespace-pre-wrap font-sans">{LEGAL_AGREEMENT}</pre>
                     </div>
+
                     {!agreementScrolled && (
-                      <p className="text-xs text-amber-600 mt-1">
-                        Please scroll to the bottom of the agreement to continue.
-                      </p>
+                      <p className="text-xs text-amber-600 mt-2">Please scroll to the bottom of the agreement to continue.</p>
                     )}
-                  </div>
 
-                  {/* Agreement Checkbox */}
-                  <div className="flex items-start gap-3 p-4 bg-white/[0.04] rounded-xl">
-                    <input
-                      type="checkbox"
-                      id="agreeTerms"
-                      checked={legal.agreedToTerms}
-                      onChange={(e) =>
-                        setLegal({ ...legal, agreedToTerms: e.target.checked })
-                      }
-                      disabled={!agreementScrolled}
-                      className="w-5 h-5 text-white rounded mt-0.5 disabled:opacity-50"
-                    />
-                    <label
-                      htmlFor="agreeTerms"
-                      className={`text-sm ${agreementScrolled ? labelCls : "text-neutral-500"
-                        }`}
-                    >
-                      I have read and agree to the Submission Release Agreement
-                    </label>
-                  </div>
-
-                  {/* Receipt Summary */}
-                  <div className="bg-white/[0.04] rounded-xl p-5">
-                    <h4 className="text-sm font-semibold text-white mb-3">
-                      Order Summary
-                    </h4>
-                    <div className="space-y-2 text-sm">
-                      {services.hosting && (
-                        <div className="flex justify-between">
-                          <span className="text-neutral-400">Hosting & Discovery</span>
-                          <span className="font-medium text-green-400">FREE</span>
-                        </div>
-                      )}
-                      {services.evaluation && (
-                        <div className="flex justify-between">
-                          <span className="text-neutral-400">Professional Evaluation</span>
-                          <span className="font-medium">{SERVICE_PRICES.evaluation} credits</span>
-                        </div>
-                      )}
-                      {services.aiTrailer && (
-                        <div className="flex justify-between">
-                          <span className="text-neutral-400">AI Concept Trailer</span>
-                          <span className="font-medium">{SERVICE_PRICES.aiTrailer} credits</span>
-                        </div>
-                      )}
-                      <div className="border-t border-white/[0.08] pt-2 mt-2 flex justify-between">
-                        <span className="font-semibold text-white">Total Credits</span>
-                        <span className="text-xl font-bold text-white">
-                          {calculateTotal()} credits
+                    <div className={`rounded-xl px-4 py-4 mt-4 ${isDarkMode ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
+                      <div className="flex items-start gap-2.5">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? isDarkMode ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : isDarkMode ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>
+                          {legal.agreedToTerms ? (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.4} viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            "!"
+                          )}
                         </span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[12px] font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>{legal.agreedToTerms ? "Agreement confirmed" : "Agreement required"}</p>
+                          <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can submit for admin approval now." : "Please accept the submission agreement to continue."}</p>
+                          <label className="flex items-start gap-2.5 cursor-pointer mt-3">
+                            <input
+                              type="checkbox"
+                              checked={legal.agreedToTerms}
+                              onChange={(e) => setLegal({ ...legal, agreedToTerms: e.target.checked })}
+                              disabled={!agreementScrolled}
+                              className="w-4 h-4 rounded mt-0.5 accent-[#1e3a5f] disabled:opacity-50"
+                            />
+                            <span className={`text-[11px] leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>I agree to the Submission Release Agreement and confirm publishing rights.</span>
+                          </label>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1735,17 +2241,154 @@ const ScriptUpload = () => {
                     <button
                       type="submit"
                       disabled={loading || !legal.agreedToTerms}
-                      className="flex-1 px-6 py-3 bg-white text-black rounded-xl text-sm font-semibold hover:bg-neutral-200 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl shadow-black/30"
+                      className="flex-1 px-6 py-3 bg-[#1e3a5f] text-white rounded-xl text-sm font-bold hover:bg-[#162d4a] transition disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
                     >
-                      {loading ? "Processing..." : "✨ Use Credits & Publish"}
+                      {loading ? "Submitting..." : "Submit for Approval"}
                     </button>
                   </div>
+                  <p className={`text-[11px] text-center ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing, services, and invoice settings.</p>
                 </motion.div>
               )}
             </AnimatePresence>
           </form>
         </div>
       </motion.div>
+
+      {isThumbnailEditorOpen && thumbnailSourceUrl && createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="thumbnail-modal-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
+            style={{ background: "rgba(0,0,0,0.76)", backdropFilter: "blur(8px)" }}
+            onClick={resetThumbnailEditor}
+          >
+            <motion.div
+              key="thumbnail-modal"
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.96 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-3xl max-h-[92vh] my-2 rounded-2xl shadow-2xl overflow-hidden flex flex-col ${isDarkMode
+                ? "bg-[#091322] border border-white/[0.08]"
+                : "bg-white border border-gray-200"
+                }`}
+            >
+              <div className={`px-4 sm:px-5 py-3 sm:py-4 border-b flex items-center justify-between shrink-0 ${isDarkMode ? "border-white/[0.08]" : "border-gray-100"}`}>
+                <div>
+                  <h3 className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>Set Script Cover Image</h3>
+                  <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Drag to frame the best angle. Cover ratio is 3:4.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetThumbnailEditor}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${isDarkMode
+                    ? "text-gray-400 hover:bg-white/[0.08]"
+                    : "text-gray-500 hover:bg-gray-100"
+                    }`}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                <div className={`relative w-full h-[45vh] sm:h-[380px] min-h-[220px] rounded-xl overflow-hidden ${isDarkMode ? "bg-black/50" : "bg-gray-100"}`}>
+                  <Cropper
+                    image={thumbnailSourceUrl}
+                    crop={thumbnailCrop}
+                    zoom={thumbnailZoom}
+                    rotation={thumbnailRotation}
+                    aspect={THUMBNAIL_ASPECT}
+                    showGrid
+                    objectFit="cover"
+                    onCropChange={setThumbnailCrop}
+                    onZoomChange={setThumbnailZoom}
+                    onRotationChange={setThumbnailRotation}
+                    onCropComplete={(_, croppedAreaPixels) => setThumbnailCropPixels(croppedAreaPixels)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`rounded-xl p-3 border ${isDarkMode ? "border-white/[0.08] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className={`text-xs font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Zoom</label>
+                      <span className={`ml-auto text-[11px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{thumbnailZoom.toFixed(2)}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={3}
+                      step={0.01}
+                      value={thumbnailZoom}
+                      onChange={(e) => setThumbnailZoom(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className={`rounded-xl p-3 border ${isDarkMode ? "border-white/[0.08] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className={`text-xs font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Rotation</label>
+                      <span className={`ml-auto text-[11px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{Math.round(thumbnailRotation)} deg</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={-180}
+                      max={180}
+                      step={1}
+                      value={thumbnailRotation}
+                      onChange={(e) => setThumbnailRotation(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                <div className={`rounded-xl px-3 py-2 border flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-between ${isDarkMode ? "border-white/[0.08] bg-white/[0.02]" : "border-gray-200 bg-gray-50"}`}>
+                  <p className={`text-[11px] ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Tip: drag image to choose focal point, then fine-tune zoom and angle.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setThumbnailCrop({ x: 0, y: 0 });
+                      setThumbnailZoom(1);
+                      setThumbnailRotation(0);
+                    }}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition ${isDarkMode
+                      ? "bg-white/[0.08] text-gray-300 hover:bg-white/[0.12]"
+                      : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                      }`}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <div className={`px-4 sm:px-5 pb-4 sm:pb-5 pt-3 flex gap-3 shrink-0 ${isDarkMode ? "border-t border-white/[0.06]" : "border-t border-gray-100"}`}>
+                <button
+                  type="button"
+                  onClick={resetThumbnailEditor}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition ${isDarkMode
+                    ? "bg-white/[0.05] text-gray-400 hover:bg-white/[0.08]"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyThumbnail}
+                  disabled={thumbnailApplying}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white"
+                >
+                  {thumbnailApplying ? "Saving Cover..." : "Save Cover"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

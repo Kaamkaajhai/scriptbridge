@@ -99,7 +99,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const { data } = await axios.post(`${API_URL}/auth/login`, { email, password });
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const { data } = await axios.post(`${API_URL}/auth/login`, { email: normalizedEmail, password });
     
     // If OTP verification is required, don't set user yet
     if (data.requiresVerification) {

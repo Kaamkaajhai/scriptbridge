@@ -2,12 +2,57 @@ import User from "../models/User.js";
 import Post from "../models/Post.js";
 import Script from "../models/Script.js";
 import Notification from "../models/Notification.js";
+import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
+import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
+
+const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+
+const normalizeStringArray = (value, maxItems) => {
+  if (!Array.isArray(value)) return [];
+  const unique = [];
+  for (const item of value) {
+    const normalized = normalizeString(item);
+    if (!normalized) continue;
+    if (!unique.includes(normalized)) unique.push(normalized);
+    if (maxItems && unique.length >= maxItems) break;
+  }
+  return unique;
+};
+
+const sanitizeBankPayload = (bankDetails) => {
+  if (!bankDetails || typeof bankDetails !== "object") return null;
+
+  const clean = {
+    accountHolderName: normalizeString(bankDetails.accountHolderName) || "",
+    bankName: normalizeString(bankDetails.bankName) || "",
+    accountNumber: typeof bankDetails.accountNumber === "string"
+      ? bankDetails.accountNumber.replace(/\s+/g, "")
+      : "",
+    routingNumber: typeof bankDetails.routingNumber === "string"
+      ? bankDetails.routingNumber.replace(/\s+/g, "")
+      : "",
+    accountType: normalizeString(bankDetails.accountType) || "checking",
+    swiftCode: normalizeString(bankDetails.swiftCode)?.toUpperCase() || "",
+    iban: normalizeString(bankDetails.iban)?.toUpperCase() || "",
+    country: (normalizeString(bankDetails.country) || "IN").toUpperCase(),
+    currency: (normalizeString(bankDetails.currency) || "INR").toUpperCase(),
+  };
+
+  // Do not allow masked values to overwrite real account number.
+  if (clean.accountNumber.startsWith("****")) {
+    clean.accountNumber = undefined;
+  }
+
+  return clean;
+};
 
 // Multer config for profile image uploads
 const storage = multer.diskStorage({
@@ -188,16 +233,27 @@ export const getUserProfile = async (req, res) => {
         .sort({ createdAt: -1 });
     }
 
+    let bookmarkedScripts = [];
+    if (isOwnProfile && Array.isArray(user.favoriteScripts) && user.favoriteScripts.length > 0) {
+      bookmarkedScripts = await Script.find({
+        _id: { $in: user.favoriteScripts },
+        status: "published",
+      })
+        .populate("creator", "name profileImage role")
+        .sort({ updatedAt: -1 });
+    }
+
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
     if (!isOwnProfile && userObj.bankDetails) {
       delete userObj.bankDetails;
+      delete userObj.pendingEmail;
     } else if (isOwnProfile && userObj.bankDetails && userObj.bankDetails.accountNumber) {
       // Sanitize account number even for own profile (for security)
       userObj.bankDetails.accountNumber = '****' + userObj.bankDetails.accountNumber.slice(-4);
     }
 
-    res.json({ user: userObj, posts, scripts, purchasedScripts });
+    res.json({ user: userObj, posts, scripts, purchasedScripts, bookmarkedScripts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -224,10 +280,12 @@ export const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.name = name || user.name;
-    user.bio = bio !== undefined ? bio : user.bio;
-    user.skills = skills || user.skills;
-    user.profileImage = profileImage || user.profileImage;
+    user.name = normalizeString(name) || user.name;
+    user.bio = bio !== undefined ? normalizeString(bio) : user.bio;
+    if (skills !== undefined) {
+      user.skills = normalizeStringArray(skills, 25);
+    }
+    user.profileImage = normalizeString(profileImage) || user.profileImage;
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
@@ -258,8 +316,9 @@ export const updateUserProfile = async (req, res) => {
     // Investor profile fields
     if (company !== undefined || linkedInUrl !== undefined || investmentRange !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
-      if (company !== undefined) user.industryProfile.company = company;
-      if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = linkedInUrl;
+      if (company !== undefined) user.industryProfile.company = normalizeString(company);
+      if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = normalizeString(linkedInUrl);
+      if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
       user.markModified("industryProfile");
     }
 
@@ -280,61 +339,78 @@ export const updateUserProfile = async (req, res) => {
     if (writerProfile) {
       if (!user.writerProfile) user.writerProfile = {};
       if (writerProfile.representationStatus !== undefined) {
-        user.writerProfile.representationStatus = writerProfile.representationStatus;
+        const representationStatus = normalizeString(writerProfile.representationStatus);
+        if (!WRITER_REPRESENTATION_STATUSES.includes(representationStatus)) {
+          return res.status(400).json({ message: "Invalid representation status" });
+        }
+        user.writerProfile.representationStatus = representationStatus;
       }
       if (writerProfile.agencyName !== undefined) {
-        user.writerProfile.agencyName = writerProfile.agencyName;
+        user.writerProfile.agencyName = normalizeString(writerProfile.agencyName) || "";
       }
       if (writerProfile.wgaMember !== undefined) {
         user.writerProfile.wgaMember = writerProfile.wgaMember;
       }
       if (writerProfile.genres !== undefined) {
-        user.writerProfile.genres = writerProfile.genres;
+        user.writerProfile.genres = normalizeStringArray(writerProfile.genres, 12);
       }
       if (writerProfile.specializedTags !== undefined) {
-        user.writerProfile.specializedTags = writerProfile.specializedTags;
+        user.writerProfile.specializedTags = normalizeStringArray(writerProfile.specializedTags, 5);
       }
       if (writerProfile.diversity !== undefined) {
         if (!user.writerProfile.diversity) user.writerProfile.diversity = {};
         if (writerProfile.diversity.gender !== undefined) {
-          user.writerProfile.diversity.gender = writerProfile.diversity.gender;
+          user.writerProfile.diversity.gender = normalizeString(writerProfile.diversity.gender);
         }
         if (writerProfile.diversity.ethnicity !== undefined) {
-          user.writerProfile.diversity.ethnicity = writerProfile.diversity.ethnicity;
+          user.writerProfile.diversity.ethnicity = normalizeString(writerProfile.diversity.ethnicity);
         }
       }
+
+      const currentStatus = user.writerProfile.representationStatus || "unrepresented";
+      if (["agent", "manager", "manager_and_agent"].includes(currentStatus) && !user.writerProfile.agencyName) {
+        return res.status(400).json({ message: "Agency name is required for represented writers" });
+      }
+
+      user.markModified("writerProfile");
     }
 
     // Bank details
     if (bankDetails) {
+      const sanitizedBankDetails = sanitizeBankPayload(bankDetails);
       if (!user.bankDetails) user.bankDetails = {};
-      if (bankDetails.accountHolderName !== undefined) {
-        user.bankDetails.accountHolderName = bankDetails.accountHolderName;
+      if (sanitizedBankDetails.accountHolderName !== undefined) {
+        user.bankDetails.accountHolderName = sanitizedBankDetails.accountHolderName;
       }
-      if (bankDetails.bankName !== undefined) {
-        user.bankDetails.bankName = bankDetails.bankName;
+      if (sanitizedBankDetails.bankName !== undefined) {
+        user.bankDetails.bankName = sanitizedBankDetails.bankName;
       }
-      if (bankDetails.accountNumber !== undefined) {
-        user.bankDetails.accountNumber = bankDetails.accountNumber;
+      if (sanitizedBankDetails.accountNumber !== undefined) {
+        user.bankDetails.accountNumber = sanitizedBankDetails.accountNumber;
       }
-      if (bankDetails.routingNumber !== undefined) {
-        user.bankDetails.routingNumber = bankDetails.routingNumber;
+      if (sanitizedBankDetails.routingNumber !== undefined) {
+        user.bankDetails.routingNumber = sanitizedBankDetails.routingNumber;
       }
-      if (bankDetails.accountType !== undefined) {
-        user.bankDetails.accountType = bankDetails.accountType;
+      if (sanitizedBankDetails.accountType !== undefined) {
+        user.bankDetails.accountType = sanitizedBankDetails.accountType;
       }
-      if (bankDetails.swiftCode !== undefined) {
-        user.bankDetails.swiftCode = bankDetails.swiftCode;
+      if (sanitizedBankDetails.swiftCode !== undefined) {
+        user.bankDetails.swiftCode = sanitizedBankDetails.swiftCode;
       }
-      if (bankDetails.iban !== undefined) {
-        user.bankDetails.iban = bankDetails.iban;
+      if (sanitizedBankDetails.iban !== undefined) {
+        user.bankDetails.iban = sanitizedBankDetails.iban;
       }
-      if (bankDetails.country !== undefined) {
-        user.bankDetails.country = bankDetails.country;
+      if (sanitizedBankDetails.country !== undefined) {
+        user.bankDetails.country = sanitizedBankDetails.country;
       }
-      if (bankDetails.currency !== undefined) {
-        user.bankDetails.currency = bankDetails.currency;
+      if (sanitizedBankDetails.currency !== undefined) {
+        user.bankDetails.currency = sanitizedBankDetails.currency;
       }
+
+      if (user.bankDetails.country === "IN" && user.bankDetails.currency !== "INR") {
+        user.bankDetails.currency = "INR";
+      }
+
       // Set addedAt if this is the first time adding bank details
       if (!user.bankDetails.addedAt) {
         user.bankDetails.addedAt = new Date();
@@ -598,13 +674,114 @@ export const changeEmail = async (req, res) => {
     const isMatch = await user.matchPassword(password);
     if (!isMatch) return res.status(401).json({ message: "Password is incorrect" });
 
-    const existing = await User.findOne({ email: newEmail });
+    const normalizedEmail = newEmail.trim().toLowerCase();
+
+    if (normalizedEmail === user.email) {
+      return res.status(400).json({ message: "New email must be different from current email" });
+    }
+
+    const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
     if (existing) return res.status(409).json({ message: "Email is already in use" });
 
-    user.email = newEmail;
-    user.emailVerified = false;
+    const existingPending = await User.findOne({ pendingEmail: normalizedEmail, _id: { $ne: user._id } });
+    if (existingPending) return res.status(409).json({ message: "Email is already pending verification for another user" });
+
+    const otp = generateOTP();
+
+    const emailResult = await sendOTPEmail(normalizedEmail, user.name, otp);
+    if (!emailResult.success) {
+      return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
+    }
+
+    // Internal copy for compliance/audit visibility. Do not block user flow if this fails.
+    await sendEmailChangeOTPToCompany({
+      userName: user.name,
+      currentEmail: user.email,
+      newEmail: normalizedEmail,
+      otp,
+      trigger: "changeEmail",
+    });
+
+    // Keep current email active until OTP verification succeeds.
+    user.pendingEmail = normalizedEmail;
+    user.emailVerificationToken = otp;
+    user.emailVerificationExpires = generateOTPExpiry();
     await user.save();
-    res.json({ message: "Email changed successfully", email: user.email });
+    res.json({
+      message: "Verification code sent to new email. Current email remains active until verification.",
+      email: user.email,
+      pendingEmail: user.pendingEmail,
+      requiresVerification: true,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const sendEmailVerificationCode = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const targetEmail = user.pendingEmail || user.email;
+    if (!user.pendingEmail && user.emailVerified) {
+      return res.status(400).json({ message: "Email already verified" });
+    }
+
+    const otp = generateOTP();
+    user.emailVerificationToken = otp;
+    user.emailVerificationExpires = generateOTPExpiry();
+    await user.save();
+
+    const emailResult = await sendOTPEmail(targetEmail, user.name, otp);
+    if (!emailResult.success) {
+      return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
+    }
+
+    // If user is verifying a pending email change, send a company copy as well.
+    if (user.pendingEmail) {
+      await sendEmailChangeOTPToCompany({
+        userName: user.name,
+        currentEmail: user.email,
+        newEmail: user.pendingEmail,
+        otp,
+        trigger: "resendEmailVerificationCode",
+      });
+    }
+
+    res.json({ message: `Verification code sent to ${targetEmail}` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const verifyEmailVerificationCode = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    if (!otp) return res.status(400).json({ message: "Verification code is required" });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.emailVerificationToken) return res.status(400).json({ message: "No verification code found. Please resend code." });
+    if (isOTPExpired(user.emailVerificationExpires)) return res.status(400).json({ message: "Verification code expired. Please resend code." });
+    if (String(user.emailVerificationToken) !== String(otp).trim()) return res.status(400).json({ message: "Invalid verification code" });
+
+    if (user.pendingEmail) {
+      const emailOwner = await User.findOne({ email: user.pendingEmail, _id: { $ne: user._id } });
+      if (emailOwner) {
+        return res.status(409).json({ message: "Pending email is already used by another account" });
+      }
+
+      user.email = user.pendingEmail;
+      user.pendingEmail = undefined;
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Email verified successfully", emailVerified: true, email: user.email });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
+  IndianRupee,
   ArrowUpRight,
   ArrowDownLeft,
   Calendar,
@@ -21,21 +21,27 @@ import {
   FileText
 } from "lucide-react";
 import api from "../services/api";
+import { AuthContext } from "../context/AuthContext";
+import { formatCurrency, formatCredits } from "../utils/currency";
 
 const Transactions = ({ dark }) => {
+  const { user } = useContext(AuthContext);
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState(null);
   const [wallet, setWallet] = useState(null);
+  const [accountSummary, setAccountSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const isWriter = ["creator", "writer"].includes(user?.role);
   
   useEffect(() => {
     fetchTransactions();
     fetchStats();
     fetchWallet();
+    fetchAccountSummary();
   }, [currentPage, filter]);
 
   const fetchTransactions = async () => {
@@ -82,6 +88,15 @@ const Transactions = ({ dark }) => {
     }
   };
 
+  const fetchAccountSummary = async () => {
+    try {
+      const { data } = await api.get("/users/me");
+      setAccountSummary(data);
+    } catch (error) {
+      console.error("Failed to fetch account summary:", error);
+    }
+  };
+
   const getTransactionIcon = (type) => {
     switch (type) {
       case "credit":
@@ -97,7 +112,7 @@ const Transactions = ({ dark }) => {
       case "subscription":
         return <Award className="w-5 h-5" />;
       default:
-        return <DollarSign className="w-5 h-5" />;
+        return <IndianRupee className="w-5 h-5" />;
     }
   };
 
@@ -131,13 +146,6 @@ const Transactions = ({ dark }) => {
     }
   };
 
-  const formatCurrency = (amount, currency = "USD") => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency
-    }).format(Math.abs(amount));
-  };
-
   const formatDate = (date) => {
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
@@ -153,10 +161,33 @@ const Transactions = ({ dark }) => {
     t.reference?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const creditSummary = accountSummary?.credits || {};
+  const primaryAmount = isWriter
+    ? formatCredits(creditSummary.balance || 0)
+    : formatCurrency(wallet?.balance || 0, wallet?.currency || "INR");
+  const secondaryAmount = isWriter
+    ? formatCredits(creditSummary.totalPurchased || 0)
+    : formatCurrency(stats?.totalEarnings || 0, wallet?.currency || "INR");
+  const tertiaryAmount = isWriter
+    ? formatCredits(creditSummary.totalSpent || 0)
+    : formatCurrency(stats?.totalSpending || 0, wallet?.currency || "INR");
+  const projectSalesAmount = formatCurrency(
+    stats?.projectSalesEarnings || 0,
+    "INR"
+  );
+  const totalProjectRevenueAmount = formatCurrency(
+    stats?.totalProjectRevenue || 0,
+    "INR"
+  );
+  const primaryLabel = isWriter ? "Current Credits" : "Current Balance";
+  const secondaryLabel = isWriter ? "Credits Purchased" : "Total Earnings";
+  const tertiaryLabel = isWriter ? "Credits Spent" : "Total Spending";
+  const primaryBadge = isWriter ? "Credits" : "Available";
+
   return (
     <div className="space-y-6">
       {/* Wallet Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${isWriter ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -176,24 +207,24 @@ const Transactions = ({ dark }) => {
             <span className={`text-xs font-bold px-3 py-1 rounded-full ${
               dark ? "bg-white/10 text-white/60" : "bg-white text-gray-600"
             }`}>
-              Available
+              {primaryBadge}
             </span>
           </div>
           <h3 className={`text-3xl font-black mb-1 ${
             dark ? "text-white" : "text-gray-900"
           }`}>
-            {formatCurrency(wallet?.balance || 0, wallet?.currency)}
+            {primaryAmount}
           </h3>
           <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-            Current Balance
+            {primaryLabel}
           </p>
-          {wallet?.pendingBalance > 0 && (
+          {!isWriter && wallet?.pendingBalance > 0 && (
             <div className={`mt-3 pt-3 border-t flex items-center gap-2 ${
               dark ? "border-white/10 text-yellow-400" : "border-gray-200 text-yellow-600"
             }`}>
               <Clock className="w-4 h-4" />
               <span className="text-xs font-semibold">
-                {formatCurrency(wallet.pendingBalance, wallet.currency)} pending
+                {formatCurrency(wallet.pendingBalance, wallet.currency || "INR")} pending
               </span>
             </div>
           )}
@@ -219,10 +250,10 @@ const Transactions = ({ dark }) => {
           <h3 className={`text-3xl font-black mb-1 ${
             dark ? "text-white" : "text-gray-900"
           }`}>
-            {formatCurrency(stats?.totalEarnings || 0)}
+            {secondaryAmount}
           </h3>
           <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-            Total Earnings
+            {secondaryLabel}
           </p>
         </motion.div>
 
@@ -246,19 +277,53 @@ const Transactions = ({ dark }) => {
           <h3 className={`text-3xl font-black mb-1 ${
             dark ? "text-white" : "text-gray-900"
           }`}>
-            {formatCurrency(stats?.totalSpending || 0)}
+            {tertiaryAmount}
           </h3>
           <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-            Total Spending
+            {tertiaryLabel}
           </p>
         </motion.div>
+
+        {isWriter && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className={`rounded-2xl p-6 border ${
+              dark
+                ? "bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-white/[0.06]"
+                : "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200/50"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                dark ? "bg-white/10" : "bg-white"
+              }`}>
+                <IndianRupee className={`w-6 h-6 ${dark ? "text-emerald-400" : "text-emerald-600"}`} />
+              </div>
+            </div>
+            <h3 className={`text-3xl font-black mb-1 ${
+              dark ? "text-white" : "text-gray-900"
+            }`}>
+              {projectSalesAmount}
+            </h3>
+            <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
+              From Project Sales
+            </p>
+            {(stats?.holdEarnings || 0) > 0 && (
+              <p className={`text-xs mt-2 ${dark ? "text-white/45" : "text-gray-500"}`}>
+                Total with holds: {totalProjectRevenueAmount}
+              </p>
+            )}
+          </motion.div>
+        )}
       </div>
 
       {/* Transactions List */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: isWriter ? 0.4 : 0.3 }}
         className={`rounded-2xl border overflow-hidden ${
           dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200"
         }`}
@@ -427,7 +492,7 @@ const Transactions = ({ dark }) => {
                           : dark ? "text-red-400" : "text-red-600"
                       }`}>
                         {transaction.amount >= 0 ? "+" : "-"}
-                        {formatCurrency(transaction.amount, transaction.currency)}
+                        {formatCurrency(Math.abs(transaction.amount), transaction.currency || "INR")}
                       </p>
                       {transaction.paymentMethod && (
                         <p className={`text-xs capitalize mt-0.5 ${

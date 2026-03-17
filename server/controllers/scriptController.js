@@ -4,6 +4,7 @@ import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
+import Invoice from "../models/Invoice.js";
 import {
   sendPurchaseRequestEmail,
   sendPurchaseApprovedEmail,
@@ -74,7 +75,26 @@ export const saveDraft = async (req, res) => {
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
-      // Allow updating other work-in-progress metadata here if needed
+      if (otherData.logline !== undefined) script.logline = otherData.logline;
+      if (otherData.synopsis !== undefined) {
+        script.synopsis = otherData.synopsis;
+        script.description = otherData.synopsis;
+      }
+      if (otherData.format !== undefined) script.format = otherData.format;
+      if (otherData.pageCount !== undefined) script.pageCount = Number(otherData.pageCount) || 0;
+      if (otherData.primaryGenre !== undefined) script.primaryGenre = otherData.primaryGenre;
+      if (otherData.tags !== undefined) script.tags = Array.isArray(otherData.tags) ? otherData.tags : [];
+      if (otherData.roles !== undefined) script.roles = Array.isArray(otherData.roles) ? otherData.roles : [];
+      if (otherData.classification !== undefined) {
+        script.classification = {
+          primaryGenre: otherData.classification?.primaryGenre ?? script.classification?.primaryGenre,
+          secondaryGenre: otherData.classification?.secondaryGenre ?? script.classification?.secondaryGenre,
+          tones: otherData.classification?.tones ?? script.classification?.tones ?? [],
+          themes: otherData.classification?.themes ?? script.classification?.themes ?? [],
+          settings: otherData.classification?.settings ?? script.classification?.settings ?? [],
+        };
+        script.markModified("classification");
+      }
 
       await script.save();
       return res.json(script);
@@ -146,6 +166,10 @@ export const updateScript = async (req, res) => {
       scriptUrl, description, synopsis, textContent, fileUrl,
       coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
+
+    if (logline !== undefined && String(logline).trim().length > 50) {
+      return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
 
     if (title) script.title = title;
     if (logline !== undefined) script.logline = logline;
@@ -238,19 +262,38 @@ export const uploadScript = async (req, res) => {
     if (!title) {
       return res.status(400).json({ message: "Title is required" });
     }
+    if (logline !== undefined && String(logline).trim().length > 50) {
+      return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
+    if (!synopsis || String(synopsis).trim().length === 0) {
+      return res.status(400).json({ message: "Synopsis is required" });
+    }
     if (!scriptUrl && !fileUrl && !textContent) {
       return res.status(400).json({ message: "Script file or text content is required" });
     }
+
+    const invoiceDate = new Date();
+    const invoiceNumber = `INV-${invoiceDate.toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-4)}`;
+    const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
+    const effectivePrice = isPremiumAccess ? Number(price || 0) : 0;
+    const platformFeeRate = 0.2;
+    const writerEarnsPerSale = Math.round(effectivePrice * (1 - platformFeeRate) * 100) / 100;
 
     // Calculate credits needed for selected services
     let creditsRequired = 0;
     if (services?.evaluation) creditsRequired += CREDIT_PRICES.AI_EVALUATION;
     if (services?.aiTrailer) creditsRequired += CREDIT_PRICES.AI_TRAILER;
 
+    const creator = await User.findById(req.user._id);
+    if (!creator) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const creditsBalanceBefore = creator.credits?.balance || 0;
+    let creditsBalanceAfter = creditsBalanceBefore;
+
     // Check and deduct credits if services are selected
     if (creditsRequired > 0) {
-      const user = await User.findById(req.user._id);
-      const userBalance = user.credits?.balance || 0;
+      const userBalance = creator.credits?.balance || 0;
 
       if (userBalance < creditsRequired) {
         return res.status(402).json({
@@ -263,12 +306,12 @@ export const uploadScript = async (req, res) => {
       }
 
       // Deduct credits
-      user.credits.balance -= creditsRequired;
-      user.credits.totalSpent += creditsRequired;
+      creator.credits.balance -= creditsRequired;
+      creator.credits.totalSpent += creditsRequired;
 
       // Add transaction record for each service
       if (services?.evaluation) {
-        user.credits.transactions.push({
+        creator.credits.transactions.push({
           type: "spent",
           amount: -CREDIT_PRICES.AI_EVALUATION,
           description: `AI Evaluation for "${title}"`,
@@ -278,7 +321,7 @@ export const uploadScript = async (req, res) => {
       }
 
       if (services?.aiTrailer) {
-        user.credits.transactions.push({
+        creator.credits.transactions.push({
           type: "spent",
           amount: -CREDIT_PRICES.AI_TRAILER,
           description: `AI Trailer for "${title}"`,
@@ -287,16 +330,17 @@ export const uploadScript = async (req, res) => {
         });
       }
 
-      await user.save();
+      await creator.save();
+      creditsBalanceAfter = creator.credits?.balance || 0;
     }
 
     // Build the script document
     const scriptData = {
       creator: req.user._id,
       title,
-      logline: logline || description?.substring(0, 300),
-      description: description || synopsis || logline,
-      synopsis: synopsis || description,
+      logline: logline ? String(logline).trim() : "",
+      description: synopsis,
+      synopsis: synopsis,
       fullContent,
       textContent,
       fileUrl: scriptUrl || fileUrl,
@@ -345,6 +389,49 @@ export const uploadScript = async (req, res) => {
     // If updating from a draft (if we pass draftId in the future), we could update instead of create.
     // For now, assume it's a new or finalized creation.
     const script = await Script.create(scriptData);
+
+    await Invoice.create({
+      invoiceNumber,
+      invoiceDate,
+      creator: req.user._id,
+      script: script._id,
+      accessType: isPremiumAccess ? "premium" : "free",
+      scriptPrice: effectivePrice,
+      platformFeeRate,
+      writerEarnsPerSale,
+      services: {
+        hosting: services?.hosting !== undefined ? services.hosting : true,
+        evaluation: Boolean(services?.evaluation),
+        aiTrailer: Boolean(services?.aiTrailer),
+        trailerUpload: !services?.aiTrailer,
+      },
+      totalCreditsRequired: creditsRequired,
+      creditsBalanceBefore,
+      creditsBalanceAfter,
+      rows: [
+        {
+          item: "Script Access Model",
+          type: "Configuration",
+          detail: isPremiumAccess ? `Premium access at $${effectivePrice}` : "Free public access",
+          amountLabel: "$0",
+          amountValue: 0,
+        },
+        {
+          item: "Publish Services",
+          type: "Credit Charge",
+          detail: creditsRequired > 0 ? "Paid add-ons selected" : "No paid add-ons selected",
+          amountLabel: `${creditsRequired} cr`,
+          amountValue: creditsRequired,
+        },
+        {
+          item: "Writer Earnings Per Premium Sale",
+          type: "Future Earnings",
+          detail: isPremiumAccess ? `Buyer pays $${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
+          amountLabel: isPremiumAccess ? `$${writerEarnsPerSale}` : "$0",
+          amountValue: writerEarnsPerSale,
+        },
+      ],
+    });
 
     // --- Async Service Processing ---
     // TODO: Implement these async workflows:
@@ -1793,11 +1880,11 @@ const imageFileFilter = (req, file, cb) => {
 };
 
 const videoFileFilter = (req, file, cb) => {
-  const allowed = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm"];
+  const allowed = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-m4v"];
   if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Only MP4, MPEG, MOV and WebM videos are allowed"), false);
+    cb(new Error("Only MP4, MPEG, MOV, M4V and WebM videos are allowed"), false);
   }
 };
 
@@ -1883,6 +1970,11 @@ export const uploadScriptTrailer = async (req, res) => {
     script.uploadedTrailerUrl = trailerUrl;
     script.trailerSource = "uploaded";
     script.trailerStatus = "ready";
+    script.trailerWriterFeedback = {
+      status: "approved",
+      note: "",
+      updatedAt: new Date(),
+    };
     await script.save();
 
     res.json({
@@ -1893,6 +1985,123 @@ export const uploadScriptTrailer = async (req, res) => {
     });
   } catch (error) {
     console.error("Trailer upload error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Writer Requests AI Trailer from Platform ──
+export const requestScriptAITrailer = async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const { note } = req.body || {};
+
+    const script = await Script.findById(scriptId);
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the script creator can request an AI trailer" });
+    }
+
+    if (script.trailerStatus === "ready" && script.trailerUrl) {
+      return res.status(400).json({ message: "AI trailer is already ready for this script" });
+    }
+
+    script.services = {
+      hosting: script.services?.hosting ?? true,
+      evaluation: script.services?.evaluation ?? false,
+      aiTrailer: true,
+    };
+    script.trailerStatus = "requested";
+    script.trailerWriterFeedback = {
+      status: "pending",
+      note: note?.trim() || "",
+      updatedAt: new Date(),
+    };
+    await script.save();
+
+    const admins = await User.find({ role: "admin" }).select("_id");
+    if (admins.length > 0) {
+      const payload = admins.map((admin) => ({
+        user: admin._id,
+        type: "trailer_ready",
+        from: req.user._id,
+        script: script._id,
+        message: `AI trailer requested by writer for \"${script.title}\"${note ? `. Note: ${note}` : ""}`,
+      }));
+      await Notification.insertMany(payload);
+    }
+
+    res.json({
+      message: "AI trailer request submitted to platform",
+      script,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Writer Feedback for Platform AI Trailer ──
+export const submitTrailerFeedback = async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const { action, note } = req.body || {};
+
+    if (!["approved", "revision_requested"].includes(action)) {
+      return res.status(400).json({ message: "action must be approved or revision_requested" });
+    }
+
+    const script = await Script.findById(scriptId);
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the script creator can submit trailer feedback" });
+    }
+
+    if (!script.trailerUrl) {
+      return res.status(400).json({ message: "No AI trailer available for feedback" });
+    }
+
+    script.trailerWriterFeedback = {
+      status: action,
+      note: note?.trim() || "",
+      updatedAt: new Date(),
+    };
+
+    if (action === "revision_requested") {
+      script.trailerStatus = "requested";
+    } else {
+      script.trailerStatus = "ready";
+    }
+
+    await script.save();
+
+    const admins = await User.find({ role: "admin" }).select("_id");
+    if (admins.length > 0) {
+      const payload = admins.map((admin) => ({
+        user: admin._id,
+        type: "trailer_ready",
+        from: req.user._id,
+        script: script._id,
+        message:
+          action === "approved"
+            ? `Writer approved AI trailer for "${script.title}".`
+            : `Writer requested a better AI trailer version for "${script.title}"${note?.trim() ? `. Note: ${note.trim()}` : ""}`,
+      }));
+      await Notification.insertMany(payload);
+    }
+
+    res.json({
+      message:
+        action === "approved"
+          ? "Trailer marked as approved"
+          : "Trailer revision request submitted",
+      script,
+    });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };

@@ -10,6 +10,7 @@ import {
   createScriptHoldOrder, verifyScriptHold,
   uploadThumbnail, uploadTrailer,
   uploadScriptThumbnail, uploadScriptTrailer,
+  requestScriptAITrailer, submitTrailerFeedback,
   getInvestorHomeFeed, getTopList,
   requestScriptPurchase, approveScriptPurchase, rejectScriptPurchase, getMyPurchaseRequests,
 } from "../controllers/scriptController.js";
@@ -25,6 +26,8 @@ router.post("/upload", protect, uploadScript);
 // Thumbnail and Trailer upload routes
 router.post("/:id/upload-thumbnail", protect, uploadThumbnail.single("thumbnail"), uploadScriptThumbnail);
 router.post("/:id/upload-trailer", protect, uploadTrailer.single("trailer"), uploadScriptTrailer);
+router.post("/:id/request-ai-trailer", protect, requestScriptAITrailer);
+router.post("/:id/trailer-feedback", protect, submitTrailerFeedback);
 
 // Razorpay payment routes for scripts
 router.post("/purchase/create-order", protect, createScriptPurchaseOrder);

@@ -20,10 +20,10 @@ const Mandates = () => {
 
   const formats = ["Feature Film", "TV Pilot", "Limited Series", "Short Film", "Web Series"];
   const budgetTiers = [
-    { value: "micro", label: "Micro (<$500K)" },
-    { value: "low", label: "Low ($500K–$5M)" },
-    { value: "medium", label: "Medium ($5M–$25M)" },
-    { value: "high", label: "High ($25M+)" },
+    { value: "micro", label: "Micro (<₹50L)" },
+    { value: "low", label: "Low (₹50L–₹5Cr)" },
+    { value: "medium", label: "Medium (₹5Cr–₹25Cr)" },
+    { value: "high", label: "High (₹25Cr+)" },
     { value: "any", label: "Any Budget" },
   ];
   const genres = [
