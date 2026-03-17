@@ -15,6 +15,10 @@ const MainLayout = ({ children }) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [pendingPurchaseCount, setPendingPurchaseCount] = useState(0);
+  const [latestPendingPurchaseAt, setLatestPendingPurchaseAt] = useState("");
+  const [showPurchasePopup, setShowPurchasePopup] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
@@ -38,18 +42,77 @@ const MainLayout = ({ children }) => {
     } catch { }
   }, []);
 
+  const fetchUnreadMessageCount = useCallback(async () => {
+    if (!user) {
+      setUnreadMessageCount(0);
+      return;
+    }
+    try {
+      const { data } = await api.get("/messages/unread-count");
+      setUnreadMessageCount(data.count || 0);
+    } catch {
+      setUnreadMessageCount(0);
+    }
+  }, [user]);
+
+  const fetchPendingPurchaseCount = useCallback(async () => {
+    const isWriter = ["writer", "creator"].includes(user?.role);
+    if (!isWriter) {
+      setPendingPurchaseCount(0);
+      setLatestPendingPurchaseAt("");
+      return;
+    }
+
+    try {
+      const { data } = await api.get("/scripts/purchase-requests/mine");
+      const pendingRequests = Array.isArray(data) ? data.filter((r) => r.status === "pending") : [];
+      const pending = pendingRequests.length;
+      const latestAt = pendingRequests.reduce((latest, request) => {
+        const createdAt = request?.createdAt || "";
+        if (!createdAt) return latest;
+        return !latest || new Date(createdAt) > new Date(latest) ? createdAt : latest;
+      }, "");
+
+      setPendingPurchaseCount(pending);
+      setLatestPendingPurchaseAt(latestAt);
+    } catch {
+      setPendingPurchaseCount(0);
+      setLatestPendingPurchaseAt("");
+    }
+  }, [user?.role]);
+
   useEffect(() => {
     if (!user) return undefined;
 
     fetchUnreadCount();
+    fetchUnreadMessageCount();
+    fetchPendingPurchaseCount();
     // Only fetch credits balance for non-investors
     if (user.role !== "investor") {
       fetchCreditsBalance();
     }
 
-    const interval = setInterval(fetchUnreadCount, 60000);
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      fetchUnreadMessageCount();
+      fetchPendingPurchaseCount();
+    }, 60000);
     return () => clearInterval(interval);
-  }, [fetchUnreadCount, user]);
+  }, [fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user]);
+
+  useEffect(() => {
+    const isWriter = ["writer", "creator"].includes(user?.role);
+    if (!isWriter || !user?._id || pendingPurchaseCount <= 0 || !latestPendingPurchaseAt) {
+      setShowPurchasePopup(false);
+      return;
+    }
+
+    const popupKey = `purchase_popup_seen_latest_${user._id}`;
+    const seenLatest = sessionStorage.getItem(popupKey) || "";
+    if (!seenLatest || new Date(latestPendingPurchaseAt) > new Date(seenLatest)) {
+      setShowPurchasePopup(true);
+    }
+  }, [latestPendingPurchaseAt, pendingPurchaseCount, user?._id, user?.role]);
 
   const fetchNotifications = async () => {
     setNotifLoading(true);
@@ -163,6 +226,21 @@ const MainLayout = ({ children }) => {
     if (searchQuery.trim()) navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
+  const dismissPurchasePopup = () => {
+    if (user?._id) {
+      const popupKey = `purchase_popup_seen_latest_${user._id}`;
+      if (latestPendingPurchaseAt) {
+        sessionStorage.setItem(popupKey, latestPendingPurchaseAt);
+      }
+    }
+    setShowPurchasePopup(false);
+  };
+
+  const handleGoToPurchaseRequests = () => {
+    dismissPurchasePopup();
+    navigate("/purchase-requests");
+  };
+
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
@@ -174,9 +252,66 @@ const MainLayout = ({ children }) => {
         onClose={() => setShowBuyCredits(false)}
         onSuccess={handleCreditsUpdate}
       />
+
+      {showPurchasePopup && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,380px)] animate-scaleIn">
+          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
+            isDarkMode
+              ? "bg-[#0f1d2d]/95 border-[#27415f] text-white shadow-black/40"
+              : "bg-white/95 border-[#d5e2ef] text-gray-900 shadow-slate-200/80"
+          }`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
+                  isDarkMode ? "bg-sky-500/15 text-sky-300" : "bg-sky-50 text-sky-600"
+                }`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                    New Purchase Request{pendingPurchaseCount > 1 ? "s" : ""}
+                  </p>
+                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-[#9db2c9]" : "text-gray-600"}`}>
+                    You have <span className="font-semibold">{pendingPurchaseCount}</span> pending request{pendingPurchaseCount > 1 ? "s" : ""} waiting for your decision.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={dismissPurchasePopup}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                  isDarkMode ? "text-[#8ca5be] hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                }`}
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={dismissPurchasePopup}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  isDarkMode ? "text-[#9db2c9] hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                Later
+              </button>
+              <button
+                onClick={handleGoToPurchaseRequests}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#1e3a5f] text-white hover:bg-[#2a4b77] transition-colors"
+              >
+                Review now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className={`min-h-screen ${isDarkMode ? "bg-[#080e18]" : "bg-[#eef0f3]"}`}>
-      <Sidebar />
+      <Sidebar purchaseRequestCount={pendingPurchaseCount} unreadMessageCount={unreadMessageCount} />
 
       {/* Top bar */}
       <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${

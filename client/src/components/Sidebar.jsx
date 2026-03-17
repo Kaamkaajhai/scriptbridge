@@ -5,7 +5,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 
-const Sidebar = () => {
+const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
   const { user, logout } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const location = useLocation();
@@ -169,8 +169,13 @@ const Sidebar = () => {
     </svg>
   );
 
+  const isPurchaseRequestsItem = (itemPath) => itemPath === "/purchase-requests";
+  const isMessagesItem = (itemPath) => itemPath === "/messages";
+
   const NavItem = ({ item }) => {
     const active = isActive(item.path);
+    const showPurchaseBadge = isPurchaseRequestsItem(item.path) && purchaseRequestCount > 0;
+    const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
     return (
       <Link
         to={item.path}
@@ -182,6 +187,16 @@ const Sidebar = () => {
       >
         <Icon d={item.icon} />
         <span>{item.label}</span>
+        {showMessageBadge && (
+          <span className="ml-auto inline-flex items-center justify-center min-w-[34px] h-6 px-2 rounded-full bg-[#0f766e] text-white text-[11px] font-extrabold tracking-tight shadow-sm">
+            +{unreadMessageCount > 99 ? "99" : unreadMessageCount}
+          </span>
+        )}
+        {showPurchaseBadge && (
+          <span className="ml-auto inline-flex items-center justify-center min-w-[34px] h-6 px-2 rounded-full bg-[#1e3a5f] text-white text-[11px] font-extrabold tracking-tight shadow-sm">
+            +{purchaseRequestCount > 99 ? "99" : purchaseRequestCount}
+          </span>
+        )}
 
       </Link>
     );
@@ -288,13 +303,25 @@ const Sidebar = () => {
         <nav className="flex-1 flex flex-col items-center gap-1 py-2 overflow-y-auto">
           {mainNavItems.map((item) => {
             const active = isActive(item.path);
+            const showPurchaseBadge = isPurchaseRequestsItem(item.path) && purchaseRequestCount > 0;
+            const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
             return (
               <Link key={item.label} to={item.path} title={item.label}
-                className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${active
+                className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${active
                   ? isDarkMode ? "bg-[#0d1520] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"
                   : isDarkMode ? "text-[#4a5a6e] hover:bg-[#0d1520] hover:text-[#8896a7]" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
                   }`}>
                 <Icon d={item.icon} />
+                {showMessageBadge && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[19px] h-[19px] px-1 rounded-full bg-[#0f766e] text-white text-[10px] font-extrabold leading-none ring-2 ring-white/80">
+                    {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                  </span>
+                )}
+                {showPurchaseBadge && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[19px] h-[19px] px-1 rounded-full bg-[#1e3a5f] text-white text-[10px] font-extrabold leading-none ring-2 ring-white/80">
+                    {purchaseRequestCount > 9 ? "9+" : purchaseRequestCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -353,13 +380,19 @@ const Sidebar = () => {
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-16 border-t flex items-center justify-around px-1 z-40 ${isDarkMode ? "bg-[#080e18] border-[#151f2e]" : "bg-white/90 backdrop-blur-xl border-gray-200/60"}`}>
         {mobileItems.map((item) => {
           const active = isActive(item.path);
+          const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
           return (
             <Link key={item.path} to={item.path}
-              className={`flex flex-col items-center justify-center gap-0.5 w-14 h-12 transition-colors ${active
+              className={`relative flex flex-col items-center justify-center gap-0.5 w-14 h-12 transition-colors ${active
                 ? isDarkMode ? "text-white" : "text-[#1e3a5f]"
                 : isDarkMode ? "text-[#4a5a6e]" : "text-gray-400"
                 }`}>
               <Icon d={item.icon} size={`w-[22px] h-[22px] ${active ? "stroke-[2.2]" : ""}`} />
+              {showMessageBadge && (
+                <span className="absolute top-0.5 right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#0f766e] text-white text-[10px] font-extrabold leading-none ring-2 ring-white/80">
+                  {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                </span>
+              )}
               <span className={`text-xs ${active
                 ? isDarkMode ? "font-extrabold text-white" : "font-extrabold text-[#1e3a5f]"
                 : isDarkMode ? "font-bold text-[#4a5a6e]" : "font-bold text-gray-400"
