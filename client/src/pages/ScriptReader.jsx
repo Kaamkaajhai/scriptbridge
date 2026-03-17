@@ -161,9 +161,9 @@ const ScriptReader = () => {
             {/* Title */}
             <h1 className={`text-2xl md:text-3xl font-extrabold mb-2 tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>{script.title}</h1>
 
-            {/* Description / Logline */}
-            {(script.logline || script.description) && (
-              <p className="text-gray-500 text-[15px] leading-relaxed mb-5 max-w-xl">{script.logline || script.description}</p>
+            {/* Logline / Synopsis */}
+            {(script.logline || script.synopsis || script.description) && (
+              <p className="text-gray-500 text-[15px] leading-relaxed mb-5 max-w-xl">{script.logline || script.synopsis || script.description}</p>
             )}
 
             {/* Author */}
@@ -803,8 +803,8 @@ const ScriptReader = () => {
         {activeTab === "details" && (
           <motion.div key="details" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
-              <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Description</h3>
-              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{script.description || "No description provided."}</p>
+              <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Synopsis</h3>
+              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{script.synopsis || script.description || "No synopsis provided."}</p>
             </div>
             <div className={`rounded-2xl border shadow-sm p-6 ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
               <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Script Info</h3>

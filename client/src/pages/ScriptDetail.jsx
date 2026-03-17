@@ -10,7 +10,7 @@ import { formatCurrency } from "../utils/currency";
 
 const ScriptDetail = () => {
   const { id } = useParams();
-  const { user } = useContext(AuthContext);
+  const { user, setUser } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
 
@@ -35,6 +35,7 @@ const ScriptDetail = () => {
   const [pendingReqActionId, setPendingReqActionId] = useState(null);
   const [rejectNoteModal, setRejectNoteModal] = useState(null); // { id, investorName }
   const [rejectNoteText, setRejectNoteText] = useState("");
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   /* ── Handlers ─────────────────────────────────────────── */
 
@@ -105,6 +106,14 @@ const ScriptDetail = () => {
     fetchScript();
     setCoverError(false);
   }, [id]);
+
+  useEffect(() => {
+    const favoriteIds = user?.favoriteScripts || [];
+    const hasBookmark = Array.isArray(favoriteIds)
+      ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === id)
+      : false;
+    setIsBookmarked(hasBookmark);
+  }, [user?.favoriteScripts, id]);
 
   useEffect(() => {
     if (script?.isCreator) {
@@ -260,6 +269,34 @@ const ScriptDetail = () => {
     }
   };
 
+  const handleToggleBookmark = async () => {
+    if (!user?._id || !script?._id || script?.creator?._id === user?._id) return;
+    try {
+      const { data } = await api.post(`/scripts/${script._id}/favorite`);
+      const nextFavorited = Boolean(data?.favorited);
+      setIsBookmarked(nextFavorited);
+
+      setUser((prev) => {
+        if (!prev) return prev;
+        const currentIds = Array.isArray(prev.favoriteScripts)
+          ? prev.favoriteScripts.map((item) => (typeof item === "string" ? item : item?._id)).filter(Boolean)
+          : [];
+        const updatedIds = nextFavorited
+          ? Array.from(new Set([...currentIds, script._id]))
+          : currentIds.filter((item) => item !== script._id);
+        const updatedUser = { ...prev, favoriteScripts: updatedIds };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        return updatedUser;
+      });
+
+      window.dispatchEvent(new CustomEvent("bookmarkUpdated", {
+        detail: { scriptId: script._id, bookmarked: nextFavorited },
+      }));
+    } catch {
+      // silent fail for bookmark toggle
+    }
+  };
+
   const handleRequestPurchase = async () => {
     setRequestLoading(true);
     try {
@@ -371,8 +408,8 @@ const ScriptDetail = () => {
     card: isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200",
     cardHov: isDarkMode ? "hover:border-white/[0.12]" : "hover:border-gray-300",
     tabs: isDarkMode ? "bg-[#0a1220] border-white/[0.04]" : "bg-gray-100/80 border-gray-200",
-    tabAct: isDarkMode ? "bg-[#1e3a5f] text-white shadow-md shadow-[#0a1520]/60"
-      : "bg-white text-[#1e3a5f] shadow-sm shadow-gray-200",
+    tabAct: isDarkMode ? "bg-[#1e3a5f] text-white"
+      : "bg-white text-[#1e3a5f]",
     tabInact: isDarkMode ? "text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.04]"
       : "text-gray-400 hover:text-gray-700 hover:bg-white/60",
     title: isDarkMode ? "text-white" : "text-gray-900",
@@ -430,7 +467,10 @@ const ScriptDetail = () => {
 
   const score = script.scriptScore || {};
   const isOwner = script.creator?._id === user?._id;
+  const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
+  const trailerSourceUrl = script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl;
+  const hasTrailer = Boolean(trailerSourceUrl);
   const heroImage = script.trailerThumbnail || script.coverImage;
   const showCoverPlaceholder = !heroImage || coverError;
   const cl = script.classification || {};
@@ -480,7 +520,21 @@ const ScriptDetail = () => {
 
             {/* Cover / Trailer */}
             <div className={`relative h-52 sm:h-72 ${isDarkMode ? "bg-gradient-to-br from-[#060c17] via-[#0c1a2d] to-[#0f2035]" : "bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200"}`}>
-              {showCoverPlaceholder ? (
+              {hasTrailer ? (
+                <>
+                  <video
+                    src={resolveImage(trailerSourceUrl)}
+                    poster={heroImage ? resolveImage(heroImage) : undefined}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-full object-cover absolute inset-0"
+                  />
+                  <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t ${isDarkMode ? "from-black/35 via-black/10" : "from-white/25 via-transparent"} to-transparent`} />
+                </>
+              ) : showCoverPlaceholder ? (
                 <div className="w-full h-full flex flex-col items-center justify-center">
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border mb-4 ${isDarkMode ? "border-white/[0.08] bg-white/[0.03]" : "border-gray-200 bg-white/60"}`}>
                     <Film size={28} strokeWidth={1.5} className={isDarkMode ? "text-white/30" : "text-gray-400"} />
@@ -500,12 +554,15 @@ const ScriptDetail = () => {
               )}
 
               {/* Play overlay */}
-              {(script.trailerUrl || script.uploadedTrailerUrl) && (
+              {hasTrailer && (
                 <button onClick={() => setShowTrailer(true)} className="absolute inset-0 flex items-center justify-center group">
-                  <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xl ring-1 ring-white/10">
-                    <svg className="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
+                  <div className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md inline-flex items-center gap-2 ring-1 ring-white/15">
+                    <span className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </span>
+                    <span className="text-[11px] font-semibold tracking-wide uppercase text-white/90">Watch Trailer</span>
                   </div>
                 </button>
               )}
@@ -513,7 +570,7 @@ const ScriptDetail = () => {
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-wrap gap-2">
                 {script.premium && (
-                  <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold shadow-lg shadow-amber-500/20">
+                  <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold">
                     &#9733; Premium
                   </span>
                 )}
@@ -526,7 +583,7 @@ const ScriptDetail = () => {
               </div>
 
               {/* Bottom overlay chips */}
-              <div className={`absolute bottom-0 left-0 right-0 pt-12 pb-4 px-5 bg-gradient-to-t ${isDarkMode ? "from-[#0d1829] via-[#0d1829]/80" : "from-white/95 via-white/70"} to-transparent`}>
+              <div className={`absolute bottom-0 left-0 right-0 pt-12 pb-4 px-5 bg-gradient-to-t ${isDarkMode ? "from-black/45 via-black/15" : "from-white/75 via-white/25"} to-transparent`}>
                 <div className="flex items-end justify-between">
                   <div className="flex gap-2">
                     <span className={`px-2.5 py-1 backdrop-blur-md rounded-lg text-[11px] font-semibold border ${t.chip}`}>
@@ -554,54 +611,65 @@ const ScriptDetail = () => {
 
             {/* ── Script Info Area ──────────────────────────── */}
             <div className="p-5 sm:p-7">
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 lg:gap-8">
 
                 {/* Left column */}
-                <div className="flex-1 min-w-0">
-                  <h1 className={`text-2xl sm:text-3xl font-bold mb-2 tracking-tight leading-tight ${t.title}`}>
-                    {script.title}
-                  </h1>
+                <div className="flex-1 min-w-0 space-y-4">
+                  <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Project Overview</p>
+                    <h1 className={`text-2xl sm:text-3xl font-bold mb-4 tracking-tight leading-tight ${t.title}`}>
+                      {script.title}
+                    </h1>
 
-                  {/* Author */}
-                  <Link to={`/profile/${script.creator?._id}`} className="inline-flex items-center gap-2.5 mb-5 group">
-                    {script.creator?.profileImage && !coverError ? (
-                      <img
-                        src={resolveImage(script.creator.profileImage)}
-                        alt=""
-                        className={`w-7 h-7 rounded-full object-cover ring-2 ${isDarkMode ? "ring-white/10" : "ring-gray-200"}`}
-                        onError={(e) => { e.target.style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ring-2 ${isDarkMode ? "bg-gradient-to-br from-[#1e3a5f] to-[#2a5080] ring-white/10" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] ring-gray-200"}`}>
-                        {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
-                      </div>
-                    )}
-                    <span className={`text-sm font-semibold transition group-hover:text-[#1e3a5f] ${t.sub}`}>
-                      {script.creator?.name}
-                    </span>
-                  </Link>
-
-                  {/* Logline */}
-                  {script.logline && (
-                    <div className={`bg-gradient-to-r rounded-xl p-4 mb-5 border-l-2 ${t.logline}`}>
-                      <p className={`text-[13px] leading-relaxed italic ${t.sub}`}>
-                        &ldquo;{script.logline}&rdquo;
-                      </p>
+                    <div className={`flex flex-wrap items-center gap-2.5 text-xs mb-5 ${t.muted}`}>
+                      <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{fmtFormat(script.format)}</span>
+                      {(script.primaryGenre || script.genre) && (
+                        <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{script.primaryGenre || script.genre}</span>
+                      )}
+                      <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{script.views || 0} views</span>
                     </div>
-                  )}
 
-                  {/* Description */}
-                  {script.description && (
-                    <p className={`text-sm leading-relaxed mb-5 ${t.muted}`}>{script.description}</p>
+                    {/* Author */}
+                    <Link to={`/profile/${script.creator?._id}`} className="inline-flex items-center gap-2.5 group">
+                      {script.creator?.profileImage && !coverError ? (
+                        <img
+                          src={resolveImage(script.creator.profileImage)}
+                          alt=""
+                          className={`w-8 h-8 rounded-full object-cover ring-2 ${isDarkMode ? "ring-white/10" : "ring-gray-200"}`}
+                          onError={(e) => { e.target.style.display = "none"; }}
+                        />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white ring-2 ${isDarkMode ? "bg-gradient-to-br from-[#1e3a5f] to-[#2a5080] ring-white/10" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] ring-gray-200"}`}>
+                          {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
+                        </div>
+                      )}
+                      <div className="leading-tight">
+                        <p className={`text-[10px] font-bold uppercase tracking-wider ${t.label}`}>Writer</p>
+                        <p className={`text-sm font-semibold transition group-hover:text-[#1e3a5f] ${t.sub}`}>{script.creator?.name}</p>
+                      </div>
+                    </Link>
+                  </div>
+
+                  {script.logline && (
+                    <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Logline</p>
+                      <div className="max-h-28 overflow-y-auto sidebar-scroll pr-2">
+                        <p className={`text-[15px] leading-relaxed italic whitespace-pre-wrap break-words ${t.sub}`}>
+                          &ldquo;{script.logline}&rdquo;
+                        </p>
+                      </div>
+                    </div>
                   )}
 
                   {/* Synopsis preview */}
                   {script.synopsis && (
-                    <div className={`rounded-xl p-4 mb-5 border ${t.inset}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${t.label}`}>Synopsis</p>
-                      <p className={`text-[13px] leading-relaxed whitespace-pre-wrap ${t.sub}`}>{script.synopsis}</p>
+                    <div className={`rounded-2xl p-5 sm:p-6 border ${t.inset}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Synopsis</p>
+                      <div className="max-h-56 overflow-y-auto sidebar-scroll pr-2">
+                        <p className={`text-[14px] leading-relaxed whitespace-pre-wrap break-words ${t.sub}`}>{script.synopsis}</p>
+                      </div>
                       {script.isSynopsisLocked && (
-                        <div className={`mt-3 pt-3 border-t flex items-center gap-2 text-xs ${t.divider} ${t.muted}`}>
+                        <div className={`mt-4 pt-3 border-t flex items-center gap-2 text-xs ${t.divider} ${t.muted}`}>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                             <path d="M7 11V7a5 5 0 0110 0v4" />
@@ -612,46 +680,50 @@ const ScriptDetail = () => {
                     </div>
                   )}
 
-                  {/* Content indicators */}
-                  {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation) && (
-                    <div className="flex flex-wrap gap-2 mb-5">
-                      {ci.bechdelTest && (
-                        <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg text-[11px] font-bold border border-emerald-500/20">
-                          &#10003; Bechdel Test
-                        </span>
-                      )}
-                      {ci.basedOnTrueStory && (
-                        <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 rounded-lg text-[11px] font-bold border border-blue-500/20">
-                          Based on True Story
-                        </span>
-                      )}
-                      {ci.adaptation && (
-                        <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 rounded-lg text-[11px] font-bold border border-purple-500/20">
-                          Adaptation{ci.adaptationSource ? `: ${ci.adaptationSource}` : ""}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation || script.tags?.length > 0) && (
+                    <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Metadata</p>
 
-                  {/* Tags */}
-                  {script.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {script.tags.map((tag) => (
-                        <span key={tag} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium ring-1 transition ${t.tag}`}>
-                          #{tag}
-                        </span>
-                      ))}
+                      {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation) && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {ci.bechdelTest && (
+                            <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg text-[11px] font-bold border border-emerald-500/20">
+                              &#10003; Bechdel Test
+                            </span>
+                          )}
+                          {ci.basedOnTrueStory && (
+                            <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 rounded-lg text-[11px] font-bold border border-blue-500/20">
+                              Based on True Story
+                            </span>
+                          )}
+                          {ci.adaptation && (
+                            <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 rounded-lg text-[11px] font-bold border border-purple-500/20">
+                              Adaptation{ci.adaptationSource ? `: ${ci.adaptationSource}` : ""}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {script.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto sidebar-scroll pr-2">
+                          {script.tags.map((tag) => (
+                            <span key={tag} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium ring-1 transition ${t.tag}`}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* ── Right Sidebar ─────────────────────────── */}
-                <div className="lg:w-64 space-y-3 flex-shrink-0">
+                <div className="lg:w-72 space-y-3 flex-shrink-0 lg:sticky lg:top-4 self-start">
 
                   {/* Price card */}
-                  <div className={`rounded-xl p-5 border ${t.priceSub}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${t.label}`}>Price</p>
-                    <p className={`text-3xl font-extrabold mb-3 ${t.title}`}>
+                  <div className={`rounded-2xl p-5 border ${t.priceSub}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${t.label}`}>Commercial</p>
+                    <p className={`text-3xl font-extrabold mb-4 ${t.title}`}>
                       {formatCurrency(script.price)}
                       <span className={`text-sm font-medium ml-1 ${t.muted}`}>INR</span>
                     </p>
@@ -675,7 +747,24 @@ const ScriptDetail = () => {
                   </div>
 
                   {/* Action buttons */}
-                  <div className="space-y-2">
+                  <div className={`rounded-2xl p-4 border space-y-2 ${t.priceSub}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${t.label}`}>Actions</p>
+
+                    {canBookmark && (
+                      <button
+                        onClick={handleToggleBookmark}
+                        className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${isBookmarked
+                          ? "bg-amber-500/12 text-amber-400 border-amber-400/30"
+                          : t.btnSec
+                        }`}
+                      >
+                        <svg className={`w-3.5 h-3.5 ${isBookmarked ? "fill-current" : ""}`} viewBox="0 0 24 24" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 4.5h13.5a.75.75 0 01.75.75v15.69a.75.75 0 01-1.219.594L12 16.34l-6.281 5.194a.75.75 0 01-1.219-.594V5.25a.75.75 0 01.75-.75z" />
+                        </svg>
+                        {isBookmarked ? "Bookmarked" : "Bookmark Project"}
+                      </button>
+                    )}
+
                     {isOwner && (
                       <button
                         onClick={() => navigate(`/upload?edit=${script._id}`)}
@@ -703,7 +792,7 @@ const ScriptDetail = () => {
                       ) : (
                         <button
                           onClick={() => setShowRequestModal(true)}
-                          className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition shadow-lg ${t.btnPrim}`}
+                          className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                         >
                           <div className="flex items-center justify-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -745,7 +834,7 @@ const ScriptDetail = () => {
                     {!isOwner && isPro && script.holdStatus === "available" && (
                       <button
                         onClick={handleHold}
-                        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition shadow-sm ${t.btnGhost}`}
+                        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnGhost}`}
                       >
                         Place Hold &mdash; ₹{script.holdFee || 200}
                       </button>
@@ -808,8 +897,8 @@ const ScriptDetail = () => {
 
                   {/* Services */}
                   {script.services && (
-                    <div className={`rounded-xl p-4 border ${t.priceSub}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${t.label}`}>Active Services</p>
+                    <div className={`rounded-2xl p-4 border ${t.priceSub}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${t.label}`}>Active Services</p>
                       <div className="space-y-1.5">
                         {script.services.hosting && (
                           <div className="flex items-center gap-2 text-xs">
@@ -833,9 +922,9 @@ const ScriptDetail = () => {
                     </div>
                   )}
 
-                  <p className={`text-[11px] font-medium text-center ${t.muted}`}>
-                    Uploaded {formatDate(script.createdAt)}
-                  </p>
+                  <div className={`rounded-2xl p-3 border text-center ${t.priceSub}`}>
+                    <p className={`text-[11px] font-medium ${t.muted}`}>Uploaded {formatDate(script.createdAt)}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1727,7 +1816,7 @@ const ScriptDetail = () => {
       )}
 
       {/* Trailer modal */}
-      {showTrailer && (script.trailerUrl || script.uploadedTrailerUrl) && (
+      {showTrailer && hasTrailer && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTrailer(false)}>
           <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-end mb-2">
@@ -1735,9 +1824,9 @@ const ScriptDetail = () => {
                 &#10005;
               </button>
             </div>
-            <div className="rounded-xl overflow-hidden shadow-2xl">
+            <div className="rounded-xl overflow-hidden ring-1 ring-white/10">
               <video
-                src={script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl}
+                src={resolveImage(trailerSourceUrl)}
                 poster={script.trailerThumbnail ? resolveImage(script.trailerThumbnail) : undefined}
                 controls
                 autoPlay

@@ -75,7 +75,26 @@ export const saveDraft = async (req, res) => {
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
-      // Allow updating other work-in-progress metadata here if needed
+      if (otherData.logline !== undefined) script.logline = otherData.logline;
+      if (otherData.synopsis !== undefined) {
+        script.synopsis = otherData.synopsis;
+        script.description = otherData.synopsis;
+      }
+      if (otherData.format !== undefined) script.format = otherData.format;
+      if (otherData.pageCount !== undefined) script.pageCount = Number(otherData.pageCount) || 0;
+      if (otherData.primaryGenre !== undefined) script.primaryGenre = otherData.primaryGenre;
+      if (otherData.tags !== undefined) script.tags = Array.isArray(otherData.tags) ? otherData.tags : [];
+      if (otherData.roles !== undefined) script.roles = Array.isArray(otherData.roles) ? otherData.roles : [];
+      if (otherData.classification !== undefined) {
+        script.classification = {
+          primaryGenre: otherData.classification?.primaryGenre ?? script.classification?.primaryGenre,
+          secondaryGenre: otherData.classification?.secondaryGenre ?? script.classification?.secondaryGenre,
+          tones: otherData.classification?.tones ?? script.classification?.tones ?? [],
+          themes: otherData.classification?.themes ?? script.classification?.themes ?? [],
+          settings: otherData.classification?.settings ?? script.classification?.settings ?? [],
+        };
+        script.markModified("classification");
+      }
 
       await script.save();
       return res.json(script);
@@ -147,6 +166,10 @@ export const updateScript = async (req, res) => {
       scriptUrl, description, synopsis, textContent, fileUrl,
       coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
+
+    if (logline !== undefined && String(logline).trim().length > 50) {
+      return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
 
     if (title) script.title = title;
     if (logline !== undefined) script.logline = logline;
@@ -239,6 +262,12 @@ export const uploadScript = async (req, res) => {
     if (!title) {
       return res.status(400).json({ message: "Title is required" });
     }
+    if (logline !== undefined && String(logline).trim().length > 50) {
+      return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
+    if (!synopsis || String(synopsis).trim().length === 0) {
+      return res.status(400).json({ message: "Synopsis is required" });
+    }
     if (!scriptUrl && !fileUrl && !textContent) {
       return res.status(400).json({ message: "Script file or text content is required" });
     }
@@ -309,9 +338,9 @@ export const uploadScript = async (req, res) => {
     const scriptData = {
       creator: req.user._id,
       title,
-      logline: logline || description?.substring(0, 300),
-      description: description || synopsis || logline,
-      synopsis: synopsis || description,
+      logline: logline ? String(logline).trim() : "",
+      description: synopsis,
+      synopsis: synopsis,
       fullContent,
       textContent,
       fileUrl: scriptUrl || fileUrl,

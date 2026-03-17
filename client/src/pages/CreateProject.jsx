@@ -49,6 +49,7 @@ const settingOptions = [
   "Rural", "Suburban", "Historical", "Contemporary", "Post-Apocalyptic", "Small Town",
   "Big City", "Wilderness", "Ocean/Sea", "Desert", "Medieval", "Future",
 ];
+const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
 const SERVICE_PRICES = { hosting: 0, evaluation: 10, aiTrailer: 15 };
 const THUMBNAIL_ASPECT = 3 / 4;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
@@ -412,7 +413,7 @@ const CreateProject = () => {
   const [showUndoBar, setShowUndoBar] = useState(false);
 
   // Step 2: Details
-  const [formData, setFormData] = useState({ format: "feature", primaryGenre: "", logline: "", description: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
+  const [formData, setFormData] = useState({ format: "feature", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
 
   // File Upload State
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -605,6 +606,7 @@ const CreateProject = () => {
     </div>
   ));
   const [tagsInput, setTagsInput] = useState("");
+  const [roles, setRoles] = useState([]);
 
   // Step 3: Classification
   const [classification, setClassification] = useState({ tones: [], themes: [], settings: [] });
@@ -670,8 +672,21 @@ const CreateProject = () => {
       if (data.pageCount) setFormData(f => ({ ...f, pageCount: String(data.pageCount) }));
       if (data.classification?.primaryGenre || data.genre) setFormData(f => ({ ...f, primaryGenre: data.classification?.primaryGenre || data.genre || "" }));
       if (data.logline) setFormData(f => ({ ...f, logline: data.logline }));
-      if (data.description) setFormData(f => ({ ...f, description: data.description }));
+      if (data.synopsis) setFormData(f => ({ ...f, synopsis: data.synopsis }));
+      else if (data.description) setFormData(f => ({ ...f, synopsis: data.description }));
       if (data.tags?.length) setTagsInput(data.tags.join(", "));
+      if (Array.isArray(data.roles)) {
+        setRoles(data.roles.map((role) => ({
+          characterName: role?.characterName || "",
+          type: role?.type || "",
+          description: role?.description || "",
+          gender: role?.gender || "Any",
+          ageRange: {
+            min: role?.ageRange?.min ?? "",
+            max: role?.ageRange?.max ?? "",
+          },
+        })));
+      }
       if (data.classification) setClassification({ tones: data.classification.tones || [], themes: data.classification.themes || [], settings: data.classification.settings || [] });
       setShowDrafts(false);
     } catch { }
@@ -706,6 +721,31 @@ const CreateProject = () => {
 
   // Form handlers
   const handleChange = e => { const { name, value } = e.target; setFormData(f => ({ ...f, [name]: value })); };
+  const addRole = () => {
+    setRoles((prev) => ([
+      ...prev,
+      {
+        characterName: "",
+        type: "",
+        description: "",
+        gender: "Any",
+        ageRange: { min: "", max: "" },
+      },
+    ]));
+  };
+  const updateRoleField = (index, field, value) => {
+    setRoles((prev) => prev.map((role, i) => (i === index ? { ...role, [field]: value } : role)));
+  };
+  const updateRoleAge = (index, field, value) => {
+    setRoles((prev) => prev.map((role, i) => (
+      i === index
+        ? { ...role, ageRange: { ...role.ageRange, [field]: value === "" ? "" : Number(value) } }
+        : role
+    )));
+  };
+  const removeRole = (index) => {
+    setRoles((prev) => prev.filter((_, i) => i !== index));
+  };
   const toggleChip = (cat, val) => {
     setClassification(prev => {
       const arr = prev[cat]; return { ...prev, [cat]: arr.includes(val) ? arr.filter(v => v !== val) : arr.length < 3 ? [...arr, val] : arr };
@@ -862,7 +902,7 @@ const CreateProject = () => {
   };
 
   const offerInvoiceDownload = async () => {
-    const shouldDownload = window.confirm("Project published successfully. Do you want to download the invoice now?");
+    const shouldDownload = window.confirm("Your project has been submitted for admin approval. It will be visible after approval. Would you like to download the invoice now?");
     if (shouldDownload) {
       await handleDownloadInvoice();
     }
@@ -877,6 +917,7 @@ const CreateProject = () => {
   const publishReadiness = [
     { label: "Title added", done: Boolean(title.trim()) },
     { label: "Logline added", done: Boolean(formData.logline.trim()) },
+    { label: "Synopsis added", done: Boolean(formData.synopsis.trim()) },
     { label: "Primary genre selected", done: Boolean(formData.primaryGenre) },
     { label: "Agreement accepted", done: Boolean(legal.agreedToTerms) },
   ];
@@ -892,7 +933,8 @@ const CreateProject = () => {
     if (s === 2) {
       if (!formData.format) { setError("Format is required."); return false; }
       if (!formData.primaryGenre) { setError("Primary genre is required."); return false; }
-      if (!formData.logline || formData.logline.length > 300) { setError("Logline is required (max 300 chars)."); return false; }
+      if (formData.logline && formData.logline.length > 50) { setError("Logline must be 50 chars or less."); return false; }
+      if (!formData.synopsis || !formData.synopsis.trim()) { setError("Synopsis is required."); return false; }
       return true;
     }
     if (s === 3) return true;
@@ -914,10 +956,25 @@ const CreateProject = () => {
     try {
       const tagsArr = tagsInput.split(",").map(t => t.trim()).filter(Boolean);
       const payload = {
-        title, logline: formData.logline, description: formData.description || formData.logline,
-        synopsis: formData.description || formData.logline, format: formData.format,
+        title,
+        logline: formData.logline,
+        synopsis: formData.synopsis,
+        description: formData.synopsis,
+        format: formData.format,
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
         classification: { primaryGenre: formData.primaryGenre, secondaryGenre: null, tones: classification.tones, themes: classification.themes, settings: classification.settings },
+        roles: roles
+          .filter((role) => role.characterName?.trim())
+          .map((role) => ({
+            characterName: role.characterName.trim(),
+            type: role.type?.trim() || "",
+            description: role.description?.trim() || "",
+            gender: role.gender || "Any",
+            ageRange: {
+              min: role.ageRange?.min === "" ? undefined : Number(role.ageRange?.min),
+              max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
+            },
+          })),
         services: { hosting: services.hosting, evaluation: services.evaluation, aiTrailer: services.aiTrailer },
         legal: { agreedToTerms: legal.agreedToTerms, timestamp: new Date().toISOString() },
         premium: isPremium && effectivePrice > 0,
@@ -1190,7 +1247,7 @@ const CreateProject = () => {
                   dark ? "bg-white/[0.03] border border-white/[0.05]" : "bg-gray-50 border border-gray-100"
                 }`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-base">$</span>
+                    <span className="text-base">₹</span>
                     <span className={`text-xs font-medium ${
                       dark ? "text-neutral-300" : "text-gray-600"
                     }`}>Cost</span>
@@ -1671,18 +1728,101 @@ const CreateProject = () => {
                 </div>
               </div>
               <div>
-                <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Logline * <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>({formData.logline.length}/300)</span></label>
-                <textarea name="logline" value={formData.logline} onChange={handleChange} rows={3} maxLength={300} placeholder="A one-sentence summary of your story..."
+                <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Logline <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional, {formData.logline.length}/50)</span></label>
+                <textarea name="logline" value={formData.logline} onChange={handleChange} rows={3} maxLength={50} placeholder="A one-sentence summary of your story..."
                   className={`${inputCls} resize-none`} />
               </div>
               <div>
-                <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Synopsis <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span></label>
-                <textarea name="description" value={formData.description} onChange={handleChange} rows={4} placeholder="A longer description of your script..."
+                <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Synopsis *</label>
+                <textarea name="synopsis" value={formData.synopsis} onChange={handleChange} rows={4} placeholder="A longer synopsis of your script..."
                   className={`${inputCls} resize-none`} />
               </div>
               <div>
                 <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Tags <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(comma separated)</span></label>
                 <input type="text" value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="e.g. heist, ensemble, twist ending" className={inputCls} />
+              </div>
+
+              <div className={`rounded-2xl border p-4 sm:p-5 ${dark ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Role Studio</h3>
+                    <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Add cast roles with demographics and creative direction. Leave blank if not casting yet.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addRole}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${dark ? "bg-white/[0.06] border-[#2a4a6a] text-blue-300 hover:bg-white/[0.1]" : "bg-white border-blue-200 text-[#1e3a5f] hover:bg-blue-50"}`}
+                  >
+                    + Add Role
+                  </button>
+                </div>
+
+                {roles.length === 0 ? (
+                  <div className={`rounded-xl border border-dashed px-4 py-5 text-center ${dark ? "border-[#1d3350] text-gray-500" : "border-gray-300 text-gray-400"}`}>
+                    No roles added yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {roles.map((role, idx) => (
+                      <div key={`role-${idx}`} className={`rounded-xl border p-3 ${dark ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-white"}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className={`text-xs font-bold ${dark ? "text-gray-300" : "text-gray-700"}`}>Role {idx + 1}</p>
+                          <button
+                            type="button"
+                            onClick={() => removeRole(idx)}
+                            className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "text-red-300 border-red-500/30 hover:bg-red-500/10" : "text-red-600 border-red-200 hover:bg-red-50"}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <input
+                            type="text"
+                            value={role.characterName}
+                            onChange={(e) => updateRoleField(idx, "characterName", e.target.value)}
+                            placeholder="Character name"
+                            className={inputCls}
+                          />
+                          <input
+                            type="text"
+                            value={role.type}
+                            onChange={(e) => updateRoleField(idx, "type", e.target.value)}
+                            placeholder="Archetype (e.g. Lead, Antagonist)"
+                            className={inputCls}
+                          />
+                          <select value={role.gender} onChange={(e) => updateRoleField(idx, "gender", e.target.value)} className={inputCls}>
+                            {ROLE_GENDER_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Min age"
+                              value={role.ageRange?.min ?? ""}
+                              onChange={(e) => updateRoleAge(idx, "min", e.target.value)}
+                              className={inputCls}
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Max age"
+                              value={role.ageRange?.max ?? ""}
+                              onChange={(e) => updateRoleAge(idx, "max", e.target.value)}
+                              className={inputCls}
+                            />
+                          </div>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={role.description}
+                          onChange={(e) => updateRoleField(idx, "description", e.target.value)}
+                          placeholder="Performance notes, emotional range, or casting vibe..."
+                          className={`${inputCls} mt-3 resize-none`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Media Uploads */}
@@ -1838,7 +1978,7 @@ const CreateProject = () => {
             <div className="space-y-6">
                 <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
                   <div>
-                    <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Publish Setup</h2>
+                    <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
                     <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
                   </div>
 
@@ -2061,7 +2201,7 @@ const CreateProject = () => {
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
               <div>
                 <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Final Review</h2>
-                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and publishing details, then make your project live.</p>
+                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and submission details, then submit your project for admin review.</p>
               </div>
 
               <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
@@ -2122,7 +2262,7 @@ const CreateProject = () => {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-[12px] font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{legal.agreedToTerms ? "Agreement confirmed" : "Agreement required"}</p>
-                    <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can publish now." : "Please accept the submission agreement to continue."}</p>
+                    <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can submit for admin approval now." : "Please accept the submission agreement to continue."}</p>
                     {!legal.agreedToTerms && (
                       <label className="flex items-start gap-2.5 cursor-pointer mt-3">
                         <input
@@ -2140,9 +2280,9 @@ const CreateProject = () => {
 
               <button onClick={handlePublish} disabled={loading || !legal.agreedToTerms}
                 className="w-full py-3.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white shadow-md">
-                {loading ? "Publishing..." : "Publish Project"}
+                {loading ? "Submitting..." : "Submit for Approval"}
               </button>
-              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Publishing will make your project live with the current pricing, services, and invoice settings.</p>
+              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing, services, and invoice settings.</p>
             </div>
           </motion.div>
         )}

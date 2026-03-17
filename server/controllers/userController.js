@@ -233,6 +233,16 @@ export const getUserProfile = async (req, res) => {
         .sort({ createdAt: -1 });
     }
 
+    let bookmarkedScripts = [];
+    if (isOwnProfile && Array.isArray(user.favoriteScripts) && user.favoriteScripts.length > 0) {
+      bookmarkedScripts = await Script.find({
+        _id: { $in: user.favoriteScripts },
+        status: "published",
+      })
+        .populate("creator", "name profileImage role")
+        .sort({ updatedAt: -1 });
+    }
+
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
     if (!isOwnProfile && userObj.bankDetails) {
@@ -243,7 +253,7 @@ export const getUserProfile = async (req, res) => {
       userObj.bankDetails.accountNumber = '****' + userObj.bankDetails.accountNumber.slice(-4);
     }
 
-    res.json({ user: userObj, posts, scripts, purchasedScripts });
+    res.json({ user: userObj, posts, scripts, purchasedScripts, bookmarkedScripts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

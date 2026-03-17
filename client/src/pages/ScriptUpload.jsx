@@ -7,6 +7,7 @@ import { jsPDF } from "jspdf";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
+import { formatCurrency } from "../utils/currency";
 
 // Format options
 const formats = [
@@ -53,6 +54,7 @@ const settingOptions = [
   "Future", "Alternate Reality", "Virtual Reality", "Underground",
   "Prison", "Hospital", "School/College", "Military Base"
 ];
+const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
 
 // Service pricing (in credits)
 const SERVICE_PRICES = {
@@ -222,7 +224,7 @@ const ScriptUpload = () => {
     pageCount: "",
     primaryGenre: "",
     logline: "",
-    description: "",
+    synopsis: "",
   });
 
   // Classification data
@@ -246,6 +248,7 @@ const ScriptUpload = () => {
 
   // Tags as comma-separated input
   const [tagsInput, setTagsInput] = useState("");
+  const [roles, setRoles] = useState([]);
 
   // Script pricing
   const PRICE_PRESETS = [5, 10, 15, 25, 50];
@@ -291,7 +294,7 @@ const ScriptUpload = () => {
           format: data.format || "feature",
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || data.genre || "",
-          description: data.description || data.logline || "",
+          synopsis: data.synopsis || data.description || "",
         });
         setTagsInput((data.tags || []).join(", "));
         setClassification({
@@ -299,6 +302,18 @@ const ScriptUpload = () => {
           themes: data.classification?.themes || [],
           settings: data.classification?.settings || [],
         });
+        if (Array.isArray(data.roles)) {
+          setRoles(data.roles.map((role) => ({
+            characterName: role?.characterName || "",
+            type: role?.type || "",
+            description: role?.description || "",
+            gender: role?.gender || "Any",
+            ageRange: {
+              min: role?.ageRange?.min ?? "",
+              max: role?.ageRange?.max ?? "",
+            },
+          })));
+        }
         setServices({
           hosting: data.services?.hosting ?? true,
           evaluation: data.services?.evaluation ?? false,
@@ -327,8 +342,20 @@ const ScriptUpload = () => {
           format: data.format || "feature",
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || "",
-          description: data.description || data.logline || "",
+          synopsis: data.synopsis || data.description || "",
         }));
+        if (Array.isArray(data.roles)) {
+          setRoles(data.roles.map((role) => ({
+            characterName: role?.characterName || "",
+            type: role?.type || "",
+            description: role?.description || "",
+            gender: role?.gender || "Any",
+            ageRange: {
+              min: role?.ageRange?.min ?? "",
+              max: role?.ageRange?.max ?? "",
+            },
+          })));
+        }
         setFromDraft(true);
       } catch {
         // Draft not found, proceed normally
@@ -346,6 +373,35 @@ const ScriptUpload = () => {
     if (name === "pageCount" || name === "format") {
       validatePageCount();
     }
+  };
+
+  const addRole = () => {
+    setRoles((prev) => ([
+      ...prev,
+      {
+        characterName: "",
+        type: "",
+        description: "",
+        gender: "Any",
+        ageRange: { min: "", max: "" },
+      },
+    ]));
+  };
+
+  const updateRoleField = (index, field, value) => {
+    setRoles((prev) => prev.map((role, i) => (i === index ? { ...role, [field]: value } : role)));
+  };
+
+  const updateRoleAge = (index, field, value) => {
+    setRoles((prev) => prev.map((role, i) => (
+      i === index
+        ? { ...role, ageRange: { ...role.ageRange, [field]: value === "" ? "" : Number(value) } }
+        : role
+    )));
+  };
+
+  const removeRole = (index) => {
+    setRoles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Validate page count based on format
@@ -646,8 +702,12 @@ const ScriptUpload = () => {
           setError("Primary genre is required.");
           return false;
         }
-        if (!formData.logline || formData.logline.length > 300) {
-          setError("Logline is required and must be 300 characters or less.");
+        if (formData.logline && formData.logline.length > 50) {
+          setError("Logline must be 50 characters or less.");
+          return false;
+        }
+        if (!formData.synopsis || !formData.synopsis.trim()) {
+          setError("Synopsis is required.");
           return false;
         }
         return true;
@@ -710,9 +770,22 @@ const ScriptUpload = () => {
       const payload = {
         title: formData.title || "Untitled Draft",
         logline: formData.logline,
+        synopsis: formData.synopsis,
         format: formData.format,
         pageCount: Number(formData.pageCount) || 0,
         textContent: textContent,
+        roles: roles
+          .filter((role) => role.characterName?.trim())
+          .map((role) => ({
+            characterName: role.characterName.trim(),
+            type: role.type?.trim() || "",
+            description: role.description?.trim() || "",
+            gender: role.gender || "Any",
+            ageRange: {
+              min: role.ageRange?.min === "" ? undefined : Number(role.ageRange?.min),
+              max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
+            },
+          })),
         classification: {
           primaryGenre: formData.primaryGenre,
           tones: classification.tones,
@@ -746,8 +819,8 @@ const ScriptUpload = () => {
       {
         item: "Script Access Model",
         type: "Configuration",
-        detail: isPremium ? `Premium access at $${effectivePrice}` : "Free public access",
-        amount: "$0",
+        detail: isPremium ? `Premium access at ${formatCurrency(effectivePrice)}` : "Free public access",
+        amount: formatCurrency(0),
       },
       {
         item: "Publish Services",
@@ -758,8 +831,8 @@ const ScriptUpload = () => {
       {
         item: "Writer Earnings Per Premium Sale",
         type: "Future Earnings",
-        detail: isPremium ? `Buyer pays $${effectivePrice}, you receive after platform fee` : "Upgrade to premium to monetize full script access",
-        amount: isPremium ? `$${writerEarns}` : "$0",
+        detail: isPremium ? `Buyer pays ${formatCurrency(effectivePrice)}, you receive after platform fee` : "Upgrade to premium to monetize full script access",
+        amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
       },
     ];
 
@@ -861,7 +934,7 @@ const ScriptUpload = () => {
     y += 14;
     doc.text(`Remaining Credits: ${creditsAfterPublish}`, left, y);
     y += 14;
-    doc.text(`Net per Premium Sale: ${isPremium ? `$${writerEarns}` : "$0"}`, left, y);
+    doc.text(`Net per Premium Sale: ${isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}`, left, y);
 
     y += 34;
     doc.setFont("times", "italic");
@@ -879,7 +952,7 @@ const ScriptUpload = () => {
   };
 
   const offerInvoiceDownload = async (publishedId) => {
-    const shouldDownload = window.confirm("Project published successfully. Do you want to download the invoice now?");
+    const shouldDownload = window.confirm("Your project has been submitted for admin approval. It will be visible after approval. Would you like to download the invoice now?");
     if (shouldDownload) {
       await handleDownloadInvoice(publishedId);
     }
@@ -913,11 +986,23 @@ const ScriptUpload = () => {
       const payload = {
         title: formData.title,
         logline: formData.logline,
-        description: formData.description || formData.logline,
-        synopsis: formData.description || formData.logline,
+        synopsis: formData.synopsis,
+        description: formData.synopsis,
         format: formData.format,
         pageCount: Number(formData.pageCount),
         textContent: textContent,
+        roles: roles
+          .filter((role) => role.characterName?.trim())
+          .map((role) => ({
+            characterName: role.characterName.trim(),
+            type: role.type?.trim() || "",
+            description: role.description?.trim() || "",
+            gender: role.gender || "Any",
+            ageRange: {
+              min: role.ageRange?.min === "" ? undefined : Number(role.ageRange?.min),
+              max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
+            },
+          })),
         tags: tagsArr,
         classification: {
           primaryGenre: formData.primaryGenre,
@@ -1077,8 +1162,8 @@ const ScriptUpload = () => {
     {
       item: "Script Access Model",
       type: "Configuration",
-      detail: isPremium ? `Premium access at $${effectivePrice}` : "Free public access",
-      amount: isPremium ? "$0" : "$0",
+      detail: isPremium ? `Premium access at ${formatCurrency(effectivePrice)}` : "Free public access",
+      amount: formatCurrency(0),
     },
     {
       item: "Publish Services",
@@ -1089,8 +1174,8 @@ const ScriptUpload = () => {
     {
       item: "Writer Earnings Per Premium Sale",
       type: "Future Earnings",
-      detail: isPremium ? `Buyer pays $${effectivePrice}, you receive after platform fee` : "Upgrade to premium to monetize full script access",
-      amount: isPremium ? `$${writerEarns}` : "$0",
+      detail: isPremium ? `Buyer pays ${formatCurrency(effectivePrice)}, you receive after platform fee` : "Upgrade to premium to monetize full script access",
+      amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
     },
   ];
 
@@ -1246,33 +1331,33 @@ const ScriptUpload = () => {
 
                   <div>
                     <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
-                      Logline * <span className="text-neutral-500">(Max 300 characters)</span>
+                      Logline <span className="text-neutral-500">(optional, max 50 characters)</span>
                     </label>
                     <textarea
                       name="logline"
                       value={formData.logline}
                       onChange={handleChange}
-                      required
                       rows={3}
-                      maxLength={300}
+                      maxLength={50}
                       placeholder="A one-line hook that sells your concept..."
                       className={inputCls}
                     />
                     <p className="text-xs text-neutral-500 mt-1 text-right">
-                      {formData.logline.length}/300
+                      {formData.logline.length}/50
                     </p>
                   </div>
 
                   <div>
                     <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
-                      Description <span className="text-neutral-500">(shown on your project page)</span>
+                      Synopsis * <span className="text-neutral-500">(shown on your project page)</span>
                     </label>
                     <textarea
-                      name="description"
-                      value={formData.description}
+                      name="synopsis"
+                      value={formData.synopsis}
                       onChange={handleChange}
+                      required
                       rows={3}
-                      placeholder="A short description of your project..."
+                      placeholder="A short synopsis of your project..."
                       className={inputCls}
                     />
                   </div>
@@ -1370,6 +1455,89 @@ const ScriptUpload = () => {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div>
+                        <h3 className={`text-sm font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Role Studio</h3>
+                        <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Build a professional role sheet for casting and investor clarity.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addRole}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isDarkMode ? "bg-white/[0.06] border-[#2a4a6a] text-blue-300 hover:bg-white/[0.1]" : "bg-white border-blue-200 text-[#1e3a5f] hover:bg-blue-50"}`}
+                      >
+                        + Add Role
+                      </button>
+                    </div>
+
+                    {roles.length === 0 ? (
+                      <div className={`rounded-xl border border-dashed px-4 py-5 text-center ${isDarkMode ? "border-[#1d3350] text-gray-500" : "border-gray-300 text-gray-400"}`}>
+                        No roles added yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {roles.map((role, idx) => (
+                          <div key={`role-${idx}`} className={`rounded-xl border p-3 ${isDarkMode ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-white"}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <p className={`text-xs font-bold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Role {idx + 1}</p>
+                              <button
+                                type="button"
+                                onClick={() => removeRole(idx)}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${isDarkMode ? "text-red-300 border-red-500/30 hover:bg-red-500/10" : "text-red-600 border-red-200 hover:bg-red-50"}`}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                value={role.characterName}
+                                onChange={(e) => updateRoleField(idx, "characterName", e.target.value)}
+                                placeholder="Character name"
+                                className={inputCls}
+                              />
+                              <input
+                                type="text"
+                                value={role.type}
+                                onChange={(e) => updateRoleField(idx, "type", e.target.value)}
+                                placeholder="Archetype (e.g. Lead, Antagonist)"
+                                className={inputCls}
+                              />
+                              <select value={role.gender} onChange={(e) => updateRoleField(idx, "gender", e.target.value)} className={inputCls}>
+                                {ROLE_GENDER_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
+                              </select>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Min age"
+                                  value={role.ageRange?.min ?? ""}
+                                  onChange={(e) => updateRoleAge(idx, "min", e.target.value)}
+                                  className={inputCls}
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Max age"
+                                  value={role.ageRange?.max ?? ""}
+                                  onChange={(e) => updateRoleAge(idx, "max", e.target.value)}
+                                  className={inputCls}
+                                />
+                              </div>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={role.description}
+                              onChange={(e) => updateRoleField(idx, "description", e.target.value)}
+                              placeholder="Performance notes, emotional range, or casting vibe..."
+                              className={`${inputCls} mt-3 resize-none`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-3 justify-between pt-2">
@@ -1668,7 +1836,7 @@ const ScriptUpload = () => {
                 >
                   <div className={`rounded-2xl border p-6 sm:p-8 space-y-6 ${isDarkMode ? "border-white/[0.06] bg-[#0d1829]" : "border-gray-200 bg-white shadow-sm"}`}>
                     <div>
-                      <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Publish Setup</h2>
+                      <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
                       <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, and select services.</p>
                     </div>
 
@@ -1747,7 +1915,7 @@ const ScriptUpload = () => {
                               <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
                               <div className="text-[12px] leading-relaxed">
                                 <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
-                                <p className="mt-0.5">Use ${FORMAT_PRICE_GUIDE[formData.format].min}-${FORMAT_PRICE_GUIDE[formData.format].max}. Recommended start: ${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
+                                <p className="mt-0.5">Use {formatCurrency(FORMAT_PRICE_GUIDE[formData.format].min)}-{formatCurrency(FORMAT_PRICE_GUIDE[formData.format].max)}. Recommended start: {formatCurrency(FORMAT_PRICE_GUIDE[formData.format].suggest)}.</p>
                               </div>
                             </div>
                           )}
@@ -1765,7 +1933,7 @@ const ScriptUpload = () => {
                                     : isDarkMode ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
                                   }`}
                                 >
-                                  ${p}
+                                  {formatCurrency(p)}
                                 </button>
                               ))}
                               <button
@@ -1786,7 +1954,7 @@ const ScriptUpload = () => {
                               <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Custom Price</label>
                               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <div className="relative w-full sm:w-40">
-                                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>$</span>
+                                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>₹</span>
                                   <input
                                     type="number"
                                     min="1"
@@ -1798,7 +1966,7 @@ const ScriptUpload = () => {
                                     className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${isDarkMode ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                   />
                                 </div>
-                                <p className={`text-[12px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Enter a value from $1 to $500.</p>
+                                <p className={`text-[12px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
                               </div>
                             </div>
                           )}
@@ -1953,7 +2121,7 @@ const ScriptUpload = () => {
                 >
                   <div>
                     <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Final Review</h2>
-                    <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and publishing details, then make your project live.</p>
+                    <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and submission details, then submit your project for admin review.</p>
                   </div>
 
                   <div className={`rounded-xl px-3 py-2 ${isDarkMode ? "bg-white/[0.04] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
@@ -2001,7 +2169,7 @@ const ScriptUpload = () => {
                     </div>
                     <div className={`rounded-xl px-4 py-4 ${isDarkMode ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
                       <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                      <p className={`text-xl font-black mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{isPremium ? `$${writerEarns}` : "$0"}</p>
+                      <p className={`text-xl font-black mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}</p>
                       <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
                     </div>
                   </div>
@@ -2046,7 +2214,7 @@ const ScriptUpload = () => {
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className={`text-[12px] font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>{legal.agreedToTerms ? "Agreement confirmed" : "Agreement required"}</p>
-                          <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can publish now." : "Please accept the submission agreement to continue."}</p>
+                          <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{legal.agreedToTerms ? "Everything is ready. You can submit for admin approval now." : "Please accept the submission agreement to continue."}</p>
                           <label className="flex items-start gap-2.5 cursor-pointer mt-3">
                             <input
                               type="checkbox"
@@ -2075,10 +2243,10 @@ const ScriptUpload = () => {
                       disabled={loading || !legal.agreedToTerms}
                       className="flex-1 px-6 py-3 bg-[#1e3a5f] text-white rounded-xl text-sm font-bold hover:bg-[#162d4a] transition disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
                     >
-                      {loading ? "Publishing..." : "Publish Project"}
+                      {loading ? "Submitting..." : "Submit for Approval"}
                     </button>
                   </div>
-                  <p className={`text-[11px] text-center ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Publishing will make your project live with the current pricing, services, and invoice settings.</p>
+                  <p className={`text-[11px] text-center ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing, services, and invoice settings.</p>
                 </motion.div>
               )}
             </AnimatePresence>

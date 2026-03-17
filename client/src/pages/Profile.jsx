@@ -151,6 +151,7 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
   const [purchasedScripts, setPurchasedScripts] = useState([]);
+  const [bookmarkedScripts, setBookmarkedScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -171,6 +172,14 @@ const Profile = () => {
     fetchProfile();
   }, [id]);
 
+  useEffect(() => {
+    const isOwnView = !id || id === currentUser?._id;
+    if (!isOwnView) return undefined;
+    const refreshBookmarks = () => fetchProfile();
+    window.addEventListener("bookmarkUpdated", refreshBookmarks);
+    return () => window.removeEventListener("bookmarkUpdated", refreshBookmarks);
+  }, [id, currentUser?._id]);
+
   const handleDeleteScript = async (scriptId) => {
     try {
       await api.delete(`/scripts/${scriptId}`);
@@ -187,6 +196,7 @@ const Profile = () => {
       setProfile(data.user);
       setScripts((data.scripts || []).filter((s) => s.status !== "draft"));
       setPurchasedScripts(data.purchasedScripts || []);
+      setBookmarkedScripts(data.bookmarkedScripts || []);
       setIsFollowing(
         data.user.followers.some((f) => f._id === currentUser._id)
       );
@@ -563,6 +573,7 @@ const Profile = () => {
       <div className="flex items-center gap-2">
         {[
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
+          ...(isOwnProfile ? [{ key: "bookmarks", label: "Bookmarks", count: profile.favoriteScripts?.length || bookmarkedScripts.length }] : []),
           { key: "about", label: "About" },
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
             ? [{ key: "purchased", label: "Purchased", count: purchasedScripts.length }]
@@ -656,6 +667,40 @@ const Profile = () => {
                       title={script.title}
                     />
                   )}
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {activeTab === "bookmarks" && isOwnProfile && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          {bookmarkedScripts.length === 0 ? (
+            <div className={`rounded-2xl border py-20 text-center transition-colors ${t.card}`}>
+              <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 ${t.emptyBg}`}>
+                <svg className={`w-6 h-6 ${t.emptyIcon}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 4.5h13.5a.75.75 0 01.75.75v15.69a.75.75 0 01-1.219.594L12 16.34l-6.281 5.194a.75.75 0 01-1.219-.594V5.25a.75.75 0 01.75-.75z" />
+                </svg>
+              </div>
+              <p className={`text-[15px] font-bold mb-1 ${t.emptyH}`}>No bookmarks yet</p>
+              <p className={`text-[13px] max-w-xs mx-auto ${t.emptyP}`}>Bookmark projects from cards or project pages to quickly access them here.</p>
+            </div>
+          ) : (
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
+              {bookmarkedScripts.map((script, idx) => (
+                <motion.div
+                  key={script._id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04 }}
+                  className="relative group/card"
+                >
+                  <ProjectCard project={script} userName={script.creator?.name || "Unknown Author"} />
                 </motion.div>
               ))}
             </div>

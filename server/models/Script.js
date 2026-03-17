@@ -11,7 +11,7 @@ const roleSchema = new mongoose.Schema({
 const scriptSchema = new mongoose.Schema({
   creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   title: { type: String, required: true },
-  logline: { type: String }, // Max 300 chars hook for search cards
+  logline: { type: String }, // Max 50 chars hook for compact cards
   description: { type: String },
   synopsis: { type: String }, // Short visible teaser
   fullContent: { type: String }, // Locked full content
