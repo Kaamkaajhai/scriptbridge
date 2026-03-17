@@ -298,6 +298,10 @@ export const getInvestorDashboard = async (req, res) => {
     const totalInvested = allDeals.reduce((sum, d) => sum + d.fee, 0);
     const activeDealsCount = allDeals.filter(d => d.status === "active").length;
     const convertedDealsCount = allDeals.filter(d => d.status === "converted").length;
+    const successfulProjects = convertedDealsCount; // Successful projects = converted deals
+
+    // Count scripts purchased by this investor
+    const scriptsPurchased = await Script.countDocuments({ unlockedBy: userId });
 
     // Scripts viewed recently
     const recentViews = await Script.find({ _id: { $in: viewedScriptIds.slice(-20) } })
@@ -376,6 +380,8 @@ export const getInvestorDashboard = async (req, res) => {
         avgViewedScore,
         followingCount: user.following?.length || 0,
         followersCount: user.followers?.length || 0,
+        successfulProjects,
+        scriptsPurchased,
       },
       marketPulse: {
         totalScripts: totalPlatformScripts,
