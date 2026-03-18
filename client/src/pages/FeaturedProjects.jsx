@@ -85,7 +85,7 @@ const budgetLabel = {
   micro: "Micro", low: "Low", medium: "Medium", high: "High", blockbuster: "Blockbuster",
 };
 
-/* ── Icons ─────────────────────────────────────────── */
+/*  Icons  */
 const FilterIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
@@ -900,7 +900,7 @@ const FeaturedProjects = () => {
       const { data } = await api.get(`/scripts?${params.toString()}`);
       const raw = Array.isArray(data) ? data : [];
 
-      /* ── Client-side sort guarantee ── */
+      /*  Client-side sort guarantee  */
       const sorted = [...raw].sort((a, b) => {
         if (selectedSort === "views") return (b.views || 0) - (a.views || 0);
         if (selectedSort === "score") return (b.scriptScore?.overall || 0) - (a.scriptScore?.overall || 0);
@@ -951,7 +951,7 @@ const FeaturedProjects = () => {
 
   const ease = [0.25, 0.46, 0.45, 0.94];
 
-  /* ── Pill Button Helper ──────────────────────────── */
+  /*  Pill Button Helper  */
   const Pill = ({ active, onClick, children, variant = "default" }) => {
     const base = "px-3.5 py-[7px] rounded-xl text-[12px] font-semibold transition-all duration-200 whitespace-nowrap border cursor-pointer select-none";
     const styles = active
@@ -966,7 +966,7 @@ const FeaturedProjects = () => {
     );
   };
 
-  /* ── Filter Section Header ───────────────────────── */
+  /*  Filter Section Header  */
   const FilterSection = ({ label, children }) => (
     <div className="space-y-2.5">
       <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-0.5">{label}</h4>
@@ -1304,7 +1304,7 @@ const FeaturedProjects = () => {
               <FilterIcon />
               Filters
               {activeFilterCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] font-bold">
+                <span className="ml-0.5 px-1.5 py-0.5 bg-white/20 rounded-md reader-typo-helper font-bold">
                   {activeFilterCount}
                 </span>
               )}
@@ -1340,7 +1340,7 @@ const FeaturedProjects = () => {
                 )}
                 <button
                   onClick={clearAllFilters}
-                  className="text-[11px] font-semibold text-gray-400 hover:text-red-500 transition-colors px-2 py-1"
+                  className="reader-typo-helper font-semibold text-gray-400 hover:text-red-500 transition-colors px-2 py-1"
                 >
                   Clear all
                 </button>
@@ -1351,7 +1351,7 @@ const FeaturedProjects = () => {
 
         </div>
 
-        {/* ── Collapsible filter panel ── */}
+        {/*  Collapsible filter panel  */}
         <AnimatePresence>
           {filtersOpen && (
             <motion.div
@@ -1371,15 +1371,7 @@ const FeaturedProjects = () => {
                       active={selectedSort === opt.key}
                       onClick={() => setSelectedSort(opt.key)}
                     >
-                      <span className="flex items-center gap-1.5">
-                        {opt.icon === "flame" && <span>🔥</span>}
-                        {opt.icon === "dollar" && <span>💰</span>}
-                        {opt.icon === "eye" && <span>👁</span>}
-                        {opt.icon === "star" && <span>⭐</span>}
-                        {opt.icon === "clock" && <span>🕐</span>}
-                        {opt.icon === "arrowUp" && <span>📈</span>}
-                        {opt.label}
-                      </span>
+                      <span className="flex items-center">{opt.label}</span>
                     </Pill>
                   ))}
                 </FilterSection>
@@ -1463,7 +1455,7 @@ const FeaturedProjects = () => {
         </AnimatePresence>
       </motion.div>
 
-      {/* ── Loading ── */}
+      {/*  Loading  */}
       {loading && (
         <div className="flex items-center justify-center py-28">
           <div className="flex flex-col items-center gap-3">
@@ -1473,7 +1465,7 @@ const FeaturedProjects = () => {
         </div>
       )}
 
-      {/* ── Empty state ── */}
+      {/*  Empty state  */}
       {!loading && scripts.length === 0 && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -1787,7 +1779,7 @@ const FeaturedProjects = () => {
                           </div>
                         </div>
 
-                        {/* ── Info panel ── */}
+                        {/*  Info panel  */}
                         <div className="p-5">
                           {/* Title */}
                           <h4 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${dark ? "text-white" : "text-gray-900"}`}>

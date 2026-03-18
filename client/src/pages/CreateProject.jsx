@@ -13,7 +13,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 
-/* ── Constants ─────────────────────────────────────── */
+/*  Constants  */
 const formats = [
   { value: "feature", label: "Feature Film" },
   { value: "tv_1hour", label: "TV 1hr" },
@@ -44,7 +44,7 @@ const settingOptions = [
 ];
 const SERVICE_PRICES = { hosting: 0, evaluation: 10, aiTrailer: 15 };
 
-/* ── Format-aware page ranges (industry standards) ── */
+/*  Format-aware page ranges (industry standards)  */
 const FORMAT_PAGE_RANGES = {
   feature: { min: 70, max: 180, typical: "90–120", label: "Feature Film", wordsPerPage: 250 },
   tv_1hour: { min: 45, max: 75, typical: "50–65", label: "TV 1-Hour", wordsPerPage: 250 },
@@ -59,13 +59,13 @@ const COLORS = [
 ];
 
 const STEPS = [
-  { num: 1, label: "Write", icon: "✍️" },
-  { num: 2, label: "Details", icon: "📋" },
-  { num: 3, label: "Classify", icon: "🏷️" },
-  { num: 4, label: "Publish", icon: "🚀" },
+  { num: 1, label: "Write", icon: "" },
+  { num: 2, label: "Details", icon: "" },
+  { num: 3, label: "Classify", icon: "" },
+  { num: 4, label: "Publish", icon: "" },
 ];
 
-/* ── Toolbar Button ────────────────────────────────── */
+/*  Toolbar Button  */
 const TBtn = ({ active, onClick, title, children, dark }) => (
   <button type="button" onClick={onClick} title={title}
     className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all duration-150 ${active
@@ -75,7 +75,7 @@ const TBtn = ({ active, onClick, title, children, dark }) => (
   >{children}</button>
 );
 
-/* ── Toolbar ───────────────────────────────────────── */
+/*  Toolbar  */
 const EditorToolbar = ({ editor, dark }) => {
   const [showCP, setShowCP] = useState(false);
   if (!editor) return null;
@@ -143,7 +143,7 @@ const EditorToolbar = ({ editor, dark }) => {
   );
 };
 
-/* ── Draft Card ────────────────────────────────────── */
+/*  Draft Card  */
 const DraftCard = ({ draft, onClick, onDelete, dark, isActive }) => {
   const wc = draft.textContent ? draft.textContent.replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length : 0;
   const updated = new Date(draft.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -170,9 +170,9 @@ const DraftCard = ({ draft, onClick, onDelete, dark, isActive }) => {
   );
 };
 
-/* ═══════════════════════════════════════════════════════
+/* 
    CREATE PROJECT — 4-Step Wizard
-   ═══════════════════════════════════════════════════════ */
+    */
 const CreateProject = () => {
   const { isDarkMode: dark } = useDarkMode();
   const { user } = useContext(AuthContext);
@@ -488,7 +488,7 @@ const CreateProject = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-4">
-      {/* ── Header ──────────────────────────────── */}
+      {/*  Header  */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -516,10 +516,10 @@ const CreateProject = () => {
           </div>
         </div>
 
-        {/* ── Gradient accent line ── */}
+        {/*  Gradient accent line  */}
         <div className="mt-4 h-px bg-gradient-to-r from-transparent via-[#1e3a5f]/40 to-transparent" />
 
-        {/* ── Step Indicator ── */}
+        {/*  Step Indicator  */}
         <div className="mt-5 flex items-center justify-center gap-0">
           {STEPS.map((s, i) => (
             <div key={s.num} className="flex items-center">
@@ -547,7 +547,7 @@ const CreateProject = () => {
         </div>
       </motion.div>
 
-      {/* ── Drafts Drawer ── */}
+      {/*  Drafts Drawer  */}
       <AnimatePresence>
         {showDrafts && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
@@ -567,7 +567,7 @@ const CreateProject = () => {
         )}
       </AnimatePresence>
 
-      {/* ═══ Grammar Credit Confirmation Modal (portal) ═══ */}
+      {/*  Grammar Credit Confirmation Modal (portal)  */}
       {showGrammarModal && createPortal(
         <AnimatePresence>
           <motion.div
@@ -602,7 +602,7 @@ const CreateProject = () => {
                       ? "bg-gradient-to-br from-emerald-500/15 to-teal-600/15 border border-emerald-500/20"
                       : "bg-emerald-50 border border-emerald-200"
                   }`}>
-                    <span className="text-xl">📝</span>
+                    
                   </div>
                   <div>
                     <h3 className={`text-base font-bold ${
@@ -626,7 +626,7 @@ const CreateProject = () => {
                   dark ? "bg-white/[0.03] border border-white/[0.05]" : "bg-gray-50 border border-gray-100"
                 }`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-base">⚡</span>
+                    
                     <span className={`text-xs font-medium ${
                       dark ? "text-neutral-300" : "text-gray-600"
                     }`}>Cost</span>
@@ -640,7 +640,7 @@ const CreateProject = () => {
                   dark ? "bg-white/[0.03] border border-white/[0.05]" : "bg-gray-50 border border-gray-100"
                 }`}>
                   <div className="flex items-center gap-2">
-                    <span className="text-base">💰</span>
+                    
                     <span className={`text-xs font-medium ${
                       dark ? "text-neutral-300" : "text-gray-600"
                     }`}>Your Balance</span>
@@ -705,7 +705,7 @@ const CreateProject = () => {
         document.body
       )}
 
-      {/* ═══ Undo/Keep Bar — fixed bottom (always visible) ═══ */}
+      {/*  Undo/Keep Bar — fixed bottom (always visible)  */}
       {showUndoBar && createPortal(
         <AnimatePresence>
           <motion.div
@@ -778,7 +778,7 @@ const CreateProject = () => {
         document.body
       )}
 
-      {/* ── Error ── */}
+      {/*  Error  */}
       <AnimatePresence>
         {error && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
@@ -789,9 +789,9 @@ const CreateProject = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Step Content ─────────────────────────── */}
+      {/*  Step Content  */}
       <AnimatePresence mode="wait">
-        {/* ── STEP 1: Write ── */}
+        {/*  STEP 1: Write  */}
         {step === 1 && (
           <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={cardCls}>
@@ -830,7 +830,7 @@ const CreateProject = () => {
                       </>
                     ) : (
                       <>
-                        <span>📝</span>
+                        
                         Fix Grammar
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${dark
                           ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
@@ -859,7 +859,7 @@ const CreateProject = () => {
           </motion.div>
         )}
 
-        {/* ── STEP 2: Details ── */}
+        {/*  STEP 2: Details  */}
         {step === 2 && (
           <motion.div key="s2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={`${cardCls} p-6 sm:p-8 space-y-5`}>
@@ -945,7 +945,7 @@ const CreateProject = () => {
           </motion.div>
         )}
 
-        {/* ── STEP 3: Classification ── */}
+        {/*  STEP 3: Classification  */}
         {step === 3 && (
           <motion.div key="s3" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
@@ -965,7 +965,7 @@ const CreateProject = () => {
           </motion.div>
         )}
 
-        {/* ── STEP 4: Review & Publish ── */}
+        {/*  STEP 4: Review & Publish  */}
         {step === 4 && (
           <motion.div key="s4" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
@@ -974,7 +974,7 @@ const CreateProject = () => {
                 <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Set your script's price, choose optional services, and agree to our terms.</p>
               </div>
 
-              {/* ── Pricing ── */}
+              {/*  Pricing  */}
               <div className={`rounded-2xl border p-5 space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                 <div className="flex items-center gap-2.5">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
@@ -1168,7 +1168,7 @@ const CreateProject = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Navigation Buttons ── */}
+      {/*  Navigation Buttons  */}
       {step > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-between mt-5">
           <button onClick={handleBack} disabled={step === 1}

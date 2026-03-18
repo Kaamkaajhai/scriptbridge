@@ -37,6 +37,11 @@ const getIcon = (genre, contentType) => {
   return genreIcons[key] || ScrollText;
 };
 
+const resolveImage = (url) => {
+  if (!url) return "";
+  return url.startsWith("http") || url.startsWith("data:") ? url : `http://localhost:5001${url}`;
+};
+
 // Stable hash for consistent pattern
 const hashStr = (str) => {
   let h = 0;
@@ -119,6 +124,8 @@ const ScriptCard = ({ script, index = 0, rank = null }) => {
   if (!script) return null;
 
   const showPlaceholder = !script.coverImage || imgError;
+  const badge = getCardBadge(script);
+  const score = Number(script.rating || script.scriptScore?.overall || 0);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -257,7 +264,6 @@ const ScriptCard = ({ script, index = 0, rank = null }) => {
               {script.title}
             </h3>
 
-            {/* Logline */}
             {(script.logline || script.synopsis) && (
               <p className={`text-xs line-clamp-2 mb-3 leading-relaxed ${dark ? "text-gray-500" : "text-gray-600"}`}>
                 {script.logline || script.synopsis}

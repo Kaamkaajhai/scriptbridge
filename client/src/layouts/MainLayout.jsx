@@ -8,6 +8,7 @@ import api from "../services/api";
 
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
+  const isReader = user?.role === "reader";
   const navigate = useNavigate();
   const location = useLocation();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
@@ -137,7 +138,7 @@ const MainLayout = ({ children }) => {
     : "U";
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? "bg-[#060d18]" : "bg-[#eef0f3]"}`}>
+    <div className={`min-h-screen ${isReader ? "reader-typo-scope" : ""} ${isDarkMode ? "bg-[#060d18]" : "bg-[#eef0f3]"}`}>
       <Sidebar />
 
       {/* Top bar - search + notifications + user */}
@@ -161,7 +162,7 @@ const MainLayout = ({ children }) => {
               placeholder="Search projects, writers, investors..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`flex-1 px-3 py-2.5 text-[14px] font-medium outline-none bg-transparent ${
+              className={`flex-1 px-3 py-2.5 reader-typo-input font-medium outline-none bg-transparent ${
                 isDarkMode ? "text-gray-200 placeholder-gray-500" : "text-gray-800 placeholder-gray-400"
               }`}
             />
@@ -220,7 +221,7 @@ const MainLayout = ({ children }) => {
               }`}>
                 {/* Header */}
                 <div className={`flex items-center justify-between px-4 py-3 border-b ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}>
-                  <h3 className={`text-base font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Notifications</h3>
+                  <h3 className={`reader-typo-toast font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Notifications</h3>
                   <div className="flex items-center gap-2">
                     {unreadCount > 0 && (
                       <button onClick={handleMarkAllRead}
@@ -232,7 +233,7 @@ const MainLayout = ({ children }) => {
                       <>
                         <span className="text-gray-300">|</span>
                         <button onClick={handleClearAll}
-                          className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+                          className="reader-typo-helper font-semibold text-gray-400 hover:text-gray-600 transition-colors">
                           Clear all
                         </button>
                       </>
@@ -308,8 +309,8 @@ const MainLayout = ({ children }) => {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                         </svg>
                       </div>
-                      <p className={`text-sm font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No notifications yet</p>
-                      <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>You're all caught up</p>
+                      <p className={`reader-typo-button font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No notifications yet</p>
+                      <p className={`reader-typo-helper mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>You're all caught up</p>
                     </div>
                   )}
                 </div>
@@ -328,7 +329,7 @@ const MainLayout = ({ children }) => {
                   {initials}
                 </div>
               )}
-              <span className={`hidden sm:block text-[14px] font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>{user?.name || "User"}</span>
+              <span className={`hidden sm:block reader-typo-label font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>{user?.name || "User"}</span>
               <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
@@ -336,8 +337,8 @@ const MainLayout = ({ children }) => {
 
             {dropdownOpen && (
               <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl border py-1.5 z-50 animate-scaleIn ${isDarkMode ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/80 shadow-gray-200/50"}`}>
-                <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
-                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-300 hover:bg-[#1a3050]" : "text-gray-600 hover:bg-gray-50"}`}>
+                <button onClick={() => { navigate(user?.role === "reader" ? `/reader/profile/${user?._id || ""}` : `/profile/${user?._id || ""}`); setDropdownOpen(false); }}
+                  className={`w-full text-left px-3 py-2.5 reader-typo-button font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-300 hover:bg-[#1a3050]" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
@@ -345,7 +346,7 @@ const MainLayout = ({ children }) => {
                 </button>
                 <div className={`border-t my-1 ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}></div>
                 <button onClick={() => { logout(); navigate("/login"); }}
-                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-400 hover:bg-[#1a3050] hover:text-gray-200" : "text-gray-500 hover:bg-gray-50"}`}>
+                  className={`w-full text-left px-3 py-2.5 reader-typo-button font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-400 hover:bg-[#1a3050] hover:text-gray-200" : "text-gray-500 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>

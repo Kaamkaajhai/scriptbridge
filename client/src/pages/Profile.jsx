@@ -8,8 +8,9 @@ import ProjectCard from "../components/ProjectCard";
 import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
+import ReaderProfile from "./ReaderProfile";
 
-/* ── Streak helper ── */
+/*  Streak helper  */
 const calcStreak = (createdAt) => {
   if (!createdAt) return 0;
   const created = new Date(createdAt);
@@ -18,7 +19,7 @@ const calcStreak = (createdAt) => {
   return Math.min(diffDays + 1, 999);
 };
 
-/* ── StreakWidget ── */
+/*  StreakWidget  */
 const StreakWidget = ({ dark, createdAt, scriptsCount }) => {
   const streak = calcStreak(createdAt);
   const weekDays = ["M", "T", "W", "T", "F", "S", "S"];
@@ -29,7 +30,7 @@ const StreakWidget = ({ dark, createdAt, scriptsCount }) => {
   return (
     <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-xl">🔥</span>
+        
         <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Reading Streak</h3>
         <span className={`ml-auto text-[13px] font-medium px-2.5 py-1 rounded-lg border ${dark ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
           {streak} days
@@ -74,7 +75,7 @@ const StreakWidget = ({ dark, createdAt, scriptsCount }) => {
   );
 };
 
-/* ── CurrentlyReadingCard ── */
+/*  CurrentlyReadingCard  */
 const CurrentlyReadingCard = ({ dark, scripts, resolveImage }) => {
   const recent = scripts.slice(0, 3);
   const fakeProgress = [72, 45, 18];
@@ -148,19 +149,19 @@ const CurrentlyReadingCard = ({ dark, scripts, resolveImage }) => {
   );
 };
 
-/* ── ProfileEssentials ── */
+/*  ProfileEssentials  */
 const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const essentials = [
-    profile.location && { icon: "📍", label: "Location", value: profile.location },
-    profile.website && { icon: "🌐", label: "Website", value: profile.website, isLink: true },
-    memberSince && { icon: "📅", label: "Member Since", value: memberSince },
-    profile.role && { icon: "🎭", label: "Role", value: profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
+    profile.location && { icon: "", label: "Location", value: profile.location },
+    profile.website && { icon: "", label: "Website", value: profile.website, isLink: true },
+    memberSince && { icon: "", label: "Member Since", value: memberSince },
+    profile.role && { icon: "", label: "Role", value: profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
     isWriter(profile.role) && profile.writerProfile?.representationStatus && {
-      icon: "✍️", label: "Representation", value: profile.writerProfile.representationStatus.replace(/_/g, " & ")
+      icon: "", label: "Representation", value: profile.writerProfile.representationStatus.replace(/_/g, " & ")
     },
-    profile.industryProfile?.company && { icon: "🏢", label: "Company", value: profile.industryProfile.company },
-    profile.industryProfile?.jobTitle && { icon: "💼", label: "Title", value: profile.industryProfile.jobTitle },
+    profile.industryProfile?.company && { icon: "", label: "Company", value: profile.industryProfile.company },
+    profile.industryProfile?.jobTitle && { icon: "", label: "Title", value: profile.industryProfile.jobTitle },
   ].filter(Boolean);
 
   return (
@@ -198,13 +199,14 @@ const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
       {(profile.socialLinks?.imdb || profile.socialLinks?.linkedin || profile.socialLinks?.twitter) && (
         <div className={`mt-3 pt-3 border-t flex gap-2 flex-wrap ${dark ? "border-white/[0.05]" : "border-gray-100"}`}>
           {[
-            { key: "imdb", label: "IMDb", icon: "🎬" },
-            { key: "linkedin", label: "LinkedIn", icon: "💼" },
-            { key: "twitter", label: "Twitter", icon: "𝕏" },
+            { key: "imdb", label: "IMDb", icon: "" },
+            { key: "linkedin", label: "LinkedIn", icon: "" },
+            { key: "twitter", label: "Twitter", icon: "" },
           ].filter(l => profile.socialLinks?.[l.key]).map(l => (
             <a key={l.key} href={profile.socialLinks[l.key]} target="_blank" rel="noreferrer"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[14px] font-semibold border transition-all hover:scale-105 ${dark ? "border-white/[0.08] bg-white/[0.03] text-white/50 hover:text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}>
-              <span>{l.icon}</span>{l.label}
+              {l.icon ? <span>{l.icon}</span> : null}
+              {l.label}
             </a>
           ))}
         </div>
@@ -213,7 +215,7 @@ const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
   );
 };
 
-/* ── Helper components ── */
+/*  Helper components  */
 
 const SectionCard = ({ title, icon, badge, dark, children }) => (
   <div
@@ -232,14 +234,14 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
         {icon}
       </div>
       <h3
-        className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"
+        className={`text-[22px] font-black leading-tight ${dark ? "text-white/80" : "text-gray-800"
           }`}
       >
         {title}
       </h3>
       {badge && (
         <span
-          className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"
+          className={`ml-auto text-[16px] font-medium ${dark ? "text-white/25" : "text-gray-400"
             }`}
         >
           {badge}
@@ -256,7 +258,7 @@ const InfoRow = ({ label, value, dark }) => (
       {label}
     </span>
     <span
-      className={`text-[15px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
+      className={`text-[18px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
         }`}
     >
       {value}
@@ -264,9 +266,9 @@ const InfoRow = ({ label, value, dark }) => (
   </div>
 );
 
-/* ═══════════════════════════════════════ */
+/*  */
 
-/* ── DeleteProjectButton ── */
+/*  DeleteProjectButton  */
 const DeleteProjectButton = ({ dark, onConfirm, title }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -350,6 +352,7 @@ const Profile = () => {
   const { id } = useParams();
   const { user: currentUser } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
+  const isReaderOwnProfileRoute = currentUser?.role === "reader" && (!id || id === currentUser?._id);
 
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
@@ -367,8 +370,13 @@ const Profile = () => {
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
+    if (isReaderOwnProfileRoute) return;
     fetchProfile();
-  }, [id]);
+  }, [id, isReaderOwnProfileRoute]);
+
+  if (isReaderOwnProfileRoute) {
+    return <ReaderProfile />;
+  }
 
   const handleDeleteScript = async (scriptId) => {
     try {
@@ -438,7 +446,7 @@ const Profile = () => {
     return `http://localhost:5001${url}`;
   };
 
-  /* ── Loading ── */
+  /*  Loading  */
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
@@ -452,7 +460,7 @@ const Profile = () => {
     );
   }
 
-  /* ── Not found ── */
+  /*  Not found  */
   if (!profile) {
     return (
       <div className="flex flex-col justify-center items-center h-[60vh] gap-3">
@@ -484,9 +492,9 @@ const Profile = () => {
     );
   }
 
-  /* ═══════════════════════════════════════
+  /* 
      Design tokens
-     ═══════════════════════════════════════ */
+      */
   const t = {
     card: dark
       ? "bg-[#0d1829] border-white/[0.06]"
@@ -544,12 +552,12 @@ const Profile = () => {
     emptyP: dark ? "text-white/25" : "text-gray-400",
   };
 
-  /* ════════════════════════════════════
+  /* 
      RENDER
-     ════════════════════════════════════ */
+      */
   return (
     <div className="max-w-5xl mx-auto space-y-5">
-      {/* ──────── PROFILE CARD ──────── */}
+      {/*  PROFILE CARD  */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -716,16 +724,15 @@ const Profile = () => {
         </div>
       </motion.div>
 
-      {/* ──────── TABS ──────── */}
+      {/*  TABS  */}
       <div className="flex items-center gap-2 flex-wrap">
         {[
-          { key: "overview", label: "Overview", icon: "✦" },
+          { key: "overview", label: "Overview", icon: "" },
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
           { key: "about", label: "About" },
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
             ? [{ key: "purchased", label: "Purchased", count: purchasedScripts.length }]
             : []),
-          ...(isOwnProfile ? [{ key: "financial", label: "Financial" }] : []),
           ...(isOwnProfile ? [{ key: "settings", label: "Settings" }] : []),
         ].map((tab) => (
           <button
@@ -760,7 +767,7 @@ const Profile = () => {
         ))}
       </div>
 
-      {/* ──────── OVERVIEW TAB ──────── */}
+      {/*  OVERVIEW TAB  */}
       {activeTab === "overview" && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -785,10 +792,10 @@ const Profile = () => {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: "Scripts", value: scripts.length, icon: "📄", color: dark ? "text-blue-400" : "text-blue-600" },
-                  { label: "Followers", value: profile.followers?.length || 0, icon: "👥", color: dark ? "text-emerald-400" : "text-emerald-600" },
-                  { label: "Following", value: profile.following?.length || 0, icon: "🔗", color: dark ? "text-purple-400" : "text-purple-600" },
-                  { label: "Days Active", value: calcStreak(profile.createdAt), icon: "⚡", color: dark ? "text-orange-400" : "text-orange-600" },
+                  { label: "Scripts", value: scripts.length, icon: "", color: dark ? "text-blue-400" : "text-blue-600" },
+                  { label: "Followers", value: profile.followers?.length || 0, icon: "", color: dark ? "text-emerald-400" : "text-emerald-600" },
+                  { label: "Following", value: profile.following?.length || 0, icon: "", color: dark ? "text-purple-400" : "text-purple-600" },
+                  { label: "Days Active", value: calcStreak(profile.createdAt), icon: "", color: dark ? "text-orange-400" : "text-orange-600" },
                 ].map((stat) => (
                   <div key={stat.label} className={`rounded-xl p-3.5 border text-center ${dark ? "bg-white/[0.02] border-white/[0.05]" : "bg-gray-50/60 border-gray-100"}`}>
                     <div className="text-xl mb-1">{stat.icon}</div>
@@ -864,7 +871,7 @@ const Profile = () => {
               </div>
             )}
 
-            {/* ── Genre Breakdown ── */}
+            {/*  Genre Breakdown  */}
             {scripts.length > 0 && (() => {
               const genreMap = {};
               scripts.forEach(s => { if (s.genre) genreMap[s.genre] = (genreMap[s.genre] || 0) + 1; });
@@ -907,7 +914,7 @@ const Profile = () => {
               ) : null;
             })()}
 
-            {/* ── Script Insights ── */}
+            {/*  Script Insights  */}
             {scripts.length > 0 && (() => {
               const formats = [...new Set(scripts.map(s => s.format || s.contentType).filter(Boolean))];
               const avgPages = scripts.filter(s => s.pageCount > 0).length > 0
@@ -961,7 +968,7 @@ const Profile = () => {
               );
             })()}
 
-            {/* ── Followers Preview ── */}
+            {/*  Followers Preview  */}
             {profile.followers?.length > 0 && (
               <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
                 <div className="flex items-center gap-2 mb-4">
@@ -1003,7 +1010,7 @@ const Profile = () => {
               </div>
             )}
 
-            {/* ── Preferences Card (own profile only) ── */}
+            {/*  Preferences Card (own profile only)  */}
             {isOwnProfile && (
               <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
                 <div className="flex items-center gap-2 mb-4">
@@ -1054,7 +1061,7 @@ const Profile = () => {
         </motion.div>
       )}
 
-      {/* ──────── PROJECTS TAB ──────── */}
+      {/*  PROJECTS TAB  */}
       {activeTab === "projects" && profile.role !== "investor" && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -1116,7 +1123,7 @@ const Profile = () => {
         </motion.div>
       )}
 
-      {/* ──────── ABOUT TAB ──────── */}
+      {/*  ABOUT TAB  */}
       {activeTab === "about" && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -1250,7 +1257,7 @@ const Profile = () => {
             </SectionCard>
           )}
 
-          {/* ──────── INVESTOR-SPECIFIC SECTIONS ──────── */}
+          {/*  INVESTOR-SPECIFIC SECTIONS  */}
           {profile.role === "investor" && (
             <>
               {/* Row 1: Professional Info + External Links */}
@@ -1587,7 +1594,7 @@ const Profile = () => {
         </motion.div>
       )}
 
-      {/* ──────── PURCHASED SCRIPTS TAB ──────── */}
+      {/*  PURCHASED SCRIPTS TAB  */}
       {activeTab === "purchased" && isOwnProfile && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           {purchasedScripts.length === 0 ? (
@@ -1665,18 +1672,18 @@ const Profile = () => {
         </motion.div>
       )}
 
-      {/* ──────── SETTINGS TAB ──────── */}
+      {/*  SETTINGS TAB  */}
       {activeTab === "settings" && isOwnProfile && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-3">
           {settingsMsg && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[13px] font-medium">
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[16px] font-medium">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               {settingsMsg}
               <button onClick={() => setSettingsMsg("")} className="ml-auto text-emerald-400/60 hover:text-emerald-400">&times;</button>
             </div>
           )}
           {settingsErr && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[13px] font-medium">
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[16px] font-medium">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
               {settingsErr}
               <button onClick={() => setSettingsErr("")} className="ml-auto text-red-400/60 hover:text-red-400">&times;</button>
@@ -1688,8 +1695,8 @@ const Profile = () => {
             <div className="space-y-4">
               <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
                 <div>
-                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Private Account</p>
-                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>Only approved followers can see your profile</p>
+                  <p className={`text-[18px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Private Account</p>
+                  <p className={`text-[14px] ${dark ? "text-white/25" : "text-gray-400"}`}>Only approved followers can see your profile</p>
                 </div>
                 <button onClick={async () => { try { setSavingSettings(true); await api.put("/users/settings", { isPrivate: !profile.isPrivate }); setProfile({ ...profile, isPrivate: !profile.isPrivate }); setSettingsMsg("Privacy updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr("Failed"); } finally { setSavingSettings(false); } }}
                   className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.isPrivate ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
@@ -1698,28 +1705,28 @@ const Profile = () => {
               </div>
               <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
                 <div>
-                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Email Verified</p>
-                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{profile.email}</p>
+                  <p className={`text-[18px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Email Verified</p>
+                  <p className={`text-[14px] ${dark ? "text-white/25" : "text-gray-400"}`}>{profile.email}</p>
                 </div>
-                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${profile.emailVerified ? dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200" : dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-200"}`}>{profile.emailVerified ? "Verified" : "Unverified"}</span>
+                <span className={`px-2.5 py-1 rounded-lg text-[14px] font-bold border ${profile.emailVerified ? dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200" : dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-200"}`}>{profile.emailVerified ? "Verified" : "Unverified"}</span>
               </div>
               <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Email</p>
+                <p className={`text-[15px] font-bold mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Email</p>
                 <div className="space-y-2.5">
-                  <input type="email" placeholder="New email address" value={emailForm.newEmail} onChange={e => setEmailForm({ ...emailForm, newEmail: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="Current password" value={emailForm.password} onChange={e => setEmailForm({ ...emailForm, password: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="email" placeholder="New email address" value={emailForm.newEmail} onChange={e => setEmailForm({ ...emailForm, newEmail: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="Current password" value={emailForm.password} onChange={e => setEmailForm({ ...emailForm, password: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
                   <button disabled={savingSettings || !emailForm.newEmail || !emailForm.password} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); const { data } = await api.put("/users/change-email", emailForm); setProfile({ ...profile, email: data.email, emailVerified: false }); setEmailForm({ password: "", newEmail: "" }); setSettingsMsg("Email changed"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
-                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Update Email"}</button>
+                    className={`px-4 py-2 rounded-xl text-[16px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Update Email"}</button>
                 </div>
               </div>
               <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Password</p>
+                <p className={`text-[15px] font-bold mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Password</p>
                 <div className="space-y-2.5">
-                  <input type="password" placeholder="Current password" value={pwForm.currentPassword} onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="New password (min 6 chars)" value={pwForm.newPassword} onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="Confirm new password" value={pwForm.confirmPassword} onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="Current password" value={pwForm.currentPassword} onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="New password (min 6 chars)" value={pwForm.newPassword} onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="Confirm new password" value={pwForm.confirmPassword} onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
                   <button disabled={savingSettings || !pwForm.currentPassword || !pwForm.newPassword || pwForm.newPassword !== pwForm.confirmPassword} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); await api.put("/users/change-password", { currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); setSettingsMsg("Password changed"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
-                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Change Password"}</button>
+                    className={`px-4 py-2 rounded-xl text-[16px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Change Password"}</button>
                 </div>
               </div>
             </div>
@@ -1730,7 +1737,7 @@ const Profile = () => {
             <div className="space-y-2.5">
               {[{ key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "When a new script matches your mandates" }, { key: "holdAlerts", label: "Hold Alerts", desc: "Option hold status updates" }, { key: "viewAlerts", label: "View Alerts", desc: "When someone views your profile" }, { key: "auditionAlerts", label: "Audition Alerts", desc: "New audition opportunities" }].map((pref) => (
                 <div key={pref.key} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                  <div><p className={`text-[13px] font-semibold ${dark ? "text-white/65" : "text-gray-700"}`}>{pref.label}</p><p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{pref.desc}</p></div>
+                  <div><p className={`text-[18px] font-semibold ${dark ? "text-white/65" : "text-gray-700"}`}>{pref.label}</p><p className={`text-[14px] ${dark ? "text-white/25" : "text-gray-400"}`}>{pref.desc}</p></div>
                   <button onClick={async () => { const nv = !profile.notificationPrefs?.[pref.key]; try { await api.put("/users/settings", { notificationPrefs: { [pref.key]: nv } }); setProfile({ ...profile, notificationPrefs: { ...profile.notificationPrefs, [pref.key]: nv } }); } catch (e) { setSettingsErr("Failed"); } }}
                     className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.notificationPrefs?.[pref.key] ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
                     <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.notificationPrefs?.[pref.key] ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
@@ -1745,19 +1752,19 @@ const Profile = () => {
             <SectionCard dark={dark} title="Content Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
               <div className="space-y-3">
                 <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Preferred Genres</p>
-                  {profile.preferences?.genres?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.genres.map((g, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${t.genreChip}`}>{g}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No genres selected</p>)}
+                  <p className={`text-[15px] font-bold mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Preferred Genres</p>
+                  {profile.preferences?.genres?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.genres.map((g, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[14px] font-semibold border ${t.genreChip}`}>{g}</span>))}</div>) : (<p className={`text-[14px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No genres selected</p>)}
                 </div>
                 <InfoRow dark={dark} label="Budget Range" value={profile.preferences?.budgetRange ? `₹${(profile.preferences.budgetRange.min || 0).toLocaleString()} – ₹${(profile.preferences.budgetRange.max || 0).toLocaleString()}` : <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
                 <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Content Types</p>
-                  {profile.preferences?.contentTypes?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.contentTypes.map((ct, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${t.chip}`}>{ct.replace(/_/g, " ")}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No content types selected</p>)}
+                  <p className={`text-[15px] font-bold mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Content Types</p>
+                  {profile.preferences?.contentTypes?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.contentTypes.map((ct, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[14px] font-semibold border capitalize ${t.chip}`}>{ct.replace(/_/g, " ")}</span>))}</div>) : (<p className={`text-[14px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No content types selected</p>)}
                 </div>
               </div>
             </SectionCard>
             <SectionCard dark={dark} title="Subscription" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>}>
               <div className="space-y-3">
-                <div className="flex items-center justify-between"><span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>Plan</span><span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border uppercase ${profile.subscription?.plan === "enterprise" ? dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-200" : profile.subscription?.plan === "pro" ? dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200" : dark ? "bg-white/[0.04] text-white/45 border-white/[0.06]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{profile.subscription?.plan || "free"}</span></div>
+                <div className="flex items-center justify-between"><span className={`text-[18px] ${dark ? "text-white/35" : "text-gray-400"}`}>Plan</span><span className={`px-2.5 py-1 rounded-lg text-[14px] font-bold border uppercase ${profile.subscription?.plan === "enterprise" ? dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-200" : profile.subscription?.plan === "pro" ? dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200" : dark ? "bg-white/[0.04] text-white/45 border-white/[0.06]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{profile.subscription?.plan || "free"}</span></div>
                 <InfoRow dark={dark} label="Script Score Credits" value={profile.subscription?.scriptScoreCredits || 0} />
                 {profile.subscription?.expiresAt && (<InfoRow dark={dark} label="Expires" value={new Date(profile.subscription.expiresAt).toLocaleDateString()} />)}
               </div>
@@ -1768,16 +1775,16 @@ const Profile = () => {
           <SectionCard dark={dark} title="Localization" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" /></svg>}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
+                <p className={`text-[15px] font-bold mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
                 <select value={profile.language || "en"} onChange={async (e) => { try { await api.put("/users/settings", { language: e.target.value }); setProfile({ ...profile, language: e.target.value }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
-                  <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option>
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
+                  <option value="en">English</option><option value="hi">Hindi</option><option value="bn">Bengali</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="mr">Marathi</option><option value="gu">Gujarati</option><option value="pa">Punjabi</option><option value="ur">Urdu</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option><option value="it">Italian</option><option value="ru">Russian</option><option value="ar">Arabic</option><option value="tr">Turkish</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese (Simplified)</option>
                 </select>
               </div>
               <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Timezone</p>
+                <p className={`text-[15px] font-bold mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Timezone</p>
                 <select value={profile.timezone || "Asia/Kolkata"} onChange={async (e) => { try { await api.put("/users/settings", { timezone: e.target.value }); setProfile({ ...profile, timezone: e.target.value }); setSettingsMsg("Timezone updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-[17px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
                   <option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="America/New_York">America/New_York (EST)</option><option value="America/Los_Angeles">America/Los_Angeles (PST)</option><option value="America/Chicago">America/Chicago (CST)</option><option value="Europe/London">Europe/London (GMT)</option><option value="Europe/Paris">Europe/Paris (CET)</option><option value="Asia/Tokyo">Asia/Tokyo (JST)</option><option value="Asia/Shanghai">Asia/Shanghai (CST)</option><option value="Australia/Sydney">Australia/Sydney (AEST)</option>
                 </select>
               </div>
@@ -1787,14 +1794,14 @@ const Profile = () => {
           {/* Danger Zone */}
           <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>
             <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-red-500/15 bg-red-500/[0.03]" : "border-red-100 bg-red-50/40"}`}>
-              <div><p className={`text-[13px] font-semibold ${dark ? "text-red-400/80" : "text-red-600"}`}>Delete Account</p><p className={`text-[11px] ${dark ? "text-red-400/30" : "text-red-400"}`}>Permanently delete your account and all data</p></div>
-              <button className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}>Delete</button>
+              <div><p className={`text-[18px] font-semibold ${dark ? "text-red-400/80" : "text-red-600"}`}>Delete Account</p><p className={`text-[14px] ${dark ? "text-red-400/30" : "text-red-400"}`}>Permanently delete your account and all data</p></div>
+              <button className={`px-3.5 py-1.5 rounded-xl text-[16px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}>Delete</button>
             </div>
           </SectionCard>
         </motion.div>
       )}
 
-      {/* ──────── FINANCIAL TAB ──────── */}
+      {/*  FINANCIAL TAB  */}
       {false && (() => {
         /* Gather scores from all scripts */
         const scored = scripts.filter(s => s.scriptScore?.overall);
@@ -1826,7 +1833,7 @@ const Profile = () => {
               </div>
             ) : (
               <>
-                {/* ── Overall Score Gauge + Summary ── */}
+                {/*  Overall Score Gauge + Summary  */}
                 <div className={`rounded-2xl border p-6 sm:p-8 ${t.card}`}>
                   <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
                     {/* Radial gauge */}
@@ -1860,7 +1867,7 @@ const Profile = () => {
                   </div>
                 </div>
 
-                {/* ── Dimension Breakdown Bars ── */}
+                {/*  Dimension Breakdown Bars  */}
                 <div className={`rounded-2xl border p-6 ${t.card}`}>
                   <div className="flex items-center gap-2.5 mb-5">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.06]"}`}>
@@ -1886,7 +1893,7 @@ const Profile = () => {
                   </div>
                 </div>
 
-                {/* ── Score Distribution ── */}
+                {/*  Score Distribution  */}
                 <div className={`rounded-2xl border p-6 ${t.card}`}>
                   <div className="flex items-center gap-2.5 mb-5">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.06]"}`}>
@@ -1914,7 +1921,7 @@ const Profile = () => {
                   </div>
                 </div>
 
-                {/* ── Per-Project Score Cards ── */}
+                {/*  Per-Project Score Cards  */}
                 <div className={`rounded-2xl border p-6 ${t.card}`}>
                   <div className="flex items-center gap-2.5 mb-5">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.06]"}`}>
@@ -1965,7 +1972,7 @@ const Profile = () => {
         );
       })()}
 
-      {/* ──────── FINANCIAL TAB ──────── */}
+      {/*  FINANCIAL TAB  */}
       {activeTab === "financial" && isOwnProfile && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}

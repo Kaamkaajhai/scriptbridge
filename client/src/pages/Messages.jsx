@@ -11,7 +11,7 @@ import {
   ShieldCheck, ArrowRight,
 } from "lucide-react";
 
-/* ── helpers ──────────────────────────────────────────────────── */
+/*  helpers  */
 const buildChatId = (a, b) => {
   const sorted = [a.toString(), b.toString()].sort();
   return `${sorted[0]}_${sorted[1]}`;
@@ -33,11 +33,11 @@ const formatDay = (date) => {
 const isSameDay = (a, b) =>
   new Date(a).toDateString() === new Date(b).toDateString();
 
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const QUICK_EMOJIS = ["", "", "", "", "", ""];
 
-/* ═══════════════════════════════════════════════════════════════
+/* 
    MESSAGES PAGE
-═══════════════════════════════════════════════════════════════ */
+ */
 const Messages = () => {
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
@@ -122,7 +122,7 @@ const Messages = () => {
     });
   }, [socket, activeChat, user._id]);
 
-  /* ── URL param: open chat from ScriptDetail ─────────────── */
+  /*  URL param: open chat from ScriptDetail  */
   useEffect(() => {
     if (loading) return;
     const recipientId = searchParams.get("recipientId");
@@ -145,7 +145,7 @@ const Messages = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  /* ── Join socket room when chat changes ─────────────────── */
+  /*  Join socket room when chat changes  */
   useEffect(() => {
     if (socket && activeChat) {
       socket.emit("join-chat", activeChat.chatId);
@@ -168,19 +168,19 @@ const Messages = () => {
     };
   }, [socket, activeChat]);
 
-  /* ── Scroll to bottom ───────────────────────────────────── */
+  /*  Scroll to bottom  */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  /* ── Filter conversations by search query ───────────────── */
+  /*  Filter conversations by search query  */
   useEffect(() => {
     if (!searchQuery.trim()) { setFilteredConvs(conversations); return; }
     const q = searchQuery.toLowerCase();
     setFilteredConvs(conversations.filter((c) => c.user?.name?.toLowerCase().includes(q)));
   }, [searchQuery, conversations]);
 
-  /* ── Load conversations ─────────────────────────────────── */
+  /*  Load conversations  */
   const loadConversations = async () => {
     try {
       const { data } = await api.get("/messages/conversations");
@@ -194,7 +194,7 @@ const Messages = () => {
     }
   };
 
-  /* ── Load messages ──────────────────────────────────────── */
+  /*  Load messages  */
   const loadMessages = async (chatId) => {
     setMessagesLoading(true);
     try {
@@ -207,7 +207,7 @@ const Messages = () => {
     }
   };
 
-  /* ── Select conversation ────────────────────────────────── */
+  /*  Select conversation  */
   const handleSelectChat = useCallback((conv) => {
     setSendError("");
     setIsTyping(false);
@@ -221,7 +221,7 @@ const Messages = () => {
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
-  /* ── Send message ───────────────────────────────────────── */
+  /*  Send message  */
   const handleSendMessage = async (e) => {
     e.preventDefault();
     setSendError("");
@@ -283,7 +283,7 @@ const Messages = () => {
     }
   };
 
-  /* ── Typing indicator emit ──────────────────────────────── */
+  /*  Typing indicator emit  */
   const handleInputChange = (e) => {
     setNewMessage(e.target.value);
     if (socket && activeChat) {
@@ -406,16 +406,16 @@ const Messages = () => {
         </div>
       </div>
 
-      {/* ════════════════════════════════════════
+      {/* 
           RIGHT — Chat Area
-      ════════════════════════════════════════ */}
+       */}
       <div className={[
         "flex-1 flex-col min-w-0",
         dark ? "bg-[#0c1825]" : "bg-gray-50/40",
         !showList ? "flex" : "hidden md:flex",
       ].join(" ")}>
 
-        {/* ── Empty state (no conversation selected) ── */}
+        {/*  Empty state (no conversation selected)  */}
         {!activeChat ? (
           /* Empty state */
           <div className="flex-1 flex items-center justify-center p-8">
@@ -630,9 +630,9 @@ const Messages = () => {
         )}
       </div>
 
-      {/* ════════════════════════════════════════
+      {/* 
           Delete confirmation modal
-      ════════════════════════════════════════ */}
+       */}
       <AnimatePresence>
         {deleteModal && (
           <motion.div

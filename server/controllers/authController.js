@@ -175,8 +175,14 @@ export const join = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
   try {
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please provide email and password" });
+    }
+
+    email = sanitizeEmail(email);
+
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
       // Check if email is verified

@@ -38,7 +38,7 @@ const Icon = ({ d, className = "w-5 h-5" }) => (
     </svg>
 );
 
-// ─── Stat Card ───
+//  Stat Card 
 const StatCard = ({ label, value, icon, color, isDark }) => (
     <div className={`rounded-2xl p-5 border transition-all hover:scale-[1.02] ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="flex items-center justify-between mb-3">
@@ -51,7 +51,7 @@ const StatCard = ({ label, value, icon, color, isDark }) => (
     </div>
 );
 
-// ─── User Table ───
+//  User Table 
 const UserTable = ({ users, isDark, onLoginAs, roleLabel }) => (
     <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
@@ -104,7 +104,7 @@ const UserTable = ({ users, isDark, onLoginAs, roleLabel }) => (
     </div>
 );
 
-// ─── Script Table ───
+//  Script Table 
 const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }) => (
     <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
@@ -155,7 +155,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
     </div>
 );
 
-// ─── Transaction Table ───
+//  Transaction Table 
 const TransactionTable = ({ transactions, isDark }) => (
     <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
@@ -187,7 +187,7 @@ const TransactionTable = ({ transactions, isDark }) => (
     </div>
 );
 
-// ─── Score Modal ───
+//  Score Modal 
 const ScoreModal = ({ script, isDark, onClose, onSave }) => {
     const [scores, setScores] = useState({ content: 0, trailer: 0, title: 0, synopsis: 0, tags: 0, feedback: "", strengths: "", weaknesses: "", prospects: "" });
     const [saving, setSaving] = useState(false);
@@ -255,7 +255,7 @@ const ScoreModal = ({ script, isDark, onClose, onSave }) => {
     );
 };
 
-// ─── Search Bar ───
+//  Search Bar 
 const SearchBar = ({ value, onChange, placeholder, isDark }) => (
     <div className={`flex items-center rounded-xl overflow-hidden border ${isDark ? "bg-[#0b1426] border-[#1a3050]" : "bg-gray-50 border-gray-200"}`}>
         <div className="pl-3.5">
@@ -266,7 +266,7 @@ const SearchBar = ({ value, onChange, placeholder, isDark }) => (
     </div>
 );
 
-// ─── Pagination ───
+//  Pagination 
 const Pagination = ({ page, totalPages, onPageChange, isDark }) => {
     if (totalPages <= 1) return null;
     return (
@@ -280,9 +280,9 @@ const Pagination = ({ page, totalPages, onPageChange, isDark }) => {
     );
 };
 
-// ═══════════════════════════════════════════════
+// 
 // Main Admin Dashboard
-// ═══════════════════════════════════════════════
+// 
 const ADMIN_CODE = "24062004";
 
 const AdminDashboard = () => {
@@ -290,13 +290,13 @@ const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState("overview");
     const [loading, setLoading] = useState(false);
 
-    // ─── Code Gate — always prompt on every visit ───
+    //  Code Gate — always prompt on every visit 
     const [authorized, setAuthorized] = useState(false);
     const [codeInput, setCodeInput] = useState("");
     const [codeError, setCodeError] = useState("");
     const [codeLoading, setCodeLoading] = useState(false);
 
-    // ─── Data state ───
+    //  Data state 
     const [stats, setStats] = useState(null);
     const [users, setUsers] = useState([]);
     const [scripts, setScripts] = useState([]);
@@ -310,14 +310,14 @@ const AdminDashboard = () => {
     const [pendingInvestors, setPendingInvestors] = useState([]);
     const [rejectModal, setRejectModal] = useState(null); // investor object
 
-    // ─── Toast notification system ───
+    //  Toast notification system 
     const [toast, setToast] = useState(null);
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
     };
 
-    // ─── Fetch data function ───
+    //  Fetch data function 
     const fetchData = async () => {
         if (!authorized) return;
         setLoading(true);
@@ -402,7 +402,7 @@ const AdminDashboard = () => {
         setLoading(false);
     };
 
-    // ─── Effects ───
+    //  Effects 
     useEffect(() => { if (authorized) { setPage(1); setSearch(""); } }, [activeTab, authorized]);
     useEffect(() => { if (authorized) fetchData(); }, [activeTab, page, scoreSubTab, authorized]);
     useEffect(() => {
@@ -411,7 +411,7 @@ const AdminDashboard = () => {
         return () => clearTimeout(t);
     }, [search, authorized]);
 
-    // ─── Action handlers (all use adminApi) ───
+    //  Action handlers (all use adminApi) 
     const handleApprove = async (id) => {
         try {
             await adminApi.put(`/admin/scripts/${id}/approve`);
@@ -518,9 +518,9 @@ const AdminDashboard = () => {
         setAuthorized(false);
     };
 
-    // ═══════════════════════════════════════════════
+    // 
     // If not authorized, show code entry screen
-    // ═══════════════════════════════════════════════
+    // 
     if (!authorized) {
         return (
             <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gradient-to-br from-[#050d1a] via-[#0b1a30] to-[#0a1628]">
@@ -564,7 +564,7 @@ const AdminDashboard = () => {
         );
     }
 
-    // ─── Render Content ───
+    //  Render Content 
     const renderContent = () => {
         if (loading) {
             return (
@@ -711,8 +711,8 @@ const AdminDashboard = () => {
                         <ScriptTable scripts={scripts} isDark={isDark} showScore={false}
                             actions={(s) => (
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => handleApprove(s._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">✓ Approve</button>
-                                    <button onClick={() => handleReject(s._id)} className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">✕ Reject</button>
+                                    <button onClick={() => handleApprove(s._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors"> Approve</button>
+                                    <button onClick={() => handleReject(s._id)} className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"> Reject</button>
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
                                 </div>
@@ -808,11 +808,11 @@ const AdminDashboard = () => {
                                                     <div className="flex items-center gap-2">
                                                         <button onClick={() => handleApproveInvestor(inv._id)}
                                                             className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">
-                                                            ✓ Approve
+                                                             Approve
                                                         </button>
                                                         <button onClick={() => setRejectModal(inv)}
                                                             className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">
-                                                            ✕ Reject
+                                                             Reject
                                                         </button>
                                                     </div>
                                                 </td>
@@ -831,7 +831,7 @@ const AdminDashboard = () => {
         }
     };
 
-    // ─── Reject Investor Modal ───
+    //  Reject Investor Modal 
     const RejectInvestorModal = ({ investor, onClose, onConfirm }) => {
         const [note, setNote] = useState("");
         return (
@@ -863,7 +863,7 @@ const AdminDashboard = () => {
 
     return (
         <div className="fixed inset-0 z-[9999] flex flex-col bg-[#060e1a] text-white overflow-hidden">
-            {/* ─── Admin Header ─── */}
+            {/*  Admin Header  */}
             <header className="h-14 shrink-0 flex items-center justify-between px-5 border-b border-[#1a3050] bg-[#0b1628]">
                 <div className="flex items-center gap-3">
                     <BrandLogo className="h-9 w-auto" />
@@ -885,7 +885,7 @@ const AdminDashboard = () => {
                 </div>
             </header>
 
-            {/* ─── Body ─── */}
+            {/*  Body  */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar */}
                 <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-[#1a3050] bg-[#0b1628] overflow-y-auto">

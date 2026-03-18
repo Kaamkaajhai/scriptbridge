@@ -18,6 +18,7 @@ const CONTENT_TYPES = [
   { key: "anime",       label: "Anime"       },
   { key: "book",        label: "Book"        },
   { key: "startup",     label: "Startup"     },
+
 ];
 const BUDGETS = [
   { key: "micro",       label: "Micro"       },
@@ -39,13 +40,13 @@ const TIME_PERIODS = [
 ];
 
 const FilterIcon = () => (
-  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
   </svg>
 );
 
 const ChevronDown = ({ open }) => (
-  <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+  <svg className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
   </svg>
 );
@@ -175,7 +176,7 @@ const SaveButton = ({ scriptId, dark }) => {
 const Pill = ({ active, onClick, children, dark }) => (
   <button
     onClick={onClick}
-    className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all duration-200 border ${
+    className={`px-3 py-1.5 rounded-xl text-[15px] font-semibold transition-all duration-200 border ${
       active
         ? "bg-[#111111] text-white border-[#111111] shadow-sm"
         : dark
@@ -196,20 +197,178 @@ const FilterSection = ({ label, children, dark }) => (
   </div>
 );
 
-/* ── Skeleton ─────────────────────────────────────── */
-const SkeletonCard = ({ dark }) => (
+/* ── Skeleton ─────────────────────────────────────────── */
+const SkeletonCard = ({ dark, tall }) => (
   <div className={`rounded-2xl overflow-hidden border ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100"}`}>
-    <div className={`h-[240px] animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
+    <div className={`animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} style={{ height: tall ? 320 : 220 }} />
     <div className="p-5 space-y-3">
-      <div className={`h-3 rounded-full animate-pulse w-3/4 ${dark ? "bg-[#1d3050]" : "bg-gray-100"}`} />
+      <div className={`h-4 rounded-full animate-pulse w-3/4 ${dark ? "bg-[#1d3050]" : "bg-gray-100"}`} />
       <div className={`h-3 rounded-full w-1/2 animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-50"}`} />
-      <div className={`h-1.5 rounded-full animate-pulse mt-4 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
+      <div className={`h-2 rounded-full animate-pulse mt-4 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
     </div>
   </div>
 );
 
+/* ── Rank Medal Badge ─────────────────────────────────── */
+const RankMedal = ({ rank, large }) => {
+  const cfg = RANK_CONFIG[rank];
+  if (cfg) return (
+    <div className={`absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5`}>
+      <div className={`${large ? "w-12 h-12" : "w-10 h-10"} rounded-full ${cfg.badge} flex items-center justify-center shadow-lg ring-2 ${cfg.ring}`}>
+        <span className={`${large ? "text-[18px]" : "text-[16px]"} font-black ${cfg.text}`}>{rank}</span>
+      </div>
+      <span className={`text-[11px] font-extrabold uppercase tracking-widest drop-shadow ${cfg.labelColor}`}>{cfg.label}</span>
+    </div>
+  );
+  return (
+    <div className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20">
+      <span className="text-[14px] font-bold text-white/80">#{rank}</span>
+    </div>
+  );
+};
+
+const getCardBadge = (script, rank) => {
+  if (rank <= 3) return { label: "Top Pick", cls: "bg-violet-500/20 text-violet-200 border-violet-400/25" };
+  if (script.price > 0 || script.premium) return { label: "Premium", cls: "bg-amber-500/20 text-amber-200 border-amber-400/25" };
+  return { label: "Featured", cls: "bg-violet-500/20 text-violet-200 border-violet-400/25" };
+};
+
+const PlaceholderGlyph = ({ dark }) => (
+  <div className={`w-16 h-16 rounded-full border flex items-center justify-center ${dark ? "border-white/12 bg-white/[0.04] text-white/50" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
+    <PageIcon cls="w-7 h-7" />
+  </div>
+);
+
+const CardScorePill = ({ score }) => (
+  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/35 backdrop-blur-md border border-white/10 text-white/90">
+    <StarIcon cls="w-3.5 h-3.5 text-amber-300" />
+    <span className="text-[16px] font-bold tabular-nums">{Number(score || 0).toFixed(1)}</span>
+  </div>
+);
+
+const CardMetaFooter = ({ script, dark }) => (
+  <div className={`flex items-center justify-between gap-3 pt-3 border-t ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
+    <div className="flex items-center gap-3 flex-wrap min-w-0">
+      {(script.genre || script.primaryGenre) && (
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[15px] font-bold uppercase tracking-wide ${dark ? "bg-[#182943] text-sky-200 border border-[#28466f]" : "bg-sky-50 text-sky-700 border border-sky-100"}`}>
+          {script.primaryGenre || script.genre}
+        </span>
+      )}
+      {script.pageCount && (
+        <div className={`inline-flex items-center gap-1.5 text-[16px] font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>
+          <PageIcon cls="w-3.5 h-3.5" />
+          <span>{script.pageCount}p</span>
+        </div>
+      )}
+    </div>
+
+    <div className={`flex items-center gap-3 shrink-0 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+      <div className="inline-flex items-center gap-1.5 text-[16px] font-semibold">
+        <EyeIcon cls="w-3.5 h-3.5" />
+        <span className="tabular-nums">{fmtNum(script.views || 0)}</span>
+      </div>
+      {script.scriptScore?.overall > 0 && (
+        <div className="inline-flex items-center gap-1 text-[16px] font-semibold text-amber-300">
+          <StarIcon cls="w-3.5 h-3.5" />
+          <span className="tabular-nums">{script.scriptScore.overall}</span>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const ShowcaseCard = ({ script, rank, dark, delay = 0 }) => {
+  const hasCover = !!script.coverImage;
+  const accentGrad = rank % 3 === 0 ? "from-violet-500 to-indigo-500" : rank % 2 === 0 ? "from-sky-400 to-blue-500" : "from-[#1e3a5f] to-[#3a7bd5]";
+  const badge = getCardBadge(script, rank);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.34, ease }}
+      className="h-full"
+    >
+      <Link
+        to={`/script/${script._id}`}
+        className={`group flex flex-col rounded-[22px] overflow-hidden border transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl h-full min-h-[470px] ${
+          dark ? "bg-[#0d1926] border-[#1a2e47] hover:border-[#264060] hover:shadow-black/30" : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-lg"
+        }`}
+      >
+        <div className={`h-[3px] w-full bg-gradient-to-r ${accentGrad}`} />
+
+        <div className="relative overflow-hidden" style={{ height: 220 }}>
+          {hasCover ? (
+            <>
+              <img
+                src={resolveImg(script.coverImage)}
+                alt={script.title}
+                className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#08111c]/35 via-[#0b1524]/10 to-[#0b1524]/60" />
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[#0a1523] via-[#14263d] to-[#203958] flex items-center justify-center p-5 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(58,123,213,0.16),_transparent_48%)]" />
+              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center text-center px-4">
+                <PlaceholderGlyph dark={dark} />
+                <h4 className="mt-4 text-[24px] font-extrabold text-white leading-tight line-clamp-2 tracking-tight">{script.title}</h4>
+                <p className="mt-2 text-[15px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                  {(script.primaryGenre || script.genre || script.contentType || "Featured").replace(/_/g, " ")}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="absolute top-3 left-3 z-10">
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[14px] font-bold uppercase tracking-[0.16em] border backdrop-blur-md ${badge.cls}`}>
+              {badge.label}
+            </span>
+          </div>
+
+          <div className="absolute top-3 right-3 z-10">
+            <CardScorePill score={script.scriptScore?.overall || 0} />
+          </div>
+        </div>
+
+        <div className="flex flex-col flex-1 px-4 py-4">
+          <div className="flex items-center gap-2 mb-3 min-w-0">
+            <div className={`w-6 h-6 rounded-full overflow-hidden shrink-0 border ${dark ? "border-white/10 bg-white/[0.05]" : "border-gray-200 bg-gray-50"}`}>
+              {script.creator?.profileImage
+                ? <img src={resolveImg(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
+                : <span className={`w-full h-full flex items-center justify-center text-[13px] font-bold ${dark ? "text-white/80" : "text-gray-600"}`}>{script.creator?.name?.charAt(0)?.toUpperCase() || "U"}</span>
+              }
+            </div>
+            <span className={`text-[15px] font-semibold truncate ${dark ? "text-gray-400" : "text-gray-500"}`}>{script.creator?.name || "Unknown Creator"}</span>
+          </div>
+
+          <h3 className={`text-[22px] font-extrabold leading-tight mb-2 line-clamp-2 ${dark ? "text-gray-100" : "text-gray-900"}`}>
+            {script.title}
+          </h3>
+
+          <p className={`text-[16px] leading-relaxed line-clamp-2 mb-4 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+            {script.logline || script.description || "Discover this featured project and explore the full story details."}
+          </p>
+
+          <CardMetaFooter script={script} dark={dark} />
+        </div>
+      </Link>
+    </motion.div>
+  );
+};
+
+/* ── Hero Card (rank 1–3) ─────────────────────────────── */
+const HeroCard = ({ script, rank, dark }) => (
+  <ShowcaseCard script={script} rank={rank} dark={dark} delay={(rank - 1) * 0.1} />
+);
+
+/* ── Regular Card (rank 4+) ───────────────────────────── */
+const RegularCard = ({ script, rank, dark }) => (
+  <ShowcaseCard script={script} rank={rank} dark={dark} delay={Math.min((rank - 1) * 0.04, 0.6)} />
+);
+
 /* ══════════════════════════════════════════════════════
-   MAIN COMPONENT — Top List
+   MAIN COMPONENT
 ══════════════════════════════════════════════════════ */
 const TopList = () => {
   const { isDarkMode: dark } = useDarkMode();
@@ -265,10 +424,7 @@ const TopList = () => {
   ].filter(Boolean).length;
 
   const clearAllFilters = () => {
-    setSelectedGenre("");
-    setSelectedContentType("");
-    setSelectedBudget("");
-    setSelectedPremium("all");
+    setSelectedGenre(""); setSelectedContentType(""); setSelectedBudget(""); setSelectedPremium("all");
   };
 
   useEffect(() => {
@@ -314,11 +470,11 @@ const TopList = () => {
   ];
 
   const getMetric = (script) => {
-    if (sortBy === "platform")   { const v = Math.round(script.platformScore || 0);  return { value: v, pct: Math.min(v, 100) }; }
-    if (sortBy === "score")      { const v = script.scriptScore?.overall || 0;        return { value: v, pct: Math.min(v, 100) }; }
-    if (sortBy === "engagement") { const v = Math.round(script.engagementScore || 0); return { value: v, pct: Math.min(v, 100) }; }
+    if (sortBy === "platform")   { const v = Math.round(script.platformScore || 0);   return { value: v, raw: v }; }
+    if (sortBy === "score")      { const v = script.scriptScore?.overall || 0;          return { value: v, raw: v }; }
+    if (sortBy === "engagement") { const v = Math.round(script.engagementScore || 0);  return { value: v, raw: v }; }
     const v = script.views || 0;
-    return { value: v.toLocaleString(), pct: Math.min((v / 1000) * 100, 100) };
+    return { value: fmtNum(v), raw: v };
   };
 
   const resolveImg = (url) => {
@@ -327,21 +483,20 @@ const TopList = () => {
     return `http://localhost:5002${url}`;
   };
 
-  const numericMetrics = scripts.map(s => {
-    const v = getMetric(s).value;
-    return typeof v === "string" ? Number(v.replaceAll(",", "")) || 0 : Number(v) || 0;
-  });
-  const topScore  = numericMetrics.length ? Math.max(...numericMetrics) : 0;
-  const maxForBar = topScore || 1;
+  const activeTab = SORT_TABS.find(t => t.key === sortBy) || SORT_TABS[0];
+  const top3  = scripts.slice(0, 3);
+  const rest  = scripts.slice(3);
+  const totalViews = scripts.reduce((acc, s) => acc + (s.views || 0), 0);
+  const avgScore   = scripts.length
+    ? (scripts.reduce((acc, s) => acc + (s.scriptScore?.overall || 0), 0) / scripts.length).toFixed(1)
+    : 0;
 
-  const activeTab = SORT_TABS.find((tab) => tab.key === sortBy) || SORT_TABS[0];
-
-  /* ── Loading ── */
+  /* ── Loading skeleton ── */
   if (loading && scripts.length === 0) return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6">
-        <div className={`h-8 w-40 rounded-xl animate-pulse mb-2 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
-        <div className={`h-4 w-64 rounded-lg animate-pulse ${dark ? "bg-[#1a2e47]" : "bg-gray-50"}`} />
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className={`h-36 rounded-2xl animate-pulse ${dark ? "bg-[#0d1926]" : "bg-gray-100"}`} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {[0,1,2].map(i => <SkeletonCard key={i} dark={dark} tall />)}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} dark={dark} />)}
@@ -350,21 +505,24 @@ const TopList = () => {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* ═══════ HEADER ═══════ */}
+      {/* ══ HEADER ══════════════════════════════════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease }}
-        className={`rounded-2xl border p-6 relative overflow-hidden ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-200/70 shadow-sm"}`}
+        className={`rounded-2xl border p-6 relative overflow-hidden ${
+          dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-200/70 shadow-sm"
+        }`}
       >
-        <div className={`absolute inset-0 pointer-events-none ${dark
-          ? "bg-gradient-to-br from-[#1e3a5f]/10 via-transparent to-transparent"
-          : "bg-gradient-to-br from-[#1e3a5f]/[0.03] via-transparent to-transparent"
+        {/* background glow */}
+        <div className={`absolute inset-0 pointer-events-none bg-gradient-to-br ${
+          dark ? "from-[#1e3a5f]/12 via-transparent to-transparent" : "from-[#1e3a5f]/[0.03] via-transparent to-transparent"
         }`} />
 
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+          {/* Title */}
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#111111] to-[#3a7bd5]" />
@@ -422,8 +580,9 @@ const TopList = () => {
 
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Sort tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-              {SORT_TABS.map((tab) => (
+              {SORT_TABS.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
@@ -431,7 +590,7 @@ const TopList = () => {
                     sortBy === tab.key ? t.sortActive : t.sortIdle
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
                   </svg>
                   {tab.label}
@@ -439,6 +598,7 @@ const TopList = () => {
               ))}
             </div>
 
+            {/* Filter button */}
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[15px] font-semibold transition-all duration-200 border ${
@@ -448,12 +608,13 @@ const TopList = () => {
               <FilterIcon />
               Filters
               {activeFilterCount > 0 && (
-                <span className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] font-bold">{activeFilterCount}</span>
+                <span className="px-1.5 py-0.5 bg-white/20 rounded-md text-[14px] font-bold">{activeFilterCount}</span>
               )}
               <ChevronDown open={filtersOpen} />
             </button>
           </div>
 
+          {/* Active filter chips */}
           {activeFilterCount > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
               {selectedGenre && (
@@ -480,13 +641,12 @@ const TopList = () => {
                   <button onClick={() => setSelectedPremium("all")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
                 </span>
               )}
-              <button onClick={clearAllFilters} className={`text-[11px] font-semibold px-2 py-1 transition-colors ${dark ? "text-white/25 hover:text-red-400" : "text-gray-400 hover:text-red-500"}`}>
-                Clear all
-              </button>
+              <button onClick={clearAllFilters} className={`text-[15px] font-semibold px-2 py-1 transition-colors ${dark ? "text-white/25 hover:text-red-400" : "text-gray-400 hover:text-red-500"}`}>Clear all</button>
             </div>
           )}
         </div>
 
+        {/* Filter panel */}
         <AnimatePresence>
           {filtersOpen && (
             <motion.div
@@ -496,17 +656,17 @@ const TopList = () => {
               transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 mb-3 ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100 shadow-sm"}`}>
+              <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 mb-4 ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100 shadow-sm"}`}>
                 <FilterSection label="Genre" dark={dark}>
                   <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")} dark={dark}>All Genres</Pill>
                   {GENRES.map(g => <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)} dark={dark}>{g}</Pill>)}
                 </FilterSection>
-                <div className={`border-t ${t.divider}`} />
+                <div className={`border-t ${dark ? "border-[#1a2e47]" : "border-gray-100"}`} />
                 <FilterSection label="Content Type" dark={dark}>
                   <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")} dark={dark}>All Types</Pill>
                   {CONTENT_TYPES.map(ct => <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)} dark={dark}>{ct.label}</Pill>)}
                 </FilterSection>
-                <div className={`border-t ${t.divider}`} />
+                <div className={`border-t ${dark ? "border-[#1a2e47]" : "border-gray-100"}`} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <FilterSection label="Budget" dark={dark}>
                     <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")} dark={dark}>Any</Pill>
@@ -529,15 +689,15 @@ const TopList = () => {
         </AnimatePresence>
       </motion.div>
 
-      {/* ═══════ CONTENT ═══════ */}
+      {/* ══ CONTENT ════════════════════════════════════════════ */}
       {scripts.length === 0 && !loading ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={`rounded-2xl border py-24 text-center ${t.emptyCard}`}
+          className={`rounded-2xl border py-24 text-center ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100"}`}
         >
           <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dark ? "bg-[#162236]" : "bg-gray-50"}`}>
-            <svg className={`w-7 h-7 ${t.iconMuted}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <svg className={`w-7 h-7 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>

@@ -1323,7 +1323,7 @@ const WriterOnboarding = () => {
                         ? 'bg-[#0f2544] border-[#0f2544] text-white' 
                         : 'bg-white border-gray-300 text-gray-400'
                   }`}>
-                    {isComplete ? '✓' : step.num}
+                    {isComplete ? '' : step.num}
                   </div>
                   <div className="ml-2 hidden sm:block">
                     <div className={`text-xs font-semibold ${

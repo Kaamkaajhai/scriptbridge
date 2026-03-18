@@ -159,8 +159,8 @@ export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select("-password")
-      .populate("followers", "name profileImage")
-      .populate("following", "name profileImage");
+      .populate("followers", "name profileImage role")
+      .populate("following", "name profileImage role");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });

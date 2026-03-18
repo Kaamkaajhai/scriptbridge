@@ -293,7 +293,7 @@ const Mandates = () => {
 
         <div className={`mt-6 border rounded-lg p-4 ${dark ? 'bg-white/[0.03] border-[#182840]' : 'bg-gray-50 border-gray-200'}`}>
           <p className={`text-sm ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
-            <strong>💡 How it works:</strong> Based on these mandates, our AI will automatically recommend scripts that match your criteria. 
+            <strong> How it works:</strong> Based on these mandates, our AI will automatically recommend scripts that match your criteria. 
             You'll receive notifications when new matching scripts are uploaded.
           </p>
         </div>

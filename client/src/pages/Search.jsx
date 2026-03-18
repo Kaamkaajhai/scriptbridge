@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 
-/* ── Filter Constants ───────────────────────────────── */
+/*  Filter Constants  */
 const GENRES = [
   "Thriller", "Drama", "Comedy", "Sci-Fi", "Horror", "Romance",
   "Action", "Mystery", "Fantasy", "Animation", "Crime", "Adventure",
@@ -43,15 +43,15 @@ const RATING_OPTIONS = [
 ];
 
 const SORT_OPTIONS = [
-  { key: "", label: "Relevance", icon: "🔍" },
-  { key: "engagement", label: "Trending", icon: "🔥" },
-  { key: "views", label: "Most Viewed", icon: "👁" },
-  { key: "score", label: "Top Rated", icon: "⭐" },
-  { key: "price_high", label: "Highest Paid", icon: "💰" },
-  { key: "price_low", label: "Price: Low→High", icon: "📈" },
+  { key: "", label: "Relevance", icon: "" },
+  { key: "engagement", label: "Trending", icon: "" },
+  { key: "views", label: "Most Viewed", icon: "" },
+  { key: "score", label: "Top Rated", icon: "" },
+  { key: "price_high", label: "Highest Paid", icon: "" },
+  { key: "price_low", label: "Price: Low→High", icon: "" },
 ];
 
-/* ── Icons ──────────────────────────────────────────── */
+/*  Icons  */
 const FilterIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
@@ -70,7 +70,7 @@ const XIcon = () => (
   </svg>
 );
 
-/* ── Theme Tokens ───────────────────────────────────── */
+/*  Theme Tokens  */
 const getTokens = (dark) => dark ? {
   // Page
   pageBg: "-m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 min-h-screen bg-[#0a1628]",
@@ -233,7 +233,7 @@ const getTokens = (dark) => dark ? {
   trendingScriptStat: "text-gray-400",
 };
 
-/* ── Reusable Components ────────────────────────────── */
+/*  Reusable Components  */
 const Pill = ({ active, onClick, children, t }) => {
   const base = "px-3.5 py-[7px] rounded-xl text-[12px] font-semibold transition-all duration-200 whitespace-nowrap border cursor-pointer select-none";
   const styles = active ? t.pillActive : t.pillIdle;
@@ -249,7 +249,7 @@ const FilterSection = ({ label, children, t }) => (
 
 const budgetLabel = { micro: "Micro", low: "Low", medium: "Medium", high: "High", blockbuster: "Blockbuster" };
 
-/* ── Main Component ─────────────────────────────────── */
+/*  Main Component  */
 const Search = () => {
   const { isDarkMode: dark } = useDarkMode();
   const t = getTokens(dark);
@@ -444,7 +444,7 @@ const Search = () => {
     <div className={t.pageBg}>
     <div className="max-w-5xl mx-auto">
 
-      {/* ── Header + Search ── */}
+      {/*  Header + Search  */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -455,9 +455,9 @@ const Search = () => {
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className={`w-1 h-6 rounded-full bg-gradient-to-b ${t.accentBar}`} />
-              <h1 className={`text-2xl font-extrabold tracking-tight ${t.title}`}>Search</h1>
+              <h1 className={`reader-typo-page-title font-extrabold tracking-tight ${t.title}`}>Search</h1>
             </div>
-            <p className={`text-[13px] font-medium ml-[18px] ${t.subtitle}`}>
+            <p className={`reader-typo-helper font-medium ml-[18px] ${t.subtitle}`}>
               Discover talent & projects across the platform
             </p>
           </div>
@@ -582,7 +582,7 @@ const Search = () => {
         </div>
       </motion.div>
 
-      {/* ── Category tabs + Filter toggle ── */}
+      {/*  Category tabs + Filter toggle  */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -597,7 +597,7 @@ const Search = () => {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-250 whitespace-nowrap ${activeTab === tab.key
+                  className={`relative px-5 py-2 rounded-full reader-typo-tab font-semibold transition-all duration-250 whitespace-nowrap ${activeTab === tab.key
                     ? t.tabActive
                     : t.tabIdle
                     }`}
@@ -611,7 +611,7 @@ const Search = () => {
             {showProjectFilters && (
               <button
                 onClick={() => setFiltersOpen(!filtersOpen)}
-                className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${filtersOpen || activeFilterCount > 0
+                className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl reader-typo-button font-semibold transition-all duration-200 border ${filtersOpen || activeFilterCount > 0
                   ? t.filterBtnActive
                   : t.filterBtnIdle
                   }`}
@@ -674,7 +674,7 @@ const Search = () => {
           )}
         </div>
 
-        {/* ── Collapsible filter panel ── */}
+        {/*  Collapsible filter panel  */}
         <AnimatePresence>
           {showProjectFilters && filtersOpen && (
             <motion.div
@@ -755,7 +755,7 @@ const Search = () => {
         </AnimatePresence>
       </motion.div>
 
-      {/* ── States ── */}
+      {/*  States  */}
 
       {/* Loading */}
       <AnimatePresence mode="wait">
@@ -857,7 +857,7 @@ const Search = () => {
         </motion.div>
       )}
 
-      {/* ── Results ── */}
+      {/*  Results  */}
       {!loading && searched && totalResults > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -869,7 +869,7 @@ const Search = () => {
             {totalResults} result{totalResults !== 1 ? "s" : ""}
           </p>
 
-          {/* ── People ── */}
+          {/*  People  */}
           {results.users?.length > 0 && (
             <section className="mb-10">
               {activeTab === "all" && (
@@ -952,7 +952,7 @@ const Search = () => {
             </section>
           )}
 
-          {/* ── Projects ── */}
+          {/*  Projects  */}
           {results.scripts?.length > 0 && (
             <section>
               {activeTab === "all" && (

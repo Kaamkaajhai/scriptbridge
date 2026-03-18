@@ -701,7 +701,7 @@ const ScriptUpload = () => {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 sm:p-10 max-w-sm text-center">
-          <div className="text-5xl mb-4">🚫</div>
+          <div className="text-5xl mb-4"></div>
           <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
           <p className="text-sm text-neutral-400">Only creators can upload scripts. Switch to a creator account.</p>
         </div>
@@ -764,7 +764,7 @@ const ScriptUpload = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <AnimatePresence mode="wait">
-              {/* ── Step 1: Project Essentials ── */}
+              {/*  Step 1: Project Essentials  */}
               {step === 1 && (
                 <motion.div
                   key="step1"
@@ -824,7 +824,7 @@ const ScriptUpload = () => {
                       />
                       {formData.format === "feature" && Number(formData.pageCount) > 0 && Number(formData.pageCount) < 70 && (
                         <p className="text-xs text-amber-600 mt-1">
-                          ⚠️ Feature films typically require at least 70 pages
+                           Feature films typically require at least 70 pages
                         </p>
                       )}
                     </div>
@@ -908,7 +908,7 @@ const ScriptUpload = () => {
                 </motion.div>
               )}
 
-              {/* ── Step 2: Deep Classification ── */}
+              {/*  Step 2: Deep Classification  */}
               {step === 2 && (
                 <motion.div
                   key="step2"
@@ -997,7 +997,7 @@ const ScriptUpload = () => {
                 </motion.div>
               )}
 
-              {/* ── Step 3: File Upload ── */}
+              {/*  Step 3: File Upload  */}
               {step === 3 && (
                 <motion.div
                   key="step3"
@@ -1018,7 +1018,7 @@ const ScriptUpload = () => {
                           disabled={loading}
                           className="text-xs font-bold text-white bg-blue-500/10 px-3 py-1.5 rounded-lg hover:bg-white/[0.08] transition disabled:opacity-50"
                         >
-                          {loading ? "Saving..." : "💾 Save Draft"}
+                          {loading ? "Saving..." : " Save Draft"}
                         </button>
                       )}
                     </div>
@@ -1047,7 +1047,7 @@ const ScriptUpload = () => {
                         onClick={() => !isExtracting && fileInputRef.current?.click()}
                         className={`border-2 border-dashed rounded-xl p-8 text-center transition ${isExtracting ? 'border-blue-500/20 bg-blue-500/10 cursor-wait' : 'border-white/[0.12] cursor-pointer hover:border-white'}`}
                       >
-                        <div className="text-3xl mb-2">{isExtracting ? "⏳" : "📄"}</div>
+                        <div className="text-3xl mb-2">{isExtracting ? "" : ""}</div>
                         <p className={`text-sm font-medium ${labelCls} mb-1`}>
                           {isExtracting ? "Extracting text from PDF..." : "Drag & drop your PDF here to auto-fill editor"}
                         </p>
@@ -1064,7 +1064,7 @@ const ScriptUpload = () => {
                     ) : (
                       <div className="border border-green-500/20 rounded-xl p-3 bg-green-500/10 mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="text-2xl">✅</div>
+                          <div className="text-2xl"></div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-green-400">
                               {uploadedFile.name} (Text Extracted)
@@ -1102,7 +1102,7 @@ const ScriptUpload = () => {
                       </div>
                     )}
 
-                    {/* ── AI Writing Assistant + Script Editor ── */}
+                    {/*  AI Writing Assistant + Script Editor  */}
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-2">
                         <label className="block text-sm text-neutral-300 font-medium">
@@ -1128,14 +1128,14 @@ const ScriptUpload = () => {
                             : "Start writing or upload a PDF above"}
                         </p>
                         <p className="text-[10px] text-purple-400/60">
-                          🤖 Use AI Assistant to improve, polish & professionalize your script
+                           Use AI Assistant to improve, polish & professionalize your script
                         </p>
                       </div>
                     </div>
 
                   </div>
 
-                  {/* ── Thumbnail Upload ── */}
+                  {/*  Thumbnail Upload  */}
                   <div>
                     <label className={`block text-sm ${labelCls} font-medium mb-2`}>
                       Script Thumbnail (Optional)
@@ -1149,7 +1149,7 @@ const ScriptUpload = () => {
                         onClick={() => thumbnailInputRef.current?.click()}
                         className="border-2 border-dashed border-white/[0.12] rounded-xl p-6 text-center cursor-pointer hover:border-white transition"
                       >
-                        <div className="text-3xl mb-2">🖼️</div>
+                        <div className="text-3xl mb-2"></div>
                         <p className={`text-sm font-medium ${labelCls} mb-1`}>
                           Upload Thumbnail Image
                         </p>
@@ -1190,7 +1190,7 @@ const ScriptUpload = () => {
                     )}
                   </div>
 
-                  {/* ── Trailer Upload or AI Generation ── */}
+                  {/*  Trailer Upload or AI Generation  */}
                   <div>
                     <label className={`block text-sm ${labelCls} font-medium mb-2`}>
                       Trailer (Optional)
@@ -1222,7 +1222,7 @@ const ScriptUpload = () => {
                             : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                       >
-                        <div className="text-2xl mb-1">🚫</div>
+                        <div className="text-2xl mb-1"></div>
                         No Trailer
                       </button>
                       
@@ -1235,7 +1235,7 @@ const ScriptUpload = () => {
                             : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                       >
-                        <div className="text-2xl mb-1">📤</div>
+                        <div className="text-2xl mb-1"></div>
                         Upload (FREE)
                       </button>
                       
@@ -1251,7 +1251,7 @@ const ScriptUpload = () => {
                             : isDarkMode ? "bg-white/[0.08] text-neutral-300 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                       >
-                        <div className="text-2xl mb-1">🤖</div>
+                        <div className="text-2xl mb-1"></div>
                         AI Generate
                         <span className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                           {SERVICE_PRICES.aiTrailer} credits
@@ -1265,7 +1265,7 @@ const ScriptUpload = () => {
                         onClick={() => trailerInputRef.current?.click()}
                         className="border-2 border-dashed border-white/[0.12] rounded-xl p-6 text-center cursor-pointer hover:border-white transition"
                       >
-                        <div className="text-3xl mb-2">🎬</div>
+                        <div className="text-3xl mb-2"></div>
                         <p className={`text-sm font-medium ${labelCls} mb-1`}>
                           Click to Upload Your Trailer Video
                         </p>
@@ -1276,7 +1276,7 @@ const ScriptUpload = () => {
                     {trailerFile && trailerOption === "upload" && (
                       <div className="border border-green-500/20 rounded-xl p-3 bg-green-500/10">
                         <div className="flex items-center gap-3">
-                          <div className="text-3xl">✅</div>
+                          <div className="text-3xl"></div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-green-400">
                               {trailerFile.name}
@@ -1302,7 +1302,7 @@ const ScriptUpload = () => {
                     {trailerOption === "ai" && (
                       <div className="border border-blue-500/20 rounded-xl p-4 bg-blue-500/10">
                         <div className="flex items-center gap-3">
-                          <div className="text-3xl">🤖</div>
+                          <div className="text-3xl"></div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-blue-400">
                               AI Trailer Generation Selected
@@ -1335,7 +1335,7 @@ const ScriptUpload = () => {
                 </motion.div>
               )}
 
-              {/* ── Step 4: Services & Strategy ── */}
+              {/*  Step 4: Services & Strategy  */}
               {step === 4 && (
                 <motion.div
                   key="step4"
@@ -1348,7 +1348,7 @@ const ScriptUpload = () => {
                     Set your script's price and select optional services.
                   </p>
 
-                  {/* ── Pricing Panel ── */}
+                  {/*  Pricing Panel  */}
                   <div className="border border-white/[0.08] bg-white/[0.03] rounded-2xl p-5 space-y-5">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center">
@@ -1489,7 +1489,7 @@ const ScriptUpload = () => {
                         setError("Hosting is required for your script to be searchable.");
                       }}
                     >
-                      <div className="text-3xl mb-3">☁️</div>
+                      <div className="text-3xl mb-3"></div>
                       <h3 className="font-semibold text-white mb-1">Hosting</h3>
                       <p className="text-2xl font-bold text-green-400 mb-2">
                         FREE
@@ -1518,7 +1518,7 @@ const ScriptUpload = () => {
                         setServices({ ...services, evaluation: !services.evaluation })
                       }
                     >
-                      <div className="text-3xl mb-3">⭐</div>
+                      <div className="text-3xl mb-3"></div>
                       <h3 className="font-semibold text-white mb-1">
                         Professional Evaluation
                       </h3>
@@ -1546,9 +1546,9 @@ const ScriptUpload = () => {
                   <div className="bg-white/[0.04] rounded-xl p-4 mt-4 border border-white/[0.08]">
                     <div className="flex items-center gap-3">
                       <div className="text-3xl">
-                        {trailerOption === "none" && "🚫"}
-                        {trailerOption === "upload" && "📤"}
-                        {trailerOption === "ai" && "🤖"}
+                        {trailerOption === "none" && ""}
+                        {trailerOption === "upload" && ""}
+                        {trailerOption === "ai" && ""}
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-white mb-1">Trailer Option</h3>
@@ -1627,7 +1627,7 @@ const ScriptUpload = () => {
                 </motion.div>
               )}
 
-              {/* ── Step 5: Legal & Checkout ── */}
+              {/*  Step 5: Legal & Checkout  */}
               {step === 5 && (
                 <motion.div
                   key="step5"
@@ -1737,7 +1737,7 @@ const ScriptUpload = () => {
                       disabled={loading || !legal.agreedToTerms}
                       className="flex-1 px-6 py-3 bg-white text-black rounded-xl text-sm font-semibold hover:bg-neutral-200 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl shadow-black/30"
                     >
-                      {loading ? "Processing..." : "✨ Use Credits & Publish"}
+                      {loading ? "Processing..." : " Use Credits & Publish"}
                     </button>
                   </div>
                 </motion.div>

@@ -1,9 +1,64 @@
+import { BookOpenText, Clock3, Eye, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useDarkMode } from "../context/DarkModeContext";
 import useIntersectionObserver from "../utils/useIntersectionObserver";
 
-const ProjectCard = ({ project, userName }) => {
+const resolveImage = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("data:")) return url;
+  return `http://localhost:5001${url}`;
+};
+
+const formatMetric = (value) => {
+  if (value === null || value === undefined || value === "") return "0";
+  if (typeof value === "string") return value;
+
+  const number = Number(value);
+  if (Number.isNaN(number)) return String(value);
+  if (number >= 1000000) return `${(number / 1000000).toFixed(1)}M`;
+  if (number >= 1000) return `${(number / 1000).toFixed(1)}k`;
+  return String(number);
+};
+
+const getReadTime = (value, project) => {
+  if (value) return value;
+  const pageCount = Number(project?.pageCount || project?.pages || 0);
+  if (pageCount > 0) return `${Math.max(3, Math.ceil(pageCount / 2))} min read`;
+  return "6 min read";
+};
+
+const getLikes = (value, project) => {
+  if (value !== undefined && value !== null) return value;
+  if (typeof project?.likesCount === "number") return project.likesCount;
+  if (Array.isArray(project?.likes)) return project.likes.length;
+  return 0;
+};
+
+const statusConfig = {
+  pending_approval: {
+    label: "Pending Approval",
+    className: "border-amber-400/25 bg-amber-500/15 text-amber-100",
+  },
+  rejected: {
+    label: "Not Approved",
+    className: "border-rose-400/25 bg-rose-500/15 text-rose-100",
+  },
+  published: null,
+};
+
+const ProjectCard = ({
+  project,
+  userName,
+  title,
+  description,
+  genre,
+  readTime,
+  views,
+  likes,
+  coverImage,
+  className = "",
+}) => {
   const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
 
@@ -50,11 +105,35 @@ const ProjectCard = ({ project, userName }) => {
           : "bg-white border-gray-100 shadow-sm"
       }`}
     >
-      {/* Status badge */}
-      {statusInfo && (
-        <div className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${statusInfo.className}`}>
-          {statusInfo.icon}
-          {statusInfo.label}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.16),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.14),_transparent_34%)]" />
+
+      <div className="relative h-64 overflow-hidden">
+        {projectCoverImage ? (
+          <img
+            src={projectCoverImage}
+            alt={projectTitle}
+            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#0f172a_0%,#111827_38%,#1d4ed8_100%)]">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/10 backdrop-blur-md">
+              <BookOpenText className="h-9 w-9 text-white/70" />
+            </div>
+          </div>
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050816] via-[#050816]/45 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/40 to-transparent" />
+
+        <div className="absolute left-4 top-4 flex items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">
+            {projectGenre}
+          </span>
+          {statusInfo && (
+            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${statusInfo.className}`}>
+              {statusInfo.label}
+            </span>
+          )}
         </div>
       )}
       {/* Rejection reason tooltip */}
@@ -123,6 +202,32 @@ const ProjectCard = ({ project, userName }) => {
             {isPremium ? "Premium" : "Evaluations"}
           </span>
         </div>
+
+        <div className="space-y-2.5">
+          <h3 className="text-2xl font-bold leading-tight tracking-tight text-white transition-colors duration-300 group-hover:text-sky-200">
+            {projectTitle}
+          </h3>
+          <p className="line-clamp-3 text-sm leading-6 text-white/72">
+            {projectDescription}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-white/10 pt-4 text-sm text-white/70">
+          <span className="inline-flex items-center gap-2">
+            <Eye className="h-4 w-4 text-sky-300" />
+            {formatMetric(projectViews)} views
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <Heart className="h-4 w-4 text-rose-300" />
+            {formatMetric(projectLikes)} likes
+          </span>
+        </div>
+
+        {project?.status === "rejected" && project?.rejectionReason && (
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-100/90">
+            {project.rejectionReason}
+          </div>
+        )}
       </div>
     </motion.div>
     </div>

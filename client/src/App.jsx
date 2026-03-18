@@ -23,6 +23,7 @@ const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
+const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Writers = lazy(() => import("./pages/Writers"));
 const InvestorHome = lazy(() => import("./pages/InvestorHome"));
@@ -99,7 +100,13 @@ function App() {
               />
               <Route
                 path="/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <FeaturedProjects />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route
                 path="/trending"
@@ -307,7 +314,13 @@ function App() {
               />
               <Route
                 path="/reader/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <FeaturedProjects />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route
                 path="/admin"

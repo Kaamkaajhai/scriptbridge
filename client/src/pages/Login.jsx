@@ -20,11 +20,12 @@ const Login = () => {
     e.preventDefault();
     setError("");
     try {
-      const userData = await login(email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const userData = await login(normalizedEmail, password);
       
       // Check if OTP verification is required
       if (userData?.requiresVerification) {
-        setUserEmail(email);
+        setUserEmail(normalizedEmail);
         setShowOTPVerification(true);
         return;
       }
@@ -48,7 +49,12 @@ const Login = () => {
         setRejectedMessage(data.message || "Your investor account has been rejected. Please contact support.");
         return;
       }
-      setError(data?.message || "Login failed");
+      setError(
+        data?.message
+          || (err.code === "ERR_NETWORK"
+            ? "Unable to connect to server. Please make sure backend is running on http://localhost:5001"
+            : "Login failed")
+      );
     }
   };
 

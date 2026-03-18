@@ -14,7 +14,7 @@ import ReviewCard from "../components/ReviewCard";
 import { StreakWidget, BadgeShelf, useBadges } from "../components/AchievementSystem";
 import { useStreak } from "../context/StreakContext";
 
-/* ── Edit Profile Modal ─────────────────────────────── */
+/*  Edit Profile Modal  */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const { isDarkMode: dark } = useDarkMode();
   const { setUser, user } = useContext(AuthContext);
@@ -581,6 +581,21 @@ const ReaderProfile = () => {
     setProfile((prev) => ({ ...prev, ...updatedData }));
   };
 
+  const handlePreferencesSaved = async (genres, contentTypes) => {
+    try {
+      const { data } = await api.put("/users/update", { preferences: { genres, contentTypes } });
+      setProfile((prev) => ({ ...prev, ...data, preferences: { genres, contentTypes } }));
+
+      if (isOwnProfile) {
+        const updatedUser = { ...user, ...data, preferences: { genres, contentTypes } };
+        setUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+    } finally {
+      setShowPreferencesModal(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="w-10 h-10 border-2 border-gray-700 border-t-violet-500 rounded-full animate-spin" />
@@ -621,7 +636,7 @@ const ReaderProfile = () => {
     { key: "reviews",  label: "Reviews",         icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];
 
-  /* ── Derived helpers ── */
+  /*  Derived helpers  */
   const daysActive = profile.createdAt
     ? Math.max(1, Math.floor((Date.now() - new Date(profile.createdAt)) / 86_400_000))
     : 0;
@@ -629,30 +644,34 @@ const ReaderProfile = () => {
   const streakPct = Math.round((streak / 30) * 100);
   const today = new Date().getDay(); // 0=Sun
   const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const followingUsers = (profile.following || []).map(normalizeConnectionUser).filter(Boolean);
+  const followersUsers = (profile.followers || []).map(normalizeConnectionUser).filter(Boolean);
+  const activeConnections = connectionsTab === "following" ? followingUsers : followersUsers;
 
   const navTabs = [
     { key: "overview",  label: "Overview",  icon: LayoutDashboard },
     { key: "projects",  label: "Projects",  icon: FolderOpen },
+    { key: "connections", label: "Connections", icon: Users },
     { key: "about",     label: "About",     icon: Info },
     { key: "settings",  label: "Settings",  icon: Settings },
   ];
 
   const activityStats = [
-    { label: "Scripts Read", value: profile.scriptsRead?.length || 0,   icon: BookOpen,  color: "blue" },
-    { label: "Followers",    value: profile.followers?.length || 0,      icon: Users,     color: "violet" },
-    { label: "Following",    value: profile.following?.length || 0,      icon: UserPlus,  color: "emerald" },
-    { label: "Days Active",  value: daysActive,                          icon: TrendingUp, color: "amber" },
+    { label: "Scripts Read", value: profile.scriptsRead?.length || 0,    icon: BookOpen,      color: "blue" },
+    { label: "Favorites",    value: profile.favoriteScripts?.length || 0, icon: Heart,         color: "rose" },
+    { label: "Reviews",      value: profile.reviewsCount || 0,            icon: MessageSquare, color: "amber" },
+    { label: "Days Active",  value: daysActive,                           icon: TrendingUp,    color: "blue" },
   ];
 
   const colorMap = {
-    blue:    dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20"      : "bg-blue-50 text-blue-600 border-blue-100",
-    violet:  dark ? "bg-violet-500/10 text-violet-400 border-violet-500/20": "bg-violet-50 text-violet-600 border-violet-100",
-    emerald: dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20": "bg-emerald-50 text-emerald-600 border-emerald-100",
-    amber:   dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20"   : "bg-amber-50 text-amber-600 border-amber-100",
-    rose:    dark ? "bg-rose-500/10 text-rose-400 border-rose-500/20"      : "bg-rose-50 text-rose-500 border-rose-100",
+    blue:    dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20"        : "bg-blue-50 text-blue-600 border-blue-100",
+    amber:   dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20"     : "bg-amber-50 text-amber-600 border-amber-100",
+    rose:    dark ? "bg-rose-500/10 text-rose-400 border-rose-500/20"        : "bg-rose-50 text-rose-500 border-rose-100",
+    violet:  dark ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-violet-50 text-violet-600 border-violet-100",
+    cyan:    dark ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"       : "bg-cyan-50 text-cyan-600 border-cyan-100",
   };
 
-  /* ── card wrapper shorthand ── */
+  /*  card wrapper shorthand  */
   const card = `rounded-2xl border ${
     dark ? "bg-[#0b1929] border-[#16263d] shadow-[0_2px_12px_rgba(0,0,0,0.35)]" : "bg-white border-gray-100/90 shadow-sm"
   }`;
@@ -1023,6 +1042,17 @@ const ReaderProfile = () => {
       <AnimatePresence>
         {editOpen && (
           <EditProfileModal profile={profile} onClose={() => setEditOpen(false)} onSaved={handleProfileSaved} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showPreferencesModal && (
+          <PreferencesModal
+            dark={dark}
+            initialGenres={profile.preferences?.genres || []}
+            initialTypes={profile.preferences?.contentTypes || []}
+            onSave={handlePreferencesSaved}
+            onClose={() => setShowPreferencesModal(false)}
+          />
         )}
       </AnimatePresence>
     </div>

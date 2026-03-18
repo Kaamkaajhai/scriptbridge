@@ -35,7 +35,7 @@ const ScriptDetail = () => {
   const [rejectNoteModal, setRejectNoteModal] = useState(null); // { id, investorName }
   const [rejectNoteText, setRejectNoteText] = useState("");
 
-  /* ── Handlers ─────────────────────────────────────────── */
+  /*  Handlers  */
 
   const handleDeleteScript = async () => {
     try {
@@ -227,7 +227,7 @@ const ScriptDetail = () => {
     try {
       await api.post("/ai/generate-trailer", { scriptId: script._id });
       await fetchScript();
-      alert("✅ Trailer request received! Your AI trailer will be ready in approximately 2 business days. We\'ll notify you once it\'s live.");
+      alert(" Trailer request received! Your AI trailer will be ready in approximately 2 business days. We\'ll notify you once it\'s live.");
     } catch (err) {
       alert(err.response?.data?.message || "Failed to generate trailer");
     } finally {
@@ -314,7 +314,7 @@ const ScriptDetail = () => {
     }
   };
 
-  /* ── Formatters ───────────────────────────────────────── */
+  /*  Formatters  */
 
   const formatDate = (d) =>
     d
@@ -364,7 +364,7 @@ const ScriptDetail = () => {
   const scoreBg = (v = 0) =>
     v >= 80 ? "bg-emerald-500" : v >= 60 ? "bg-amber-500" : "bg-rose-500";
 
-  /* ── Theme helpers ─────────────────────────────────────── */
+  /*  Theme helpers  */
   const t = {
     page: isDarkMode ? "bg-[#070e1a]" : "bg-gray-50",
     card: isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200",
@@ -403,7 +403,7 @@ const ScriptDetail = () => {
     dot: isDarkMode ? "bg-[#2a4060]" : "bg-gray-300",
   };
 
-  /* ── Loading / Error ──────────────────────────────────── */
+  /*  Loading / Error  */
 
   if (loading)
     return (
@@ -425,7 +425,7 @@ const ScriptDetail = () => {
       </div>
     );
 
-  /* ── Computed values ──────────────────────────────────── */
+  /*  Computed values  */
 
   const score = script.scriptScore || {};
   const isOwner = script.creator?._id === user?._id;
@@ -450,9 +450,9 @@ const ScriptDetail = () => {
     { label: "Reviews", value: script.reviewCount || 0, g: isDarkMode ? "from-emerald-500/10 to-emerald-500/5" : "from-emerald-50 to-white", c: "text-emerald-600", b: isDarkMode ? "border-white/[0.06]" : "border-emerald-100" },
   ];
 
-  /* ══════════════════════════════════════════════════════════
+  /* 
      RENDER
-  ══════════════════════════════════════════════════════════ */
+   */
 
   return (
     <div className={`min-h-screen ${t.page}`}>
@@ -462,7 +462,7 @@ const ScriptDetail = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
         >
-          {/* ── Back ──────────────────────────────────────── */}
+          {/*  Back  */}
           <button
             onClick={() => navigate(-1)}
             className={`inline-flex items-center gap-1.5 text-sm mb-5 transition font-medium group ${t.muted} hover:${isDarkMode ? "text-white" : "text-gray-800"}`}
@@ -473,7 +473,7 @@ const ScriptDetail = () => {
             Back
           </button>
 
-          {/* ══════════════  HERO CARD  ══════════════════════ */}
+          {/*   HERO CARD   */}
           <div className={`rounded-2xl border overflow-hidden mb-6 ${t.card}`}>
 
             {/* Cover / Trailer */}
@@ -550,7 +550,7 @@ const ScriptDetail = () => {
               </div>
             </div>
 
-            {/* ── Script Info Area ──────────────────────────── */}
+            {/*  Script Info Area  */}
             <div className="p-5 sm:p-7">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
 
@@ -643,7 +643,7 @@ const ScriptDetail = () => {
                   )}
                 </div>
 
-                {/* ── Right Sidebar ─────────────────────────── */}
+                {/*  Right Sidebar  */}
                 <div className="lg:w-64 space-y-3 flex-shrink-0">
 
                   {/* Price card */}
@@ -839,7 +839,7 @@ const ScriptDetail = () => {
             </div>
           </div>
 
-          {/* ══════════════  TABS BAR  ═════════════════════════ */}
+          {/*   TABS BAR   */}
           <div className={`flex gap-1 mb-6 rounded-xl p-1 overflow-x-auto border ${t.tabs}`}>
             {tabs.map((tab) => (
               <button
@@ -852,10 +852,10 @@ const ScriptDetail = () => {
             ))}
           </div>
 
-          {/* ══════════════  TAB CONTENT  ═════════════════════ */}
+          {/*   TAB CONTENT   */}
           <AnimatePresence mode="wait">
 
-            {/* ── Overview ─────────────────────────────────── */}
+            {/*  Overview  */}
             {activeTab === "overview" && (
               <motion.div key="overview" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
 
@@ -902,7 +902,7 @@ const ScriptDetail = () => {
               </motion.div>
             )}
 
-            {/* ── Classification ───────────────────────────── */}
+            {/*  Classification  */}
             {activeTab === "classification" && (
               <motion.div key="classification" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
                 {[
@@ -933,7 +933,7 @@ const ScriptDetail = () => {
               </motion.div>
             )}
 
-            {/* ── Evaluation ─────────────────────── */}
+            {/*  Evaluation  */}
             {activeTab === "evaluation" && (() => {
               const dk = isDarkMode;
 
@@ -977,7 +977,7 @@ const ScriptDetail = () => {
                 <motion.div key="evaluation" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
                   {score?.overall ? (
                     <>
-                      {/* ── 1. Score Hero ── */}
+                      {/*  1. Score Hero  */}
                       <div className={`rounded-2xl border overflow-hidden ${t.card}`}>
                         <div className="flex flex-col sm:flex-row items-center gap-0 divide-y sm:divide-y-0 sm:divide-x"
                           style={{ divideColor: dk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
@@ -1034,7 +1034,7 @@ const ScriptDetail = () => {
                         </div>
                       </div>
 
-                      {/* ── 2. Radar + Breakdown ── */}
+                      {/*  2. Radar + Breakdown  */}
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
                         {/* Radar */}
@@ -1132,7 +1132,7 @@ const ScriptDetail = () => {
                         </div>
                       </div>
 
-                      {/* ── 3. Platform Score (Admin) ── */}
+                      {/*  3. Platform Score (Admin)  */}
                       {script.platformScore?.overall > 0 && (() => {
                         const ps = script.platformScore;
                         const psDims = [
@@ -1203,7 +1203,7 @@ const ScriptDetail = () => {
                         );
                       })()}
 
-                      {/* ── 4. AI Analysis ── */}
+                      {/*  4. AI Analysis  */}
                       {score.feedback && (
                         <div className={`rounded-2xl border overflow-hidden ${t.card}`}>
                           {/* Header */}
@@ -1297,7 +1297,7 @@ const ScriptDetail = () => {
                         </div>
                       )}
 
-                      {/* ── 4. Platform Editorial Sections ── */}
+                      {/*  4. Platform Editorial Sections  */}
                       {(() => {
                         const ps = script.platformScore || {};
                         const sections = [
@@ -1357,7 +1357,7 @@ const ScriptDetail = () => {
               );
             })()}
 
-            {/* ── Roles ────────────────────────────────────── */}
+            {/*  Roles  */}
             {activeTab === "roles" && (
               <motion.div key="roles" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
                 {script.roles?.length > 0 ? (
@@ -1385,7 +1385,7 @@ const ScriptDetail = () => {
               </motion.div>
             )}
 
-            {/* ── Full Script (owner or purchased) ────────── */}
+            {/*  Full Script (owner or purchased)  */}
             {activeTab === "content" && (isOwner || script.isUnlocked) && (
               <motion.div key="content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className={`flex items-center justify-between mb-4 rounded-xl border px-5 py-3 ${t.card}`}>
@@ -1502,7 +1502,7 @@ const ScriptDetail = () => {
               </motion.div>
             )}
 
-            {/* ── Synopsis ─────────────────────────────────── */}
+            {/*  Synopsis  */}
             {activeTab === "synopsis" && (
               <motion.div key="synopsis" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                 className={`rounded-xl border p-6 ${t.card}`}>
@@ -1635,7 +1635,7 @@ const ScriptDetail = () => {
         </motion.div>
       </div>
 
-      {/* ══════════════  MODALS  ═════════════════════════════ */}
+      {/*   MODALS   */}
 
       {/* Purchase Request confirmation modal */}
       {showRequestModal && script && (
