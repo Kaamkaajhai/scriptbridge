@@ -4,33 +4,35 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 
-/* ── Constants ─────────────────────────────────────── */
+/* ── Filter Constants ───────────────────────────────── */
 const GENRES = [
-  "Thriller","Drama","Comedy","Sci-Fi","Horror","Romance",
-  "Action","Mystery","Fantasy","Animation","Crime","Adventure",
+  "Thriller", "Drama", "Comedy", "Sci-Fi", "Horror", "Romance",
+  "Action", "Mystery", "Fantasy", "Animation", "Crime", "Adventure",
 ];
-const CONTENT_TYPES = [
-  { key: "movie",       label: "Movie"       },
-  { key: "tv_series",   label: "TV Series"   },
-  { key: "short_film",  label: "Short Film"  },
-  { key: "web_series",  label: "Web Series"  },
-  { key: "documentary", label: "Documentary" },
-  { key: "anime",       label: "Anime"       },
-  { key: "book",        label: "Book"        },
-  { key: "startup",     label: "Startup"     },
 
+const CONTENT_TYPES = [
+  { key: "movie", label: "Movie" },
+  { key: "tv_series", label: "TV Series" },
+  { key: "short_film", label: "Short Film" },
+  { key: "web_series", label: "Web Series" },
+  { key: "documentary", label: "Documentary" },
+  { key: "anime", label: "Anime" },
+  { key: "book", label: "Book" },
+  { key: "startup", label: "Startup" },
 ];
+
 const BUDGETS = [
-  { key: "micro",       label: "Micro"       },
-  { key: "low",         label: "Low"         },
-  { key: "mid",         label: "Mid"         },
-  { key: "high",        label: "High"        },
-  { key: "blockbuster", label: "Blockbuster" },
+  { key: "micro", label: "Micro (<$10k)" },
+  { key: "low", label: "Low ($10k–$100k)" },
+  { key: "mid", label: "Mid ($100k–$1M)" },
+  { key: "high", label: "High ($1M–$10M)" },
+  { key: "blockbuster", label: "Blockbuster (>$10M)" },
 ];
+
 const PREMIUM_OPTIONS = [
-  { key: "all",     label: "All"     },
+  { key: "all", label: "All" },
   { key: "premium", label: "Premium" },
-  { key: "free",    label: "Free"    },
+  { key: "free", label: "Free" },
 ];
 
 const TIME_PERIODS = [
@@ -39,14 +41,26 @@ const TIME_PERIODS = [
   { key: "weekly",  label: "Weekly" },
 ];
 
+const budgetLabel = {
+  micro: "Micro",
+  low: "Low",
+  mid: "Mid",
+  high: "High",
+  blockbuster: "Blockbuster",
+};
+
+/* ── Icon components ─────────────────────────────────── */
 const FilterIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
   </svg>
 );
 
 const ChevronDown = ({ open }) => (
-  <svg className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+  <svg
+    className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+    fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
+  >
     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
   </svg>
 );
@@ -57,7 +71,7 @@ const XIcon = () => (
   </svg>
 );
 
-/* ── Rank Badge ────────────────────────────────────── */
+/* ── Rank Badge ──────────────────────────────────────── */
 const RankBadge = ({ rank, dark }) => {
   const medals = {
     1: { bg: "from-[#c2c2e0] to-[#8686AC]", text: "text-[#0F0E47]", shadow: "shadow-[#8686AC]/40" },
@@ -70,28 +84,13 @@ const RankBadge = ({ rank, dark }) => {
       <div className={`absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br ${medal.bg} ${medal.text} flex items-center justify-center text-[12px] font-black shadow-lg ${medal.shadow} z-10`}>
         {rank}
       </div>
-      <span className="text-[8px] font-extrabold text-amber-300 uppercase tracking-widest drop-shadow">GOLD</span>
-    </div>
-  );
-  if (rank === 2) return (
-    <div className="absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5">
-      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 flex items-center justify-center shadow-lg shadow-slate-300/40 ring-2 ring-slate-200/50">
-        <span className="text-[13px] font-black text-slate-700">2</span>
-      </div>
-      <span className="text-[8px] font-extrabold text-slate-300 uppercase tracking-widest drop-shadow">SILVER</span>
-    </div>
-  );
-  if (rank === 3) return (
-    <div className="absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5">
-      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-300 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-400/40 ring-2 ring-orange-200/50">
-        <span className="text-[13px] font-black text-orange-900">3</span>
-      </div>
-      <span className="text-[8px] font-extrabold text-orange-300 uppercase tracking-widest drop-shadow">BRONZE</span>
-    </div>
-  );
+    );
+  }
   return (
-    <div className="absolute top-3 left-3 z-20 w-7 h-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center border border-white/15">
-      <span className="text-[11px] font-bold text-white/70">#{rank}</span>
+    <div className={`absolute top-3 left-3 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold z-10 ${
+      dark ? "bg-white/10 text-white/60 border border-white/10" : "bg-black/20 text-white/70"
+    }`}>
+      {rank}
     </div>
   );
 };
@@ -176,11 +175,11 @@ const SaveButton = ({ scriptId, dark }) => {
 const Pill = ({ active, onClick, children, dark }) => (
   <button
     onClick={onClick}
-    className={`px-3 py-1.5 rounded-xl text-[15px] font-semibold transition-all duration-200 border ${
+    className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all duration-200 border ${
       active
         ? "bg-[#111111] text-white border-[#111111] shadow-sm"
         : dark
-          ? "bg-white/[0.04] text-gray-300 border-[#1d3454] hover:bg-white/[0.08] hover:text-gray-200"
+          ? "bg-white/[0.04] text-gray-300 border-[#444] hover:bg-white/[0.08] hover:text-gray-200"
           : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm"
     }`}
   >
@@ -188,6 +187,7 @@ const Pill = ({ active, onClick, children, dark }) => (
   </button>
 );
 
+/* ── FilterSection ───────────────────────────────────── */
 const FilterSection = ({ label, children, dark }) => (
   <div className="space-y-2.5">
     <span className={`text-[13px] font-bold uppercase tracking-wider ${dark ? "text-gray-400" : "text-gray-400"}`}>
@@ -197,185 +197,25 @@ const FilterSection = ({ label, children, dark }) => (
   </div>
 );
 
-/* ── Skeleton ─────────────────────────────────────────── */
-const SkeletonCard = ({ dark, tall }) => (
-  <div className={`rounded-2xl overflow-hidden border ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100"}`}>
-    <div className={`animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} style={{ height: tall ? 320 : 220 }} />
-    <div className="p-5 space-y-3">
-      <div className={`h-4 rounded-full animate-pulse w-3/4 ${dark ? "bg-[#1d3050]" : "bg-gray-100"}`} />
-      <div className={`h-3 rounded-full w-1/2 animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-50"}`} />
-      <div className={`h-2 rounded-full animate-pulse mt-4 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
+/* ── Loading Skeleton ────────────────────────────────── */
+const SkeletonCard = ({ dark }) => (
+  <div className={`rounded-2xl overflow-hidden border ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+    <div className={`h-[200px] animate-pulse ${dark ? "bg-[#333]" : "bg-gray-100"}`} />
+    <div className="p-4 space-y-3">
+      <div className={`h-3 rounded-full animate-pulse ${dark ? "bg-[#444]" : "bg-gray-100"}`} />
+      <div className={`h-3 rounded-full w-2/3 animate-pulse ${dark ? "bg-[#333]" : "bg-gray-50"}`} />
     </div>
   </div>
 );
 
-/* ── Rank Medal Badge ─────────────────────────────────── */
-const RankMedal = ({ rank, large }) => {
-  const cfg = RANK_CONFIG[rank];
-  if (cfg) return (
-    <div className={`absolute top-3 left-3 z-20 flex flex-col items-center gap-0.5`}>
-      <div className={`${large ? "w-12 h-12" : "w-10 h-10"} rounded-full ${cfg.badge} flex items-center justify-center shadow-lg ring-2 ${cfg.ring}`}>
-        <span className={`${large ? "text-[18px]" : "text-[16px]"} font-black ${cfg.text}`}>{rank}</span>
-      </div>
-      <span className={`text-[11px] font-extrabold uppercase tracking-widest drop-shadow ${cfg.labelColor}`}>{cfg.label}</span>
-    </div>
-  );
-  return (
-    <div className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20">
-      <span className="text-[14px] font-bold text-white/80">#{rank}</span>
-    </div>
-  );
-};
-
-const getCardBadge = (script, rank) => {
-  if (rank <= 3) return { label: "Top Pick", cls: "bg-violet-500/20 text-violet-200 border-violet-400/25" };
-  if (script.price > 0 || script.premium) return { label: "Premium", cls: "bg-amber-500/20 text-amber-200 border-amber-400/25" };
-  return { label: "Featured", cls: "bg-violet-500/20 text-violet-200 border-violet-400/25" };
-};
-
-const PlaceholderGlyph = ({ dark }) => (
-  <div className={`w-16 h-16 rounded-full border flex items-center justify-center ${dark ? "border-white/12 bg-white/[0.04] text-white/50" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
-    <PageIcon cls="w-7 h-7" />
-  </div>
-);
-
-const CardScorePill = ({ score }) => (
-  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/35 backdrop-blur-md border border-white/10 text-white/90">
-    <StarIcon cls="w-3.5 h-3.5 text-amber-300" />
-    <span className="text-[16px] font-bold tabular-nums">{Number(score || 0).toFixed(1)}</span>
-  </div>
-);
-
-const CardMetaFooter = ({ script, dark }) => (
-  <div className={`flex items-center justify-between gap-3 pt-3 border-t ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
-    <div className="flex items-center gap-3 flex-wrap min-w-0">
-      {(script.genre || script.primaryGenre) && (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[15px] font-bold uppercase tracking-wide ${dark ? "bg-[#182943] text-sky-200 border border-[#28466f]" : "bg-sky-50 text-sky-700 border border-sky-100"}`}>
-          {script.primaryGenre || script.genre}
-        </span>
-      )}
-      {script.pageCount && (
-        <div className={`inline-flex items-center gap-1.5 text-[16px] font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>
-          <PageIcon cls="w-3.5 h-3.5" />
-          <span>{script.pageCount}p</span>
-        </div>
-      )}
-    </div>
-
-    <div className={`flex items-center gap-3 shrink-0 ${dark ? "text-gray-400" : "text-gray-500"}`}>
-      <div className="inline-flex items-center gap-1.5 text-[16px] font-semibold">
-        <EyeIcon cls="w-3.5 h-3.5" />
-        <span className="tabular-nums">{fmtNum(script.views || 0)}</span>
-      </div>
-      {script.scriptScore?.overall > 0 && (
-        <div className="inline-flex items-center gap-1 text-[16px] font-semibold text-amber-300">
-          <StarIcon cls="w-3.5 h-3.5" />
-          <span className="tabular-nums">{script.scriptScore.overall}</span>
-        </div>
-      )}
-    </div>
-  </div>
-);
-
-const ShowcaseCard = ({ script, rank, dark, delay = 0 }) => {
-  const hasCover = !!script.coverImage;
-  const accentGrad = rank % 3 === 0 ? "from-violet-500 to-indigo-500" : rank % 2 === 0 ? "from-sky-400 to-blue-500" : "from-[#1e3a5f] to-[#3a7bd5]";
-  const badge = getCardBadge(script, rank);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.34, ease }}
-      className="h-full"
-    >
-      <Link
-        to={`/script/${script._id}`}
-        className={`group flex flex-col rounded-[22px] overflow-hidden border transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl h-full min-h-[470px] ${
-          dark ? "bg-[#0d1926] border-[#1a2e47] hover:border-[#264060] hover:shadow-black/30" : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-lg"
-        }`}
-      >
-        <div className={`h-[3px] w-full bg-gradient-to-r ${accentGrad}`} />
-
-        <div className="relative overflow-hidden" style={{ height: 220 }}>
-          {hasCover ? (
-            <>
-              <img
-                src={resolveImg(script.coverImage)}
-                alt={script.title}
-                className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#08111c]/35 via-[#0b1524]/10 to-[#0b1524]/60" />
-            </>
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-[#0a1523] via-[#14263d] to-[#203958] flex items-center justify-center p-5 relative overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(58,123,213,0.16),_transparent_48%)]" />
-              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center text-center px-4">
-                <PlaceholderGlyph dark={dark} />
-                <h4 className="mt-4 text-[24px] font-extrabold text-white leading-tight line-clamp-2 tracking-tight">{script.title}</h4>
-                <p className="mt-2 text-[15px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                  {(script.primaryGenre || script.genre || script.contentType || "Featured").replace(/_/g, " ")}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="absolute top-3 left-3 z-10">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[14px] font-bold uppercase tracking-[0.16em] border backdrop-blur-md ${badge.cls}`}>
-              {badge.label}
-            </span>
-          </div>
-
-          <div className="absolute top-3 right-3 z-10">
-            <CardScorePill score={script.scriptScore?.overall || 0} />
-          </div>
-        </div>
-
-        <div className="flex flex-col flex-1 px-4 py-4">
-          <div className="flex items-center gap-2 mb-3 min-w-0">
-            <div className={`w-6 h-6 rounded-full overflow-hidden shrink-0 border ${dark ? "border-white/10 bg-white/[0.05]" : "border-gray-200 bg-gray-50"}`}>
-              {script.creator?.profileImage
-                ? <img src={resolveImg(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-                : <span className={`w-full h-full flex items-center justify-center text-[13px] font-bold ${dark ? "text-white/80" : "text-gray-600"}`}>{script.creator?.name?.charAt(0)?.toUpperCase() || "U"}</span>
-              }
-            </div>
-            <span className={`text-[15px] font-semibold truncate ${dark ? "text-gray-400" : "text-gray-500"}`}>{script.creator?.name || "Unknown Creator"}</span>
-          </div>
-
-          <h3 className={`text-[22px] font-extrabold leading-tight mb-2 line-clamp-2 ${dark ? "text-gray-100" : "text-gray-900"}`}>
-            {script.title}
-          </h3>
-
-          <p className={`text-[16px] leading-relaxed line-clamp-2 mb-4 ${dark ? "text-gray-400" : "text-gray-500"}`}>
-            {script.logline || script.description || "Discover this featured project and explore the full story details."}
-          </p>
-
-          <CardMetaFooter script={script} dark={dark} />
-        </div>
-      </Link>
-    </motion.div>
-  );
-};
-
-/* ── Hero Card (rank 1–3) ─────────────────────────────── */
-const HeroCard = ({ script, rank, dark }) => (
-  <ShowcaseCard script={script} rank={rank} dark={dark} delay={(rank - 1) * 0.1} />
-);
-
-/* ── Regular Card (rank 4+) ───────────────────────────── */
-const RegularCard = ({ script, rank, dark }) => (
-  <ShowcaseCard script={script} rank={rank} dark={dark} delay={Math.min((rank - 1) * 0.04, 0.6)} />
-);
-
-/* ══════════════════════════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════════════════════════ */
+/* ── Main Component ──────────────────────────────────── */
 const TopList = () => {
   const { isDarkMode: dark } = useDarkMode();
 
+  /* Design tokens — content area: #202020 in dark, #f8f9fb in light */
   const t = {
-    card:        dark ? "bg-[#0d1926] border-[#1a2e47] hover:border-[#264060]" : "bg-white border-gray-100 hover:border-gray-200",
-    cardShadow:  dark ? "hover:shadow-xl hover:shadow-black/25" : "hover:shadow-xl",
+    card:        dark ? "bg-[#101e30] border-[#333] hover:border-[#444]" : "bg-white border-gray-100 hover:border-gray-200",
+    cardShadow:  dark ? "hover:shadow-xl hover:shadow-[#020609]/20" : "hover:shadow-xl",
     header:      dark ? "text-gray-100" : "text-gray-900",
     sub:         dark ? "text-gray-400" : "text-gray-400",
     divider:     dark ? "border-[#333]" : "border-gray-100",
@@ -390,9 +230,9 @@ const TopList = () => {
     tag:         dark ? "bg-blue-500/15 text-blue-300 border-blue-400/25" : "bg-[#111111]/[0.06] text-[#111111] border-transparent",
     tagX:        dark ? "hover:bg-blue-500/25" : "hover:bg-[#111111]/10",
     statPill:    dark ? "text-gray-400" : "text-gray-400",
-    emptyCard:   dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100",
+    emptyCard:   dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100",
     emptyTitle:  dark ? "text-gray-100" : "text-gray-800",
-    metricBar:   dark ? "bg-[#162236]" : "bg-gray-100",
+    metricBar:   dark ? "bg-[#333]" : "bg-gray-100",
     iconMuted:   dark ? "text-gray-500" : "text-gray-300",
     // Hover overlay
     hoverOverlay: dark ? "bg-[#0a1628]/90 backdrop-blur-md" : "bg-[#0f1d35]/85 backdrop-blur-md",
@@ -405,7 +245,7 @@ const TopList = () => {
     periodTabIdle:   dark ? "bg-white/[0.04] text-gray-300 border-[#444] hover:bg-white/[0.08] hover:text-white" : "bg-white text-gray-500 border-gray-200 hover:border-[#111111]/30 hover:text-[#111111]",
   };
 
-  /* ── State ── */
+  /* State */
   const [scripts, setScripts]           = useState([]);
   const [prevScripts, setPrevScripts]   = useState([]);  // for rank change calculation
   const [loading, setLoading]           = useState(true);
@@ -419,12 +259,17 @@ const TopList = () => {
   const [hoveredId, setHoveredId]       = useState(null);
 
   const activeFilterCount = [
-    selectedGenre, selectedContentType, selectedBudget,
+    selectedGenre,
+    selectedContentType,
+    selectedBudget,
     selectedPremium !== "all" ? selectedPremium : "",
   ].filter(Boolean).length;
 
   const clearAllFilters = () => {
-    setSelectedGenre(""); setSelectedContentType(""); setSelectedBudget(""); setSelectedPremium("all");
+    setSelectedGenre("");
+    setSelectedContentType("");
+    setSelectedBudget("");
+    setSelectedPremium("all");
   };
 
   useEffect(() => {
@@ -470,11 +315,10 @@ const TopList = () => {
   ];
 
   const getMetric = (script) => {
-    if (sortBy === "platform")   { const v = Math.round(script.platformScore || 0);   return { value: v, raw: v }; }
-    if (sortBy === "score")      { const v = script.scriptScore?.overall || 0;          return { value: v, raw: v }; }
-    if (sortBy === "engagement") { const v = Math.round(script.engagementScore || 0);  return { value: v, raw: v }; }
-    const v = script.views || 0;
-    return { value: fmtNum(v), raw: v };
+    if (sortBy === "platform")   { const v = Math.round(script.platformScore || 0);   return { value: v, pct: Math.min(v, 100) }; }
+    if (sortBy === "score")      { const v = script.scriptScore?.overall || 0;         return { value: v, pct: Math.min(v, 100) }; }
+    if (sortBy === "engagement") { const v = Math.round(script.engagementScore || 0); return { value: v, pct: Math.min(v, 100) }; }
+    const v = script.views || 0; return { value: v.toLocaleString(), pct: Math.min((v / 1000) * 100, 100) };
   };
 
   const resolveImg = (url) => {
@@ -483,20 +327,21 @@ const TopList = () => {
     return `http://localhost:5002${url}`;
   };
 
-  const activeTab = SORT_TABS.find(t => t.key === sortBy) || SORT_TABS[0];
-  const top3  = scripts.slice(0, 3);
-  const rest  = scripts.slice(3);
-  const totalViews = scripts.reduce((acc, s) => acc + (s.views || 0), 0);
-  const avgScore   = scripts.length
-    ? (scripts.reduce((acc, s) => acc + (s.scriptScore?.overall || 0), 0) / scripts.length).toFixed(1)
+  const numericMetrics = scripts.map((s) => {
+    const v = getMetric(s).value;
+    return typeof v === "string" ? Number(v.replaceAll(",", "")) || 0 : Number(v) || 0;
+  });
+  const topScore  = numericMetrics.length ? Math.max(...numericMetrics) : 0;
+  const avgMetric = numericMetrics.length
+    ? Math.round(numericMetrics.reduce((a, b) => a + b, 0) / numericMetrics.length)
     : 0;
 
-  /* ── Loading skeleton ── */
-  if (loading && scripts.length === 0) return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className={`h-36 rounded-2xl animate-pulse ${dark ? "bg-[#0d1926]" : "bg-gray-100"}`} />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        {[0,1,2].map(i => <SkeletonCard key={i} dark={dark} tall />)}
+  /* ── Loading state ── */
+  if (loading) return (
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-6">
+        <div className={`h-8 w-40 rounded-xl animate-pulse mb-2 ${dark ? "bg-slate-200" : "bg-gray-100"}`} />
+        <div className={`h-4 w-64 rounded-lg animate-pulse ${dark ? "bg-[#6a6a6a]" : "bg-gray-50"}`} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} dark={dark} />)}
@@ -505,24 +350,16 @@ const TopList = () => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto">
 
-      {/* ══ HEADER ══════════════════════════════════════════════ */}
+      {/* ═══════════════════ HEADER ═══════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease }}
-        className={`rounded-2xl border p-6 relative overflow-hidden ${
-          dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-200/70 shadow-sm"
-        }`}
+        transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="mb-6"
       >
-        {/* background glow */}
-        <div className={`absolute inset-0 pointer-events-none bg-gradient-to-br ${
-          dark ? "from-[#1e3a5f]/12 via-transparent to-transparent" : "from-[#1e3a5f]/[0.03] via-transparent to-transparent"
-        }`} />
-
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-          {/* Title */}
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#111111] to-[#3a7bd5]" />
@@ -533,6 +370,7 @@ const TopList = () => {
             </p>
           </div>
 
+          {/* Summary stat badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
               <span className={`text-[13px] font-semibold ${t.statLabel}`}>Scripts</span>
@@ -543,7 +381,7 @@ const TopList = () => {
               <span className={`text-[16px] font-extrabold tabular-nums ${t.statValue}`}>{topScore.toLocaleString()}</span>
             </div>
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
-              dark ? "bg-white/[0.04] border-[#1a2e47]" : "bg-gray-50 border-transparent"
+              dark ? "bg-[#4e4e4e] border-[#5a5a5a]" : "bg-gray-50 border-transparent"
             }`}>
               <span className={`text-[13px] font-semibold ${t.statLabel}`}>Avg</span>
               <span className={`text-[16px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-500"}`}>{avgMetric.toLocaleString()}</span>
@@ -552,11 +390,12 @@ const TopList = () => {
         </div>
       </motion.div>
 
-      {/* ═══════ SORT TABS + FILTERS ═══════ */}
+      {/* ═══════════════════ SORT TABS + FILTER TOGGLE ═══════════════════ */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.07, ease }}
+        transition={{ duration: 0.35, delay: 0.08 }}
+        className="mb-5"
       >
         {/* ── Time Period tabs ── */}
         <div className="flex items-center gap-2 mb-3">
@@ -580,9 +419,8 @@ const TopList = () => {
 
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Sort tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-              {SORT_TABS.map(tab => (
+              {sortTabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
@@ -590,15 +428,11 @@ const TopList = () => {
                     sortBy === tab.key ? t.sortActive : t.sortIdle
                   }`}
                 >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
-                  </svg>
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            {/* Filter button */}
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[15px] font-semibold transition-all duration-200 border ${
@@ -608,13 +442,15 @@ const TopList = () => {
               <FilterIcon />
               Filters
               {activeFilterCount > 0 && (
-                <span className="px-1.5 py-0.5 bg-white/20 rounded-md text-[14px] font-bold">{activeFilterCount}</span>
+                <span className="px-1.5 py-0.5 bg-white/20 rounded-md text-[10px] font-bold">
+                  {activeFilterCount}
+                </span>
               )}
               <ChevronDown open={filtersOpen} />
             </button>
           </div>
 
-          {/* Active filter chips */}
+          {/* Active filter tags */}
           {activeFilterCount > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
               {selectedGenre && (
@@ -641,12 +477,14 @@ const TopList = () => {
                   <button onClick={() => setSelectedPremium("all")} className={`rounded p-0.5 transition-colors ${t.tagX}`}><XIcon /></button>
                 </span>
               )}
-              <button onClick={clearAllFilters} className={`text-[15px] font-semibold px-2 py-1 transition-colors ${dark ? "text-white/25 hover:text-red-400" : "text-gray-400 hover:text-red-500"}`}>Clear all</button>
+              <button onClick={clearAllFilters} className={`text-[11px] font-semibold px-2 py-1 transition-colors ${dark ? "text-gray-300 hover:text-red-400" : "text-gray-400 hover:text-red-500"}`}>
+                Clear all
+              </button>
             </div>
           )}
         </div>
 
-        {/* Filter panel */}
+        {/* ── Collapsible filter panel ── */}
         <AnimatePresence>
           {filtersOpen && (
             <motion.div
@@ -656,26 +494,39 @@ const TopList = () => {
               transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 mb-4 ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100 shadow-sm"}`}>
+              <div className={`rounded-2xl border p-5 sm:p-6 shadow-sm space-y-5 mb-4 ${t.filterPanel}`}>
                 <FilterSection label="Genre" dark={dark}>
                   <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")} dark={dark}>All Genres</Pill>
-                  {GENRES.map(g => <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)} dark={dark}>{g}</Pill>)}
+                  {GENRES.map((g) => (
+                    <Pill key={g} active={selectedGenre === g} onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)} dark={dark}>{g}</Pill>
+                  ))}
                 </FilterSection>
-                <div className={`border-t ${dark ? "border-[#1a2e47]" : "border-gray-100"}`} />
+
+                <div className={`border-t ${t.divider}`} />
+
                 <FilterSection label="Content Type" dark={dark}>
                   <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")} dark={dark}>All Types</Pill>
-                  {CONTENT_TYPES.map(ct => <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)} dark={dark}>{ct.label}</Pill>)}
+                  {CONTENT_TYPES.map((ct) => (
+                    <Pill key={ct.key} active={selectedContentType === ct.key} onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)} dark={dark}>{ct.label}</Pill>
+                  ))}
                 </FilterSection>
-                <div className={`border-t ${dark ? "border-[#1a2e47]" : "border-gray-100"}`} />
+
+                <div className={`border-t ${t.divider}`} />
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FilterSection label="Budget" dark={dark}>
+                  <FilterSection label="Budget Range" dark={dark}>
                     <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")} dark={dark}>Any</Pill>
-                    {BUDGETS.map(b => <Pill key={b.key} active={selectedBudget === b.key} onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)} dark={dark}>{b.label}</Pill>)}
+                    {BUDGETS.map((b) => (
+                      <Pill key={b.key} active={selectedBudget === b.key} onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)} dark={dark}>{b.label}</Pill>
+                    ))}
                   </FilterSection>
                   <FilterSection label="Pricing" dark={dark}>
-                    {PREMIUM_OPTIONS.map(p => <Pill key={p.key} active={selectedPremium === p.key} onClick={() => setSelectedPremium(p.key)} dark={dark}>{p.label}</Pill>)}
+                    {PREMIUM_OPTIONS.map((p) => (
+                      <Pill key={p.key} active={selectedPremium === p.key} onClick={() => setSelectedPremium(p.key)} dark={dark}>{p.label}</Pill>
+                    ))}
                   </FilterSection>
                 </div>
+
                 {activeFilterCount > 0 && (
                   <div className="flex sm:hidden justify-end pt-1">
                     <button onClick={clearAllFilters} className="text-[14px] font-semibold text-red-500 hover:text-red-600 transition-colors px-3 py-1.5 border border-red-400/30 rounded-xl bg-red-500/10">
@@ -689,15 +540,16 @@ const TopList = () => {
         </AnimatePresence>
       </motion.div>
 
-      {/* ══ CONTENT ════════════════════════════════════════════ */}
-      {scripts.length === 0 && !loading ? (
+      {/* ═══════════════════ CONTENT ═══════════════════ */}
+      {scripts.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={`rounded-2xl border py-24 text-center ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100"}`}
+          transition={{ duration: 0.3 }}
+          className={`rounded-2xl border py-24 text-center ${t.emptyCard}`}
         >
-          <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dark ? "bg-[#162236]" : "bg-gray-50"}`}>
-            <svg className={`w-7 h-7 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 ${dark ? "bg-[#4e4e4e]" : "bg-gray-50"}`}>
+            <svg className={`w-7 h-7 ${t.iconMuted}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>
@@ -761,6 +613,7 @@ const TopList = () => {
                       </>
                     )}
 
+                    {/* Rank badge */}
                     <RankBadge rank={rank} dark={dark} />
 
                     {(script.primaryGenre || script.genre) && (
@@ -874,7 +727,10 @@ const TopList = () => {
                         />
                       </div>
                     </div>
+
                     <div className={`border-t ${t.divider} mb-3`} />
+
+                    {/* Stats row */}
                     <div className="flex items-center justify-between">
                       <div className={`flex items-center gap-1 ${t.statPill}`}>
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -883,6 +739,7 @@ const TopList = () => {
                         </svg>
                         <span className="text-[11px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
                       </div>
+
                       <div className="flex items-center gap-2.5">
                         {script.scriptScore?.overall > 0 && (
                           <div className="flex items-center gap-1">
@@ -899,90 +756,15 @@ const TopList = () => {
                             </svg>
                             <span className="text-[13px] font-semibold tabular-nums">{script.pageCount}p</span>
                           </div>
-                          <span className="text-[11px] font-semibold text-white/75 drop-shadow truncate max-w-[90px]">{script.creator?.name || "Unknown"}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ── Info Panel ── */}
-                    <div className="flex flex-col flex-1 p-5">
-                      <h3 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${t.header}`}>
-                        {script.title}
-                      </h3>
-
-                      {(script.logline || script.description) && (
-                        <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${t.sub}`}>
-                          {script.logline || script.description}
-                        </p>
-                      )}
-
-                      {(script.contentType || script.budget) && (
-                        <div className="flex items-center gap-1.5 flex-wrap mb-4">
-                          {script.contentType && (
-                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${dark ? "bg-white/[0.04] text-white/35 border-white/[0.07]" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
-                              {script.contentType.replace(/_/g, " ")}
-                            </span>
-                          )}
-                          {script.budget && (
-                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${dark ? "bg-white/[0.03] text-white/25 border-white/[0.05]" : "bg-gray-50 text-gray-400 border-gray-100"}`}>
-                              {script.budget}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-[11px] font-bold uppercase tracking-wider ${t.sub}`}>
-                            {activeTab.label}
-                          </span>
-                          <span className={`text-[15px] font-extrabold tabular-nums ${t.statValue}`}>
-                            {metric.value}
-                          </span>
-                        </div>
-                        <div className={`h-1.5 rounded-full overflow-hidden ${t.metricBar}`}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${barPct}%` }}
-                            transition={{ duration: 0.7, delay: index * 0.04 + 0.2, ease: "easeOut" }}
-                            className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className={`flex items-center justify-between pt-3.5 border-t mt-auto gap-2 ${t.divider}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`flex items-center gap-1.5 ${t.statPill}`}>
-                            <EyeIcon />
-                            <span className="text-[12px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
-                          </div>
-                          {script.scriptScore?.overall > 0 && (
-                            <div className="flex items-center gap-1 text-amber-400">
-                              <StarIcon cls="w-3.5 h-3.5" />
-                              <span className="text-[12px] font-semibold tabular-nums">{script.scriptScore.overall}</span>
-                            </div>
-                          )}
-                          {script.pageCount && (
-                            <div className={`flex items-center gap-1.5 ${t.statPill}`}>
-                              <PageIcon />
-                              <span className="text-[12px] font-semibold tabular-nums">{script.pageCount}p</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <span className={`shrink-0 text-[12px] font-bold px-3.5 py-1.5 rounded-xl border transition-all group-hover:scale-105 ${
-                          dark
-                            ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 group-hover:bg-[#243f6a]"
-                            : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm group-hover:bg-[#162d4a]"
-                        }`}>Read →</span>
+                        )}
                       </div>
                     </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        </AnimatePresence>
+                  </div>
+                </Link>
+              </motion.div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

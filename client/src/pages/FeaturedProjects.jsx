@@ -1061,7 +1061,7 @@ const FeaturedProjects = () => {
         </div>
       </div>
 
-      {/* ══ FEATURED CAROUSEL ══ */}}
+      {/* ══ FEATURED CAROUSEL ══ */}
       {heroSlides.length > 0 && (() => {
         const slide = heroSlides[heroIndex];
         return (
@@ -1610,7 +1610,7 @@ const FeaturedProjects = () => {
                                 <h4 className="text-lg font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-1.5">{script.title}</h4>
                                 <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed">{script.logline || script.description || script.synopsis || ""}</p>
                               </div>
-                            </div>
+                            </>
                           )}
 
                           {/* Sponsored/Premium Badge - Top Left */}
