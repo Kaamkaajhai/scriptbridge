@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
@@ -36,6 +36,7 @@ const ScriptDetail = () => {
   const [rejectNoteModal, setRejectNoteModal] = useState(null); // { id, investorName }
   const [rejectNoteText, setRejectNoteText] = useState("");
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const viewStartRef = useRef(Date.now());
 
   /* ── Handlers ─────────────────────────────────────────── */
 
@@ -105,6 +106,24 @@ const ScriptDetail = () => {
   useEffect(() => {
     fetchScript();
     setCoverError(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    viewStartRef.current = Date.now();
+
+    return () => {
+      const elapsed = Date.now() - viewStartRef.current;
+      if (elapsed < 2000) return;
+      api
+        .post(`/scripts/${id}/interactions`, {
+          type: "time_spent",
+          timeSpentMs: elapsed,
+          source: "script_detail_page",
+        })
+        .catch(() => null);
+    };
   }, [id]);
 
   useEffect(() => {
@@ -387,11 +406,11 @@ const ScriptDetail = () => {
 
   const fmtBudget = (b) => {
     const map = {
-      micro: "Micro (<$100K)",
-      low: "Low ($100K\u2013$1M)",
-      medium: "Medium ($1M\u2013$15M)",
-      high: "High ($15M\u2013$75M)",
-      blockbuster: "Blockbuster ($75M+)",
+      micro: "Micro (<₹1Cr)",
+      low: "Low (₹1Cr\u2013₹10Cr)",
+      medium: "Medium (₹10Cr\u2013₹150Cr)",
+      high: "High (₹150Cr\u2013₹750Cr)",
+      blockbuster: "Blockbuster (₹750Cr+)",
     };
     return map[b] || b?.charAt(0).toUpperCase() + b?.slice(1) || "\u2014";
   };
@@ -798,7 +817,7 @@ const ScriptDetail = () => {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {script.price > 0 ? `Request to Purchase — $${script.price}` : "Request Access"}
+                            {script.price > 0 ? `Request to Purchase — ₹${script.price}` : "Request Access"}
                           </div>
                         </button>
                       )
@@ -829,15 +848,6 @@ const ScriptDetail = () => {
                           </button>
                         )}
                       </>
-                    )}
-
-                    {!isOwner && isPro && script.holdStatus === "available" && (
-                      <button
-                        onClick={handleHold}
-                        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnGhost}`}
-                      >
-                        Place Hold &mdash; ₹{script.holdFee || 200}
-                      </button>
                     )}
 
                     {script.holdStatus === "held" && (
@@ -977,7 +987,7 @@ const ScriptDetail = () => {
                       { label: "Secondary Genre", value: cl.secondaryGenre },
                       { label: "Page Count", value: script.pageCount },
                       { label: "Budget Level", value: fmtBudget(script.budget) },
-                      { label: "Hold Fee", value: script.holdFee ? `$${script.holdFee}` : null },
+                      { label: "Hold Fee", value: script.holdFee ? `₹${script.holdFee}` : null },
                       { label: "Hold Status", value: script.holdStatus?.charAt(0).toUpperCase() + script.holdStatus?.slice(1) },
                       { label: "Uploaded", value: formatDate(script.createdAt) },
                     ]
@@ -1615,7 +1625,7 @@ const ScriptDetail = () => {
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (
                             <div>
-                              <p className={`text-sm mb-4 ${t.muted}`}>Submit a purchase request to the writer. Once approved, you'll get full access to this script.</p>
+                              <p className={`text-sm mb-4 ${t.muted}`}>Submit a purchase request with upfront wallet payment. Writer approval grants full access; rejection auto-refunds to your wallet.</p>
                               {script.isUnlocked ? (
                                 <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1637,7 +1647,7 @@ const ScriptDetail = () => {
                                   onClick={() => setShowRequestModal(true)}
                                   className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                 >
-                                  {script.price > 0 ? `Request to Purchase — $${script.price}` : "Request Access"}
+                                  {script.price > 0 ? `Request to Purchase — ₹${script.price}` : "Request Access"}
                                 </button>
                               )}
                             </div>
@@ -1687,7 +1697,7 @@ const ScriptDetail = () => {
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-sm font-semibold truncate ${t.title}`}>{pr.investor?.name}</p>
                                   <p className={`text-xs ${t.muted}`}>
-                                    {pr.amount > 0 ? `$${pr.amount} offered` : "Free access request"}
+                                    {pr.amount > 0 ? `₹${pr.amount} offered` : "Free access request"}
                                     {" · "}
                                     {new Date(pr.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                   </p>
@@ -1748,13 +1758,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` You will be contacted to complete payment of $${script.price} once the writer approves.`
+                ? ` ₹${script.price} will be debited from your wallet now and held in escrow.`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
-              <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `$${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Payment collected after writer approves</p>}
+              <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Held in escrow now. Approved = released to writer, rejected = refunded to wallet.</p>}
             </div>
             <button
               onClick={handleRequestPurchase}

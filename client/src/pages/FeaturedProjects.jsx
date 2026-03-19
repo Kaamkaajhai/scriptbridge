@@ -515,7 +515,7 @@ const FeaturedProjects = () => {
                           <span className="text-sm font-medium">{scripts[0].views || 0}</span>
                         </div>
                         {scripts[0].price > 0 && (
-                          <span className="text-lg font-extrabold text-[#1e3a5f]">${scripts[0].price}</span>
+                          <span className="text-lg font-extrabold text-[#1e3a5f]">₹{scripts[0].price}</span>
                         )}
                         {scripts[0].scriptScore?.overall && (
                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1e3a5f]/[0.06] rounded-lg">
@@ -601,7 +601,7 @@ const FeaturedProjects = () => {
                           {/* Price tag — if premium, show on cover */}
                           {script.premium && (
                             <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg shadow-lg">
-                              <span className="text-[11px] font-extrabold text-white">${script.price}</span>
+                              <span className="text-[11px] font-extrabold text-white">₹{script.price}</span>
                             </div>
                           )}
                           {!script.premium && (

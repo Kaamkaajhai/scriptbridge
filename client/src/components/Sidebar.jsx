@@ -18,10 +18,21 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
   const [myScripts, setMyScripts] = useState([]);
   const [watchlist, setWatchlist] = useState([]); // NEW for Producers
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   const isIndustry = user?.role === 'professional' || user?.role === 'producer' || user?.role === 'investor';
   const isReader = user?.role === 'reader';
   const isAdmin = user?.role === 'admin';
+  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5001").replace(/\/$/, "");
+  const rawProfileImage = user?.profileImage || user?.profilePicture || "";
+  const normalizedProfileImagePath = typeof rawProfileImage === "string"
+    ? rawProfileImage.trim().replace(/\\/g, "/")
+    : "";
+  const resolvedProfileImage = normalizedProfileImagePath
+    ? (normalizedProfileImagePath.startsWith("http")
+      ? normalizedProfileImagePath
+      : `${apiBaseUrl}${normalizedProfileImagePath.startsWith("/") ? "" : "/"}${normalizedProfileImagePath}`)
+    : "";
 
   useEffect(() => {
     if (user) {
@@ -32,6 +43,10 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [resolvedProfileImage]);
 
   // Re-fetch scripts whenever one is deleted anywhere in the app
   useEffect(() => {
@@ -341,8 +356,13 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
         </nav>
         <div className="py-3 flex flex-col items-center gap-2">
         <button onClick={() => navigate(`/profile/${user?._id || ""}`)}>
-            {user?.profileImage ? (
-              <img src={user.profileImage} alt={user.name} className={`w-9 h-9 rounded-full object-cover ring-1 ${isDarkMode ? "ring-[#1c2a3a]" : "ring-gray-200"}`} />
+            {resolvedProfileImage && !avatarLoadError ? (
+              <img
+                src={resolvedProfileImage}
+                alt={user?.name || "User"}
+                onError={() => setAvatarLoadError(true)}
+                className={`w-9 h-9 rounded-full object-cover ring-1 ${isDarkMode ? "ring-[#1c2a3a]" : "ring-gray-200"}`}
+              />
             ) : (
               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isDarkMode ? "bg-[#0d1520] text-[#8896a7] ring-1 ring-[#1c2a3a]" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"}`}>
                 {user?.name?.charAt(0)?.toUpperCase() || "U"}

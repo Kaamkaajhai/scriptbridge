@@ -4,8 +4,9 @@ import Transaction from "../models/Transaction.js";
 import Invoice from "../models/Invoice.js";
 import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
+import ContactSubmission from "../models/ContactSubmission.js";
 import jwt from "jsonwebtoken";
-import { sendInvestorApprovalEmail } from "../utils/emailService.js";
+import { sendInvestorApprovalEmail, sendInvestorRejectionEmail } from "../utils/emailService.js";
 
 const buildChatId = (idA, idB) => {
     const sorted = [idA.toString(), idB.toString()].sort();
@@ -561,7 +562,82 @@ export const rejectInvestor = async (req, res) => {
         user.approvalStatus = "rejected";
         if (note) user.approvalNote = note;
         await user.save();
+
+        sendInvestorRejectionEmail(user.email, user.name, note || user.approvalNote || "").catch((err) =>
+            console.error("Failed to send investor rejection email:", err.message)
+        );
+
         res.json({ message: "Investor rejected", user: { _id: user._id, name: user.name, email: user.email, approvalStatus: user.approvalStatus } });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Admin Alerts Summary (for sidebar badges + popup polling) ───
+export const getAdminAlertSummary = async (req, res) => {
+    try {
+        const [
+            totalInvestors,
+            totalWriters,
+            totalReaders,
+            totalScripts,
+            aiUsage,
+            evaluations,
+            investorPurchases,
+            invoices,
+            payments,
+            aiScores,
+            platformScores,
+            readerScores,
+            approvals,
+            trailers,
+            pendingInvestors,
+            queries,
+        ] = await Promise.all([
+            User.countDocuments({ role: "investor" }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] } }),
+            User.countDocuments({ role: "reader" }),
+            Script.countDocuments(),
+            Script.countDocuments({
+                $or: [
+                    { "services.evaluation": true },
+                    { "services.aiTrailer": true },
+                    { "scriptScore.overall": { $exists: true, $ne: null } },
+                ],
+            }),
+            Script.countDocuments({ "services.evaluation": true }),
+            Script.countDocuments({ unlockedBy: { $exists: true, $not: { $size: 0 } } }),
+            Invoice.countDocuments(),
+            Transaction.countDocuments(),
+            Script.countDocuments({ "scriptScore.overall": { $exists: true, $ne: null } }),
+            Script.countDocuments({ "platformScore.overall": { $exists: true, $ne: null } }),
+            Script.countDocuments({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } }),
+            Script.countDocuments({ status: "pending_approval" }),
+            Script.countDocuments({
+                "services.aiTrailer": true,
+                trailerStatus: { $in: ["requested", "generating"] },
+            }),
+            User.countDocuments({ role: "investor", approvalStatus: "pending" }),
+            ContactSubmission.countDocuments(),
+        ]);
+
+        res.json({
+            overview: approvals + trailers + pendingInvestors + queries,
+            investors: totalInvestors,
+            writers: totalWriters,
+            readers: totalReaders,
+            projects: totalScripts,
+            "ai-usage": aiUsage,
+            evaluations,
+            "investor-purchases": investorPurchases,
+            invoices,
+            payments,
+            scores: aiScores + platformScores + readerScores,
+            approvals,
+            trailers,
+            "pending-investors": pendingInvestors,
+            queries,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

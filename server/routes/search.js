@@ -17,6 +17,13 @@ router.get("/", authMiddleware, async (req, res) => {
     }
     const searchRegex = new RegExp(q.trim(), "i");
 
+    const currentUser = await User.findById(req.user._id).select("blockedUsers").lean();
+    const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user._id }).select("_id").lean();
+    const blockedUserIds = [
+      ...(currentUser?.blockedUsers || []),
+      ...usersWhoBlockedCurrent.map((u) => u._id),
+    ];
+
     let results = { users: [], scripts: [] };
 
     // Search users (optionally filter by role)
@@ -42,6 +49,10 @@ router.get("/", authMiddleware, async (req, res) => {
         userQuery.role = role;
       }
 
+      if (blockedUserIds.length > 0) {
+        userQuery._id = { $nin: blockedUserIds };
+      }
+
       results.users = await User.find(userQuery)
         .select("name email role bio skills profileImage followers following writerProfile.genres writerProfile.wgaMember writerProfile.representationStatus")
         .limit(30)
@@ -57,20 +68,33 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Search scripts/projects
     if (type === "all" || type === "projects") {
-      const scriptQuery = { status: "published", isSold: { $ne: true } };
+      const scriptQuery = {
+        status: "published",
+        isSold: { $ne: true },
+        $or: [
+          { purchaseRequestLocked: { $ne: true } },
+          { purchaseRequestLockedBy: req.user._id },
+          { creator: req.user._id },
+        ],
+      };
       if (q && q.trim()) {
-        scriptQuery.$or = [
+        scriptQuery.$and = [{
+          $or: [
           { title: searchRegex },
           { description: searchRegex },
           { genre: searchRegex },
           { contentType: searchRegex },
-        ];
+          ],
+        }];
       }
       if (genre) scriptQuery.genre = genre;
       if (contentType) scriptQuery.contentType = contentType;
       if (budget) scriptQuery.budget = budget;
       if (premium === "true") scriptQuery.premium = true;
       else if (premium === "false") scriptQuery.premium = { $ne: true };
+      if (blockedUserIds.length > 0) {
+        scriptQuery.creator = { $nin: blockedUserIds };
+      }
 
       results.scripts = await Script.find(scriptQuery)
         .populate("creator", "name profileImage role")

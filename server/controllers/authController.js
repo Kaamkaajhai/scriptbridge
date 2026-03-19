@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import { sendOTPEmail, sendWelcomeEmail, sendSignupOTPToCompany } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 
 const generateToken = (id) => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "30d";
@@ -247,6 +248,9 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        approvalStatus: user.approvalStatus,
+        approvalNote: user.approvalNote,
+        profileImage: user.profileImage || user.profilePicture || "",
         token,
         expiresAt,
       });
@@ -319,6 +323,20 @@ export const verifyOTP = async (req, res) => {
     }
 
     await user.save();
+
+    if (user.role === "investor") {
+      await notifyAdminWorkflowEvent({
+        title: "Investor Profile Approval Request",
+        section: "pending-investors",
+        actorId: user._id,
+        message: `Investor profile request received from ${user.name} (${user.email}).`,
+        metadata: {
+          investorId: user._id,
+          investorEmail: user.email,
+          status: "pending",
+        },
+      });
+    }
 
     // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
@@ -489,6 +507,9 @@ export const getMe = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      approvalStatus: user.approvalStatus,
+      approvalNote: user.approvalNote,
+      profileImage: user.profileImage || user.profilePicture || "",
       profilePicture: user.profilePicture,
       bio: user.bio,
       expiresAt: decoded.exp * 1000,

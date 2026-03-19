@@ -80,8 +80,19 @@ export const getWriters = async (req, res) => {
   try {
     const { sort, genre, search } = req.query;
 
+    const currentUser = await User.findById(req.user._id).select("blockedUsers").lean();
+    const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user._id }).select("_id").lean();
+    const blockedUserIds = [
+      ...(currentUser?.blockedUsers || []),
+      ...usersWhoBlockedCurrent.map((u) => u._id),
+    ];
+
     // Base match: only writers
     const matchStage = { role: "writer" };
+
+    if (blockedUserIds.length > 0) {
+      matchStage._id = { $nin: blockedUserIds };
+    }
 
     // Name search (case-insensitive)
     if (search && search.trim()) {
@@ -201,23 +212,52 @@ export const getCurrentUser = async (req, res) => {
 
 export const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
+
+    let userQuery = User.findById(req.params.id)
       .select("-password")
       .populate("followers", "name profileImage")
       .populate("following", "name profileImage");
 
+    if (isOwnProfile) {
+      userQuery = userQuery.populate("blockedUsers", "name profileImage role");
+    }
+
+    const user = await userQuery;
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    let blockedByCurrent = false;
+    let blockedByProfile = false;
+
+    if (!isOwnProfile) {
+      const currentUser = await User.findById(req.user._id).select("blockedUsers");
+      blockedByCurrent = currentUser?.blockedUsers?.some((uid) => uid.toString() === req.params.id.toString()) || false;
+      blockedByProfile = user?.blockedUsers?.some((uid) => uid.toString() === req.user._id.toString()) || false;
+
+      if (blockedByProfile) {
+        return res.status(403).json({
+          message: "This user has blocked you.",
+          blocked: true,
+          blockedByCurrent,
+          blockedByProfile,
+        });
+      }
     }
 
     const posts = await Post.find({ user: req.params.id })
       .populate("user", "name profileImage role")
       .sort({ createdAt: -1 });
 
-    const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
     const scriptQuery = isOwnProfile
       ? { creator: req.params.id }
-      : { creator: req.params.id, status: { $ne: "draft" } };
+      : {
+          creator: req.params.id,
+          status: { $ne: "draft" },
+          purchaseRequestLocked: { $ne: true },
+        };
 
     const scripts = await Script.find(scriptQuery)
       .populate("creator", "name profileImage role")
@@ -238,6 +278,10 @@ export const getUserProfile = async (req, res) => {
       bookmarkedScripts = await Script.find({
         _id: { $in: user.favoriteScripts },
         status: "published",
+        $or: [
+          { purchaseRequestLocked: { $ne: true } },
+          { purchaseRequestLockedBy: req.user._id },
+        ],
       })
         .populate("creator", "name profileImage role")
         .sort({ updatedAt: -1 });
@@ -252,6 +296,9 @@ export const getUserProfile = async (req, res) => {
       // Sanitize account number even for own profile (for security)
       userObj.bankDetails.accountNumber = '****' + userObj.bankDetails.accountNumber.slice(-4);
     }
+
+    userObj.blockedByCurrent = blockedByCurrent;
+    userObj.blockedByProfile = blockedByProfile;
 
     res.json({ user: userObj, posts, scripts, purchasedScripts, bookmarkedScripts });
   } catch (error) {
@@ -268,7 +315,7 @@ export const updateUserProfile = async (req, res) => {
       // onboarding completion
       onboardingComplete,
       // investor profile fields
-      company, linkedInUrl, investmentRange,
+      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange,
       // bank details
       bankDetails,
       // notification preferences
@@ -314,10 +361,15 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (company !== undefined || linkedInUrl !== undefined || investmentRange !== undefined) {
+    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
+      if (subRole !== undefined) user.industryProfile.subRole = normalizeString(subRole);
       if (company !== undefined) user.industryProfile.company = normalizeString(company);
+      if (jobTitle !== undefined) user.industryProfile.jobTitle = normalizeString(jobTitle);
+      if (imdbUrl !== undefined) user.industryProfile.imdbUrl = normalizeString(imdbUrl);
       if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = normalizeString(linkedInUrl);
+      if (otherUrl !== undefined) user.industryProfile.otherUrl = normalizeString(otherUrl);
+      if (previousCredits !== undefined) user.industryProfile.previousCredits = normalizeString(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
       user.markModified("industryProfile");
     }
@@ -468,6 +520,21 @@ export const followUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (req.body.userId === req.user._id.toString()) {
+      return res.status(400).json({ message: "You cannot follow yourself" });
+    }
+
+    const currentBlockedTarget = currentUser.blockedUsers?.some(
+      (id) => id.toString() === req.body.userId
+    );
+    const targetBlockedCurrent = userToFollow.blockedUsers?.some(
+      (id) => id.toString() === req.user._id.toString()
+    );
+
+    if (currentBlockedTarget || targetBlockedCurrent) {
+      return res.status(403).json({ message: "Follow action is not allowed for blocked users" });
+    }
+
     if (currentUser.following.includes(req.body.userId)) {
       return res.status(400).json({ message: "Already following this user" });
     }
@@ -535,6 +602,75 @@ export const unfollowUser = async (req, res) => {
     res.json({ message: "User unfollowed successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const blockUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({ message: "You cannot block yourself" });
+    }
+
+    const userToBlock = await User.findById(userId);
+    const currentUser = await User.findById(req.user._id);
+
+    if (!userToBlock) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const alreadyBlocked = currentUser.blockedUsers?.some((id) => id.toString() === userId);
+    if (!alreadyBlocked) {
+      currentUser.blockedUsers.push(userId);
+    }
+
+    // Remove follow relationship in both directions on block.
+    currentUser.following = (currentUser.following || []).filter((id) => id.toString() !== userId);
+    currentUser.followers = (currentUser.followers || []).filter((id) => id.toString() !== userId);
+    userToBlock.following = (userToBlock.following || []).filter((id) => id.toString() !== req.user._id.toString());
+    userToBlock.followers = (userToBlock.followers || []).filter((id) => id.toString() !== req.user._id.toString());
+
+    await currentUser.save();
+    await userToBlock.save();
+
+    return res.json({ message: "User blocked successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const unblockUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    const currentUser = await User.findById(req.user._id);
+    currentUser.blockedUsers = (currentUser.blockedUsers || []).filter((id) => id.toString() !== userId);
+    await currentUser.save();
+
+    return res.json({ message: "User unblocked successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+export const getBlockedUsers = async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user._id)
+      .select("blockedUsers")
+      .populate("blockedUsers", "name profileImage role");
+
+    return res.json(currentUser?.blockedUsers || []);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 

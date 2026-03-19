@@ -21,11 +21,11 @@ const CONTENT_TYPES = [
   { key: "startup", label: "Startup" },
 ];
 const BUDGETS = [
-  { key: "micro", label: "Micro (<$10k)" },
-  { key: "low", label: "Low ($10kâ€“$100k)" },
-  { key: "mid", label: "Mid ($100kâ€“$1M)" },
-  { key: "high", label: "High ($1Mâ€“$10M)" },
-  { key: "blockbuster", label: "Blockbuster (>$10M)" },
+  { key: "micro", label: "Micro (<₹10L)" },
+  { key: "low", label: "Low (₹10L-₹1Cr)" },
+  { key: "mid", label: "Mid (₹1Cr-₹10Cr)" },
+  { key: "high", label: "High (₹10Cr-₹100Cr)" },
+  { key: "blockbuster", label: "Blockbuster (>₹100Cr)" },
 ];
 const PREMIUM_OPTIONS = [
   { key: "all", label: "All" },
