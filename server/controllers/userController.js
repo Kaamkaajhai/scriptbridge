@@ -87,8 +87,8 @@ export const getWriters = async (req, res) => {
       ...usersWhoBlockedCurrent.map((u) => u._id),
     ];
 
-    // Base match: only writers
-    const matchStage = { role: "writer" };
+    // Base match: include both writer and creator accounts
+    const matchStage = { role: { $in: ["writer", "creator"] } };
 
     if (blockedUserIds.length > 0) {
       matchStage._id = { $nin: blockedUserIds };
