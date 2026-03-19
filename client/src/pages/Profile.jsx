@@ -173,6 +173,10 @@ const Profile = () => {
   // Settings state
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsErr, setSettingsErr] = useState("");
+  const [isBlockedByCurrent, setIsBlockedByCurrent] = useState(false);
+  const [blockedByProfile, setBlockedByProfile] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [blockingAction, setBlockingAction] = useState(false);
   const [emailForm, setEmailForm] = useState({ password: "", newEmail: "" });
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [savingSettings, setSavingSettings] = useState(false);
@@ -210,6 +214,9 @@ const Profile = () => {
       setScripts((data.scripts || []).filter((s) => s.status !== "draft"));
       setPurchasedScripts(data.purchasedScripts || []);
       setBookmarkedScripts(data.bookmarkedScripts || []);
+      setBlockedUsers(Array.isArray(data.user.blockedUsers) ? data.user.blockedUsers : []);
+      setIsBlockedByCurrent(Boolean(data.user.blockedByCurrent));
+      setBlockedByProfile(Boolean(data.user.blockedByProfile));
       setIsFollowing(
         data.user.followers.some((f) => f._id === currentUser._id)
       );
@@ -231,6 +238,7 @@ const Profile = () => {
   };
 
   const handleFollow = async () => {
+    if (isBlockedByCurrent || blockedByProfile) return;
     try {
       if (isFollowing) {
         await api.post("/users/unfollow", { userId: profile._id });
@@ -254,6 +262,42 @@ const Profile = () => {
       }
     } catch (error) {
       console.error("Error following/unfollowing:", error);
+    }
+  };
+
+  const handleToggleBlock = async () => {
+    if (!profile?._id || blockingAction) return;
+    try {
+      setBlockingAction(true);
+      if (isBlockedByCurrent) {
+        await api.post("/users/unblock", { userId: profile._id });
+        setIsBlockedByCurrent(false);
+        setSettingsMsg("User unblocked");
+      } else {
+        await api.post("/users/block", { userId: profile._id });
+        setIsBlockedByCurrent(true);
+        setIsFollowing(false);
+        setSettingsMsg("User blocked");
+      }
+      setTimeout(() => setSettingsMsg(""), 2500);
+    } catch (error) {
+      setSettingsErr(error.response?.data?.message || "Failed to update block status");
+    } finally {
+      setBlockingAction(false);
+    }
+  };
+
+  const handleUnblockFromSettings = async (userId) => {
+    try {
+      setSavingSettings(true);
+      await api.post("/users/unblock", { userId });
+      setBlockedUsers((prev) => prev.filter((u) => u._id !== userId));
+      setSettingsMsg("User unblocked");
+      setTimeout(() => setSettingsMsg(""), 2500);
+    } catch (error) {
+      setSettingsErr(error.response?.data?.message || "Failed to unblock user");
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -432,6 +476,12 @@ const Profile = () => {
     followIdle: dark
       ? "bg-[#1e3a5f] text-white hover:bg-[#243f6a] shadow-lg shadow-[#1e3a5f]/25"
       : "bg-[#1e3a5f] text-white hover:bg-[#162d4a] shadow-md shadow-[#1e3a5f]/20",
+    blockBtn: dark
+      ? "bg-red-500/10 text-red-300 border-red-500/25 hover:bg-red-500/18"
+      : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100",
+    unblockBtn: dark
+      ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/18"
+      : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
     aboutText: dark ? "text-white/50" : "text-gray-500",
     aboutEmpty: dark ? "text-white/25" : "text-gray-400",
     roleTag: dark
@@ -496,10 +546,22 @@ const Profile = () => {
                 Edit Profile
               </button>
             ) : (
-              <button onClick={handleFollow}
-                className={`px-5 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md ${isFollowing ? t.followActive : t.followIdle}`}>
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+              <>
+                <button
+                  onClick={handleFollow}
+                  disabled={isBlockedByCurrent || blockedByProfile}
+                  className={`px-5 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                >
+                  {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
+                </button>
+                <button
+                  onClick={handleToggleBlock}
+                  disabled={blockingAction || blockedByProfile}
+                  className={`px-4 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                >
+                  {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -588,64 +650,139 @@ const Profile = () => {
           </div>
         ) : (
           <>
-            {/* Avatar + Info row */}
-            <div className="px-6 sm:px-8">
-              <div className="-mt-12 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
-                <div className="shrink-0">
-                  {profile.profileImage ? (
-                    <img src={resolveImage(profile.profileImage)} alt={profile.name}
-                      className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-[5px] shadow-xl ${t.avatarRing}`} />
-                  ) : (
-                    <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full ring-[5px] bg-gradient-to-br flex items-center justify-center shadow-xl ${t.avatarRing} ${t.avatarGrad}`}>
-                      <span className="text-4xl sm:text-5xl font-extrabold text-white/80">
-                        {profile.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            {profile.role === "investor" ? (
+              <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
+                <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
+                  <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
+                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                      <div className="shrink-0">
+                        {profile.profileImage ? (
+                          <img
+                            src={resolveImage(profile.profileImage)}
+                            alt={profile.name}
+                            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                          />
+                        ) : (
+                          <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                            <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
+                              {profile.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
-                <div className="flex-1 min-w-0 pb-1 pt-1 sm:pt-0">
-                  <div className="space-y-2">
-                    <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>
-                      {profile.name}
-                    </h1>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
-                        {profile.role}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
+                            Investor
+                          </span>
+                        </div>
+
+                        {(profile.industryProfile?.company || profile.industryProfile?.jobTitle) && (
+                          <p className={`text-[13px] mt-1.5 ${dark ? "text-white/50" : "text-gray-600"}`}>
+                            {profile.industryProfile?.jobTitle || "Investor"}
+                            {profile.industryProfile?.company ? ` at ${profile.industryProfile.company}` : ""}
+                          </p>
+                        )}
+
+                        {isOwnProfile && (
+                          <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
+                        )}
+
+                        {profile.bio && (
+                          <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
+                            {profile.bio}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                          {memberSince && (
+                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                              Joined {memberSince}
+                            </span>
+                          )}
+                          {profile.industryProfile?.investmentRange && (
+                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                              {profile.industryProfile.investmentRange.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2.5 w-full lg:w-[360px]">
+                      {[
+                        { label: "Followers", value: profile.followers.length },
+                        { label: "Following", value: profile.following.length },
+                        { label: "Purchased", value: investorStats?.scriptsPurchased ?? purchasedScripts.length },
+                      ].map((item) => (
+                        <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                          <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  {isOwnProfile && <p className={`text-[13px] font-medium mt-2 ${t.email}`}>{profile.email}</p>}
-                  {profile.bio && (
-                    <p className={`text-[14px] leading-relaxed mt-2.5 line-clamp-3 ${t.body}`}>
-                      {profile.bio}
-                    </p>
-                  )}
                 </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Avatar + Info row */}
+                <div className="px-6 sm:px-8">
+                  <div className="-mt-12 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
+                    <div className="shrink-0">
+                      {profile.profileImage ? (
+                        <img src={resolveImage(profile.profileImage)} alt={profile.name}
+                          className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-[5px] ${t.avatarRing}`} />
+                      ) : (
+                        <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full ring-[5px] bg-gradient-to-br flex items-center justify-center ${t.avatarRing} ${t.avatarGrad}`}>
+                          <span className="text-4xl sm:text-5xl font-extrabold text-white/80">
+                            {profile.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
-            {/* Stats for non-writer */}
-            <div className="px-6 sm:px-8 pb-7 pt-5">
-              <div className={`flex flex-wrap items-end gap-6 sm:gap-8 pt-5 border-t ${t.divider}`}>
-                {[
-                  ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
-                  ...(profile.role === "investor" ? [
-                    { value: `₹${(profile.wallet?.balance || 0).toLocaleString()}`, label: "Balance", isStr: true },
-                    { value: `₹${(profile.wallet?.totalEarnings || 0).toLocaleString()}`, label: "Total Invested", isStr: true },
-                    { value: profile.subscription?.scriptScoreCredits || 0, label: "Credits" },
-                  ] : []),
-                  { value: profile.followers.length, label: "Followers" },
-                  { value: profile.following.length, label: "Following" },
-                  ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
-                ].map((s) => (
-                  <div key={s.label}>
-                    <p className={`${s.isStr ? "text-lg sm:text-xl" : "text-2xl"} font-extrabold tabular-nums ${t.statNum}`}>{s.value}</p>
-                    <p className={`text-[11px] font-semibold uppercase tracking-wider mt-0.5 ${t.statLabel}`}>{s.label}</p>
+                    <div className="flex-1 min-w-0 pb-1 pt-1 sm:pt-0">
+                      <div className="space-y-2">
+                        <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>
+                          {profile.name}
+                        </h1>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
+                            {profile.role}
+                          </span>
+                        </div>
+                      </div>
+                      {isOwnProfile && <p className={`text-[13px] font-medium mt-2 ${t.email}`}>{profile.email}</p>}
+                      {profile.bio && (
+                        <p className={`text-[14px] leading-relaxed mt-2.5 line-clamp-3 ${t.body}`}>
+                          {profile.bio}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+
+                {/* Stats for non-writer */}
+                <div className="px-6 sm:px-8 pb-7 pt-5">
+                  <div className={`flex flex-wrap items-end gap-6 sm:gap-8 pt-5 border-t ${t.divider}`}>
+                    {[
+                      ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
+                      { value: profile.followers.length, label: "Followers" },
+                      { value: profile.following.length, label: "Following" },
+                      ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
+                    ].map((s) => (
+                      <div key={s.label}>
+                        <p className={`${s.isStr ? "text-lg sm:text-xl" : "text-2xl"} font-extrabold tabular-nums ${t.statNum}`}>{s.value}</p>
+                        <p className={`text-[11px] font-semibold uppercase tracking-wider mt-0.5 ${t.statLabel}`}>{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </motion.div>
@@ -668,11 +805,11 @@ const Profile = () => {
             onClick={() => setActiveTab(tab.key)}
             className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border ${activeTab === tab.key
               ? dark
-                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 shadow-lg shadow-[#1e3a5f]/20"
-                : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm"
+                ? "bg-[#1c2b42] text-white border-[#314765]"
+                : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
               : dark
-                ? "bg-[#152236] text-white/80 border-white/[0.15] hover:bg-[#1a2d47] hover:text-white"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900 shadow-sm"
+                ? "bg-[#121d2f] text-white/75 border-white/[0.12] hover:bg-[#18273d] hover:text-white"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900"
               }`}
           >
             <span className="flex items-center gap-1.5">
@@ -1004,6 +1141,28 @@ const Profile = () => {
                           <span className={`text-[11px] font-extrabold ${dark ? "text-white/15" : "text-gray-300"}`}>in</span>
                         </div>
                         <p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No LinkedIn profile linked</p>
+                      </div>
+                    )}
+                    {profile.industryProfile?.otherUrl ? (
+                      <a href={profile.industryProfile.otherUrl} target="_blank" rel="noopener noreferrer"
+                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors group ${dark ? "border-white/[0.06] hover:bg-white/[0.03]" : "border-gray-200 hover:bg-gray-50"}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
+                          <span className={`text-[11px] font-extrabold ${dark ? "text-emerald-400" : "text-emerald-600"}`}>URL</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/70 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900"}`}>Other Link</p>
+                          <p className={`text-[11px] truncate ${dark ? "text-white/30" : "text-gray-400"}`}>{profile.industryProfile.otherUrl}</p>
+                        </div>
+                        <svg className={`w-3.5 h-3.5 shrink-0 ${dark ? "text-white/20" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                      </a>
+                    ) : (
+                      <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border ${dark ? "border-white/[0.04]" : "border-gray-100"}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
+                          <span className={`text-[11px] font-extrabold ${dark ? "text-white/15" : "text-gray-300"}`}>URL</span>
+                        </div>
+                        <p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No additional link provided</p>
                       </div>
                     )}
                   </div>
@@ -1547,6 +1706,40 @@ const Profile = () => {
                 </select>
               </div>
             </div>
+          </SectionCard>
+
+          {/* Blocked Users */}
+          <SectionCard dark={dark} title="Blocked Users" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728" /></svg>}>
+            {blockedUsers.length === 0 ? (
+              <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>No blocked users.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {blockedUsers.map((u) => (
+                  <div key={u._id} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {u.profileImage ? (
+                        <img src={resolveImage(u.profileImage)} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${dark ? "bg-white/[0.06] text-white/70" : "bg-gray-200 text-gray-700"}`}>
+                          {u.name?.charAt(0)?.toUpperCase() || "U"}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/75" : "text-gray-800"}`}>{u.name}</p>
+                        <p className={`text-[11px] capitalize ${dark ? "text-white/30" : "text-gray-400"}`}>{u.role || "user"}</p>
+                      </div>
+                    </div>
+                    <button
+                      disabled={savingSettings}
+                      onClick={() => handleUnblockFromSettings(u._id)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors disabled:opacity-40 ${dark ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"}`}
+                    >
+                      Unblock
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
 
           {/* Danger Zone */}

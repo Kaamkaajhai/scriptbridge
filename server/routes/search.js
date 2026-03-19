@@ -17,6 +17,13 @@ router.get("/", authMiddleware, async (req, res) => {
     }
     const searchRegex = new RegExp(q.trim(), "i");
 
+    const currentUser = await User.findById(req.user._id).select("blockedUsers").lean();
+    const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user._id }).select("_id").lean();
+    const blockedUserIds = [
+      ...(currentUser?.blockedUsers || []),
+      ...usersWhoBlockedCurrent.map((u) => u._id),
+    ];
+
     let results = { users: [], scripts: [] };
 
     // Search users (optionally filter by role)
@@ -40,6 +47,10 @@ router.get("/", authMiddleware, async (req, res) => {
         userQuery.role = "reader";
       } else if (role) {
         userQuery.role = role;
+      }
+
+      if (blockedUserIds.length > 0) {
+        userQuery._id = { $nin: blockedUserIds };
       }
 
       results.users = await User.find(userQuery)
@@ -81,6 +92,9 @@ router.get("/", authMiddleware, async (req, res) => {
       if (budget) scriptQuery.budget = budget;
       if (premium === "true") scriptQuery.premium = true;
       else if (premium === "false") scriptQuery.premium = { $ne: true };
+      if (blockedUserIds.length > 0) {
+        scriptQuery.creator = { $nin: blockedUserIds };
+      }
 
       results.scripts = await Script.find(scriptQuery)
         .populate("creator", "name profileImage role")
