@@ -1,6 +1,26 @@
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Script from "../models/Script.js";
+import multer from "multer";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const messageUploadsDir = path.join(__dirname, "..", "uploads", "messages");
+
+const detectFileType = (mimetype = "") => {
+  if (mimetype.startsWith("image/")) return "image";
+  if (mimetype.startsWith("video/")) return "video";
+  if (mimetype.startsWith("audio/")) return "audio";
+  return "document";
+};
+
+export const uploadMessageAttachment = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+}).single("file");
 
 const buildChatId = (idA, idB) => {
   const sorted = [idA.toString(), idB.toString()].sort();
@@ -10,7 +30,7 @@ const buildChatId = (idA, idB) => {
 /* ── Send a message ─────────────────────────────────────────── */
 export const sendMessage = async (req, res) => {
   try {
-    const { receiverId, text, fileUrl, fileType, fileName } = req.body;
+    const { receiverId, text, fileUrl, fileType, fileName, fileSize, scriptId } = req.body;
     if (!receiverId) return res.status(400).json({ message: "receiverId is required." });
     if (!text?.trim() && !fileUrl) return res.status(400).json({ message: "Message cannot be empty." });
 
@@ -24,10 +44,8 @@ export const sendMessage = async (req, res) => {
     if (existingMessageCount === 0) {
       const isInvestor = sender.role === "investor";
       const isWriter = ["writer", "creator"].includes(sender.role);
-
-      const receiverUser = await User.findById(receiverId).select("role");
-      const isReceiverInvestor = receiverUser.role === "investor";
-      const isReceiverWriter = ["writer", "creator"].includes(receiverUser.role);
+      const isReceiverInvestor = receiver.role === "investor";
+      const isReceiverWriter = ["writer", "creator"].includes(receiver.role);
 
       if (!((isInvestor && isReceiverWriter) || (isWriter && isReceiverInvestor))) {
         return res.status(403).json({ message: "Conversations can only be started between writers and investors." });
@@ -54,12 +72,50 @@ export const sendMessage = async (req, res) => {
     if (fileUrl) messageData.fileUrl = fileUrl;
     if (fileType) messageData.fileType = fileType;
     if (fileName) messageData.fileName = fileName;
+    if (fileSize) messageData.fileSize = Number(fileSize) || undefined;
+    if (scriptId) messageData.script = scriptId;
 
     const message = await Message.create(messageData);
-    const populated = await message.populate("sender", "name profileImage role");
+    const populated = await message.populate([
+      { path: "sender", select: "name profileImage role" },
+      { path: "script", select: "title" },
+    ]);
     res.status(201).json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+/* ── Upload message attachment ─────────────────────────────── */
+export const uploadAttachment = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded." });
+    }
+
+    await mkdir(messageUploadsDir, { recursive: true });
+
+    const ext = path.extname(req.file.originalname || "") || ".bin";
+    const baseName = path
+      .basename(req.file.originalname || "attachment", ext)
+      .replace(/[^a-zA-Z0-9-_]/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 60) || "attachment";
+
+    const storedName = `${Date.now()}-${baseName}${ext}`;
+    const fullPath = path.join(messageUploadsDir, storedName);
+
+    await writeFile(fullPath, req.file.buffer);
+
+    return res.status(201).json({
+      fileUrl: `/uploads/messages/${storedName}`,
+      fileType: detectFileType(req.file.mimetype),
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to upload file." });
   }
 };
 
@@ -76,6 +132,7 @@ export const getMessages = async (req, res) => {
 
     const messages = await Message.find({ chatId, deleted: { $ne: true } })
       .populate("sender", "name profileImage role")
+      .populate("script", "title")
       .sort({ createdAt: 1 });
 
     const unreadIds = messages
@@ -127,7 +184,13 @@ export const getConversations = async (req, res) => {
       conversations.push({
         chatId: msg.chatId,
         user: otherUser,
-        lastMessage: msg.text || (msg.fileType === "image" ? "📷 Image" : "📎 File"),
+        lastMessage:
+          msg.text ||
+          (msg.fileType === "image"
+            ? "📷 Image"
+            : msg.fileType === "video"
+              ? "🎬 Trailer Video"
+              : "📎 File"),
         timestamp: msg.createdAt,
         unreadCount,
       });

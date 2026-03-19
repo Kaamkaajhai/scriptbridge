@@ -1,6 +1,6 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
-import { getWriters, getCurrentUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, updateSettings, changePassword, changeEmail } from "../controllers/userController.js";
+import { getWriters, getCurrentUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, updateSettings, changePassword, changeEmail, sendEmailVerificationCode, verifyEmailVerificationCode } from "../controllers/userController.js";
 
 const router = express.Router();
 
@@ -19,6 +19,8 @@ router.post("/watchlist/remove", protect, removeFromWatchlist);
 router.put("/settings", protect, updateSettings);
 router.put("/change-password", protect, changePassword);
 router.put("/change-email", protect, changeEmail);
+router.post("/email-verification/send", protect, sendEmailVerificationCode);
+router.post("/email-verification/verify", protect, verifyEmailVerificationCode);
 
 // User profile routes
 router.get("/:id", protect, getUserProfile);

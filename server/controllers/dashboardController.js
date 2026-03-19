@@ -123,7 +123,7 @@ export const getDashboardReviews = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const scripts = await Script.find({ creator: userId })
+    const scripts = await Script.find({ creator: userId, status: "published" })
       .select("title scriptScore platformScore views unlockedBy genre price holdStatus trailerStatus createdAt")
       .sort({ createdAt: -1 });
 

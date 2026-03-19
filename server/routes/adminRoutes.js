@@ -8,6 +8,7 @@ import {
     getAIUsageScripts,
     getEvaluationPurchases,
     getInvestorPurchases,
+    getInvoices,
     getPayments,
     getAIScores,
     getPlatformScores,
@@ -52,6 +53,7 @@ router.put("/scripts/:id/trailer-approve", approveTrailer);
 
 // Payments
 router.get("/payments", getPayments);
+router.get("/invoices", getInvoices);
 
 // Scores
 router.get("/scores/ai", getAIScores);

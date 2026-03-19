@@ -317,7 +317,7 @@ const Landing = () => {
           >
             {[
               { number: "1,000+", label: "Scripts Uploaded" },
-              { number: "$500K+", label: "Creator Earnings" },
+              { number: "₹5Cr+", label: "Creator Earnings" },
               { number: "500+", label: "Deals Matched" },
               { number: "95%", label: "Satisfaction Rate" },
             ].map((stat, i) => (

@@ -5,7 +5,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 
-const Sidebar = () => {
+const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
   const { user, logout } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const location = useLocation();
@@ -119,7 +119,6 @@ const Sidebar = () => {
   ] : [
     { path: "/dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
     { path: "/top-list", label: "Top List", icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" },
-    { path: "/credits", label: "Credits", icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" },
     { path: "/search", label: "Search Projects", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
     { path: "/purchase-requests", label: "Purchase Requests", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
   ];
@@ -170,8 +169,13 @@ const Sidebar = () => {
     </svg>
   );
 
+  const isPurchaseRequestsItem = (itemPath) => itemPath === "/purchase-requests";
+  const isMessagesItem = (itemPath) => itemPath === "/messages";
+
   const NavItem = ({ item }) => {
     const active = isActive(item.path);
+    const showPurchaseBadge = isPurchaseRequestsItem(item.path) && purchaseRequestCount > 0;
+    const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
     return (
       <Link
         to={item.path}
@@ -183,6 +187,16 @@ const Sidebar = () => {
       >
         <Icon d={item.icon} />
         <span>{item.label}</span>
+        {showMessageBadge && (
+          <span className="ml-auto inline-flex items-center justify-center min-w-[34px] h-6 px-2 rounded-full bg-[#0f766e] text-white text-[11px] font-extrabold tracking-tight shadow-sm">
+            +{unreadMessageCount > 99 ? "99" : unreadMessageCount}
+          </span>
+        )}
+        {showPurchaseBadge && (
+          <span className="ml-auto inline-flex items-center justify-center min-w-[34px] h-6 px-2 rounded-full bg-[#1e3a5f] text-white text-[11px] font-extrabold tracking-tight shadow-sm">
+            +{purchaseRequestCount > 99 ? "99" : purchaseRequestCount}
+          </span>
+        )}
 
       </Link>
     );
@@ -289,13 +303,25 @@ const Sidebar = () => {
         <nav className="flex-1 flex flex-col items-center gap-1 py-2 overflow-y-auto">
           {mainNavItems.map((item) => {
             const active = isActive(item.path);
+            const showPurchaseBadge = isPurchaseRequestsItem(item.path) && purchaseRequestCount > 0;
+            const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
             return (
               <Link key={item.label} to={item.path} title={item.label}
-                className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${active
+                className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${active
                   ? isDarkMode ? "bg-[#0d1520] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"
                   : isDarkMode ? "text-[#4a5a6e] hover:bg-[#0d1520] hover:text-[#8896a7]" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
                   }`}>
                 <Icon d={item.icon} />
+                {showMessageBadge && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[19px] h-[19px] px-1 rounded-full bg-[#0f766e] text-white text-[10px] font-extrabold leading-none ring-2 ring-white/80">
+                    {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                  </span>
+                )}
+                {showPurchaseBadge && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[19px] h-[19px] px-1 rounded-full bg-[#1e3a5f] text-white text-[10px] font-extrabold leading-none ring-2 ring-white/80">
+                    {purchaseRequestCount > 9 ? "9+" : purchaseRequestCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -354,13 +380,19 @@ const Sidebar = () => {
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-16 border-t flex items-center justify-around px-1 z-40 ${isDarkMode ? "bg-[#080e18] border-[#151f2e]" : "bg-white/90 backdrop-blur-xl border-gray-200/60"}`}>
         {mobileItems.map((item) => {
           const active = isActive(item.path);
+          const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
           return (
             <Link key={item.path} to={item.path}
-              className={`flex flex-col items-center justify-center gap-0.5 w-14 h-12 transition-colors ${active
+              className={`relative flex flex-col items-center justify-center gap-0.5 w-14 h-12 transition-colors ${active
                 ? isDarkMode ? "text-white" : "text-[#1e3a5f]"
                 : isDarkMode ? "text-[#4a5a6e]" : "text-gray-400"
                 }`}>
               <Icon d={item.icon} size={`w-[22px] h-[22px] ${active ? "stroke-[2.2]" : ""}`} />
+              {showMessageBadge && (
+                <span className="absolute top-0.5 right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#0f766e] text-white text-[10px] font-extrabold leading-none ring-2 ring-white/80">
+                  {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                </span>
+              )}
               <span className={`text-xs ${active
                 ? isDarkMode ? "font-extrabold text-white" : "font-extrabold text-[#1e3a5f]"
                 : isDarkMode ? "font-bold text-[#4a5a6e]" : "font-bold text-gray-400"

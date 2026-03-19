@@ -534,6 +534,14 @@ html.dark-mode .script-content code {
   padding: 0 2px;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   PROFILE PAGE — Minimal Styles
+   ═══════════════════════════════════════════════════════════ */
+
+.profile-bento-card {
+  transition: border-color 0.2s ease;
+}
+
 /* ── Print styles ────────────────────────────────────────── */
 @media print {
   body>*:not(#print-root) {

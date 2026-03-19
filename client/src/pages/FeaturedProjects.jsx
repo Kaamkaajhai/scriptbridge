@@ -572,7 +572,7 @@ const FeaturedProjects = () => {
                                   {script.title}
                                 </h4>
                                 <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed font-medium">
-                                  {script.logline || script.description || script.synopsis || "No description available"}
+                                  {script.logline || script.synopsis || script.description || "No synopsis available"}
                                 </p>
                               </div>
                             </>

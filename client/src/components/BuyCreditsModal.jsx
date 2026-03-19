@@ -174,8 +174,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const getCurrency = (c) => {
-    const map = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
-    return map[c] || "₹";
+    return "₹";
   };
 
   const getGradient = (name) => {
@@ -607,7 +606,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 whileTap={{ scale: 0.98 }}
                 onClick={handlePurchase}
                 disabled={!selectedPackage || purchasing}
-                className="px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                className="px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
               >
                 {purchasing ? (
                   <>

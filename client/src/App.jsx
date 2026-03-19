@@ -29,7 +29,6 @@ const InvestorHome = lazy(() => import("./pages/InvestorHome"));
 const ReaderHome = lazy(() => import("./pages/ReaderHome"));
 const ScriptReader = lazy(() => import("./pages/ScriptReader"));
 const ReaderProfile = lazy(() => import("./pages/ReaderProfile"));
-const Credits = lazy(() => import("./pages/Credits"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
@@ -127,13 +126,7 @@ function App() {
               />
               <Route
                 path="/credits"
-                element={
-                  <PrivateRoute>
-                    <MainLayout>
-                      <Credits />
-                    </MainLayout>
-                  </PrivateRoute>
-                }
+                element={<Navigate to="/dashboard" replace />}
               />
               <Route
                 path="/purchase-requests"
