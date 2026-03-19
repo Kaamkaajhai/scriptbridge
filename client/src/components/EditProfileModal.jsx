@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
-import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, Bell, User, CreditCard, Briefcase, Globe, Target, Heart } from "lucide-react";
+import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, User, CreditCard, Briefcase, Globe, Target, Heart, BadgeCheck, Sparkles, Clapperboard, Link as LinkIcon } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
 
 const GENRE_OPTIONS = [
@@ -68,19 +68,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   // Investor-specific state
   const [investorData, setInvestorData] = useState({
+    subRole: ip.subRole || "producer",
+    jobTitle: ip.jobTitle || "",
     company: ip.company || "",
+    imdbUrl: ip.imdbUrl || "",
     linkedInUrl: ip.linkedInUrl || "",
+    otherUrl: ip.otherUrl || "",
+    previousCredits: ip.previousCredits || "",
     investmentRange: ip.investmentRange || "",
   });
   const [investorGenres, setInvestorGenres] = useState(mandates.genres || profile.preferences?.genres || []);
   const [investorBudgets, setInvestorBudgets] = useState(mandates.budgetTiers || []);
   const [investorFormats, setInvestorFormats] = useState(mandates.formats || []);
-  const [notifPrefs, setNotifPrefs] = useState({
-    smartMatchAlerts: profile.notificationPrefs?.smartMatchAlerts ?? true,
-    auditionAlerts: profile.notificationPrefs?.auditionAlerts ?? true,
-    holdAlerts: profile.notificationPrefs?.holdAlerts ?? true,
-    viewAlerts: profile.notificationPrefs?.viewAlerts ?? true,
-  });
 
   // Writer-specific state
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
@@ -133,9 +132,8 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     : isInvestor
       ? [
         { key: "basic", label: "Basic", icon: <User size={13} /> },
-        { key: "investor", label: "Investor", icon: <TrendingUp size={13} /> },
+        { key: "investor", label: "Professional", icon: <BadgeCheck size={13} /> },
         { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
-        { key: "notifications", label: "Alerts", icon: <Bell size={13} /> },
         { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
       ]
       : [
@@ -244,13 +242,17 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       }
 
       if (isInvestor) {
+        payload.subRole = investorData.subRole;
+        payload.jobTitle = investorData.jobTitle;
         payload.company = investorData.company;
+        payload.imdbUrl = investorData.imdbUrl;
         payload.linkedInUrl = investorData.linkedInUrl;
+        payload.otherUrl = investorData.otherUrl;
+        payload.previousCredits = investorData.previousCredits;
         payload.investmentRange = investorData.investmentRange;
         payload.preferredGenres = investorGenres;
         payload.preferredBudgets = investorBudgets;
         payload.preferredFormats = investorFormats;
-        payload.notificationPrefs = notifPrefs;
       }
 
       const normalizedBankDetails = {
@@ -629,8 +631,39 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "investor" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Investor Profile</h3>
-                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Business details visible to creators and writers</p>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Investor Professional Profile</h3>
+                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>These details help writers and readers understand your domain, credibility, and investment fit.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><Briefcase size={12} /> Investor Role</span>
+                  </label>
+                  <select
+                    value={investorData.subRole}
+                    onChange={(e) => setInvestorData({ ...investorData, subRole: e.target.value })}
+                    className={inputClass}
+                  >
+                    <option value="producer">Producer</option>
+                    <option value="agent">Agent</option>
+                    <option value="director">Director</option>
+                    <option value="actor">Actor</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><BadgeCheck size={12} /> Job Title</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={investorData.jobTitle}
+                    onChange={(e) => setInvestorData({ ...investorData, jobTitle: e.target.value })}
+                    className={inputClass}
+                    placeholder="e.g., Creative Producer"
+                  />
+                </div>
               </div>
 
               <div>
@@ -648,15 +681,58 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
               <div>
                 <label className={labelClass}>
-                  <span className="flex items-center gap-1.5"><Linkedin size={12} /> LinkedIn URL</span>
+                  <span className="flex items-center gap-1.5"><Clapperboard size={12} /> Previous Credits</span>
                 </label>
-                <input
-                  type="url"
-                  value={investorData.linkedInUrl}
-                  onChange={(e) => setInvestorData({ ...investorData, linkedInUrl: e.target.value })}
-                  className={inputClass}
-                  placeholder="https://linkedin.com/in/yourprofile"
+                <textarea
+                  value={investorData.previousCredits}
+                  onChange={(e) => setInvestorData({ ...investorData, previousCredits: e.target.value })}
+                  className={`${inputClass} resize-none`}
+                  rows="3"
+                  maxLength={400}
+                  placeholder="Mention films, series, campaigns, funded projects, festivals, or distribution credits"
                 />
+                <p className="text-[10px] text-gray-400 mt-1">{investorData.previousCredits.length}/400</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><LinkIcon size={12} /> IMDb URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={investorData.imdbUrl}
+                    onChange={(e) => setInvestorData({ ...investorData, imdbUrl: e.target.value })}
+                    className={inputClass}
+                    placeholder="https://www.imdb.com/name/..."
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><Linkedin size={12} /> LinkedIn URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={investorData.linkedInUrl}
+                    onChange={(e) => setInvestorData({ ...investorData, linkedInUrl: e.target.value })}
+                    className={inputClass}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><Globe size={12} /> Other URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={investorData.otherUrl}
+                    onChange={(e) => setInvestorData({ ...investorData, otherUrl: e.target.value })}
+                    className={inputClass}
+                    placeholder="https://your-website.com or any relevant profile link"
+                  />
+                </div>
               </div>
 
               <div>
@@ -677,18 +753,30 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </select>
               </div>
 
-              <div className={`flex items-start gap-2.5 p-3 rounded-lg ${dark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
-                <TrendingUp size={16} className={`mt-0.5 shrink-0 ${dark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                <p className={`text-xs ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  Complete your investor profile to get better script recommendations and connect with relevant creators.
+              <div className={`rounded-xl border p-3.5 ${dark ? 'bg-[#0f2544]/18 border-[#1e3a5f]/35' : 'bg-[#f3f8ff] border-[#d7e6f8]'}`}>
+                <p className={`text-[11px] font-semibold mb-1.5 ${dark ? 'text-blue-300' : 'text-[#1e3a5f]'}`}>
+                  Profile tip for better inbound pitches
+                </p>
+                <p className={`text-[11px] leading-relaxed ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  Add your role, recent credits, and links. Writers and readers can quickly evaluate fit and send higher-quality, relevant pitches.
                 </p>
               </div>
+
             </motion.div>
           )}
 
           {/* === INVESTOR PREFERENCES SECTION === */}
           {activeSection === "preferences" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+              <div className={`rounded-xl border p-3.5 ${dark ? 'bg-white/[0.03] border-[#333]' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-start gap-2.5">
+                  <Sparkles size={15} className={`mt-0.5 ${dark ? 'text-blue-300' : 'text-[#1e3a5f]'}`} />
+                  <p className={`text-[11px] leading-relaxed ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Keep your mandates specific. Clear genre, format, and budget preferences improve your recommendation quality and reduce irrelevant requests.
+                  </p>
+                </div>
+              </div>
+
               {/* Preferred Genres */}
               <div>
                 <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Preferred Genres</h3>
@@ -757,50 +845,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   ))}
                 </div>
               </div>
-            </motion.div>
-          )}
-
-          {/* === NOTIFICATION PREFERENCES SECTION === */}
-          {activeSection === "notifications" && isInvestor && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-              <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Notification Preferences</h3>
-                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Control which alerts you receive</p>
-              </div>
-
-              {[
-                { key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "Get notified when scripts match your preferences" },
-                { key: "holdAlerts", label: "Hold Updates", desc: "Updates when scripts you've held have changes" },
-                { key: "viewAlerts", label: "Profile Views", desc: "Know when creators view your investor profile" },
-                { key: "auditionAlerts", label: "Audition Alerts", desc: "Notifications about audition opportunities" },
-              ].map((item) => (
-                <label
-                  key={item.key}
-                  className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${dark
-                    ? notifPrefs[item.key] ? 'bg-[#0f2544]/30 border-[#1e3a5f]/40' : 'bg-white/[0.02] border-[#333] hover:border-[#444]'
-                    : notifPrefs[item.key] ? 'bg-[#1e3a5f]/[0.04] border-[#1e3a5f]/20' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div>
-                    <p className={`text-sm font-semibold ${dark ? 'text-gray-200' : 'text-gray-800'}`}>{item.label}</p>
-                    <p className={`text-[11px] mt-0.5 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{item.desc}</p>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      checked={notifPrefs[item.key]}
-                      onChange={(e) => setNotifPrefs({ ...notifPrefs, [item.key]: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className={`w-10 h-6 rounded-full transition-colors ${notifPrefs[item.key]
-                      ? 'bg-[#1e3a5f]'
-                      : dark ? 'bg-[#333]' : 'bg-gray-300'
-                    }`}>
-                      <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${notifPrefs[item.key] ? 'translate-x-4' : ''}`} />
-                    </div>
-                  </div>
-                </label>
-              ))}
             </motion.div>
           )}
 

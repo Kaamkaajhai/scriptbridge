@@ -139,7 +139,7 @@ const sections = [
       },
       {
         subtitle: "Limitation of Liability",
-        text: "To the fullest extent permitted by law, Ckript and its affiliates, officers, directors, employees, contractors, licensors, and agents will not be liable for any indirect, incidental, consequential, special, exemplary, punitive, or loss-of-profit damages, or for any loss of data, goodwill, opportunity, business, or revenue arising out of or related to the platform, user conduct, transactions between users, or these Terms, even if advised of the possibility of such damages. To the fullest extent permitted by law, our total aggregate liability for all claims arising out of or relating to the platform or these Terms will not exceed the greater of the amount you paid to Ckript in the 12 months before the event giving rise to the claim or USD 100.",
+        text: "To the fullest extent permitted by law, Ckript and its affiliates, officers, directors, employees, contractors, licensors, and agents will not be liable for any indirect, incidental, consequential, special, exemplary, punitive, or loss-of-profit damages, or for any loss of data, goodwill, opportunity, business, or revenue arising out of or related to the platform, user conduct, transactions between users, or these Terms, even if advised of the possibility of such damages. To the fullest extent permitted by law, our total aggregate liability for all claims arising out of or relating to the platform or these Terms will not exceed the greater of the amount you paid to Ckript in the 12 months before the event giving rise to the claim or INR 8,500.",
       },
     ],
   },

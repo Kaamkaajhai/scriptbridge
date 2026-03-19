@@ -59,6 +59,7 @@ const userSchema = new mongoose.Schema({
     jobTitle: { type: String },
     imdbUrl: { type: String },
     linkedInUrl: { type: String },
+    otherUrl: { type: String },
     previousCredits: { type: String },
     investmentRange: { type: String },
     isVerified: { type: Boolean, default: false },
@@ -77,6 +78,7 @@ const userSchema = new mongoose.Schema({
 
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   // Smart Match preferences
   preferences: {
     genres: [String],
@@ -119,6 +121,19 @@ const userSchema = new mongoose.Schema({
     auditionAlerts: { type: Boolean, default: true },
     holdAlerts: { type: Boolean, default: true },
     viewAlerts: { type: Boolean, default: true },
+  },
+  recommendationProfile: {
+    detectedGenres: [String],
+    preferredFormats: [String],
+    preferredBudgets: [String],
+    behavior: {
+      genreWeights: { type: Map, of: Number, default: {} },
+      tagWeights: { type: Map, of: Number, default: {} },
+      formatWeights: { type: Map, of: Number, default: {} },
+      budgetWeights: { type: Map, of: Number, default: {} },
+      avgTimeSpentMs: { type: Number, default: 0 },
+    },
+    updatedAt: { type: Date },
   },
   // Financial information
   bankDetails: {

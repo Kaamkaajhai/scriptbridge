@@ -261,9 +261,9 @@ const InvestorOnboarding = () => {
     setLoading(true);
     try {
       await api.put("/users/update", { onboardingComplete: true });
-      navigate("/dashboard");
+      navigate("/investor-home");
     } catch {
-      navigate("/dashboard");
+      navigate("/investor-home");
     } finally {
       setLoading(false);
     }

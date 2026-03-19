@@ -5,6 +5,7 @@ import {
   holdScript, releaseHold, getMyHolds, addRoles,
   getFeaturedScripts, getTopScripts, searchScriptsReader,
   getLatestScripts, recordRead, toggleFavorite, getCategories,
+  trackScriptInteraction,
   extractPdfText, saveDraft, deleteScript, getMyDrafts, getMyScripts, updateScript,
   createScriptPurchaseOrder, verifyScriptPurchase,
   createScriptHoldOrder, verifyScriptHold,
@@ -59,6 +60,7 @@ router.post("/release-hold", protect, releaseHold);
 router.post("/add-roles", protect, addRoles);
 router.post("/:id/read", protect, recordRead);
 router.post("/:id/favorite", protect, toggleFavorite);
+router.post("/:id/interactions", protect, trackScriptInteraction);
 router.put("/:id", protect, updateScript);
 router.delete("/:id", protect, deleteScript);
 

@@ -22,6 +22,7 @@ const MainLayout = ({ children }) => {
   const [notifLoading, setNotifLoading] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -244,6 +245,21 @@ const MainLayout = ({ children }) => {
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
+
+  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5001").replace(/\/$/, "");
+  const rawProfileImage = user?.profileImage || user?.profilePicture || "";
+  const normalizedProfileImagePath = typeof rawProfileImage === "string"
+    ? rawProfileImage.trim().replace(/\\/g, "/")
+    : "";
+  const resolvedProfileImage = normalizedProfileImagePath
+    ? (normalizedProfileImagePath.startsWith("http")
+      ? normalizedProfileImagePath
+      : `${apiBaseUrl}${normalizedProfileImagePath.startsWith("/") ? "" : "/"}${normalizedProfileImagePath}`)
+    : "";
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [resolvedProfileImage]);
 
   return (
     <>
@@ -545,8 +561,13 @@ const MainLayout = ({ children }) => {
           <div className="relative" ref={dropdownRef}>
             <button onClick={() => setDropdownOpen(!dropdownOpen)}
               className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#0d1520]" : "hover:bg-gray-100"}`}>
-              {user?.profileImage ? (
-                <img src={user.profileImage} alt={user.name} className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1c2a3a]" : "ring-gray-100 hover:ring-gray-200"}`} />
+              {resolvedProfileImage && !avatarLoadError ? (
+                <img
+                  src={resolvedProfileImage}
+                  alt={user?.name || "User"}
+                  onError={() => setAvatarLoadError(true)}
+                  className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1c2a3a]" : "ring-gray-100 hover:ring-gray-200"}`}
+                />
               ) : (
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-[#0d1520] text-[#8896a7] ring-1 ring-[#1c2a3a]" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
                   {initials}

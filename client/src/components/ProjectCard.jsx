@@ -84,15 +84,31 @@ const ProjectCard = ({ project, userName }) => {
 
   const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
+  const handleCardClick = async () => {
+    if (!isClickable) return;
+
+    if (project?._id) {
+      api
+        .post(`/scripts/${project._id}/interactions`, {
+          type: "click",
+          source: "project_card",
+          metadata: { from: "feed" },
+        })
+        .catch(() => null);
+    }
+
+    navigate(`/script/${project._id}`);
+  };
+
   return (
     <div
-      onClick={() => isClickable && navigate(`/script/${project._id}`)}
+      onClick={handleCardClick}
       className={`group relative flex flex-col overflow-hidden rounded-2xl border transition-all duration-500 select-none ${
         isClickable ? "cursor-pointer" : "cursor-default"
       } ${
         dark
-          ? "bg-[#0c1420] border-[#1a2636] hover:border-[#263c54] hover:shadow-[0_16px_56px_rgba(0,0,0,0.55)]"
-          : "bg-white border-gray-200 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.10)]"
+          ? "bg-[#0c1420] border-[#1a2636] hover:border-[#263c54]"
+          : "bg-white border-gray-200 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.05)]"
       }`}
     >
 
@@ -111,15 +127,9 @@ const ProjectCard = ({ project, userName }) => {
           <div className={`absolute inset-0 overflow-hidden flex flex-col items-center justify-center gap-3 ${
             dark ? "bg-[#070d17]" : "bg-[#eef2fb]"
           }`}>
-            {/* scanlines */}
-            <div className="absolute inset-0 pointer-events-none" style={{
-              backgroundImage: dark
-                ? "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.016) 3px,rgba(255,255,255,0.016) 4px)"
-                : "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.022) 3px,rgba(0,0,0,0.022) 4px)",
-            }}/>
             {/* center ambient glow */}
             <div className={`absolute w-40 h-40 rounded-full blur-3xl pointer-events-none ${
-              dark ? "bg-[#1a5aaa]/20" : "bg-[#90b0f0]/25"
+              dark ? "bg-white/5" : "bg-white/70"
             }`}/>
             {/* icon container */}
             <div className={`relative flex items-center justify-center w-[62px] h-[62px] rounded-[18px] ${
