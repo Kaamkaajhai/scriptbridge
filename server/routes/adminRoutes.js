@@ -24,6 +24,7 @@ import {
     getPendingInvestors,
     approveInvestor,
     rejectInvestor,
+    getAdminAlertSummary,
 } from "../controllers/adminController.js";
 import { getContactSubmissions } from "../controllers/contactController.js";
 
@@ -34,6 +35,7 @@ router.use(protect, adminOnly);
 
 // Dashboard
 router.get("/stats", getStats);
+router.get("/alerts/summary", getAdminAlertSummary);
 
 // Users
 router.get("/users", getUsers);

@@ -2244,7 +2244,7 @@ const CreateProject = () => {
                 </div>
                 <div className={`rounded-xl px-4 py-4 ${dark ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
                   <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `$${writerEarns}` : "$0"}</p>
+                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `₹${writerEarns}` : "₹0"}</p>
                   <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
                 </div>
               </div>

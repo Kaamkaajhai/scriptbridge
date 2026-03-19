@@ -57,14 +57,24 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Search scripts/projects
     if (type === "all" || type === "projects") {
-      const scriptQuery = { status: "published", isSold: { $ne: true } };
+      const scriptQuery = {
+        status: "published",
+        isSold: { $ne: true },
+        $or: [
+          { purchaseRequestLocked: { $ne: true } },
+          { purchaseRequestLockedBy: req.user._id },
+          { creator: req.user._id },
+        ],
+      };
       if (q && q.trim()) {
-        scriptQuery.$or = [
+        scriptQuery.$and = [{
+          $or: [
           { title: searchRegex },
           { description: searchRegex },
           { genre: searchRegex },
           { contentType: searchRegex },
-        ];
+          ],
+        }];
       }
       if (genre) scriptQuery.genre = genre;
       if (contentType) scriptQuery.contentType = contentType;

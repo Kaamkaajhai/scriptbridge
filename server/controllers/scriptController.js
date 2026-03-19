@@ -10,6 +10,7 @@ import {
   sendPurchaseApprovedEmail,
   sendPurchaseRejectedEmail,
 } from "../utils/emailService.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { CREDIT_PRICES } from "./creditsController.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
@@ -18,6 +19,10 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import { uploadToCloudinary } from "../config/cloudinary.js";
+import {
+  buildInvestorFeed,
+  trackInvestorInteraction,
+} from "../services/recommendationService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +41,12 @@ const getRazorpay = () => {
     });
   }
   return razorpayInstance;
+};
+
+const PUBLIC_SCRIPT_FILTER = {
+  status: "published",
+  isSold: { $ne: true },
+  purchaseRequestLocked: { $ne: true },
 };
 
 export const extractPdfText = async (req, res) => {
@@ -221,8 +232,42 @@ export const updateScript = async (req, res) => {
       };
     }
 
+    const wasPendingApproval = script.status === "pending_approval";
     script.status = "pending_approval";
     await script.save();
+
+    if (!wasPendingApproval) {
+      await notifyAdminWorkflowEvent({
+        title: "Writer Project Submitted For Approval",
+        section: "approvals",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          writerEmail: req.user.email || "",
+          source: "update-script",
+        },
+      });
+    }
+
+    if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
+      await notifyAdminWorkflowEvent({
+        title: "AI Trailer Approval Request",
+        section: "trailers",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          trailerStatus: script.trailerStatus,
+          source: "update-script",
+        },
+      });
+    }
+
     res.json(script);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -390,6 +435,37 @@ export const uploadScript = async (req, res) => {
     // For now, assume it's a new or finalized creation.
     const script = await Script.create(scriptData);
 
+    await notifyAdminWorkflowEvent({
+      title: "Writer Project Submitted For Approval",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
+      metadata: {
+        scriptId: script._id,
+        writerId: req.user._id,
+        writerEmail: creator.email || "",
+        aiTrailerRequested: Boolean(services?.aiTrailer),
+        source: "upload-script",
+      },
+    });
+
+    if (services?.aiTrailer) {
+      await notifyAdminWorkflowEvent({
+        title: "AI Trailer Approval Request",
+        section: "trailers",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          trailerStatus: script.trailerStatus,
+          source: "upload-script",
+        },
+      });
+    }
+
     await Invoice.create({
       invoiceNumber,
       invoiceDate,
@@ -412,8 +488,8 @@ export const uploadScript = async (req, res) => {
         {
           item: "Script Access Model",
           type: "Configuration",
-          detail: isPremiumAccess ? `Premium access at $${effectivePrice}` : "Free public access",
-          amountLabel: "$0",
+          detail: isPremiumAccess ? `Premium access at ₹${effectivePrice}` : "Free public access",
+          amountLabel: "₹0",
           amountValue: 0,
         },
         {
@@ -426,8 +502,8 @@ export const uploadScript = async (req, res) => {
         {
           item: "Writer Earnings Per Premium Sale",
           type: "Future Earnings",
-          detail: isPremiumAccess ? `Buyer pays $${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
-          amountLabel: isPremiumAccess ? `$${writerEarnsPerSale}` : "$0",
+          detail: isPremiumAccess ? `Buyer pays ₹${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
+          amountLabel: isPremiumAccess ? `₹${writerEarnsPerSale}` : "₹0",
           amountValue: writerEarnsPerSale,
         },
       ],
@@ -480,7 +556,7 @@ export const uploadScript = async (req, res) => {
 export const getScripts = async (req, res) => {
   try {
     const { genre, contentType, budget, sort, search, premium, minPrice, maxPrice } = req.query;
-    const query = { status: "published", isSold: { $ne: true } };
+    const query = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) query.genre = genre;
     if (contentType) query.contentType = contentType;
     if (budget) query.budget = budget;
@@ -611,6 +687,28 @@ export const getScriptById = async (req, res) => {
       return res.status(403).json({ message: "This script has been purchased and is no longer publicly available" });
     }
 
+    // Block access while an investor purchase request is pending.
+    // Allow creator, admin, current buyer, or the investor who owns the pending request.
+    if (script.purchaseRequestLocked) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      const isLockOwner = lockOwnerId && lockOwnerId === req.user._id.toString();
+      let hasMyPendingRequest = false;
+
+      if (!isLockOwner && !isOwner && !isAdmin && !isBuyer) {
+        hasMyPendingRequest = Boolean(
+          await ScriptPurchaseRequest.findOne({
+            script: script._id,
+            investor: req.user._id,
+            status: "pending",
+          }).select("_id").lean()
+        );
+      }
+
+      if (!isOwner && !isAdmin && !isBuyer && !isLockOwner && !hasMyPendingRequest) {
+        return res.status(403).json({ message: "This script is temporarily unavailable while a purchase request is under review." });
+      }
+    }
+
     // Track view — only count views from users who are NOT the script creator
     if (!isOwner) {
       script.views += 1;
@@ -631,6 +729,14 @@ export const getScriptById = async (req, res) => {
           },
         },
       });
+
+      // Track recommendation interaction signals for personalized investor feed.
+      trackInvestorInteraction({
+        userId: req.user._id,
+        scriptId: script._id,
+        type: "view",
+        source: "script_detail",
+      }).catch(() => null);
     }
 
     // Check if user has unlocked this script
@@ -721,7 +827,7 @@ export const unlockScript = async (req, res) => {
         type: "unlock",
         from: req.user._id,
         script: script._id,
-        message: `${user.name} unlocked your script "${script.title}" for $${script.price}`,
+        message: `${user.name} unlocked your script "${script.title}" for ₹${script.price}`,
       });
     }
     res.json({ message: "Script unlocked", script });
@@ -753,6 +859,13 @@ export const requestScriptPurchase = async (req, res) => {
       return res.status(400).json({ message: "You already have access to this script." });
     }
 
+    if (script.purchaseRequestLocked) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
+        return res.status(409).json({ message: "This script is currently unavailable because a purchase request is already in progress." });
+      }
+    }
+
     // Check for existing pending request
     const existing = await ScriptPurchaseRequest.findOne({
       script: scriptId,
@@ -760,6 +873,13 @@ export const requestScriptPurchase = async (req, res) => {
       status: "pending",
     });
     if (existing) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      if (!script.purchaseRequestLocked || lockOwnerId !== req.user._id.toString()) {
+        script.purchaseRequestLocked = true;
+        script.purchaseRequestLockedBy = req.user._id;
+        script.purchaseRequestLockedAt = script.purchaseRequestLockedAt || existing.createdAt || new Date();
+        await script.save();
+      }
       return res.status(400).json({ message: "You already have a pending purchase request for this script." });
     }
 
@@ -775,13 +895,18 @@ export const requestScriptPurchase = async (req, res) => {
       note: note || "",
     });
 
+    script.purchaseRequestLocked = true;
+    script.purchaseRequestLockedBy = req.user._id;
+    script.purchaseRequestLockedAt = new Date();
+    await script.save();
+
     // Notify writer in-app
     await Notification.create({
       user: script.creator._id,
       type: "purchase_request",
       from: req.user._id,
       script: script._id,
-      message: `${investor.name} wants to purchase your script "${script.title}"${amount > 0 ? ` for $${amount}` : ""}.`,
+      message: `${investor.name} wants to purchase your script "${script.title}"${amount > 0 ? ` for ₹${amount}` : ""}.`,
     });
 
     // Email writer
@@ -821,8 +946,13 @@ export const approveScriptPurchase = async (req, res) => {
     // Grant access to the script
     if (!script.unlockedBy.some((uid) => uid.toString() === investor._id.toString())) {
       script.unlockedBy.push(investor._id);
-      await script.save();
     }
+
+    script.isSold = true;
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
+    await script.save();
 
     purchaseRequest.status = "approved";
     await purchaseRequest.save();
@@ -874,6 +1004,18 @@ export const rejectScriptPurchase = async (req, res) => {
     purchaseRequest.status = "rejected";
     if (note) purchaseRequest.note = note;
     await purchaseRequest.save();
+
+    const hasPendingRequests = await ScriptPurchaseRequest.exists({
+      script: script._id,
+      status: "pending",
+    });
+
+    if (!hasPendingRequests) {
+      script.purchaseRequestLocked = false;
+      script.purchaseRequestLockedBy = null;
+      script.purchaseRequestLockedAt = null;
+      await script.save();
+    }
 
     // Notify investor in-app
     await Notification.create({
@@ -930,7 +1072,7 @@ export const getMyPurchaseRequests = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Hold/Option a script (for producers - $200 default, 30 days)
+// Hold/Option a script (for producers - ₹200 default, 30 days)
 export const holdScript = async (req, res) => {
   try {
     const { scriptId } = req.body;
@@ -978,7 +1120,7 @@ export const holdScript = async (req, res) => {
       type: "hold",
       from: req.user._id,
       script: script._id,
-      message: `${user.name} has placed a hold on "${script.title}" for $${fee} (30 days). You earn $${creatorPayout}!`,
+      message: `${user.name} has placed a hold on "${script.title}" for ₹${fee} (30 days). You earn ₹${creatorPayout}!`,
     });
 
     res.json({
@@ -1068,7 +1210,7 @@ export const getFeaturedScripts = async (req, res) => {
   try {
     // Step 1: rank published scripts by trendScore via aggregation
     const ranked = await Script.aggregate([
-      { $match: { status: "published", isSold: { $ne: true } } },
+      { $match: { ...PUBLIC_SCRIPT_FILTER } },
       {
         $addFields: {
           trendScore: {
@@ -1090,7 +1232,7 @@ export const getFeaturedScripts = async (req, res) => {
     const ids = ranked.map((s) => s._id);
 
     // Step 2: fetch full documents with populated creator (preserving sort order)
-    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true } }).populate(
+    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } }).populate(
       "creator",
       "name profileImage role"
     );
@@ -1112,7 +1254,7 @@ export const getTopScripts = async (req, res) => {
     let sortObj = { rating: -1 };
     if (sortBy === "reads") sortObj = { readsCount: -1 };
     if (sortBy === "purchases") sortObj = { "unlockedBy": -1 };
-    const scripts = await Script.find({ status: "published", isSold: { $ne: true } })
+    const scripts = await Script.find({ ...PUBLIC_SCRIPT_FILTER })
       .populate("creator", "name profileImage role")
       .sort(sortObj)
       .limit(20);
@@ -1125,7 +1267,7 @@ export const getTopScripts = async (req, res) => {
 export const searchScriptsReader = async (req, res) => {
   try {
     const { q, category, genre, page = 1, limit = 20 } = req.query;
-    const query = { status: "published", isSold: { $ne: true } };
+    const query = { ...PUBLIC_SCRIPT_FILTER };
     if (q) {
       const regex = new RegExp(q, "i");
       query.$or = [{ title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
@@ -1146,7 +1288,7 @@ export const searchScriptsReader = async (req, res) => {
 
 export const getLatestScripts = async (req, res) => {
   try {
-    const scripts = await Script.find({ status: "published", isSold: { $ne: true } })
+    const scripts = await Script.find({ ...PUBLIC_SCRIPT_FILTER })
       .populate("creator", "name profileImage role")
       .sort({ createdAt: -1 })
       .limit(18);
@@ -1163,6 +1305,14 @@ export const recordRead = async (req, res) => {
     script.readsCount = (script.readsCount || 0) + 1;
     await script.save();
     await User.findByIdAndUpdate(req.user._id, { $addToSet: { scriptsRead: script._id } });
+
+    trackInvestorInteraction({
+      userId: req.user._id,
+      scriptId: script._id,
+      type: "read",
+      source: "script_reader",
+    }).catch(() => null);
+
     res.json({ message: "Read recorded" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1180,6 +1330,14 @@ export const toggleFavorite = async (req, res) => {
     } else {
       user.favoriteScripts.push(req.params.id);
       await user.save();
+
+      trackInvestorInteraction({
+        userId: req.user._id,
+        scriptId: req.params.id,
+        type: "save",
+        source: "favorite_toggle",
+      }).catch(() => null);
+
       res.json({ favorited: true });
     }
   } catch (error) {
@@ -1187,14 +1345,225 @@ export const toggleFavorite = async (req, res) => {
   }
 };
 
+export const trackScriptInteraction = async (req, res) => {
+  try {
+    const { type, timeSpentMs, source, metadata } = req.body || {};
+    const allowedTypes = new Set(["view", "like", "save", "click", "time_spent", "read"]);
+    if (!allowedTypes.has(type)) {
+      return res.status(400).json({ message: "Invalid interaction type" });
+    }
+
+    const script = await Script.findById(req.params.id).select("_id status");
+    if (!script || script.status !== "published") {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    await trackInvestorInteraction({
+      userId: req.user._id,
+      scriptId: req.params.id,
+      type,
+      timeSpentMs: Number(timeSpentMs) > 0 ? Number(timeSpentMs) : 0,
+      source: source || "client",
+      metadata: metadata || {},
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const getCategories = async (req, res) => {
   try {
-    const contentTypes = await Script.distinct("contentType", { status: "published", isSold: { $ne: true } });
-    const genres = await Script.distinct("genre", { status: "published", isSold: { $ne: true } });
+    const contentTypes = await Script.distinct("contentType", { ...PUBLIC_SCRIPT_FILTER });
+    const genres = await Script.distinct("genre", { ...PUBLIC_SCRIPT_FILTER });
     res.json({ contentTypes: contentTypes.filter(Boolean), genres: genres.filter(Boolean) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+const escapeRegExp = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizeGenre = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+  const compact = raw.replace(/[\s_]+/g, "-");
+  const aliases = {
+    "science-fiction": "sci-fi",
+    scifi: "sci-fi",
+    "sci fi": "sci-fi",
+    thriller: "thriller",
+    drama: "drama",
+    horror: "horror",
+    comedy: "comedy",
+    romance: "romance",
+    action: "action",
+    mystery: "mystery",
+    fantasy: "fantasy",
+    documentary: "documentary",
+    crime: "crime",
+    animation: "animation",
+    adventure: "adventure",
+    historical: "historical",
+    musical: "musical",
+  };
+  return aliases[compact] || compact;
+};
+
+const normalizeFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+  if (raw.includes("feature")) return "feature";
+  if (raw.includes("short")) return "short";
+  if (raw.includes("limited")) return "limited-series";
+  if (raw.includes("web")) return "web-series";
+  if (raw.includes("documentary")) return "documentary";
+  if (raw.includes("animation")) return "animation";
+  if (raw.includes("tv")) return "tv-series";
+  return raw.replace(/[\s_]+/g, "-");
+};
+
+const normalizeBudgetTier = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+  if (raw.includes("micro")) return "micro";
+  if (raw.includes("low")) return "low";
+  if (raw.includes("mid") || raw.includes("medium")) return "medium";
+  if (raw.includes("high")) return "high";
+  if (raw.includes("tentpole") || raw.includes("blockbuster")) return "blockbuster";
+  return raw;
+};
+
+const formatMatches = (script = {}, preferred = []) => {
+  if (!preferred.length) return false;
+  const scriptFormats = [script?.format, script?.contentType]
+    .map(normalizeFormat)
+    .filter(Boolean);
+  return preferred.some((f) => scriptFormats.includes(f));
+};
+
+const budgetMatches = (script = {}, preferred = []) => {
+  if (!preferred.length) return false;
+  const sb = normalizeBudgetTier(script?.budget || "");
+  if (!sb) return false;
+  return preferred.includes(sb);
+};
+
+const inferGenresFromProfileText = (text = "") => {
+  const source = String(text || "").toLowerCase();
+  if (!source) return [];
+
+  const keywordMap = {
+    horror: ["horror", "slasher", "supernatural", "haunted"],
+    drama: ["drama", "dramatic", "family drama", "emotional"],
+    thriller: ["thriller", "suspense", "psychological thriller", "crime thriller"],
+    comedy: ["comedy", "comic", "satire", "humor"],
+    romance: ["romance", "romantic", "love story"],
+    action: ["action", "adventure action", "high-octane"],
+    mystery: ["mystery", "detective", "whodunit"],
+    "sci-fi": ["sci-fi", "science fiction", "scifi", "futuristic"],
+    fantasy: ["fantasy", "mythic", "magic"],
+    documentary: ["documentary", "docu"],
+  };
+
+  const inferred = [];
+  for (const [genre, keywords] of Object.entries(keywordMap)) {
+    if (keywords.some((k) => source.includes(k))) inferred.push(genre);
+  }
+  return inferred;
+};
+
+const inferFormatsFromProfileText = (text = "") => {
+  const source = String(text || "").toLowerCase();
+  if (!source) return [];
+
+  const inferred = [];
+  if (source.includes("feature")) inferred.push("feature");
+  if (source.includes("short")) inferred.push("short");
+  if (source.includes("web series") || source.includes("web-series")) inferred.push("web-series");
+  if (source.includes("limited series") || source.includes("limited-series")) inferred.push("limited-series");
+  if (source.includes("tv") || source.includes("series")) inferred.push("tv-series");
+  if (source.includes("documentary")) inferred.push("documentary");
+  if (source.includes("animation") || source.includes("animated")) inferred.push("animation");
+  return [...new Set(inferred)];
+};
+
+const inferBudgetsFromInvestmentRange = (range = "") => {
+  const r = String(range || "").toLowerCase();
+  if (!r) return [];
+  if (r.includes("under_50k")) return ["micro", "low"];
+  if (r.includes("50k_250k")) return ["low", "medium"];
+  if (r.includes("250k_1m")) return ["medium", "high"];
+  if (r.includes("1m_5m")) return ["high", "blockbuster"];
+  if (r.includes("over_5m")) return ["blockbuster", "high"];
+  return [];
+};
+
+const scoreScriptByInvestorProfile = (
+  script,
+  { preferredGenres = [], preferredFormats = [], preferredBudgets = [] } = {}
+) => {
+  const ordered = preferredGenres.map(normalizeGenre).filter(Boolean);
+  const orderIndex = new Map(ordered.map((g, idx) => [g, idx]));
+
+  const primary = normalizeGenre(
+    script?.genre || script?.primaryGenre || script?.classification?.primaryGenre || ""
+  );
+
+  const secondary = [
+    script?.classification?.secondaryGenre,
+    ...(script?.subGenres || []),
+    ...(script?.classification?.themes || []),
+    ...(script?.classification?.tones || []),
+  ]
+    .map(normalizeGenre)
+    .filter(Boolean);
+
+  let score = 0;
+  if (orderIndex.has(primary)) {
+    score += 1000 - orderIndex.get(primary) * 40;
+  }
+
+  const bestSecondaryBoost = secondary.reduce((acc, g) => {
+    if (!orderIndex.has(g)) return acc;
+    const boost = 240 - orderIndex.get(g) * 20;
+    return Math.max(acc, boost);
+  }, 0);
+  score += bestSecondaryBoost;
+
+  score += (script?.rating || 0) * 10;
+  score += Math.min(80, (script?.readsCount || 0) * 0.2);
+  score += Math.min(80, (script?.views || 0) * 0.05);
+
+  if (formatMatches(script, preferredFormats)) score += 180;
+  if (budgetMatches(script, preferredBudgets)) score += 160;
+
+  return score;
+};
+
+const rankScriptsForInvestor = (
+  scripts = [],
+  profileSignals = { preferredGenres: [], preferredFormats: [], preferredBudgets: [] }
+) => {
+  if (!Array.isArray(scripts) || scripts.length === 0) return [];
+  const hasSignals =
+    profileSignals?.preferredGenres?.length ||
+    profileSignals?.preferredFormats?.length ||
+    profileSignals?.preferredBudgets?.length;
+  if (!hasSignals) return scripts;
+
+  return scripts
+    .map((script, idx) => ({
+      script,
+      idx,
+      score: scoreScriptByInvestorProfile(script, profileSignals),
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.idx - b.idx;
+    })
+    .map((item) => item.script);
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1202,111 +1571,8 @@ export const getCategories = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getInvestorHomeFeed = async (req, res) => {
   try {
-    const investor = await User.findById(req.user._id).select(
-      "industryProfile.mandates preferences"
-    );
-
-    // Gather preferred genres from mandates + general preferences
-    const mandateGenres = (investor?.industryProfile?.mandates?.genres || [])
-      .map((g) => g.toLowerCase().trim());
-    const prefGenres = (investor?.preferences?.genres || [])
-      .map((g) => g.toLowerCase().trim());
-    const excludeGenres = (investor?.industryProfile?.mandates?.excludeGenres || [])
-      .map((g) => g.toLowerCase().trim());
-
-    // Deduplicated preferred genres, minus excluded ones
-    const preferredGenres = [...new Set([...mandateGenres, ...prefGenres])].filter(
-      (g) => g && !excludeGenres.includes(g)
-    );
-
-    const usedIds = new Set();
-
-    // ── Genre sections (up to 4 preferred genres, 12 scripts each) ──
-    const genreSections = [];
-    for (const genre of preferredGenres.slice(0, 4)) {
-      const scripts = await Script.find({
-        status: "published",
-        isSold: { $ne: true },
-        genre: { $regex: new RegExp(`^${genre}$`, "i") },
-      })
-        .populate("creator", "name profileImage role")
-        .sort({ rating: -1, readsCount: -1, createdAt: -1 })
-        .limit(12);
-
-      if (scripts.length > 0) {
-        scripts.forEach((s) => usedIds.add(s._id.toString()));
-        genreSections.push({
-          genre: genre.charAt(0).toUpperCase() + genre.slice(1),
-          scripts,
-        });
-      }
-    }
-
-    // ── Trending (by trendScore, not already shown) ──
-    const trendingAgg = await Script.aggregate([
-      { $match: { status: "published", isSold: { $ne: true } } },
-      {
-        $addFields: {
-          trendScore: {
-            $add: [
-              { $multiply: [{ $ifNull: ["$reviewCount", 0] }, 3] },
-              { $multiply: [{ $ifNull: ["$readsCount", 0] }, 2] },
-              { $ifNull: ["$views", 0] },
-            ],
-          },
-        },
-      },
-      { $sort: { trendScore: -1 } },
-      { $limit: 30 },
-      { $project: { _id: 1 } },
-    ]);
-
-    const trendIds = trendingAgg
-      .map((s) => s._id)
-      .filter((id) => !usedIds.has(id.toString()))
-      .slice(0, 12);
-
-    let trending = [];
-    if (trendIds.length > 0) {
-      const tDocs = await Script.find({ _id: { $in: trendIds } }).populate(
-        "creator", "name profileImage role"
-      );
-      const tMap = Object.fromEntries(tDocs.map((d) => [d._id.toString(), d]));
-      trending = trendIds.map((id) => tMap[id.toString()]).filter(Boolean);
-      trending.forEach((s) => usedIds.add(s._id.toString()));
-    }
-
-    // ── New Releases (last 30 days, not already shown) ──
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const notUsedArray = [...usedIds];
-    const newReleases = await Script.find({
-      status: "published",
-      isSold: { $ne: true },
-      createdAt: { $gte: thirtyDaysAgo },
-      _id: { $nin: notUsedArray },
-    })
-      .populate("creator", "name profileImage role")
-      .sort({ createdAt: -1 })
-      .limit(12);
-    newReleases.forEach((s) => usedIds.add(s._id.toString()));
-
-    // ── Explore (top rated, outside investor's interests) ──
-    const explore = await Script.find({
-      status: "published",
-      isSold: { $ne: true },
-      _id: { $nin: [...usedIds] },
-    })
-      .populate("creator", "name profileImage role")
-      .sort({ rating: -1, createdAt: -1 })
-      .limit(12);
-
-    res.json({
-      detectedGenres: preferredGenres,
-      genreSections,
-      trending,
-      newReleases,
-      explore,
-    });
+    const feed = await buildInvestorFeed(req.user._id);
+    res.json(feed);
   } catch (error) {
     console.error("getInvestorHomeFeed error:", error);
     res.status(500).json({ message: error.message });
@@ -1319,7 +1585,7 @@ export const getInvestorHomeFeed = async (req, res) => {
 export const getTopList = async (req, res) => {
   try {
     const { genre, contentType, budget, sort = "platform", premium } = req.query;
-    const match = { status: "published", isSold: { $ne: true } };
+    const match = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;
@@ -2021,17 +2287,18 @@ export const requestScriptAITrailer = async (req, res) => {
     };
     await script.save();
 
-    const admins = await User.find({ role: "admin" }).select("_id");
-    if (admins.length > 0) {
-      const payload = admins.map((admin) => ({
-        user: admin._id,
-        type: "trailer_ready",
-        from: req.user._id,
-        script: script._id,
-        message: `AI trailer requested by writer for \"${script.title}\"${note ? `. Note: ${note}` : ""}`,
-      }));
-      await Notification.insertMany(payload);
-    }
+    await notifyAdminWorkflowEvent({
+      title: "AI Trailer Approval Request",
+      section: "trailers",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `AI trailer requested by writer for "${script.title}"${note ? `. Note: ${note}` : ""}`,
+      metadata: {
+        scriptId: script._id,
+        writerId: req.user._id,
+        writerNote: note?.trim() || "",
+      },
+    });
 
     res.json({
       message: "AI trailer request submitted to platform",
@@ -2079,19 +2346,19 @@ export const submitTrailerFeedback = async (req, res) => {
 
     await script.save();
 
-    const admins = await User.find({ role: "admin" }).select("_id");
-    if (admins.length > 0) {
-      const payload = admins.map((admin) => ({
-        user: admin._id,
-        type: "trailer_ready",
-        from: req.user._id,
-        script: script._id,
-        message:
-          action === "approved"
-            ? `Writer approved AI trailer for "${script.title}".`
-            : `Writer requested a better AI trailer version for "${script.title}"${note?.trim() ? `. Note: ${note.trim()}` : ""}`,
-      }));
-      await Notification.insertMany(payload);
+    if (action === "revision_requested") {
+      await notifyAdminWorkflowEvent({
+        title: "AI Trailer Revision Requested",
+        section: "trailers",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `Writer requested a better AI trailer version for "${script.title}"${note?.trim() ? `. Note: ${note.trim()}` : ""}`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          writerNote: note?.trim() || "",
+        },
+      });
     }
 
     res.json({

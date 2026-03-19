@@ -84,15 +84,31 @@ const ProjectCard = ({ project, userName }) => {
 
   const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
+  const handleCardClick = async () => {
+    if (!isClickable) return;
+
+    if (project?._id) {
+      api
+        .post(`/scripts/${project._id}/interactions`, {
+          type: "click",
+          source: "project_card",
+          metadata: { from: "feed" },
+        })
+        .catch(() => null);
+    }
+
+    navigate(`/script/${project._id}`);
+  };
+
   return (
     <div
-      onClick={() => isClickable && navigate(`/script/${project._id}`)}
+      onClick={handleCardClick}
       className={`group relative flex flex-col overflow-hidden rounded-2xl border transition-all duration-500 select-none ${
         isClickable ? "cursor-pointer" : "cursor-default"
       } ${
         dark
-          ? "bg-[#0c1420] border-[#1a2636] hover:border-[#263c54] hover:shadow-[0_16px_56px_rgba(0,0,0,0.55)]"
-          : "bg-white border-gray-200 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.10)]"
+          ? "bg-[#0c1420] border-[#1a2636] hover:border-[#263c54]"
+          : "bg-white border-gray-200 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.05)]"
       }`}
     >
 

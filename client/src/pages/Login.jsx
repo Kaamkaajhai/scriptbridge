@@ -2,7 +2,7 @@ import { useContext, useState } from "react";
 import { motion } from "framer-motion";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowRight, AlertCircle, Clock, XCircle } from "lucide-react";
+import { ArrowRight, AlertCircle } from "lucide-react";
 import OTPVerification from "../components/OTPVerification";
 import BrandLogo from "../components/BrandLogo";
 
@@ -14,9 +14,6 @@ const Login = () => {
   const [error, setError] = useState("");
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const [pendingApproval, setPendingApproval] = useState(false);
-  const [accountRejected, setAccountRejected] = useState(false);
-  const [rejectedMessage, setRejectedMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -45,13 +42,13 @@ const Login = () => {
     } catch (err) {
       const data = err.response?.data;
       if (data?.pendingApproval) {
-        setPendingApproval(true);
+        navigate("/?investorReview=pending");
         setLoading(false);
         return;
       }
       if (data?.rejected) {
-        setAccountRejected(true);
-        setRejectedMessage(data.message || "Your investor account has been rejected. Please contact support.");
+        const note = encodeURIComponent(data.message || "Your investor profile was not approved.");
+        navigate(`/?investorReview=rejected&note=${note}`);
         setLoading(false);
         return;
       }
@@ -64,7 +61,7 @@ const Login = () => {
     // Investor pending approval — show waiting screen
     if (userData.pendingApproval) {
       setShowOTPVerification(false);
-      setPendingApproval(true);
+      navigate("/?investorReview=pending");
       return;
     }
 
@@ -94,68 +91,6 @@ const Login = () => {
         onSuccess={handleOTPSuccess} 
         onBack={handleBackToLogin}
       />
-    );
-  }
-
-  // Show pending approval screen for investors
-  if (pendingApproval) {
-    return (
-      <div className="min-h-screen bg-[#080e18] flex items-center justify-center px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md text-center"
-        >
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-6">
-            <Clock className="w-8 h-8 text-amber-400" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-3">Account Pending Approval</h2>
-          <p className="text-[#8896a7] text-sm leading-relaxed mb-6">
-            Your investor account has been submitted and is currently under review.<br />
-            You'll be able to log in once an admin approves your account.
-          </p>
-          <p className="text-xs text-[#4a5a6e]">
-            Need help?{" "}
-            <a href="mailto:info.ckript@gmail.com" className="text-[#8896a7] font-semibold hover:text-white transition-colors">
-              info.ckript@gmail.com
-            </a>
-          </p>
-          <button onClick={() => setPendingApproval(false)} className="mt-8 text-xs text-[#4a5a6e] hover:text-[#8896a7] font-medium transition-colors">
-            &larr; Back to login
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Show rejected screen for investors
-  if (accountRejected) {
-    return (
-      <div className="min-h-screen bg-[#080e18] flex items-center justify-center px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md text-center"
-        >
-          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
-            <XCircle className="w-8 h-8 text-red-400" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-3">Account Not Approved</h2>
-          <p className="text-[#8896a7] text-sm leading-relaxed mb-6">{rejectedMessage}</p>
-          <p className="text-xs text-[#4a5a6e]">
-            Contact{" "}
-            <a href="mailto:info.ckript@gmail.com" className="text-[#8896a7] font-semibold hover:text-white transition-colors">
-              info.ckript@gmail.com
-            </a>{" "}
-            for assistance.
-          </p>
-          <button onClick={() => setAccountRejected(false)} className="mt-8 text-xs text-[#4a5a6e] hover:text-[#8896a7] font-medium transition-colors">
-            &larr; Back to login
-          </button>
-        </motion.div>
-      </div>
     );
   }
 

@@ -84,7 +84,7 @@ const CreatorDashboard = ({ user, dark }) => {
 
   const statCards = stats ? [
     { label: "Total Views", value: stats.totalViews || 0 },
-    { label: "Earnings", value: `$${stats.totalEarnings || 0}` },
+    { label: "Earnings", value: `₹${stats.totalEarnings || 0}` },
 
     { label: "Unlocks", value: stats.totalUnlocks || 0 },
     { label: "AI Trailers", value: stats.trailersGenerated || 0 },

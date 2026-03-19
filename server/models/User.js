@@ -120,6 +120,19 @@ const userSchema = new mongoose.Schema({
     holdAlerts: { type: Boolean, default: true },
     viewAlerts: { type: Boolean, default: true },
   },
+  recommendationProfile: {
+    detectedGenres: [String],
+    preferredFormats: [String],
+    preferredBudgets: [String],
+    behavior: {
+      genreWeights: { type: Map, of: Number, default: {} },
+      tagWeights: { type: Map, of: Number, default: {} },
+      formatWeights: { type: Map, of: Number, default: {} },
+      budgetWeights: { type: Map, of: Number, default: {} },
+      avgTimeSpentMs: { type: Number, default: 0 },
+    },
+    updatedAt: { type: Date },
+  },
   // Financial information
   bankDetails: {
     accountHolderName: { type: String },

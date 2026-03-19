@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import axios from "axios";
 import BrandLogo from "../components/BrandLogo";
@@ -287,6 +287,13 @@ const Pagination = ({ page, totalPages, onPageChange, isDark }) => {
 // Main Admin Dashboard
 // ═══════════════════════════════════════════════
 const ADMIN_CODE = "24062004";
+const BADGE_WATCH_KEYS = ["approvals", "trailers", "pending-investors", "queries"];
+
+const formatBadgeCount = (count) => {
+    if (!count || count <= 0) return "";
+    if (count > 99) return "+99";
+    return `+${count}`;
+};
 
 const AdminDashboard = () => {
     const { isDarkMode: isDark } = useDarkMode();
@@ -315,12 +322,47 @@ const AdminDashboard = () => {
     const [pendingInvestors, setPendingInvestors] = useState([]);
     const [rejectModal, setRejectModal] = useState(null); // investor object
     const [contacts, setContacts] = useState([]);
+    const [alertSummary, setAlertSummary] = useState({});
+    const previousAlertSummaryRef = useRef(null);
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
+    };
+
+    const fetchAlertSummary = async ({ silent = false } = {}) => {
+        if (!authorized) return;
+        try {
+            const { data } = await adminApi.get("/admin/alerts/summary");
+            const summary = data || {};
+            setAlertSummary(summary);
+
+            const previous = previousAlertSummaryRef.current;
+            if (!silent && previous) {
+                const increasedSections = BADGE_WATCH_KEYS.filter((key) => (summary[key] || 0) > (previous[key] || 0));
+                if (increasedSections.length > 0) {
+                    const sectionLabelMap = {
+                        approvals: "Project approvals",
+                        trailers: "AI trailer requests",
+                        "pending-investors": "Investor requests",
+                        queries: "Queries",
+                    };
+                    const text = increasedSections.map((key) => sectionLabelMap[key] || key).join(" • ");
+                    showToast(`New admin requests: ${text}`, "info");
+                }
+            }
+            previousAlertSummaryRef.current = summary;
+        } catch (err) {
+            console.error("Admin alert summary fetch error:", err);
+        }
+    };
+
+    const getBadgeCountForTab = (tabKey) => {
+        if (!BADGE_WATCH_KEYS.includes(tabKey)) return 0;
+        const count = Number(alertSummary?.[tabKey] || 0);
+        return Number.isFinite(count) ? count : 0;
     };
 
     // ─── Fetch data function ───
@@ -415,6 +457,7 @@ const AdminDashboard = () => {
                 showToast("Session expired. Please re-enter the access code.", "error");
             }
         }
+        await fetchAlertSummary({ silent: true });
         setLoading(false);
     };
 
@@ -426,6 +469,14 @@ const AdminDashboard = () => {
         const t = setTimeout(() => { if (search !== undefined) { setPage(1); fetchData(); } }, 400);
         return () => clearTimeout(t);
     }, [search, authorized]);
+    useEffect(() => {
+        if (!authorized) return;
+        fetchAlertSummary({ silent: true });
+        const interval = setInterval(() => {
+            fetchAlertSummary({ silent: false });
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [authorized]);
 
     // ─── Action handlers (all use adminApi) ───
     const handleApprove = async (id) => {
@@ -557,6 +608,8 @@ const AdminDashboard = () => {
     const handleLogout = () => {
         sessionStorage.removeItem("admin-session");
         setAuthorized(false);
+        previousAlertSummaryRef.current = null;
+        setAlertSummary({});
     };
 
     // ═══════════════════════════════════════════════
@@ -629,7 +682,7 @@ const AdminDashboard = () => {
                             <StatCard isDark={isDark} label="Readers" value={stats.totalReaders} icon="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" color="bg-cyan-500/15 text-cyan-500" />
                             <StatCard isDark={isDark} label="Pending Approvals" value={stats.pendingApprovals} icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-500/15 text-orange-500" />
                             <StatCard isDark={isDark} label="Transactions" value={stats.totalTransactions} icon="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" color="bg-pink-500/15 text-pink-500" />
-                            <StatCard isDark={isDark} label="Total Revenue" value={`$${stats.totalRevenue?.toFixed(2) || "0.00"}`} icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-green-500/15 text-green-500" />
+                            <StatCard isDark={isDark} label="Total Revenue" value={`₹${stats.totalRevenue?.toFixed(2) || "0.00"}`} icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-green-500/15 text-green-500" />
                         </div>
                     </div>
                 );
@@ -1067,7 +1120,7 @@ const AdminDashboard = () => {
                         <div className={`rounded-xl p-3 border ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`}>
                             <p className={`text-[11px] font-bold uppercase ${isDark ? "text-gray-500" : "text-gray-400"}`}>Project</p>
                             <p className={`text-sm mt-1 ${isDark ? "text-gray-200" : "text-gray-800"}`}>{invoice.script?.title || "-"}</p>
-                            <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>{invoice.accessType === "premium" ? `Premium at $${invoice.scriptPrice || 0}` : "Free access"}</p>
+                            <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>{invoice.accessType === "premium" ? `Premium at ₹${invoice.scriptPrice || 0}` : "Free access"}</p>
                         </div>
                     </div>
 
@@ -1100,7 +1153,7 @@ const AdminDashboard = () => {
                         </div>
                         <div className={`rounded-xl p-3 border ${isDark ? "border-purple-500/20 bg-purple-500/10" : "border-purple-100 bg-purple-50"}`}>
                             <p className={`text-[10px] font-bold uppercase ${isDark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                            <p className={`text-lg font-black mt-1 ${isDark ? "text-white" : "text-gray-900"}`}>${invoice.writerEarnsPerSale || 0}</p>
+                            <p className={`text-lg font-black mt-1 ${isDark ? "text-white" : "text-gray-900"}`}>₹{invoice.writerEarnsPerSale || 0}</p>
                         </div>
                     </div>
                 </div>
@@ -1147,7 +1200,12 @@ const AdminDashboard = () => {
                                     : "text-gray-400 hover:bg-[#132744] hover:text-gray-200"
                                     }`}>
                                 <Icon d={tab.icon} className="w-4 h-4" />
-                                <span>{tab.label}</span>
+                                <span className="flex-1 text-left">{tab.label}</span>
+                                {getBadgeCountForTab(tab.key) > 0 && (
+                                    <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${activeTab === tab.key ? "bg-blue-400/20 text-blue-300" : "bg-white/10 text-gray-200"}`}>
+                                        {formatBadgeCount(getBadgeCountForTab(tab.key))}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </nav>
@@ -1161,7 +1219,7 @@ const AdminDashboard = () => {
                                 className={`whitespace-nowrap px-3 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab.key
                                     ? "bg-blue-500/15 text-blue-400"
                                     : "text-gray-500"
-                                    }`}>{tab.label}</button>
+                                    }`}>{tab.label}{getBadgeCountForTab(tab.key) > 0 ? ` ${formatBadgeCount(getBadgeCountForTab(tab.key))}` : ""}</button>
                         ))}
                     </div>
                 </div>
@@ -1177,12 +1235,16 @@ const AdminDashboard = () => {
                 <div className="fixed bottom-6 right-6 z-[300] animate-[slideUp_0.3s_ease-out]">
                     <div className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border backdrop-blur-sm ${toast.type === "error"
                         ? "bg-red-500/90 border-red-400/30 text-white"
+                        : toast.type === "info"
+                            ? "bg-blue-500/90 border-blue-400/30 text-white"
                         : "bg-emerald-500/90 border-emerald-400/30 text-white"
                         }`}>
                         <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d={
                                 toast.type === "error"
                                     ? "M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                                    : toast.type === "info"
+                                        ? "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                                     : "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                             } />
                         </svg>
