@@ -10,6 +10,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const logoutTimerRef = useRef(null);
 
+  const redirectInvestorReview = useCallback((status) => {
+    if (typeof window === "undefined") return;
+    const reason = status === "rejected" ? "rejected" : "pending";
+    window.location.href = `/?investorReview=${reason}`;
+  }, []);
+
   // Clear any existing auto-logout timer
   const clearLogoutTimer = useCallback(() => {
     if (logoutTimerRef.current) {
@@ -83,6 +89,15 @@ export const AuthProvider = ({ children }) => {
             token: parsed.token,
             expiresAt: data.expiresAt || effectiveExpiry,
           };
+
+          if (refreshedUser?.role === "investor" && ["pending", "rejected"].includes(refreshedUser?.approvalStatus)) {
+            localStorage.removeItem("user");
+            setUser(null);
+            redirectInvestorReview(refreshedUser.approvalStatus);
+            setLoading(false);
+            return;
+          }
+
           setUser(refreshedUser);
           localStorage.setItem("user", JSON.stringify(refreshedUser));
           scheduleAutoLogout(refreshedUser.expiresAt);

@@ -1,4 +1,5 @@
 import ContactSubmission from "../models/ContactSubmission.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VALID_REASONS = new Set(["doubt", "team", "general", "email"]);
@@ -47,6 +48,17 @@ export const createContactSubmission = async (req, res) => {
       email: normalizedEmail,
       reason,
       message: trimmedMessage,
+    });
+
+    await notifyAdminWorkflowEvent({
+      title: "New Contact Query Received",
+      section: "queries",
+      message: `A new contact query was submitted by ${trimmedName} (${normalizedEmail}).`,
+      metadata: {
+        queryId: submission._id,
+        reason,
+        email: normalizedEmail,
+      },
     });
 
     return res.status(201).json({

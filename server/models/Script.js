@@ -70,6 +70,9 @@ const scriptSchema = new mongoose.Schema({
   premium: { type: Boolean, default: false },
   price: { type: Number, default: 0 },
   isSold: { type: Boolean, default: false }, // true once any buyer purchases — hides script from all public listings
+  purchaseRequestLocked: { type: Boolean, default: false },
+  purchaseRequestLockedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  purchaseRequestLockedAt: { type: Date },
   unlockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   // AI Trailer (Text-to-Trailer)
   trailerUrl: { type: String },
@@ -133,6 +136,15 @@ const scriptSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     viewedAt: { type: Date, default: Date.now }
   }],
+  engagement: {
+    viewEvents: { type: Number, default: 0 },
+    clicks: { type: Number, default: 0 },
+    likes: { type: Number, default: 0 },
+    saves: { type: Number, default: 0 },
+    reads: { type: Number, default: 0 },
+    totalTimeSpentMs: { type: Number, default: 0 },
+    timeSpentEvents: { type: Number, default: 0 },
+  },
   tags: [String],
   budget: { type: String, enum: ["micro", "low", "medium", "high", "blockbuster"] },
   // Admin approval

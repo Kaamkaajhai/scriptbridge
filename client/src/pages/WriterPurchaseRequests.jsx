@@ -62,7 +62,7 @@ function formatDate(dateStr) {
 
 function formatAmount(amount) {
   if (!amount || amount === 0) return "Free";
-  return `$${amount.toLocaleString()}`;
+  return `₹${amount.toLocaleString("en-IN")}`;
 }
 
 export default function WriterPurchaseRequests() {

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
-import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, HelpCircle, MessageSquare, CheckCircle, PenLine, BookOpen, ArrowRight } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, HelpCircle, MessageSquare, CheckCircle, PenLine, BookOpen, ArrowRight, Clock3, XCircle } from "lucide-react";
 import FeaturesShowcase from "../components/FeaturesShowcase";
 import SuccessStories from "../components/SuccessStories";
 import api from "../services/api";
@@ -235,8 +235,92 @@ const ContactSection = () => {
    Landing Page
    ───────────────────────────────────────────── */
 const Landing = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showInvestorReviewPopup, setShowInvestorReviewPopup] = useState(false);
+
+  const reviewStatus = useMemo(() => {
+    const value = (searchParams.get("investorReview") || "").toLowerCase();
+    if (value === "pending" || value === "rejected") return value;
+    return "";
+  }, [searchParams]);
+
+  const rejectedNote = useMemo(() => {
+    return searchParams.get("note") || "";
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (reviewStatus) {
+      setShowInvestorReviewPopup(true);
+    }
+  }, [reviewStatus]);
+
+  const closeInvestorReviewPopup = () => {
+    setShowInvestorReviewPopup(false);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("investorReview");
+    nextParams.delete("note");
+    setSearchParams(nextParams, { replace: true });
+  };
+
   return (
     <div className="bg-[#080e18] text-white">
+
+      <AnimatePresence>
+        {showInvestorReviewPopup && reviewStatus && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center px-5"
+            onClick={closeInvestorReviewPopup}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.22 }}
+              className="w-full max-w-md rounded-2xl border border-[#1c2a3a] bg-[#0d1520] p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center border ${reviewStatus === "pending" ? "bg-amber-500/10 border-amber-500/20" : "bg-red-500/10 border-red-500/20"}`}>
+                  {reviewStatus === "pending" ? (
+                    <Clock3 className="w-5 h-5 text-amber-400" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-red-400" />
+                  )}
+                </div>
+                <button onClick={closeInvestorReviewPopup} className="text-[#4a5a6e] hover:text-[#8896a7] text-sm">Close</button>
+              </div>
+
+              <h3 className="mt-4 text-xl font-bold text-white">
+                {reviewStatus === "pending" ? "Investor Profile Under Review" : "Investor Profile Not Approved"}
+              </h3>
+
+              {reviewStatus === "pending" ? (
+                <p className="mt-2 text-sm text-[#8896a7] leading-relaxed">
+                  Your profile has been submitted for admin review. Please wait 2-3 days.
+                  Once approved, you will receive an email and can log in.
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-[#8896a7] leading-relaxed">
+                  Your investor profile was rejected.
+                  {rejectedNote ? ` Reason: ${rejectedNote}` : " Please contact support for next steps."}
+                </p>
+              )}
+
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <a href="mailto:info.ckript@gmail.com" className="text-xs font-semibold text-[#8896a7] hover:text-white transition-colors">
+                  Contact: info.ckript@gmail.com
+                </a>
+                <Link to="/login" className="px-4 py-2 rounded-lg bg-white text-[#080e18] text-xs font-bold hover:bg-gray-200 transition-colors" onClick={closeInvestorReviewPopup}>
+                  Open Login
+                </Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Navigation ── */}
       <nav className="fixed top-0 w-full z-50 bg-[#080e18]/90 backdrop-blur-sm border-b border-[#151f2e]">

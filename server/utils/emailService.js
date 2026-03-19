@@ -363,6 +363,72 @@ export const sendInvestorApprovalEmail = async (email, name) => {
   }
 };
 
+// Send investor account rejection email with optional admin reason
+export const sendInvestorRejectionEmail = async (email, name, reason) => {
+  try {
+    console.log(`Sending investor rejection email to ${email}...`);
+    const transporter = createTransporter();
+    await transporter.verify();
+
+    const loginUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`;
+    const safeReason = String(reason || "").trim();
+
+    const mailOptions = {
+      from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
+      to: email,
+      subject: 'Update on Your Investor Profile Review — ckript',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8f 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
+            .badge { display: inline-block; background: #fee2e2; color: #991b1b; font-size: 14px; font-weight: bold; padding: 6px 16px; border-radius: 20px; margin-bottom: 16px; }
+            .reason { background: #fff; border-left: 4px solid #dc2626; padding: 12px 14px; border-radius: 6px; margin: 12px 0; }
+            .button { display: inline-block; background: #1e3a5f; color: white !important; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin:0">Profile Review Update</h1>
+            </div>
+            <div class="content">
+              <p>Hi <strong>${name}</strong>,</p>
+              <div><span class="badge">Profile Not Approved</span></div>
+              <p>Thank you for applying as an investor on <strong>ckript</strong>. After review, your profile was not approved at this time.</p>
+              ${safeReason ? `<p><strong>Review reason:</strong></p><div class="reason">${safeReason}</div>` : ""}
+              <p>You may update your profile details and contact our support team for guidance.</p>
+              <div style="text-align:center">
+                <a href="${loginUrl}" class="button">Open ckript Login</a>
+              </div>
+              <p style="color:#666;font-size:13px">Need help? Reach us at info.ckript@gmail.com</p>
+              <p>Regards,<br/><strong>The ckript Team</strong></p>
+            </div>
+            <div class="footer">
+              <p>© 2026 ckript. All rights reserved.</p>
+              <p>This is an automated message, please do not reply.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Hi ${name},\n\nYour investor profile was not approved at this time.${safeReason ? `\n\nReview reason: ${safeReason}` : ""}\n\nYou can contact support at info.ckript@gmail.com.\n\nLogin: ${loginUrl}\n\nThe ckript Team`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Investor rejection email sent to:', email, 'MessageId:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending investor rejection email:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 // Send purchase request email to writer
 export const sendPurchaseRequestEmail = async (writerEmail, writerName, investorName, scriptTitle, amount) => {
   try {
@@ -401,7 +467,7 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, investor
               <p><strong>${investorName}</strong> is interested in purchasing your script and has submitted a purchase request.</p>
               <div class="info-box">
                 <p style="margin:0"><strong>Script:</strong> ${scriptTitle}</p>
-                <p style="margin:4px 0 0"><strong>Offered Amount:</strong> $${amount}</p>
+                <p style="margin:4px 0 0"><strong>Offered Amount:</strong> ₹${amount}</p>
                 <p style="margin:4px 0 0"><strong>Investor:</strong> ${investorName}</p>
               </div>
               <p>Log in to ckript to review this request and choose to <strong>approve</strong> or <strong>decline</strong> the sale.</p>
@@ -420,7 +486,7 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, investor
         </body>
         </html>
       `,
-      text: `Hi ${writerName},\n\n${investorName} wants to purchase your script "${scriptTitle}" for $${amount}.\n\nLog in to review the request: ${dashboardUrl}\n\nThe ckript Team`,
+      text: `Hi ${writerName},\n\n${investorName} wants to purchase your script "${scriptTitle}" for ₹${amount}.\n\nLog in to review the request: ${dashboardUrl}\n\nThe ckript Team`,
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -562,6 +628,57 @@ export const sendPurchaseRejectedEmail = async (investorEmail, investorName, wri
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('Error sending purchase rejected email:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send admin workflow alert email to company mailbox
+export const sendAdminWorkflowAlertEmail = async ({ title, section, message, metadata = {} }) => {
+  try {
+    validateEmailConfig();
+
+    const transporter = createTransporter();
+    await transporter.verify();
+
+    const companyEmail = (process.env.COMPANY_NOTIFICATION_EMAIL || "info.ckript@gmail.com").trim().toLowerCase();
+    if (!companyEmail || !companyEmail.includes("@")) {
+      return { success: false, error: "Invalid company notification email" };
+    }
+
+    const safeTitle = String(title || "Admin Workflow Alert").trim();
+    const safeSection = String(section || "admin").trim();
+    const safeMessage = String(message || "A new admin workflow item was created.").trim();
+
+    const rows = Object.entries(metadata || {})
+      .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+      .map(([key, value]) =>
+        `<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;"><strong>${String(key)}</strong></td><td style="padding:6px 10px;border:1px solid #e5e7eb;">${String(value)}</td></tr>`
+      )
+      .join("");
+
+    const mailOptions = {
+      from: `"ckript" <${process.env.EMAIL_USER || "noreply@ckript.com"}>`,
+      to: companyEmail,
+      subject: `[Admin Alert] ${safeTitle}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+          <h2 style="margin:0 0 8px;">${safeTitle}</h2>
+          <p style="margin:0 0 12px;"><strong>Section:</strong> ${safeSection}</p>
+          <p style="margin:0 0 16px;">${safeMessage}</p>
+          ${rows ? `<table style="border-collapse:collapse;border:1px solid #e5e7eb;">${rows}</table>` : ""}
+          <p style="margin-top:16px;color:#6b7280;font-size:12px;">Generated at ${new Date().toISOString()}</p>
+        </body>
+        </html>
+      `,
+      text: `Title: ${safeTitle}\nSection: ${safeSection}\nMessage: ${safeMessage}\n${Object.entries(metadata || {}).map(([k, v]) => `${k}: ${v}`).join("\n")}`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending admin workflow alert email:", error.message);
     return { success: false, error: error.message };
   }
 };

@@ -16,6 +16,14 @@ const PrivateRoute = ({ children }) => {
     );
   }
 
+  if (user?.role === "investor" && user?.approvalStatus === "pending") {
+    return <Navigate to="/?investorReview=pending" replace />;
+  }
+
+  if (user?.role === "investor" && user?.approvalStatus === "rejected") {
+    return <Navigate to="/?investorReview=rejected" replace />;
+  }
+
   return user ? children : <Navigate to="/login" />;
 };
 

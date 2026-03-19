@@ -1215,7 +1215,7 @@ const WriterOnboarding = () => {
                     )}
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-4">$0</div>
+                <div className="text-3xl font-bold text-gray-900 mb-4">₹0</div>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
@@ -1252,7 +1252,7 @@ const WriterOnboarding = () => {
                     )}
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-4">$130<span className="text-base text-gray-500">/mo</span></div>
+                <div className="text-3xl font-bold text-gray-900 mb-4">₹130<span className="text-base text-gray-500">/mo</span></div>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
@@ -1281,15 +1281,15 @@ const WriterOnboarding = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Script Hosting (Monthly)</span>
-                    <span className="font-semibold text-gray-900">$30.00</span>
+                    <span className="font-semibold text-gray-900">₹30.00</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Professional Evaluation</span>
-                    <span className="font-semibold text-gray-900">$100.00</span>
+                    <span className="font-semibold text-gray-900">₹100.00</span>
                   </div>
                   <div className="border-t-2 border-gray-200 pt-3 mt-3 flex justify-between">
                     <span className="font-bold text-gray-900">Total</span>
-                    <span className="font-bold text-xl text-[#0f2544]">$130.00</span>
+                    <span className="font-bold text-xl text-[#0f2544]">₹130.00</span>
                   </div>
                 </div>
               </div>

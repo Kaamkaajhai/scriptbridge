@@ -1,9 +1,9 @@
-export const formatCurrency = (amount, currency = "INR", options = {}) => {
+export const formatCurrency = (amount, _currency = "INR", options = {}) => {
   const numericAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
 
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency,
+    currency: "INR",
     minimumFractionDigits: options.minimumFractionDigits ?? 0,
     maximumFractionDigits: options.maximumFractionDigits ?? 0,
   }).format(numericAmount);

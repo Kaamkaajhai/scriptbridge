@@ -217,7 +217,11 @@ export const getUserProfile = async (req, res) => {
     const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
     const scriptQuery = isOwnProfile
       ? { creator: req.params.id }
-      : { creator: req.params.id, status: { $ne: "draft" } };
+      : {
+          creator: req.params.id,
+          status: { $ne: "draft" },
+          purchaseRequestLocked: { $ne: true },
+        };
 
     const scripts = await Script.find(scriptQuery)
       .populate("creator", "name profileImage role")
@@ -238,6 +242,10 @@ export const getUserProfile = async (req, res) => {
       bookmarkedScripts = await Script.find({
         _id: { $in: user.favoriteScripts },
         status: "published",
+        $or: [
+          { purchaseRequestLocked: { $ne: true } },
+          { purchaseRequestLockedBy: req.user._id },
+        ],
       })
         .populate("creator", "name profileImage role")
         .sort({ updatedAt: -1 });
