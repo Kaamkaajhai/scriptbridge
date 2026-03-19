@@ -1,7 +1,9 @@
 import { useEffect, useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
+import { getInvestorPitches } from "../services/scriptPitchService";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 
@@ -117,7 +119,7 @@ const InvestorDashboard = () => {
 
         {/* ─────────────── KPI ROW ─────────────── */}
         <Fade delay={0.04}>
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
               {
                 label: "Scripts Viewed", value: stats.totalViewed || 0,
@@ -126,9 +128,14 @@ const InvestorDashboard = () => {
                 accent: dark ? "text-blue-400 bg-blue-500/10" : "text-blue-600 bg-blue-50"
               },
               {
-                label: "Deals Closed", value: stats.convertedDeals || 0,
+                label: "Successful Projects", value: stats.successfulProjects || 0,
                 iconD: "M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.746 3.746 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.746 3.746 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.745 3.745 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z",
                 accent: dark ? "text-emerald-400 bg-emerald-500/10" : "text-emerald-600 bg-emerald-50"
+              },
+              {
+                label: "Scripts Purchased", value: stats.scriptsPurchased || 0,
+                iconD: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z",
+                accent: dark ? "text-purple-400 bg-purple-500/10" : "text-purple-600 bg-purple-50"
               },
               {
                 label: "Total Invested", value: `₹${(stats.totalInvested || 0).toLocaleString()}`,
@@ -167,6 +174,10 @@ const InvestorDashboard = () => {
               {
                 key: "discover", label: "Discover",
                 d: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
+              },
+              {
+                key: "pitches", label: "Pitches",
+                d: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
               },
               {
                 key: "finance", label: "Finance",
@@ -519,6 +530,13 @@ const InvestorDashboard = () => {
                   cta={{ label: "Set Mandates", to: "/mandates" }} />
               ) : null}
 
+            </motion.div>
+          )}
+
+          {/* ═══ PITCHES ═══ */}
+          {activeTab === "pitches" && (
+            <motion.div key="pitches" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <PitchesTab dark={dark} />
             </motion.div>
           )}
 
@@ -928,6 +946,74 @@ const ScriptMiniCard = ({ script, dark, idx, navigate }) => {
         </div>
       </div>
     </motion.div>
+  );
+};
+
+/* ── PitchesTab ────────────────────────────────────────────── */
+const PitchesTab = ({ dark }) => {
+  const [pitches, setPitches] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPitches = async () => {
+      try {
+        const data = await getInvestorPitches();
+        setPitches(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPitches();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className={`w-8 h-8 border-[3px] rounded-full animate-spin ${dark ? "border-gray-700 border-t-purple-400" : "border-gray-200 border-t-purple-600"}`} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {pitches.length === 0 ? (
+        <EmptySmall dark={dark} text="No pitches received yet." />
+      ) : (
+        pitches.map(pitch => (
+          <div key={pitch._id} className={`p-5 rounded-2xl border ${dark ? "bg-[#0a1628] border-[#162240]" : "bg-white border-gray-100 shadow-sm"}`}>
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <h4 className={`font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>{pitch.script?.title || "Unknown Script"}</h4>
+                <p className={`text-sm mt-0.5 ${dark ? "text-gray-400" : "text-gray-500"}`}>Pitched by {pitch.writer?.name || "Unknown Writer"}</p>
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-1.5 rounded-lg capitalize tracking-wide ${
+                pitch.status === 'pending' ? (dark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600') :
+                pitch.status === 'approved' ? (dark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
+                pitch.status === 'rejected' ? (dark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600') :
+                (dark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600')
+              }`}>
+                {pitch.status}
+              </span>
+            </div>
+            {pitch.note && (
+              <div className={`mt-4 p-4 rounded-xl text-sm leading-relaxed ${dark ? "bg-white/[0.03] text-gray-300 border border-white/[0.04]" : "bg-gray-50 text-gray-700 border border-gray-100"}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Pitch Note</p>
+                {pitch.note}
+              </div>
+            )}
+            <div className="mt-5 flex flex-wrap gap-2.5">
+              {pitch.script && (
+                <Link to={`/script/${pitch.script._id}`} className={`text-[13px] px-5 py-2.5 rounded-xl font-bold transition-all border ${dark ? "border-white/[0.1] hover:bg-white/[0.05] text-white" : "border-gray-200 hover:bg-gray-50 text-gray-800"}`}>
+                  View Script
+                </Link>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
   );
 };
 

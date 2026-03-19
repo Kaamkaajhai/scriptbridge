@@ -364,7 +364,10 @@ export default function WriterPurchaseRequests() {
                           >
                             {req.script?.title || "Untitled Script"}
                           </Link>
-                          <div className="flex items-center gap-2 mt-1.5">
+                          <Link
+                            to={`/profile/${person?._id}`}
+                            className="flex items-center gap-2 mt-1.5 hover:opacity-80 transition-opacity w-fit"
+                          >
                             {person?.profileImage ? (
                               <img
                                 src={person.profileImage}
@@ -382,7 +385,7 @@ export default function WriterPurchaseRequests() {
                               <span className={`font-medium ${t.personName}`}>{person?.name || "Unknown"}</span>
                               <span className={t.personRole}> · {personLabel}</span>
                             </span>
-                          </div>
+                          </Link>
                         </div>
 
                         {/* Status badge */}
