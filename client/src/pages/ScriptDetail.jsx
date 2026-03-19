@@ -1625,7 +1625,7 @@ const ScriptDetail = () => {
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (
                             <div>
-                              <p className={`text-sm mb-4 ${t.muted}`}>Submit a purchase request to the writer. Once approved, you'll get full access to this script.</p>
+                              <p className={`text-sm mb-4 ${t.muted}`}>Submit a purchase request with upfront wallet payment. Writer approval grants full access; rejection auto-refunds to your wallet.</p>
                               {script.isUnlocked ? (
                                 <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1758,13 +1758,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` You will be contacted to complete payment of ₹${script.price} once the writer approves.`
+                ? ` ₹${script.price} will be debited from your wallet now and held in escrow.`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
               <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Payment collected after writer approves</p>}
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Held in escrow now. Approved = released to writer, rejected = refunded to wallet.</p>}
             </div>
             <button
               onClick={handleRequestPurchase}

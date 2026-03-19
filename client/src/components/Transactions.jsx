@@ -1,8 +1,6 @@
 import { useState, useEffect, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  TrendingUp,
-  TrendingDown,
   IndianRupee,
   ArrowUpRight,
   ArrowDownLeft,
@@ -14,7 +12,6 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Wallet,
   CreditCard,
   RefreshCw,
   Award,
@@ -162,15 +159,6 @@ const Transactions = ({ dark }) => {
   );
 
   const creditSummary = accountSummary?.credits || {};
-  const primaryAmount = isWriter
-    ? formatCredits(creditSummary.balance || 0)
-    : formatCurrency(wallet?.balance || 0, wallet?.currency || "INR");
-  const secondaryAmount = isWriter
-    ? formatCredits(creditSummary.totalPurchased || 0)
-    : formatCurrency(stats?.totalEarnings || 0, wallet?.currency || "INR");
-  const tertiaryAmount = isWriter
-    ? formatCredits(creditSummary.totalSpent || 0)
-    : formatCurrency(stats?.totalSpending || 0, wallet?.currency || "INR");
   const projectSalesAmount = formatCurrency(
     stats?.projectSalesEarnings || 0,
     "INR"
@@ -179,116 +167,48 @@ const Transactions = ({ dark }) => {
     stats?.totalProjectRevenue || 0,
     "INR"
   );
-  const primaryLabel = isWriter ? "Current Credits" : "Current Balance";
-  const secondaryLabel = isWriter ? "Credits Purchased" : "Total Earnings";
-  const tertiaryLabel = isWriter ? "Credits Spent" : "Total Spending";
-  const primaryBadge = isWriter ? "Credits" : "Available";
+  const structuredSummary = [
+    {
+      label: "Available",
+      value: formatCurrency(wallet?.balance || 0, wallet?.currency || "INR"),
+      note: "Usable now",
+    },
+    {
+      label: "Pending",
+      value: formatCurrency(wallet?.pendingBalance || 0, wallet?.currency || "INR"),
+      note: "In processing",
+    },
+    {
+      label: "Open Transactions",
+      value: (stats?.pendingTransactions || 0).toLocaleString("en-IN"),
+      note: "Awaiting completion",
+    },
+  ];
+
+  if (isWriter) {
+    structuredSummary.push(
+      {
+        label: "Current Credits",
+        value: formatCredits(creditSummary.balance || 0),
+        note: "Credits available",
+      },
+      {
+        label: "Project Revenue",
+        value: totalProjectRevenueAmount,
+        note: "Sales + holds",
+      }
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Wallet Overview */}
-      <div className={`grid grid-cols-1 gap-4 ${isWriter ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0 }}
-          className={`rounded-2xl p-6 border ${
-            dark
-              ? "bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-white/[0.06]"
-              : "bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200/50"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-              dark ? "bg-white/10" : "bg-white"
-            }`}>
-              <Wallet className={`w-6 h-6 ${dark ? "text-blue-400" : "text-blue-600"}`} />
-            </div>
-            <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-              dark ? "bg-white/10 text-white/60" : "bg-white text-gray-600"
-            }`}>
-              {primaryBadge}
-            </span>
-          </div>
-          <h3 className={`text-3xl font-black mb-1 ${
-            dark ? "text-white" : "text-gray-900"
-          }`}>
-            {primaryAmount}
-          </h3>
-          <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-            {primaryLabel}
-          </p>
-          {!isWriter && wallet?.pendingBalance > 0 && (
-            <div className={`mt-3 pt-3 border-t flex items-center gap-2 ${
-              dark ? "border-white/10 text-yellow-400" : "border-gray-200 text-yellow-600"
-            }`}>
-              <Clock className="w-4 h-4" />
-              <span className="text-xs font-semibold">
-                {formatCurrency(wallet.pendingBalance, wallet.currency || "INR")} pending
-              </span>
-            </div>
-          )}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className={`rounded-2xl p-6 border ${
-            dark
-              ? "bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-white/[0.06]"
-              : "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200/50"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-              dark ? "bg-white/10" : "bg-white"
-            }`}>
-              <TrendingUp className={`w-6 h-6 ${dark ? "text-green-400" : "text-green-600"}`} />
-            </div>
-          </div>
-          <h3 className={`text-3xl font-black mb-1 ${
-            dark ? "text-white" : "text-gray-900"
-          }`}>
-            {secondaryAmount}
-          </h3>
-          <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-            {secondaryLabel}
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className={`rounded-2xl p-6 border ${
-            dark
-              ? "bg-gradient-to-br from-orange-500/10 to-red-500/10 border-white/[0.06]"
-              : "bg-gradient-to-br from-orange-50 to-red-50 border-orange-200/50"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-              dark ? "bg-white/10" : "bg-white"
-            }`}>
-              <TrendingDown className={`w-6 h-6 ${dark ? "text-orange-400" : "text-orange-600"}`} />
-            </div>
-          </div>
-          <h3 className={`text-3xl font-black mb-1 ${
-            dark ? "text-white" : "text-gray-900"
-          }`}>
-            {tertiaryAmount}
-          </h3>
-          <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-            {tertiaryLabel}
-          </p>
-        </motion.div>
-
-        {isWriter && (
+      {isWriter && (
+        <div className="grid grid-cols-1 gap-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.1 }}
             className={`rounded-2xl p-6 border ${
               dark
                 ? "bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-white/[0.06]"
@@ -316,8 +236,36 @@ const Transactions = ({ dark }) => {
               </p>
             )}
           </motion.div>
-        )}
-      </div>
+        </div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: isWriter ? 0.35 : 0.25 }}
+        className={`rounded-2xl border p-4 sm:p-5 ${
+          dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200"
+        }`}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className={`text-sm font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Structured Financial Summary</h3>
+          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.06] text-white/60" : "bg-gray-100 text-gray-600"}`}>
+            {wallet?.currency || "INR"}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+          {structuredSummary.map((item) => (
+            <div
+              key={item.label}
+              className={`rounded-xl border px-3.5 py-3 ${dark ? "bg-white/[0.02] border-white/[0.07]" : "bg-gray-50 border-gray-200"}`}
+            >
+              <p className={`text-[11px] uppercase tracking-[0.08em] font-bold ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+              <p className={`text-base font-black mt-1 tabular-nums ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+              <p className={`text-[11px] mt-0.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.note}</p>
+            </div>
+          ))}
+        </div>
+      </motion.div>
 
       {/* Transactions List */}
       <motion.div

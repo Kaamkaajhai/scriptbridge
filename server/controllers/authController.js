@@ -250,6 +250,7 @@ export const login = async (req, res) => {
         role: user.role,
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
+        profileImage: user.profileImage || user.profilePicture || "",
         token,
         expiresAt,
       });
@@ -508,6 +509,7 @@ export const getMe = async (req, res) => {
       role: user.role,
       approvalStatus: user.approvalStatus,
       approvalNote: user.approvalNote,
+      profileImage: user.profileImage || user.profilePicture || "",
       profilePicture: user.profilePicture,
       bio: user.bio,
       expiresAt: decoded.exp * 1000,

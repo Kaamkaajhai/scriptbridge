@@ -49,6 +49,16 @@ const PUBLIC_SCRIPT_FILTER = {
   purchaseRequestLocked: { $ne: true },
 };
 
+const getBlockedUserIdsForViewer = async (viewerId) => {
+  if (!viewerId) return [];
+  const currentUser = await User.findById(viewerId).select("blockedUsers").lean();
+  const usersWhoBlockedCurrent = await User.find({ blockedUsers: viewerId }).select("_id").lean();
+  return [
+    ...(currentUser?.blockedUsers || []),
+    ...usersWhoBlockedCurrent.map((u) => u._id),
+  ];
+};
+
 export const extractPdfText = async (req, res) => {
   try {
     if (!req.file) {
@@ -884,16 +894,67 @@ export const requestScriptPurchase = async (req, res) => {
     }
 
     const investor = await User.findById(req.user._id);
-    const amount = script.price || 0;
+    const amount = Number(script.price || 0);
+
+    let frozenAmount = 0;
+    let balanceBefore = 0;
+    let balanceAfter = 0;
+
+    if (amount > 0) {
+      if (!investor.wallet) {
+        investor.wallet = {
+          balance: 0,
+          currency: "INR",
+          pendingBalance: 0,
+          totalEarnings: 0,
+          totalWithdrawals: 0,
+        };
+      }
+
+      if ((investor.wallet.balance || 0) < amount) {
+        return res.status(400).json({
+          message: `Insufficient wallet balance. Add ₹${amount.toLocaleString("en-IN")} to proceed with this purchase request.`,
+        });
+      }
+
+      balanceBefore = investor.wallet.balance || 0;
+      investor.wallet.balance = balanceBefore - amount;
+      investor.wallet.pendingBalance = (investor.wallet.pendingBalance || 0) + amount;
+      balanceAfter = investor.wallet.balance;
+      frozenAmount = amount;
+      await investor.save();
+    }
 
     const purchaseRequest = await ScriptPurchaseRequest.create({
       script: scriptId,
       investor: req.user._id,
       writer: script.creator._id,
       amount,
-      frozenAmount: 0,
+      frozenAmount,
       note: note || "",
     });
+
+    if (frozenAmount > 0) {
+      await Transaction.create({
+        user: req.user._id,
+        type: "payment",
+        amount: -frozenAmount,
+        currency: "INR",
+        status: "pending",
+        description: `Escrow hold for purchase request: "${script.title}"`,
+        reference: `PRH-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+        paymentMethod: "wallet",
+        relatedScript: script._id,
+        balanceBefore,
+        balanceAfter,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          stage: "escrow_hold",
+          writerId: script.creator._id.toString(),
+          scriptId: script._id.toString(),
+        },
+      });
+    }
 
     script.purchaseRequestLocked = true;
     script.purchaseRequestLockedBy = req.user._id;
@@ -906,7 +967,7 @@ export const requestScriptPurchase = async (req, res) => {
       type: "purchase_request",
       from: req.user._id,
       script: script._id,
-      message: `${investor.name} wants to purchase your script "${script.title}"${amount > 0 ? ` for ₹${amount}` : ""}.`,
+      message: `${investor.name} submitted a purchase request for "${script.title}"${amount > 0 ? ` and escrowed ₹${amount}` : ""}.`,
     });
 
     // Email writer
@@ -918,7 +979,12 @@ export const requestScriptPurchase = async (req, res) => {
       amount
     ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
 
-    res.status(201).json({ message: "Purchase request submitted successfully.", purchaseRequest });
+    res.status(201).json({
+      message: amount > 0
+        ? "Purchase request submitted and payment held in escrow."
+        : "Purchase request submitted successfully.",
+      purchaseRequest,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -942,6 +1008,89 @@ export const approveScriptPurchase = async (req, res) => {
     const script = purchaseRequest.script;
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
+    const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+
+    const investorDoc = await User.findById(investor._id);
+    if (!investorDoc) {
+      return res.status(404).json({ message: "Investor account not found." });
+    }
+
+    if (!investorDoc.wallet) {
+      investorDoc.wallet = {
+        balance: 0,
+        currency: "INR",
+        pendingBalance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      };
+    }
+
+    if (!writer.wallet) {
+      writer.wallet = {
+        balance: 0,
+        currency: "INR",
+        pendingBalance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      };
+    }
+
+    if (amountToRelease > 0) {
+      if ((investorDoc.wallet.pendingBalance || 0) < amountToRelease) {
+        return res.status(409).json({
+          message: "Escrow amount is unavailable. Please contact support.",
+        });
+      }
+
+      investorDoc.wallet.pendingBalance -= amountToRelease;
+      const writerBalanceBefore = writer.wallet.balance || 0;
+      writer.wallet.balance = writerBalanceBefore + amountToRelease;
+      writer.wallet.totalEarnings = (writer.wallet.totalEarnings || 0) + amountToRelease;
+
+      await investorDoc.save();
+      await writer.save();
+
+      const pendingEscrowTx = await Transaction.findOne({
+        user: investor._id,
+        relatedScript: script._id,
+        status: "pending",
+        "metadata.purchaseRequestId": purchaseRequest._id.toString(),
+      }).sort({ createdAt: -1 });
+
+      if (pendingEscrowTx) {
+        const existingMetadata = pendingEscrowTx.metadata instanceof Map
+          ? Object.fromEntries(pendingEscrowTx.metadata)
+          : (pendingEscrowTx.metadata || {});
+        pendingEscrowTx.status = "completed";
+        pendingEscrowTx.description = `Purchased script: "${script.title}"`;
+        pendingEscrowTx.metadata = {
+          ...existingMetadata,
+          stage: "settled_to_writer",
+          settledAt: new Date().toISOString(),
+          writerId: writer._id.toString(),
+        };
+        await pendingEscrowTx.save();
+      }
+
+      await Transaction.create({
+        user: writer._id,
+        type: "credit",
+        amount: amountToRelease,
+        currency: "INR",
+        status: "completed",
+        description: `Script purchase payout: "${script.title}"`,
+        reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+        paymentMethod: "wallet",
+        relatedScript: script._id,
+        balanceBefore: writerBalanceBefore,
+        balanceAfter: writer.wallet.balance,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          investorId: investor._id.toString(),
+          scriptId: script._id.toString(),
+        },
+      });
+    }
 
     // Grant access to the script
     if (!script.unlockedBy.some((uid) => uid.toString() === investor._id.toString())) {
@@ -963,7 +1112,7 @@ export const approveScriptPurchase = async (req, res) => {
       type: "purchase_approved",
       from: req.user._id,
       script: script._id,
-      message: `${writer.name} approved your purchase request for "${script.title}". You now have full access!`,
+      message: `${writer.name} approved your purchase request for "${script.title}". You now have full access${amountToRelease > 0 ? " and escrow was released to the writer" : ""}!`,
     });
 
     // Email investor
@@ -974,7 +1123,10 @@ export const approveScriptPurchase = async (req, res) => {
       script.title
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
-    res.json({ message: "Purchase request approved. Investor now has access to the script.", purchaseRequest });
+    res.json({
+      message: "Purchase request approved. Investor now has full script access and payout has been transferred.",
+      purchaseRequest,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1000,6 +1152,74 @@ export const rejectScriptPurchase = async (req, res) => {
     const script = purchaseRequest.script;
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
+    const amountToRefund = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+
+    if (amountToRefund > 0) {
+      const investorDoc = await User.findById(investor._id);
+      if (!investorDoc) {
+        return res.status(404).json({ message: "Investor account not found." });
+      }
+
+      if (!investorDoc.wallet) {
+        investorDoc.wallet = {
+          balance: 0,
+          currency: "INR",
+          pendingBalance: 0,
+          totalEarnings: 0,
+          totalWithdrawals: 0,
+        };
+      }
+
+      const pendingBefore = investorDoc.wallet.pendingBalance || 0;
+      const balanceBefore = investorDoc.wallet.balance || 0;
+
+      investorDoc.wallet.pendingBalance = Math.max(0, pendingBefore - amountToRefund);
+      investorDoc.wallet.balance = balanceBefore + amountToRefund;
+      const balanceAfter = investorDoc.wallet.balance;
+      await investorDoc.save();
+
+      const pendingEscrowTx = await Transaction.findOne({
+        user: investor._id,
+        relatedScript: script._id,
+        status: "pending",
+        "metadata.purchaseRequestId": purchaseRequest._id.toString(),
+      }).sort({ createdAt: -1 });
+
+      if (pendingEscrowTx) {
+        const existingMetadata = pendingEscrowTx.metadata instanceof Map
+          ? Object.fromEntries(pendingEscrowTx.metadata)
+          : (pendingEscrowTx.metadata || {});
+        pendingEscrowTx.status = "cancelled";
+        pendingEscrowTx.description = `Escrow released back to wallet: "${script.title}"`;
+        pendingEscrowTx.metadata = {
+          ...existingMetadata,
+          stage: "refunded_to_investor",
+          refundedAt: new Date().toISOString(),
+          rejectionNote: note || "",
+        };
+        await pendingEscrowTx.save();
+      }
+
+      await Transaction.create({
+        user: investor._id,
+        type: "refund",
+        amount: amountToRefund,
+        currency: "INR",
+        status: "completed",
+        description: `Refund for rejected purchase request: "${script.title}"`,
+        reference: `PRR-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+        paymentMethod: "wallet",
+        relatedScript: script._id,
+        balanceBefore,
+        balanceAfter,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          writerId: writer._id.toString(),
+          scriptId: script._id.toString(),
+          rejectionNote: note || "",
+        },
+      });
+    }
 
     purchaseRequest.status = "rejected";
     if (note) purchaseRequest.note = note;
@@ -1023,7 +1243,7 @@ export const rejectScriptPurchase = async (req, res) => {
       type: "purchase_rejected",
       from: req.user._id,
       script: script._id,
-      message: `${writer.name} declined your purchase request for "${script.title}".`,
+      message: `${writer.name} declined your purchase request for "${script.title}"${amountToRefund > 0 ? ` and ₹${amountToRefund} was refunded to your wallet` : ""}.`,
     });
 
     // Email investor
@@ -1035,7 +1255,12 @@ export const rejectScriptPurchase = async (req, res) => {
       note || ""
     ).catch((err) => console.error("[Purchase] Failed to send rejection email:", err.message));
 
-    res.json({ message: "Purchase request rejected. Funds returned to investor.", purchaseRequest });
+    res.json({
+      message: amountToRefund > 0
+        ? "Purchase request rejected. Escrow amount refunded to investor wallet."
+        : "Purchase request rejected.",
+      purchaseRequest,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1250,11 +1475,16 @@ export const getFeaturedScripts = async (req, res) => {
 
 export const getTopScripts = async (req, res) => {
   try {
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
     const sortBy = req.query.sort || "rating";
     let sortObj = { rating: -1 };
     if (sortBy === "reads") sortObj = { readsCount: -1 };
     if (sortBy === "purchases") sortObj = { "unlockedBy": -1 };
-    const scripts = await Script.find({ ...PUBLIC_SCRIPT_FILTER })
+    const query = { ...PUBLIC_SCRIPT_FILTER };
+    if (blockedUserIds.length > 0) {
+      query.creator = { $nin: blockedUserIds };
+    }
+    const scripts = await Script.find(query)
       .populate("creator", "name profileImage role")
       .sort(sortObj)
       .limit(20);
@@ -1268,6 +1498,10 @@ export const searchScriptsReader = async (req, res) => {
   try {
     const { q, category, genre, page = 1, limit = 20 } = req.query;
     const query = { ...PUBLIC_SCRIPT_FILTER };
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
+    if (blockedUserIds.length > 0) {
+      query.creator = { $nin: blockedUserIds };
+    }
     if (q) {
       const regex = new RegExp(q, "i");
       query.$or = [{ title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
@@ -1585,12 +1819,16 @@ export const getInvestorHomeFeed = async (req, res) => {
 export const getTopList = async (req, res) => {
   try {
     const { genre, contentType, budget, sort = "platform", premium } = req.query;
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
     const match = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;
     if (premium === "true") match.premium = true;
     else if (premium === "false") match.premium = { $ne: true };
+    if (blockedUserIds.length > 0) {
+      match.creator = { $nin: blockedUserIds };
+    }
 
     const pipeline = [
       { $match: match },

@@ -59,6 +59,7 @@ const userSchema = new mongoose.Schema({
     jobTitle: { type: String },
     imdbUrl: { type: String },
     linkedInUrl: { type: String },
+    otherUrl: { type: String },
     previousCredits: { type: String },
     investmentRange: { type: String },
     isVerified: { type: Boolean, default: false },
@@ -77,6 +78,7 @@ const userSchema = new mongoose.Schema({
 
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   // Smart Match preferences
   preferences: {
     genres: [String],
