@@ -2,6 +2,7 @@
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../services/api";
+import { sendPitch } from "../services/scriptPitchService";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
@@ -150,10 +151,22 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
   const [purchasedScripts, setPurchasedScripts] = useState([]);
+  const [investorStats, setInvestorStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [activeTab, setActiveTab] = useState(currentUser?.role === "investor" ? "about" : "projects");
+  const [showMessageRequestModal, setShowMessageRequestModal] = useState(false);
+  const [messageRequestText, setMessageRequestText] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState(false);
+  
+  // Pitch
+  const [showPitchModal, setShowPitchModal] = useState(false);
+  const [myScripts, setMyScripts] = useState([]);
+  const [pitchData, setPitchData] = useState({ scriptId: "", note: "" });
+  const [sendingPitch, setSendingPitch] = useState(false);
+  const [pitchSuccess, setPitchSuccess] = useState(false);
 
   // Settings state
   const [settingsMsg, setSettingsMsg] = useState("");
@@ -185,6 +198,16 @@ const Profile = () => {
       setIsFollowing(
         data.user.followers.some((f) => f._id === currentUser._id)
       );
+
+      // Fetch investor stats if viewing an investor profile
+      if (["investor", "producer", "director"].includes(data.user.role)) {
+        try {
+          const { data: dashData } = await api.get("/dashboard/investor");
+          setInvestorStats(dashData.stats);
+        } catch (err) {
+          console.error("Error fetching investor stats:", err);
+        }
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -216,6 +239,65 @@ const Profile = () => {
       }
     } catch (error) {
       console.error("Error following/unfollowing:", error);
+    }
+  };
+
+  const handleOpenPitchModal = async () => {
+    setShowPitchModal(true);
+    try {
+      const { data } = await api.get("/scripts/mine");
+      setMyScripts(data);
+      if (data.length > 0) {
+        setPitchData(prev => ({ ...prev, scriptId: data[0]._id }));
+      }
+    } catch (err) {
+      console.error("Error fetching user scripts:", err);
+    }
+  };
+
+  const handleSendPitch = async () => {
+    if (!pitchData.scriptId) return alert("Please select a script");
+    try {
+      setSendingPitch(true);
+      await sendPitch({
+        scriptId: pitchData.scriptId,
+        investorId: profile._id,
+        note: pitchData.note
+      });
+      setPitchSuccess(true);
+      setTimeout(() => {
+        setShowPitchModal(false);
+        setPitchSuccess(false);
+        setPitchData({ scriptId: "", note: "" });
+      }, 2000);
+    } catch (error) {
+      console.error("Error sending pitch:", error);
+      alert(error.response?.data?.message || "Failed to send pitch");
+    } finally {
+      setSendingPitch(false);
+    }
+  };
+
+  const handleSendMessageRequest = async () => {
+    if (!messageRequestText.trim()) return;
+
+    try {
+      setSendingRequest(true);
+      await api.post("/users/message-request", {
+        recipientId: profile._id,
+        message: messageRequestText
+      });
+      setRequestSuccess(true);
+      setTimeout(() => {
+        setShowMessageRequestModal(false);
+        setRequestSuccess(false);
+        setMessageRequestText("");
+      }, 2000);
+    } catch (error) {
+      console.error("Error sending message request:", error);
+      alert(error.response?.data?.message || "Failed to send message request");
+    } finally {
+      setSendingRequest(false);
     }
   };
 
@@ -376,7 +458,7 @@ const Profile = () => {
           />
 
           {/* Edit / Follow button â€” pinned top-right of the cover */}
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute top-4 right-4 z-10 flex gap-2">
             {isOwnProfile ? (
               <button
                 onClick={() => setShowEditModal(true)}
@@ -398,13 +480,28 @@ const Profile = () => {
                 Edit Profile
               </button>
             ) : (
-              <button
-                onClick={handleFollow}
-                className={`px-5 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md ${isFollowing ? t.followActive : t.followIdle
-                  }`}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+              <>
+                <button
+                  onClick={handleFollow}
+                  className={`px-5 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md ${isFollowing ? t.followActive : t.followIdle
+                    }`}
+                >
+                  {isFollowing ? "Following" : "Follow"}
+                </button>
+                {isFollowing && ["investor", "producer", "director"].includes(profile.role) && isWriter(currentUser.role) && (
+                  <>
+                    <button
+                      onClick={handleOpenPitchModal}
+                      className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${dark ? "bg-purple-500/20 hover:bg-purple-500/30 border-purple-400/30 text-purple-300 hover:text-purple-200" : "bg-purple-500 hover:bg-purple-600 border-purple-600 text-white shadow-md"}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                      </svg>
+                      Pitch Script
+                    </button>
+                  </>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -488,13 +585,24 @@ const Profile = () => {
           >
             {[
               ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
-              ...(profile.role === "investor" ? [
-                { value: `â‚¹${(profile.wallet?.balance || 0).toLocaleString()}`, label: "Balance", isStr: true },
-                { value: `â‚¹${(profile.wallet?.totalEarnings || 0).toLocaleString()}`, label: "Total Invested", isStr: true },
-                { value: profile.subscription?.scriptScoreCredits || 0, label: "Credits" },
+              ...(profile.role === "investor" ? (
+                isOwnProfile ? [
+                  { value: `â‚¹${(profile.wallet?.balance || 0).toLocaleString()}`, label: "Balance", isStr: true },
+                  { value: `â‚¹${(investorStats?.totalInvested || 0).toLocaleString()}`, label: "Total Invested", isStr: true },
+                  { value: purchasedScripts.length, label: "Scripts Purchased" },
+                  { value: investorStats?.successfulProjects || 0, label: "Successful Projects" },
+                  { value: profile.followers.length, label: "Followers" },
+                ] : [
+                  { value: `â‚¹${(investorStats?.totalInvested || 0).toLocaleString()}`, label: "Total Invested", isStr: true },
+                  { value: purchasedScripts.length, label: "Scripts Purchased" },
+                  { value: investorStats?.successfulProjects || 0, label: "Successful Projects" },
+                  { value: profile.followers.length, label: "Followers" },
+                ]
+              ) : []),
+              ...(isOwnProfile ? [
+                { value: profile.followers.length, label: "Followers" },
+                { value: profile.following.length, label: "Following" },
               ] : []),
-              { value: profile.followers.length, label: "Followers" },
-              { value: profile.following.length, label: "Following" },
               ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
             ].map((s) => (
               <div key={s.label}>
@@ -1479,6 +1587,213 @@ const Profile = () => {
           {/* Bank Details */}
           {isWriter(profile.role) && <BankDetails dark={dark} />}
         </motion.div>
+      )}
+
+      {/* Pitch Modal */}
+      {showPitchModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowPitchModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`rounded-2xl shadow-2xl max-w-lg w-full p-6 border ${dark ? "bg-[#0d1520] border-white/[0.06]" : "bg-white border-gray-200"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {pitchSuccess ? (
+              <div className="text-center py-8">
+                <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
+                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-extrabold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Pitch Sent!</h3>
+                <p className={`text-sm ${dark ? "text-white/50" : "text-gray-500"}`}>
+                  Your pitch to {profile.name} was successfully submitted.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className={`text-lg font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Pitch Script</h3>
+                    <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-gray-500"}`}>
+                      Select a script to pitch to {profile.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowPitchModal(false)}
+                    className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.06] text-white/40 hover:text-white/60" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className={`block text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
+                      Select Script
+                    </label>
+                    <select
+                      value={pitchData.scriptId}
+                      onChange={(e) => setPitchData({ ...pitchData, scriptId: e.target.value })}
+                      className={`w-full p-3 rounded-xl border text-[13px] outline-none transition-all ${
+                        dark 
+                          ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20" 
+                          : "bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-purple-500"
+                      }`}
+                    >
+                      <option value="">-- Choose a script --</option>
+                      {myScripts.map(script => (
+                        <option key={script._id} value={script._id}>{script.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
+                      Pitch Note (Optional)
+                    </label>
+                    <textarea
+                      value={pitchData.note}
+                      onChange={(e) => setPitchData({ ...pitchData, note: e.target.value })}
+                      placeholder="Add a brief note about why this fits their mandate..."
+                      className={`w-full min-h-[100px] p-3 rounded-xl border text-[13px] outline-none resize-none transition-all ${
+                        dark 
+                          ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20 placeholder-white/20" 
+                          : "bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-purple-500 placeholder-gray-400"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPitchModal(false)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                      dark ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendPitch}
+                    disabled={!pitchData.scriptId || sendingPitch}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      dark ? "bg-purple-500 text-white hover:bg-purple-600" : "bg-purple-600 text-white hover:bg-purple-700 shadow-md"
+                    }`}
+                  >
+                    {sendingPitch ? "Sending..." : "Submit Pitch"}
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Message Request Modal */}
+      {showMessageRequestModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowMessageRequestModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`rounded-2xl shadow-2xl max-w-lg w-full p-6 border ${dark ? "bg-[#0d1520] border-white/[0.06]" : "bg-white border-gray-200"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {requestSuccess ? (
+              <div className="text-center py-8">
+                <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
+                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-extrabold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Request Sent!</h3>
+                <p className={`text-sm ${dark ? "text-white/50" : "text-gray-500"}`}>
+                  Your message request has been sent to {profile.name}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className={`text-lg font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>
+                      Send Message Request
+                    </h3>
+                    <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-gray-500"}`}>
+                      Introduce yourself to {profile.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowMessageRequestModal(false)}
+                    className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.06] text-white/40 hover:text-white/60" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <label className={`block text-sm font-semibold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
+                    Your Message
+                  </label>
+                  <textarea
+                    value={messageRequestText}
+                    onChange={(e) => setMessageRequestText(e.target.value)}
+                    placeholder="Tell them about your work and why you'd like to connect..."
+                    rows={5}
+                    className={`w-full px-4 py-3 rounded-xl text-sm border outline-none transition-colors resize-none ${
+                      dark
+                        ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/25 focus:border-white/20"
+                        : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-blue-400"
+                    }`}
+                    maxLength={500}
+                  />
+                  <p className={`text-xs mt-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                    {messageRequestText.length}/500 characters
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowMessageRequestModal(false)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                      dark
+                        ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendMessageRequest}
+                    disabled={!messageRequestText.trim() || sendingRequest}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      dark
+                        ? "bg-blue-500 text-white hover:bg-blue-600"
+                        : "bg-blue-500 text-white hover:bg-blue-600 shadow-md"
+                    }`}
+                  >
+                    {sendingRequest ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        Sending...
+                      </span>
+                    ) : (
+                      "Send Request"
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </div>
       )}
 
       {/* Edit Modal */}
