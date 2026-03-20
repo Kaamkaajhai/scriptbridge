@@ -8,6 +8,7 @@ import ProjectCard from "../components/ProjectCard";
 import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
+import PrivacySettings from "../components/PrivacySettingsWrapper";
 
 /* ── Streak helper ── */
 const calcStreak = (createdAt) => {
@@ -29,7 +30,6 @@ const StreakWidget = ({ dark, createdAt, scriptsCount }) => {
   return (
     <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-xl">🔥</span>
         <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Reading Streak</h3>
         <span className={`ml-auto text-[13px] font-medium px-2.5 py-1 rounded-lg border ${dark ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
           {streak} days
@@ -152,15 +152,15 @@ const CurrentlyReadingCard = ({ dark, scripts, resolveImage }) => {
 const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const essentials = [
-    profile.location && { icon: "📍", label: "Location", value: profile.location },
-    profile.website && { icon: "🌐", label: "Website", value: profile.website, isLink: true },
-    memberSince && { icon: "📅", label: "Member Since", value: memberSince },
-    profile.role && { icon: "🎭", label: "Role", value: profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
+    profile.location && { label: "Location", value: profile.location },
+    profile.website && { label: "Website", value: profile.website, isLink: true },
+    memberSince && { label: "Member Since", value: memberSince },
+    profile.role && { label: "Role", value: profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
     isWriter(profile.role) && profile.writerProfile?.representationStatus && {
-      icon: "✍️", label: "Representation", value: profile.writerProfile.representationStatus.replace(/_/g, " & ")
+      label: "Representation", value: profile.writerProfile.representationStatus.replace(/_/g, " & ")
     },
-    profile.industryProfile?.company && { icon: "🏢", label: "Company", value: profile.industryProfile.company },
-    profile.industryProfile?.jobTitle && { icon: "💼", label: "Title", value: profile.industryProfile.jobTitle },
+    profile.industryProfile?.company && { label: "Company", value: profile.industryProfile.company },
+    profile.industryProfile?.jobTitle && { label: "Title", value: profile.industryProfile.jobTitle },
   ].filter(Boolean);
 
   return (
@@ -178,7 +178,6 @@ const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
         <div className="space-y-2.5">
           {essentials.map((e, i) => (
             <div key={i} className={`flex items-center gap-3 py-2 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-              <span className="text-base shrink-0">{e.icon}</span>
               <span className={`text-[14px] ${dark ? "text-white/30" : "text-gray-400"} shrink-0 w-24`}>{e.label}</span>
               {e.isLink
                 ? <a href={e.value.startsWith("http") ? e.value : `https://${e.value}`} target="_blank" rel="noreferrer"
@@ -362,13 +361,38 @@ const Profile = () => {
   // Settings state
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsErr, setSettingsErr] = useState("");
-  const [emailForm, setEmailForm] = useState({ password: "", newEmail: "" });
-  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [privacySettings, setPrivacySettings] = useState({
+    accountEmail: "",
+    emailVerified: false,
+    requestVerification: false,
+    profileVisibility: "public",
+    messagingPermissions: "everyone",
+    showOnlineStatus: true,
+    profileInfoVisibility: {
+      email: "hidden",
+      phone: "hidden",
+      bio: "public",
+    },
+    allowAnalytics: true,
+    personalizedAds: false,
+    enableTwoFactor: false,
+    blockedUsers: [],
+  });
 
   useEffect(() => {
     fetchProfile();
   }, [id]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setPrivacySettings((prev) => ({
+      ...prev,
+      accountEmail: profile.email || "",
+      emailVerified: !!profile.emailVerified,
+      profileVisibility: profile.isPrivate ? "private" : "public",
+      blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers : [],
+    }));
+  }, [profile]);
 
   const handleDeleteScript = async (scriptId) => {
     try {
@@ -431,11 +455,16 @@ const Profile = () => {
       year: "numeric",
     })
     : null;
+  const yearJoined = profile?.createdAt
+    ? new Date(profile.createdAt).getFullYear()
+    : "-";
+  const favoriteCount = profile?.favoriteScripts?.length || 0;
+  const favoritePreview = (profile?.favoriteScripts || []).slice(0, 3);
 
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   /* ── Loading ── */
@@ -556,30 +585,22 @@ const Profile = () => {
         transition={{ duration: 0.35 }}
         className={`rounded-2xl border transition-colors relative ${t.card}`}
       >
-        {/* Cover gradient — no overflow-hidden so avatar is never clipped */}
+        {/* Cover area */}
         <div
-          className={`h-36 sm:h-44 rounded-t-2xl relative bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
+          className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden ${
+            profile.coverImage
+              ? ""
+              : dark
+                ? "bg-white/[0.04]"
+                : "bg-gray-100"
+          }`}
+          style={profile.coverImage ? {
+            backgroundImage: `url(${resolveImage(profile.coverImage)})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          } : {}}
         >
-          {/* Glow */}
-          <div
-            className="absolute inset-0 rounded-t-2xl"
-            style={{
-              backgroundImage: dark
-                ? "radial-gradient(ellipse 70% 50% at 50% 80%, rgba(30,58,95,0.5), transparent)"
-                : "radial-gradient(ellipse 70% 50% at 50% 80%, rgba(255,255,255,0.2), transparent)",
-            }}
-          />
-          {/* Dot pattern */}
-          <div
-            className="absolute inset-0 rounded-t-2xl"
-            style={{
-              opacity: dark ? 0.03 : 0.06,
-              backgroundImage: `radial-gradient(circle, ${dark ? "#fff" : "#fff"} 1px, transparent 1px)`,
-              backgroundSize: "20px 20px",
-            }}
-          />
-
-          {/* Edit / Follow button — pinned top-right of the cover */}
+          {/* Edit / Follow button — pinned on cover */}
           <div className="absolute top-4 right-4 z-10">
             {isOwnProfile ? (
               <button
@@ -614,7 +635,7 @@ const Profile = () => {
         </div>
 
         {/* Avatar + Info row */}
-        <div className="px-6 sm:px-8">
+        <div className="px-6 sm:px-8 relative">
           <div className="-mt-16 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
             {/* Avatar */}
             <div className="shrink-0">
@@ -662,6 +683,11 @@ const Profile = () => {
                   {profile.email}
                 </p>
               )}
+              <p className={`text-[13px] font-semibold mt-1 ${dark ? "text-white/45" : "text-gray-500"}`}>
+                {profile.followers.length} Followers
+                <span className={`mx-2 ${dark ? "text-white/20" : "text-gray-300"}`}>•</span>
+                {profile.following.length} Following
+              </p>
               {profile.bio && (
                 <p
                   className={`text-[14px] leading-relaxed mt-2 line-clamp-2 ${t.body}`}
@@ -686,34 +712,7 @@ const Profile = () => {
         </div>
 
         {/* Stats */}
-        <div className="px-6 sm:px-8 pb-7 pt-5">
-          <div
-            className={`flex flex-wrap items-end gap-6 sm:gap-8 pt-5 border-t ${t.divider}`}
-          >
-            {[
-              ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
-              ...(profile.role === "investor" ? [
-                { value: `₹${(profile.wallet?.balance || 0).toLocaleString()}`, label: "Balance", isStr: true },
-                { value: `₹${(profile.wallet?.totalEarnings || 0).toLocaleString()}`, label: "Total Invested", isStr: true },
-                { value: profile.subscription?.scriptScoreCredits || 0, label: "Credits" },
-              ] : []),
-              { value: profile.followers.length, label: "Followers" },
-              { value: profile.following.length, label: "Following" },
-              ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
-            ].map((s) => (
-              <div key={s.label}>
-                <p className={`${s.isStr ? "text-lg sm:text-xl" : "text-2xl"} font-extrabold tabular-nums ${t.statNum}`}>
-                  {s.value}
-                </p>
-                <p
-                  className={`text-[11px] font-semibold uppercase tracking-wider mt-0.5 ${t.statLabel}`}
-                >
-                  {s.label}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* REMOVED: Activity Stats section */}
       </motion.div>
 
       {/* ──────── TABS ──────── */}
@@ -725,7 +724,6 @@ const Profile = () => {
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
             ? [{ key: "purchased", label: "Purchased", count: purchasedScripts.length }]
             : []),
-          ...(isOwnProfile ? [{ key: "financial", label: "Financial" }] : []),
           ...(isOwnProfile ? [{ key: "settings", label: "Settings" }] : []),
         ].map((tab) => (
           <button
@@ -783,15 +781,41 @@ const Profile = () => {
                 </div>
                 <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Activity Stats</h3>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {[
-                  { label: "Scripts", value: scripts.length, icon: "📄", color: dark ? "text-blue-400" : "text-blue-600" },
-                  { label: "Followers", value: profile.followers?.length || 0, icon: "👥", color: dark ? "text-emerald-400" : "text-emerald-600" },
-                  { label: "Following", value: profile.following?.length || 0, icon: "🔗", color: dark ? "text-purple-400" : "text-purple-600" },
-                  { label: "Days Active", value: calcStreak(profile.createdAt), icon: "⚡", color: dark ? "text-orange-400" : "text-orange-600" },
+                  {
+                    label: "Scripts",
+                    value: scripts.length,
+                    color: dark ? "text-blue-400" : "text-blue-600",
+                    icon: (
+                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Favorites",
+                    value: profile.favoriteScripts?.length || 0,
+                    color: dark ? "text-emerald-400" : "text-emerald-600",
+                    icon: (
+                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.015-4.5-4.5-4.5-1.74 0-3.248.99-3.997 2.436a4.502 4.502 0 00-8.012 2.064c-.123 2.684 1.51 5.07 3.597 6.995 1.84 1.698 4.006 3.122 4.912 3.68.906-.558 3.072-1.982 4.912-3.68 2.087-1.925 3.72-4.311 3.597-6.995z" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Days Active",
+                    value: calcStreak(profile.createdAt),
+                    color: dark ? "text-orange-400" : "text-orange-600",
+                    icon: (
+                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+                      </svg>
+                    ),
+                  },
                 ].map((stat) => (
                   <div key={stat.label} className={`rounded-xl p-3.5 border text-center ${dark ? "bg-white/[0.02] border-white/[0.05]" : "bg-gray-50/60 border-gray-100"}`}>
-                    <div className="text-xl mb-1">{stat.icon}</div>
+                    <div className={`mb-1 inline-flex items-center justify-center ${stat.color}`}>{stat.icon}</div>
                     <p className={`text-2xl font-extrabold tabular-nums ${stat.color}`}>{stat.value}</p>
                     <p className={`text-[14px] font-bold uppercase tracking-wider mt-0.5 ${dark ? "text-white/25" : "text-gray-400"}`}>{stat.label}</p>
                   </div>
@@ -1003,53 +1027,6 @@ const Profile = () => {
               </div>
             )}
 
-            {/* ── Preferences Card (own profile only) ── */}
-            {isOwnProfile && (
-              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-[#1e3a5f]/30 text-[#7aafff]" : "bg-[#1e3a5f]/[0.08] text-[#1e3a5f]"}`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                    </svg>
-                  </div>
-                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>My Preferences</h3>
-                </div>
-                {(profile.preferences?.genres?.length > 0 || profile.preferences?.contentTypes?.length > 0) ? (
-                  <div className="space-y-3">
-                    {profile.preferences?.genres?.length > 0 && (
-                      <div>
-                        <p className={`text-[11px] font-bold uppercase tracking-widest mb-1.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Genres</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {profile.preferences.genres.map(g => (
-                            <span key={g} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.07] text-[#1e3a5f] border-[#1e3a5f]/20"}`}>{g}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {profile.preferences?.contentTypes?.length > 0 && (
-                      <div>
-                        <p className={`text-[11px] font-bold uppercase tracking-widest mb-1.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Content Types</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {profile.preferences.contentTypes.map(t2 => (
-                            <span key={t2} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${dark ? "bg-white/[0.05] text-white/40 border-white/[0.08]" : "bg-gray-100 text-gray-500 border-gray-200"}`}>{t2.replace(/_/g, " ")}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className={`rounded-xl py-5 text-center ${dark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
-                    <p className={`text-[12px] mb-2 ${dark ? "text-white/25" : "text-gray-400"}`}>No preferences set yet</p>
-                    <button
-                      onClick={() => setShowEditModal(true)}
-                      className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border transition-all ${dark ? "border-[#1e3a5f]/40 text-[#7aafff] hover:bg-[#1e3a5f]/20" : "border-[#1e3a5f]/20 text-[#1e3a5f] hover:bg-[#1e3a5f]/[0.06]"}`}
-                    >
-                      Set Preferences →
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </motion.div>
       )}
@@ -1619,7 +1596,7 @@ const Profile = () => {
                   {/* Thumbnail */}
                   <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 ${dark ? "bg-[#1a2d47]" : "bg-gray-100"}`}>
                     {script.coverImage ? (
-                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5001${script.coverImage}`}
+                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`}
                         alt={script.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -1683,114 +1660,8 @@ const Profile = () => {
             </div>
           )}
 
-          {/* Account */}
-          <SectionCard dark={dark} title="Account" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
-            <div className="space-y-4">
-              <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
-                <div>
-                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Private Account</p>
-                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>Only approved followers can see your profile</p>
-                </div>
-                <button onClick={async () => { try { setSavingSettings(true); await api.put("/users/settings", { isPrivate: !profile.isPrivate }); setProfile({ ...profile, isPrivate: !profile.isPrivate }); setSettingsMsg("Privacy updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr("Failed"); } finally { setSavingSettings(false); } }}
-                  className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.isPrivate ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
-                  <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.isPrivate ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
-                </button>
-              </div>
-              <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
-                <div>
-                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Email Verified</p>
-                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{profile.email}</p>
-                </div>
-                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${profile.emailVerified ? dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200" : dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-200"}`}>{profile.emailVerified ? "Verified" : "Unverified"}</span>
-              </div>
-              <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Email</p>
-                <div className="space-y-2.5">
-                  <input type="email" placeholder="New email address" value={emailForm.newEmail} onChange={e => setEmailForm({ ...emailForm, newEmail: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="Current password" value={emailForm.password} onChange={e => setEmailForm({ ...emailForm, password: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <button disabled={savingSettings || !emailForm.newEmail || !emailForm.password} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); const { data } = await api.put("/users/change-email", emailForm); setProfile({ ...profile, email: data.email, emailVerified: false }); setEmailForm({ password: "", newEmail: "" }); setSettingsMsg("Email changed"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
-                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Update Email"}</button>
-                </div>
-              </div>
-              <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Password</p>
-                <div className="space-y-2.5">
-                  <input type="password" placeholder="Current password" value={pwForm.currentPassword} onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="New password (min 6 chars)" value={pwForm.newPassword} onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="Confirm new password" value={pwForm.confirmPassword} onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <button disabled={savingSettings || !pwForm.currentPassword || !pwForm.newPassword || pwForm.newPassword !== pwForm.confirmPassword} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); await api.put("/users/change-password", { currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); setSettingsMsg("Password changed"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
-                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Change Password"}</button>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* Notification Preferences */}
-          <SectionCard dark={dark} title="Notification Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>}>
-            <div className="space-y-2.5">
-              {[{ key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "When a new script matches your mandates" }, { key: "holdAlerts", label: "Hold Alerts", desc: "Option hold status updates" }, { key: "viewAlerts", label: "View Alerts", desc: "When someone views your profile" }, { key: "auditionAlerts", label: "Audition Alerts", desc: "New audition opportunities" }].map((pref) => (
-                <div key={pref.key} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                  <div><p className={`text-[13px] font-semibold ${dark ? "text-white/65" : "text-gray-700"}`}>{pref.label}</p><p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{pref.desc}</p></div>
-                  <button onClick={async () => { const nv = !profile.notificationPrefs?.[pref.key]; try { await api.put("/users/settings", { notificationPrefs: { [pref.key]: nv } }); setProfile({ ...profile, notificationPrefs: { ...profile.notificationPrefs, [pref.key]: nv } }); } catch (e) { setSettingsErr("Failed"); } }}
-                    className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.notificationPrefs?.[pref.key] ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
-                    <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.notificationPrefs?.[pref.key] ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          {/* Content Preferences + Subscription */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <SectionCard dark={dark} title="Content Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
-              <div className="space-y-3">
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Preferred Genres</p>
-                  {profile.preferences?.genres?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.genres.map((g, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${t.genreChip}`}>{g}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No genres selected</p>)}
-                </div>
-                <InfoRow dark={dark} label="Budget Range" value={profile.preferences?.budgetRange ? `₹${(profile.preferences.budgetRange.min || 0).toLocaleString()} – ₹${(profile.preferences.budgetRange.max || 0).toLocaleString()}` : <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Content Types</p>
-                  {profile.preferences?.contentTypes?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.contentTypes.map((ct, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${t.chip}`}>{ct.replace(/_/g, " ")}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No content types selected</p>)}
-                </div>
-              </div>
-            </SectionCard>
-            <SectionCard dark={dark} title="Subscription" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between"><span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>Plan</span><span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border uppercase ${profile.subscription?.plan === "enterprise" ? dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-200" : profile.subscription?.plan === "pro" ? dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200" : dark ? "bg-white/[0.04] text-white/45 border-white/[0.06]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{profile.subscription?.plan || "free"}</span></div>
-                <InfoRow dark={dark} label="Script Score Credits" value={profile.subscription?.scriptScoreCredits || 0} />
-                {profile.subscription?.expiresAt && (<InfoRow dark={dark} label="Expires" value={new Date(profile.subscription.expiresAt).toLocaleDateString()} />)}
-              </div>
-            </SectionCard>
-          </div>
-
-          {/* Localization */}
-          <SectionCard dark={dark} title="Localization" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" /></svg>}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
-                <select value={profile.language || "en"} onChange={async (e) => { try { await api.put("/users/settings", { language: e.target.value }); setProfile({ ...profile, language: e.target.value }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
-                  <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option>
-                </select>
-              </div>
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Timezone</p>
-                <select value={profile.timezone || "Asia/Kolkata"} onChange={async (e) => { try { await api.put("/users/settings", { timezone: e.target.value }); setProfile({ ...profile, timezone: e.target.value }); setSettingsMsg("Timezone updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
-                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="America/New_York">America/New_York (EST)</option><option value="America/Los_Angeles">America/Los_Angeles (PST)</option><option value="America/Chicago">America/Chicago (CST)</option><option value="Europe/London">Europe/London (GMT)</option><option value="Europe/Paris">Europe/Paris (CET)</option><option value="Asia/Tokyo">Asia/Tokyo (JST)</option><option value="Asia/Shanghai">Asia/Shanghai (CST)</option><option value="Australia/Sydney">Australia/Sydney (AEST)</option>
-                </select>
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* Danger Zone */}
-          <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>
-            <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-red-500/15 bg-red-500/[0.03]" : "border-red-100 bg-red-50/40"}`}>
-              <div><p className={`text-[13px] font-semibold ${dark ? "text-red-400/80" : "text-red-600"}`}>Delete Account</p><p className={`text-[11px] ${dark ? "text-red-400/30" : "text-red-400"}`}>Permanently delete your account and all data</p></div>
-              <button className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}>Delete</button>
-            </div>
-          </SectionCard>
+          {/* Privacy Settings */}
+          <PrivacySettings dark={dark} privacySettings={privacySettings} setPrivacySettings={setPrivacySettings} userId={id || currentUser?._id} api={api} />
         </motion.div>
       )}
 

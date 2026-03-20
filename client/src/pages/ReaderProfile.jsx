@@ -26,7 +26,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   const handleImageChange = (e) => {
@@ -311,7 +311,7 @@ const ReaderProfile = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   useEffect(() => { fetchProfile(); }, [profileId]);
@@ -410,13 +410,6 @@ const ReaderProfile = () => {
     { key: "projects",  label: "Projects",  icon: FolderOpen },
     { key: "about",     label: "About",     icon: Info },
     { key: "settings",  label: "Settings",  icon: Settings },
-  ];
-
-  const activityStats = [
-    { label: "Scripts Read", value: profile.scriptsRead?.length || 0,   icon: BookOpen,  color: "blue" },
-    { label: "Followers",    value: profile.followers?.length || 0,      icon: Users,     color: "violet" },
-    { label: "Following",    value: profile.following?.length || 0,      icon: UserPlus,  color: "emerald" },
-    { label: "Days Active",  value: daysActive,                          icon: TrendingUp, color: "amber" },
   ];
 
   const colorMap = {
@@ -607,7 +600,7 @@ const ReaderProfile = () => {
                         <Link key={s._id} to={`/reader/script/${s._id}`}
                           className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl transition-all duration-150 ${ dark ? "hover:bg-white/[0.04]" : "hover:bg-gray-50" }`}>
                           {s.thumbnail ? (
-                            <img src={s.thumbnail.startsWith("http") ? s.thumbnail : `http://localhost:5001${s.thumbnail}`} alt={s.title} className="w-9 h-12 rounded-lg object-cover shrink-0" />
+                            <img src={s.thumbnail.startsWith("http") ? s.thumbnail : `http://localhost:5002${s.thumbnail}`} alt={s.title} className="w-9 h-12 rounded-lg object-cover shrink-0" />
                           ) : (
                             <div className={`w-9 h-12 rounded-lg flex items-center justify-center shrink-0 ${ dark ? "bg-blue-500/10" : "bg-blue-50" }`}>
                               <BookOpen size={14} className={dark ? "text-blue-400" : "text-blue-500"} />
@@ -631,30 +624,6 @@ const ReaderProfile = () => {
                       </Link>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* ── Activity Stats ── */}
-              <div className={card}>
-                <div className={`flex items-center gap-3 px-6 py-4 border-b ${ dark ? "border-[#16263d]" : "border-gray-100" }`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap.violet}`}>
-                    <TrendingUp size={14} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <p className={`text-[16px] font-bold ${ dark ? "text-white" : "text-gray-900" }`}>Activity Stats</p>
-                    <p className={`text-[13px] mt-0.5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Your reading activity at a glance</p>
-                  </div>
-                </div>
-                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {activityStats.map(({ label, value, icon: SI, color }) => (
-                    <div key={label} className={`flex flex-col items-center justify-center gap-2 py-5 rounded-xl border transition-all duration-200 hover:scale-[1.02] ${ dark ? "bg-white/[0.02] border-[#16263d] hover:border-[#1e3a5f]/60 hover:bg-white/[0.04]" : "bg-gray-50 border-gray-100 hover:border-gray-200 hover:shadow-sm" }`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colorMap[color]}`}>
-                        <SI size={16} strokeWidth={2} />
-                      </div>
-                      <span className={`text-[32px] font-black tabular-nums leading-none mt-0.5 ${ dark ? "text-white" : "text-gray-900" }`}>{value}</span>
-                      <span className={`text-[11px] font-semibold uppercase tracking-wider text-center ${ dark ? "text-gray-600" : "text-gray-400" }`}>{label}</span>
-                    </div>
-                  ))}
                 </div>
               </div>
 

@@ -68,7 +68,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:5001/api/auth/verify-otp', {
+      const response = await axios.post('http://localhost:5002/api/auth/verify-otp', {
         email,
         otp: otpString,
       });
@@ -97,7 +97,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
     setError('');
 
     try {
-      await axios.post('http://localhost:5001/api/auth/resend-otp', { email });
+      await axios.post('http://localhost:5002/api/auth/resend-otp', { email });
       setResendTimer(60); // 60 second cooldown
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();

@@ -53,37 +53,37 @@ const FORMAT_OPTIONS = [
 ];
 
 const READER_GENRE_OPTIONS = [
-  { label: "Action", emoji: "💥" },
-  { label: "Comedy", emoji: "😂" },
-  { label: "Drama", emoji: "🎭" },
-  { label: "Horror", emoji: "👻" },
-  { label: "Thriller", emoji: "🔪" },
-  { label: "Romance", emoji: "❤️" },
-  { label: "Sci-Fi", emoji: "🚀" },
-  { label: "Fantasy", emoji: "🧙" },
-  { label: "Mystery", emoji: "🔍" },
-  { label: "Adventure", emoji: "🗺️" },
-  { label: "Crime", emoji: "🚔" },
-  { label: "Animation", emoji: "🎨" },
-  { label: "Documentary", emoji: "🎥" },
-  { label: "Historical", emoji: "🏛️" },
-  { label: "Biographical", emoji: "📖" },
-  { label: "Sports", emoji: "⚽" },
-  { label: "Musical", emoji: "🎵" },
-  { label: "Family", emoji: "👨‍👩‍👧" },
-  { label: "Psychological", emoji: "🧠" },
-  { label: "Dark Comedy", emoji: "🖤" },
+  { label: "Action" },
+  { label: "Comedy" },
+  { label: "Drama" },
+  { label: "Horror" },
+  { label: "Thriller" },
+  { label: "Romance" },
+  { label: "Sci-Fi" },
+  { label: "Fantasy" },
+  { label: "Mystery" },
+  { label: "Adventure" },
+  { label: "Crime" },
+  { label: "Animation" },
+  { label: "Documentary" },
+  { label: "Historical" },
+  { label: "Biographical" },
+  { label: "Sports" },
+  { label: "Musical" },
+  { label: "Family" },
+  { label: "Psychological" },
+  { label: "Dark Comedy" },
 ];
 
 const READER_CONTENT_TYPES = [
-  { label: "feature_film", display: "Feature Film", emoji: "🎬" },
-  { label: "tv_pilot", display: "TV Pilot", emoji: "📺" },
-  { label: "web_series", display: "Web Series", emoji: "📱" },
-  { label: "short_film", display: "Short Film", emoji: "⏱️" },
-  { label: "documentary", display: "Documentary", emoji: "🎥" },
-  { label: "animation", display: "Animation", emoji: "🎨" },
-  { label: "limited_series", display: "Limited Series", emoji: "🗂️" },
-  { label: "reality_show", display: "Reality Show", emoji: "👁️" },
+  { label: "feature_film", display: "Feature Film" },
+  { label: "tv_pilot", display: "TV Pilot" },
+  { label: "web_series", display: "Web Series" },
+  { label: "short_film", display: "Short Film" },
+  { label: "documentary", display: "Documentary" },
+  { label: "animation", display: "Animation" },
+  { label: "limited_series", display: "Limited Series" },
+  { label: "reality_show", display: "Reality Show" },
 ];
 
 const EditProfileModal = ({ profile, onClose, onUpdate }) => {
@@ -100,6 +100,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
     profileImage: profile.profileImage || "",
+    coverImage: profile.coverImage || "",
   });
 
   // Investor-specific state
@@ -142,24 +143,16 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     setReaderContentTypes((prev) => prev.includes(ct) ? prev.filter(c => c !== ct) : [...prev, ct]);
   };
 
-  // Bank details state
-  const [bankDetails, setBankDetails] = useState({
-    accountHolderName: profile.bankDetails?.accountHolderName || "",
-    bankName: profile.bankDetails?.bankName || "",
-    accountNumber: profile.bankDetails?.accountNumber || "",
-    routingNumber: profile.bankDetails?.routingNumber || "",
-    accountType: profile.bankDetails?.accountType || "checking",
-    swiftCode: profile.bankDetails?.swiftCode || "",
-    iban: profile.bankDetails?.iban || "",
-    country: profile.bankDetails?.country || "US",
-    currency: profile.bankDetails?.currency || "USD"
-  });
+
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
   const [error, setError] = useState("");
   const [imagePreview, setImagePreview] = useState(profile.profileImage || "");
+  const [coverImagePreview, setCoverImagePreview] = useState(profile.coverImage || "");
   const fileInputRef = useRef(null);
+  const fileInputRefCover = useRef(null);
 
   // Active section for mobile-friendly navigation
   const [activeSection, setActiveSection] = useState("basic");
@@ -171,7 +164,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       { key: "genres", label: "Genres", icon: <Film size={13} /> },
       { key: "tags", label: "Tags", icon: <Target size={13} /> },
       { key: "diversity", label: "Diversity", icon: <Heart size={13} /> },
-      { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
     ]
     : isInvestor
       ? [
@@ -179,17 +171,14 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         { key: "investor", label: "Investor", icon: <TrendingUp size={13} /> },
         { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
         { key: "notifications", label: "Alerts", icon: <Bell size={13} /> },
-        { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
       ]
       : isReader
         ? [
           { key: "basic", label: "Basic", icon: <User size={13} /> },
           { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
-          { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
         ]
         : [
           { key: "basic", label: "Basic", icon: <User size={13} /> },
-          { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
         ];
 
   const toggleGenre = (genre) => {
@@ -238,7 +227,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setFormData({ ...formData, profileImage: data.profileImage });
-      setImagePreview(`http://localhost:5001${data.profileImage}`);
+      setImagePreview(`http://localhost:5002${data.profileImage}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to upload image");
       setImagePreview(profile.profileImage || "");
@@ -251,6 +240,48 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     setFormData({ ...formData, profileImage: "" });
     setImagePreview("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCoverImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      setError("Only JPEG, PNG, WebP and GIF images are allowed");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Cover image must be under 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setCoverImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+
+    setCoverUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("profileImage", file);
+      const { data } = await api.post("/users/upload-image", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setFormData({ ...formData, coverImage: data.profileImage });
+      setCoverImagePreview(`http://localhost:5002${data.profileImage}`);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to upload cover image");
+      setCoverImagePreview(profile.coverImage || "");
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const handleRemoveCoverImage = () => {
+    setFormData({ ...formData, coverImage: "" });
+    setCoverImagePreview("");
+    if (fileInputRefCover.current) fileInputRefCover.current.value = "";
   };
 
   const handleSubmit = async (e) => {
@@ -298,10 +329,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         };
       }
 
-      // Include bank details if any field is filled
-      if (Object.values(bankDetails).some(val => val && val !== "checking" && val !== "US" && val !== "USD")) {
-        payload.bankDetails = bankDetails;
-      }
+
 
       const { data } = await api.put("/users/update", payload);
       // Sync AuthContext so ReaderHome / For You bar picks up new preferences
@@ -317,7 +345,13 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const displayImage = imagePreview
     ? imagePreview.startsWith("data:") || imagePreview.startsWith("http")
       ? imagePreview
-      : `http://localhost:5001${imagePreview}`
+      : `http://localhost:5002${imagePreview}`
+    : "";
+
+  const displayCoverImage = coverImagePreview
+    ? coverImagePreview.startsWith("data:") || coverImagePreview.startsWith("http")
+      ? coverImagePreview
+      : `http://localhost:5002${coverImagePreview}`
     : "";
 
   const inputClass = dark
@@ -425,6 +459,58 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       <button
                         type="button"
                         onClick={handleRemoveImage}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${dark ? 'bg-[#242424] text-gray-400 border-[#444] hover:text-red-400 hover:border-red-500/40' : 'bg-white text-gray-500 border-gray-200 hover:text-red-500 hover:border-red-200'}`}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <p className="text-[10px] text-gray-400">JPG, PNG, WebP or GIF. Max 5MB</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cover Image Upload */}
+              <div>
+                <label className={labelClass}>Cover Image</label>
+                <div className="space-y-2">
+                  <div className="relative w-full h-[120px] rounded-lg overflow-hidden border-2 border-gray-200">
+                    {displayCoverImage ? (
+                      <img
+                        src={displayCoverImage}
+                        alt="Cover"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#1e3a5f]/20 to-[#0f2544]/20 flex items-center justify-center">
+                        <span className={`text-sm font-semibold ${dark ? 'text-gray-600' : 'text-gray-400'}`}>No cover image</span>
+                      </div>
+                    )}
+                    {coverUploading && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      ref={fileInputRefCover}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={handleCoverImageUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRefCover.current?.click()}
+                      disabled={coverUploading}
+                      className="px-3.5 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-semibold hover:bg-[#162d4a] transition-colors disabled:opacity-50"
+                    >
+                      {coverUploading ? "Uploading..." : "Upload Cover"}
+                    </button>
+                    {coverImagePreview && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoverImage}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${dark ? 'bg-[#242424] text-gray-400 border-[#444] hover:text-red-400 hover:border-red-500/40' : 'bg-white text-gray-500 border-gray-200 hover:text-red-500 hover:border-red-200'}`}
                       >
                         Remove
@@ -830,7 +916,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </div>
                 <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Tap to select genres you love — we'll show those scripts first</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {READER_GENRE_OPTIONS.map(({ label, emoji }) => (
+                  {READER_GENRE_OPTIONS.map(({ label }) => (
                     <button
                       key={label}
                       type="button"
@@ -845,7 +931,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                             : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-gray-900'
                       }`}
                     >
-                      <span className="text-base leading-none">{emoji}</span>
                       <span>{label}</span>
                       {readerGenres.includes(label) && (
                         <svg className="w-3 h-3 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -878,7 +963,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </div>
                 <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>What formats do you enjoy watching?</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {READER_CONTENT_TYPES.map(({ label, display, emoji }) => (
+                  {READER_CONTENT_TYPES.map(({ label, display }) => (
                     <button
                       key={label}
                       type="button"
@@ -893,7 +978,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                             : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-gray-900'
                       }`}
                     >
-                      <span className="text-base leading-none">{emoji}</span>
                       <span>{display}</span>
                       {readerContentTypes.includes(label) && (
                         <svg className="w-3 h-3 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -927,136 +1011,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   </p>
                 </div>
               )}
-            </motion.div>
-          )}
-
-          {/* === BANK DETAILS SECTION === */}
-          {activeSection === "bank" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-              <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Bank Account Details</h3>
-                <p className="text-xs text-gray-400 mb-4">
-                  Secure payment information for receiving funds
-                </p>
-              </div>
-
-              <div>
-                <label className={labelClass}>Account Holder Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.accountHolderName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, accountHolderName: e.target.value })}
-                  className={inputClass}
-                  placeholder="Full name as it appears on your account"
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>Bank Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.bankName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g., Wells Fargo, Chase"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Account Number</label>
-                  <input
-                    type="password"
-                    value={bankDetails.accountNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                    className={inputClass}
-                    placeholder="Account number"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Routing Number</label>
-                  <input
-                    type="text"
-                    value={bankDetails.routingNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, routingNumber: e.target.value })}
-                    className={inputClass}
-                    placeholder="9-digit routing"
-                    maxLength="9"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className={labelClass}>Account Type</label>
-                  <select
-                    value={bankDetails.accountType}
-                    onChange={(e) => setBankDetails({ ...bankDetails, accountType: e.target.value })}
-                    className={inputClass}
-                  >
-                    <option value="checking">Checking</option>
-                    <option value="savings">Savings</option>
-                    <option value="business">Business</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Country</label>
-                  <input
-                    type="text"
-                    value={bankDetails.country}
-                    onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
-                    className={inputClass}
-                    placeholder="US"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Currency</label>
-                  <input
-                    type="text"
-                    value={bankDetails.currency}
-                    onChange={(e) => setBankDetails({ ...bankDetails, currency: e.target.value })}
-                    className={inputClass}
-                    placeholder="USD"
-                  />
-                </div>
-              </div>
-
-              <div className={`p-3 rounded-lg ${dark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
-                <p className={`text-xs font-semibold mb-2 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  International Transfers (Optional)
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelClass}>SWIFT Code</label>
-                    <input
-                      type="text"
-                      value={bankDetails.swiftCode}
-                      onChange={(e) => setBankDetails({ ...bankDetails, swiftCode: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g., CHASUS33"
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>IBAN</label>
-                    <input
-                      type="text"
-                      value={bankDetails.iban}
-                      onChange={(e) => setBankDetails({ ...bankDetails, iban: e.target.value })}
-                      className={inputClass}
-                      placeholder="International number"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className={`flex items-start gap-2 p-3 rounded-lg ${dark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
-                <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? 'text-blue-400' : 'text-blue-600'}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
-                <p className={`text-xs ${dark ? 'text-blue-300' : 'text-blue-700'}`}>
-                  All bank details are encrypted and stored securely. This information is used only for payment processing.
-                </p>
-              </div>
             </motion.div>
           )}
 

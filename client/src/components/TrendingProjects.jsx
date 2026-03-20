@@ -80,17 +80,17 @@ const TrendingProjects = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className={`text-2xl font-bold tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>
+          <h2 className={`text-3xl lg:text-4xl font-extrabold tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>
             Trending Projects
           </h2>
-          <p className={`text-sm mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Discover the most popular scripts right now</p>
+          <p className={`text-base mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Discover the most popular scripts right now</p>
         </div>
         <div className={`flex gap-1 border rounded-xl p-1 ${dark ? "border-[#1a3050] bg-[#0e1c2e]" : "border-gray-200 bg-gray-50"}`}>
           {SORT_TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${
+              className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === t.key
                   ? dark ? "bg-[#1e3a5f] text-white shadow-sm" : "bg-gray-800 text-white shadow-sm"
                   : dark
@@ -135,25 +135,25 @@ const TrendingProjects = () => {
                   <div className="max-w-2xl">
                     <div className="flex gap-2 mb-4">
                       {hero.genre && (
-                        <span className="px-3 py-1.5 bg-white/15 backdrop-blur-md rounded-full text-xs font-semibold text-white/90 border border-white/10">
+                        <span className="px-3 py-1.5 bg-white/15 backdrop-blur-md rounded-full text-sm font-semibold text-white/90 border border-white/10">
                           {hero.genre}
                         </span>
                       )}
-                      <span className="px-3 py-1.5 bg-amber-500/30 backdrop-blur-md rounded-full text-xs font-semibold text-amber-200 border border-amber-400/20">
+                      <span className="px-3 py-1.5 bg-amber-500/30 backdrop-blur-md rounded-full text-sm font-semibold text-amber-200 border border-amber-400/20">
                         ✦ Featured
                       </span>
                     </div>
-                    <h3 className="text-3xl md:text-4xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
+                    <h3 className="text-4xl md:text-5xl font-extrabold text-white mb-3 leading-tight drop-shadow-lg">
                       {hero.title}
                     </h3>
                     {hero.logline && (
-                      <p className="text-white/65 text-base font-normal line-clamp-2 mb-6 leading-relaxed max-w-lg">
+                      <p className="text-white/75 text-base md:text-lg font-normal line-clamp-2 mb-6 leading-relaxed max-w-2xl">
                         {hero.logline}
                       </p>
                     )}
                     <Link
                       to={`/reader/script/${hero._id}`}
-                      className="inline-flex items-center gap-2.5 px-6 py-3 bg-white text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                      className="inline-flex items-center gap-2.5 px-6 py-3 bg-white text-gray-900 rounded-xl font-bold text-base hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl hover:scale-105"
                     >
                       Read Now
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -199,7 +199,7 @@ const TrendingProjects = () => {
           ))}
         </div>
       ) : (
-        <p className="text-center text-gray-400 font-normal py-8">
+        <p className="text-center text-gray-500 text-base font-medium py-8">
           No projects found
         </p>
       )}

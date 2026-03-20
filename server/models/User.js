@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
   bio: { type: String },
   skills: [String],
   profileImage: { type: String },
+  coverImage: { type: String },
 
   // Account settings
   isPrivate: { type: Boolean, default: false },

@@ -426,7 +426,7 @@ const CreatorDashboard = ({ user, dark }) => {
                                         return (
                                           <div key={key} className={`rounded-lg px-3 py-2.5 ${dark ? 'bg-white/[0.04]' : 'bg-gray-50/80'}`}>
                                             <div className="flex items-center justify-between mb-1.5">
-                                              <span className={`text-[11px] font-semibold uppercase tracking-wider capitalize ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{key}</span>
+                                              <span className={`text-[11px] font-semibold uppercase tracking-wider ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{key}</span>
                                               <span className={`text-[12px] font-bold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>{val}</span>
                                             </div>
                                             <div className={`h-1 rounded-full overflow-hidden ${dark ? 'bg-white/[0.06]' : 'bg-gray-200'}`}>

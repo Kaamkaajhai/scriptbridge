@@ -206,7 +206,7 @@ export const getUserProfile = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const {
-      name, bio, skills, profileImage, writerProfile,
+      name, bio, skills, profileImage, coverImage, writerProfile,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
       // Reader preferences (genres + contentTypes)
@@ -230,6 +230,7 @@ export const updateUserProfile = async (req, res) => {
     user.bio = bio !== undefined ? bio : user.bio;
     user.skills = skills || user.skills;
     user.profileImage = profileImage || user.profileImage;
+    if (coverImage !== undefined) user.coverImage = coverImage;
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
@@ -382,6 +383,7 @@ export const updateUserProfile = async (req, res) => {
       bio: user.bio,
       skills: user.skills,
       profileImage: user.profileImage,
+      coverImage: user.coverImage,
       writerProfile: user.writerProfile,
       industryProfile: user.industryProfile,
       preferences: user.preferences,

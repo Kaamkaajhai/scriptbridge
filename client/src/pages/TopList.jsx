@@ -178,6 +178,7 @@ const TopList = () => {
   /* ── State ── */
   const [scripts, setScripts]                         = useState([]);
   const [loading, setLoading]                         = useState(true);
+  const [loadError, setLoadError]                     = useState("");
   const [sortBy, setSortBy]                           = useState("platform");
   const [filtersOpen, setFiltersOpen]                 = useState(false);
   const [selectedGenre, setSelectedGenre]             = useState("");
@@ -201,18 +202,26 @@ const TopList = () => {
 
   const fetchScripts = async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const params = new URLSearchParams();
       params.append("sort", sortBy);
+      params.append("limit", "24");
       if (selectedGenre)       params.append("genre", selectedGenre);
       if (selectedContentType) params.append("contentType", selectedContentType);
       if (selectedBudget)      params.append("budget", selectedBudget);
       if (selectedPremium === "premium") params.append("premium", "true");
       else if (selectedPremium === "free") params.append("premium", "false");
-      const { data } = await api.get(`/scripts/top-list?${params.toString()}`);
-      setScripts(Array.isArray(data) ? data : []);
+      const { data } = await api.get(`/scripts/top-list?${params.toString()}`, { timeout: 10000 });
+      const rows = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.scripts)
+          ? data.scripts
+          : [];
+      setScripts(rows);
     } catch {
       setScripts([]);
+      setLoadError("Unable to load top projects right now. Please retry.");
     }
     setLoading(false);
   };
@@ -226,9 +235,9 @@ const TopList = () => {
     return { value: v.toLocaleString(), pct: Math.min((v / 1000) * 100, 100) };
   };
 
-  const resolveImg = (url) => {
+  const resolveImage = (url) => {
     if (!url) return "";
-    return url.startsWith("http") || url.startsWith("data:") ? url : `http://localhost:5001${url}`;
+    return url.startsWith("http") || url.startsWith("data:") ? url : `http://localhost:5002${url}`;
   };
 
   const numericMetrics = scripts.map(s => {
@@ -242,26 +251,26 @@ const TopList = () => {
 
   /* ── Loading ── */
   if (loading && scripts.length === 0) return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6">
+    <div className="w-full px-0">
+      <div className="mb-6 px-0 pt-0">
         <div className={`h-8 w-40 rounded-xl animate-pulse mb-2 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
         <div className={`h-4 w-64 rounded-lg animate-pulse ${dark ? "bg-[#1a2e47]" : "bg-gray-50"}`} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 px-0 pb-0">
         {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} dark={dark} />)}
       </div>
     </div>
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className="w-full space-y-6 px-0 pt-0 pb-0">
 
       {/* ═══════ HEADER ═══════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease }}
-        className={`rounded-2xl border p-6 relative overflow-hidden ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-200/70 shadow-sm"}`}
+        className={`rounded-2xl border p-6 relative overflow-hidden ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-[#1e3a5f]/20 shadow-sm"}`}
       >
         <div className={`absolute inset-0 pointer-events-none ${dark
           ? "bg-gradient-to-br from-[#1e3a5f]/10 via-transparent to-transparent"
@@ -272,22 +281,22 @@ const TopList = () => {
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#1e3a5f] to-[#3a7bd5]" />
-              <h1 className={`text-2xl font-extrabold tracking-tight ${t.header}`}>Top List</h1>
+              <h1 className={`text-[28px] font-semibold tracking-[-0.01em] ${t.header}`}>Top List</h1>
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             </div>
-            <p className={`text-[13px] font-medium ml-[18px] ${t.sub}`}>{activeTab.desc}</p>
+            <p className={`text-[14px] font-normal leading-[1.6] ml-[18px] ${t.sub}`}>{activeTab.desc}</p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <div className={`flex flex-col items-center px-5 py-3 rounded-xl border ${dark ? "bg-white/[0.03] border-white/[0.07]" : "bg-gray-50 border-gray-100"}`}>
-              <span className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Total</span>
-              <span className={`text-[22px] font-extrabold tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{scripts.length}</span>
+              <span className={`text-[12px] font-medium uppercase tracking-[0.08em] mb-0.5 ${dark ? "text-white/25" : "text-gray-400"}`}>Total</span>
+              <span className={`text-[20px] font-semibold tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{scripts.length}</span>
             </div>
             <div className={`flex flex-col items-center px-5 py-3 rounded-xl border ${
               dark ? "bg-[#1e3a5f]/15 border-[#1e3a5f]/25" : "bg-[#1e3a5f]/[0.05] border-[#1e3a5f]/15"
             }`}>
-              <span className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${dark ? "text-[#7aafff]/50" : "text-[#1e3a5f]/50"}`}>#1 Score</span>
-              <span className={`text-[22px] font-extrabold tabular-nums leading-none ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>{topScore.toLocaleString()}</span>
+              <span className={`text-[12px] font-medium uppercase tracking-[0.08em] mb-0.5 ${dark ? "text-[#7aafff]/50" : "text-[#1e3a5f]/50"}`}>#1 Score</span>
+              <span className={`text-[20px] font-semibold tabular-nums leading-none ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>{topScore.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -306,7 +315,7 @@ const TopList = () => {
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 whitespace-nowrap border ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[14px] font-medium transition-all duration-200 whitespace-nowrap border ${
                     sortBy === tab.key ? t.sortActive : t.sortIdle
                   }`}
                 >
@@ -320,7 +329,7 @@ const TopList = () => {
 
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[14px] font-medium transition-all duration-200 border ${
                 filtersOpen || activeFilterCount > 0
                   ? "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm"
                   : dark
@@ -340,22 +349,22 @@ const TopList = () => {
           {activeFilterCount > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
               {selectedGenre && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium uppercase tracking-[0.08em] border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
                   {selectedGenre} <button onClick={() => setSelectedGenre("")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
               {selectedContentType && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium uppercase tracking-[0.08em] border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
                   {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label} <button onClick={() => setSelectedContentType("")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
               {selectedBudget && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium uppercase tracking-[0.08em] border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
                   {BUDGETS.find(b => b.key === selectedBudget)?.label} <button onClick={() => setSelectedBudget("")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
               {selectedPremium !== "all" && (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium uppercase tracking-[0.08em] border ${dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
                   {selectedPremium === "premium" ? "Premium" : "Free"} <button onClick={() => setSelectedPremium("all")} className="hover:opacity-60"><XIcon /></button>
                 </span>
               )}
@@ -420,10 +429,15 @@ const TopList = () => {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>
-          <p className={`text-[16px] font-bold mb-1.5 ${t.emptyTitle}`}>No projects found</p>
-          <p className={`text-[13px] mb-5 ${t.sub}`}>Try adjusting your filters or check back later</p>
+          <p className={`text-[16px] font-bold mb-1.5 ${t.emptyTitle}`}>{loadError ? "Couldn’t load Top List" : "No projects found"}</p>
+          <p className={`text-[13px] mb-5 ${t.sub}`}>{loadError || "Try adjusting your filters or check back later"}</p>
+          {loadError && (
+            <button onClick={fetchScripts} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-[14px] font-medium hover:bg-[#162d4a] transition-colors shadow-sm mr-2">
+              Retry loading
+            </button>
+          )}
           {activeFilterCount > 0 && (
-            <button onClick={clearAllFilters} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-semibold hover:bg-[#162d4a] transition-colors shadow-sm">
+            <button onClick={clearAllFilters} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-[14px] font-medium hover:bg-[#162d4a] transition-colors shadow-sm">
               Clear all filters
             </button>
           )}
@@ -436,7 +450,7 @@ const TopList = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.3, ease }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 xl:gap-7"
           >
             {scripts.map((script, index) => {
               const rank     = index + 1;
@@ -467,7 +481,7 @@ const TopList = () => {
                     }`} />
 
                     {/* ── Cover ── */}
-                    <div className="relative h-[240px] overflow-hidden shrink-0">
+                    <div className="relative h-[236px] overflow-hidden shrink-0">
                       {hasCover ? (
                         <>
                           <img
@@ -482,9 +496,9 @@ const TopList = () => {
                           <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-[#3a7bd5]/[0.05] blur-2xl" />
                           <div className="absolute text-8xl font-black text-white/[0.025] select-none leading-none bottom-0 right-2">#{rank}</div>
                           <div className="relative z-10 text-center">
-                            <h4 className="text-[16px] font-extrabold text-white leading-snug line-clamp-3 tracking-tight">{script.title}</h4>
+                            <h4 className="text-[18px] font-semibold text-white leading-[1.35] line-clamp-2 tracking-[-0.01em]">{script.title}</h4>
                             {(script.logline || script.description) && (
-                              <p className="text-[11px] text-white/30 mt-2 line-clamp-2 leading-relaxed">{script.logline || script.description}</p>
+                              <p className="text-[14px] font-normal text-white/55 mt-2.5 line-clamp-2 leading-[1.6]">{script.logline || script.description}</p>
                             )}
                           </div>
                         </div>
@@ -493,18 +507,18 @@ const TopList = () => {
                       <RankMedal rank={rank} />
 
                       {(script.genre || script.primaryGenre) && (
-                        <span className="absolute top-3 right-3 z-10 text-[10px] font-bold text-white bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
+                        <span className="absolute top-3 right-3 z-10 text-[12px] font-medium uppercase tracking-[0.08em] text-white bg-black/35 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
                           {script.primaryGenre || script.genre}
                         </span>
                       )}
 
                       {script.price > 0 ? (
-                        <div className="absolute bottom-3 right-3 z-10 px-2.5 py-1 bg-[#1e3a5f]/90 backdrop-blur-sm rounded-lg border border-white/10 shadow-lg">
-                          <span className="text-[12px] font-extrabold text-white">${script.price}</span>
+                        <div className="absolute bottom-3 right-3 z-10 px-3 py-1.5 bg-[#1e3a5f]/90 backdrop-blur-sm rounded-lg border border-white/10 shadow-lg">
+                          <span className="text-sm font-extrabold text-white">${script.price}</span>
                         </div>
                       ) : (
-                        <div className="absolute bottom-3 right-3 z-10 px-2.5 py-1 bg-white/15 backdrop-blur-sm rounded-lg border border-white/20">
-                          <span className="text-[10px] font-bold text-white">Free</span>
+                        <div className="absolute bottom-3 right-3 z-10 px-3 py-1.5 bg-white/15 backdrop-blur-sm rounded-lg border border-white/20">
+                          <span className="text-xs font-semibold text-white">Free</span>
                         </div>
                       )}
 
@@ -516,48 +530,48 @@ const TopList = () => {
                               : <span className="text-[8px] font-bold text-white flex items-center justify-center h-full">{script.creator?.name?.charAt(0)?.toUpperCase()}</span>
                             }
                           </div>
-                          <span className="text-[11px] font-semibold text-white/75 drop-shadow truncate max-w-[90px]">{script.creator?.name || "Unknown"}</span>
+                          <span className="text-sm font-medium text-white/80 drop-shadow truncate max-w-[110px]">{script.creator?.name || "Unknown"}</span>
                         </div>
                       )}
                     </div>
 
                     {/* ── Info Panel ── */}
-                    <div className="flex flex-col flex-1 p-5">
-                      <h3 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${t.header}`}>
+                    <div className="flex flex-col flex-1 p-6 lg:p-7">
+                      <h3 className={`text-[18px] font-semibold leading-[1.35] mb-3 line-clamp-2 ${t.header}`}>
                         {script.title}
                       </h3>
 
                       {(script.logline || script.description) && (
-                        <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${t.sub}`}>
+                        <p className={`text-[14px] font-normal leading-[1.6] line-clamp-3 mb-5 ${t.sub}`}>
                           {script.logline || script.description}
                         </p>
                       )}
 
                       {(script.contentType || script.budget) && (
-                        <div className="flex items-center gap-1.5 flex-wrap mb-4">
+                        <div className="flex items-center gap-2.5 flex-wrap mb-6">
                           {script.contentType && (
-                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${dark ? "bg-white/[0.04] text-white/35 border-white/[0.07]" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                            <span className={`text-[12px] font-medium uppercase tracking-[0.08em] px-2.5 py-1 rounded-lg border ${dark ? "bg-white/[0.04] text-white/45 border-white/[0.07]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
                               {script.contentType.replace(/_/g, " ")}
                             </span>
                           )}
                           {script.budget && (
-                            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${dark ? "bg-white/[0.03] text-white/25 border-white/[0.05]" : "bg-gray-50 text-gray-400 border-gray-100"}`}>
+                            <span className={`text-[12px] font-medium uppercase tracking-[0.08em] px-2.5 py-1 rounded-lg border ${dark ? "bg-white/[0.03] text-white/35 border-white/[0.05]" : "bg-gray-50 text-gray-500 border-gray-100"}`}>
                               {script.budget}
                             </span>
                           )}
                         </div>
                       )}
 
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-[11px] font-bold uppercase tracking-wider ${t.sub}`}>
+                      <div className="mb-6">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className={`text-[12px] font-medium uppercase tracking-[0.08em] ${t.sub}`}>
                             {activeTab.label}
                           </span>
-                          <span className={`text-[15px] font-extrabold tabular-nums ${t.statValue}`}>
+                          <span className={`text-[20px] font-semibold tabular-nums ${t.statValue}`}>
                             {metric.value}
                           </span>
                         </div>
-                        <div className={`h-1.5 rounded-full overflow-hidden ${t.metricBar}`}>
+                        <div className={`h-2 rounded-full overflow-hidden ${t.metricBar}`}>
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${barPct}%` }}
@@ -567,27 +581,27 @@ const TopList = () => {
                         </div>
                       </div>
 
-                      <div className={`flex items-center justify-between pt-3.5 border-t mt-auto gap-2 ${t.divider}`}>
-                        <div className="flex items-center gap-3">
+                      <div className={`flex items-center justify-between pt-4 border-t mt-auto gap-3 ${t.divider}`}>
+                        <div className="flex items-center flex-wrap gap-3.5">
                           <div className={`flex items-center gap-1.5 ${t.statPill}`}>
                             <EyeIcon />
-                            <span className="text-[12px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
+                            <span className="text-[12px] font-medium tabular-nums">{(script.views || 0).toLocaleString()}</span>
                           </div>
                           {script.scriptScore?.overall > 0 && (
                             <div className="flex items-center gap-1 text-amber-400">
                               <StarIcon cls="w-3.5 h-3.5" />
-                              <span className="text-[12px] font-semibold tabular-nums">{script.scriptScore.overall}</span>
+                              <span className="text-[12px] font-medium tabular-nums">{script.scriptScore.overall}</span>
                             </div>
                           )}
                           {script.pageCount && (
                             <div className={`flex items-center gap-1.5 ${t.statPill}`}>
                               <PageIcon />
-                              <span className="text-[12px] font-semibold tabular-nums">{script.pageCount}p</span>
+                              <span className="text-[12px] font-medium tabular-nums">{script.pageCount}p</span>
                             </div>
                           )}
                         </div>
 
-                        <span className={`shrink-0 text-[12px] font-bold px-3.5 py-1.5 rounded-xl border transition-all group-hover:scale-105 ${
+                        <span className={`shrink-0 text-[14px] font-medium px-[18px] py-2 rounded-xl border transition-all group-hover:scale-105 ${
                           dark
                             ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 group-hover:bg-[#243f6a]"
                             : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm group-hover:bg-[#162d4a]"

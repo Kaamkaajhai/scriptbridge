@@ -1230,7 +1230,8 @@ export const getInvestorHomeFeed = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getTopList = async (req, res) => {
   try {
-    const { genre, contentType, budget, sort = "platform", premium } = req.query;
+    const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
+    const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
     const match = { status: "published", isSold: { $ne: true } };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
@@ -1300,6 +1301,7 @@ export const getTopList = async (req, res) => {
       },
     });
     pipeline.push({ $unwind: { path: "$creator", preserveNullAndEmptyArrays: true } });
+    pipeline.push({ $limit: parsedLimit });
 
     const scripts = await Script.aggregate(pipeline);
     const sanitized = scripts.map((s) => ({

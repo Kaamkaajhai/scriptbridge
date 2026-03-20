@@ -330,12 +330,12 @@ const Search = () => {
 
   const getProfileImage = (user) => {
     if (!user.profileImage) return null;
-    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5001${user.profileImage}`;
+    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5002${user.profileImage}`;
   };
 
   const getCoverImage = (script) => {
     if (!script.coverImage) return null;
-    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5001${script.coverImage}`;
+    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`;
   };
 
   const ease = [0.25, 0.46, 0.45, 0.94];
@@ -771,7 +771,7 @@ const Search = () => {
                             <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/20 overflow-hidden">
                               {script.creator?.profileImage ? (
                                 <img
-                                  src={script.creator.profileImage.startsWith("http") ? script.creator.profileImage : `http://localhost:5001${script.creator.profileImage}`}
+                                  src={script.creator.profileImage.startsWith("http") ? script.creator.profileImage : `http://localhost:5002${script.creator.profileImage}`}
                                   alt="" className="w-full h-full object-cover"
                                 />
                               ) : (

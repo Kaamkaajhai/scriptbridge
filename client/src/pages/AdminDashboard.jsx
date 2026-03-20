@@ -4,7 +4,7 @@ import axios from "axios";
 import BrandLogo from "../components/BrandLogo";
 
 // Admin-specific API — uses admin token from sessionStorage, separate from user session
-const adminApi = axios.create({ baseURL: "http://localhost:5001/api" });
+const adminApi = axios.create({ baseURL: "http://localhost:5002/api" });
 adminApi.interceptors.request.use((config) => {
     const adminSession = sessionStorage.getItem("admin-session");
     if (adminSession) {
@@ -504,7 +504,7 @@ const AdminDashboard = () => {
         setCodeLoading(true);
         try {
             // Login as admin — store token ONLY in sessionStorage (does NOT affect user's localStorage session)
-            const { data } = await axios.post("http://localhost:5001/api/auth/login", { email: "admin@ckript.com", password: "admin123" });
+            const { data } = await axios.post("http://localhost:5002/api/auth/login", { email: "admin@ckript.com", password: "admin123" });
             sessionStorage.setItem("admin-session", JSON.stringify(data));
             setAuthorized(true);
         } catch {

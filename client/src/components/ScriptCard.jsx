@@ -81,11 +81,11 @@ const PlaceholderCover = ({ script }) => {
 
       {/* Title */}
       <div className="relative z-10 px-5 text-center max-w-[90%]">
-        <p className="text-white/80 text-[13px] font-medium leading-snug line-clamp-2">
+        <p className="text-white/85 text-base font-semibold leading-snug line-clamp-2">
           {script.title}
         </p>
         {script.genre && (
-          <p className="text-white/25 text-[10px] font-medium mt-2 uppercase tracking-[0.15em]">
+          <p className="text-white/35 text-[11px] font-medium mt-2 uppercase tracking-[0.15em]">
             {script.genre}
           </p>
         )}
@@ -141,12 +141,12 @@ const ScriptCard = ({ script, index = 0 }) => {
             {/* Top-left badges */}
             <div className="absolute top-3 left-3 flex flex-col gap-1.5">
               {script.premium && (
-                <span className="px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm text-white text-[10px] font-bold rounded-lg tracking-wider shadow-lg">
+                <span className="px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-lg tracking-wider shadow-lg">
                   ★ PREMIUM
                 </span>
               )}
               {script.isFeatured && (
-                <span className="px-2.5 py-1 bg-violet-600/90 backdrop-blur-sm text-white text-[10px] font-bold rounded-lg tracking-wider shadow-lg">
+                <span className="px-2.5 py-1 bg-violet-600/90 backdrop-blur-sm text-white text-[11px] font-bold rounded-lg tracking-wider shadow-lg">
                   ✦ FEATURED
                 </span>
               )}
@@ -156,14 +156,14 @@ const ScriptCard = ({ script, index = 0 }) => {
             {script.rating > 0 && (
               <div className="absolute top-3 right-3 px-2.5 py-1 bg-black/60 backdrop-blur-sm rounded-xl flex items-center gap-1.5 border border-white/10 shadow-lg">
                 <StarIcon />
-                <span className="text-[12px] font-bold text-white leading-none">{(script.rating || 0).toFixed(1)}</span>
+                <span className="text-[13px] font-bold text-white leading-none">{(script.rating || 0).toFixed(1)}</span>
               </div>
             )}
 
             {/* Hover — Read Now CTA */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-center">
-                <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#0d1b2e] text-[13px] font-bold rounded-xl shadow-2xl">
+                <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#0d1b2e] text-sm font-bold rounded-xl shadow-2xl">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
@@ -181,13 +181,13 @@ const ScriptCard = ({ script, index = 0 }) => {
               {script.creator?.profileImage ? (
                 <img src={script.creator.profileImage} alt="" className="w-6 h-6 rounded-full object-cover ring-1 ring-white/10 shrink-0" />
               ) : (
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
                   dark ? "bg-[#1e3a5f] text-[#7aafff]" : "bg-blue-50 text-blue-600"
                 }`}>
                   {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
                 </div>
               )}
-              <span className={`text-[11px] font-semibold truncate ${
+              <span className={`text-sm font-semibold truncate ${
                 dark ? "text-gray-400" : "text-gray-500"
               }`}>
                 {script.creator?.name || "Unknown"}
@@ -195,7 +195,7 @@ const ScriptCard = ({ script, index = 0 }) => {
             </div>
 
             {/* Title */}
-            <h3 className={`font-bold text-[15px] leading-snug mb-2 line-clamp-2 transition-colors ${
+            <h3 className={`font-bold text-xl leading-snug mb-2 line-clamp-2 transition-colors ${
               dark ? "text-white group-hover:text-[#7aafff]" : "text-gray-900 group-hover:text-[#1e3a5f]"
             }`}>
               {script.title}
@@ -203,7 +203,7 @@ const ScriptCard = ({ script, index = 0 }) => {
 
             {/* Logline */}
             {(script.logline || script.synopsis) && (
-              <p className={`text-[12px] line-clamp-2 mb-3 leading-relaxed ${
+              <p className={`text-base line-clamp-2 mb-3 leading-relaxed ${
                 dark ? "text-gray-500" : "text-gray-500"
               }`}>
                 {script.logline || script.synopsis}
@@ -217,7 +217,7 @@ const ScriptCard = ({ script, index = 0 }) => {
               dark ? "border-[#1a2d45]" : "border-gray-100"
             }`}>
               {script.genre ? (
-                <span className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wide ${
+                <span className={`text-sm px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wide ${
                   dark
                     ? "bg-[#1e3a5f]/60 text-[#7aafff] border border-[#2a4a6e]"
                     : "bg-blue-50 text-blue-600 border border-blue-100"
@@ -228,12 +228,12 @@ const ScriptCard = ({ script, index = 0 }) => {
 
               <div className="flex items-center gap-1">
                 <StarIcon />
-                <span className={`text-[13px] font-bold ${
+                <span className={`text-base font-bold ${
                   dark ? "text-gray-300" : "text-gray-700"
                 }`}>
                   {(script.rating || 0).toFixed(1)}
                 </span>
-                <span className={`text-[11px] ${
+                <span className={`text-sm ${
                   dark ? "text-gray-600" : "text-gray-400"
                 }`}>
                   ({script.reviewCount || 0})

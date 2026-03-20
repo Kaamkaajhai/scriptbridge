@@ -32,7 +32,7 @@ const ScriptReader = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   useEffect(() => {
