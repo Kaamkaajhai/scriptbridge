@@ -25,7 +25,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:")) return url;
-    return `http://localhost:5001${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   const handleImageChange = (e) => {
@@ -288,7 +288,7 @@ const ReaderProfile = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   useEffect(() => { fetchProfile(); }, [profileId]);

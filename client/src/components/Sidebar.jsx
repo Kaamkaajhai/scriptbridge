@@ -23,7 +23,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
   const isIndustry = user?.role === 'professional' || user?.role === 'producer' || user?.role === 'investor';
   const isReader = user?.role === 'reader';
   const isAdmin = user?.role === 'admin';
-  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5001").replace(/\/$/, "");
+  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
   const rawProfileImage = user?.profileImage || user?.profilePicture || "";
   const normalizedProfileImagePath = typeof rawProfileImage === "string"
     ? rawProfileImage.trim().replace(/\\/g, "/")

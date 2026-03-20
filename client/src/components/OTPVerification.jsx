@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Mail, Shield, ArrowLeft, Loader } from 'lucide-react';
 import axios from 'axios';
 
+const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
+
 const OTPVerification = ({ email, onSuccess, onBack }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
@@ -68,7 +70,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:5001/api/auth/verify-otp', {
+      const response = await axios.post(`${API_BASE_URL}/auth/verify-otp`, {
         email,
         otp: otpString,
       });
@@ -97,7 +99,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
     setError('');
 
     try {
-      await axios.post('http://localhost:5001/api/auth/resend-otp', { email });
+      await axios.post(`${API_BASE_URL}/auth/resend-otp`, { email });
       setResendTimer(60); // 60 second cooldown
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
