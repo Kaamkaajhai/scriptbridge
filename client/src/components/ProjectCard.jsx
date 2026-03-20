@@ -1,11 +1,11 @@
-﻿import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 const FORMAT_LABEL = {
   feature: "Feature Film",
@@ -112,18 +112,18 @@ const ProjectCard = ({ project, userName }) => {
       }`}
     >
 
-      {/* â•â• HERO â€” fixed h-44 for both thumbnail and placeholder â•â• */}
+      {/* ══ HERO — fixed h-44 for both thumbnail and placeholder ══ */}
       <div className="relative h-44 w-full flex-shrink-0 overflow-hidden">
 
         {coverImage ? (
-          /* â€” Thumbnail â€” */
+          /* — Thumbnail — */
           <img
             src={`${API_BASE}${coverImage}`}
             alt={project?.title || "Script cover"}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
           />
         ) : (
-          /* — Placeholder: cinematic clapperboard — */
+          /* � Placeholder: cinematic clapperboard � */
           <div className={`absolute inset-0 overflow-hidden flex flex-col items-center justify-center gap-3 ${
             dark ? "bg-[#070d17]" : "bg-[#eef2fb]"
           }`}>
@@ -179,16 +179,16 @@ const ProjectCard = ({ project, userName }) => {
           </div>
         )}
 
-        {/* Bottom scrim â€” always present for consistent fade into card body */}
+        {/* Bottom scrim — always present for consistent fade into card body */}
         <div className={`absolute inset-x-0 bottom-0 h-16 pointer-events-none ${
           dark
             ? "bg-gradient-to-t from-[#0c1420] to-transparent"
             : "bg-gradient-to-t from-white to-transparent"
         }`} />
 
-        {/* â”€â”€ overlay badges â”€â”€ */}
+        {/* ── overlay badges ── */}
 
-        {/* Status â€” top-left */}
+        {/* Status — top-left */}
         <div className="absolute top-3 left-3">
           <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold tracking-[0.13em] uppercase px-2.5 py-1.5 rounded-lg backdrop-blur-sm ${
             dark
@@ -203,7 +203,7 @@ const ProjectCard = ({ project, userName }) => {
           </span>
         </div>
 
-        {/* Bookmark â€” top-right */}
+        {/* Bookmark — top-right */}
         {canBookmark && (
           <button
             onClick={handleToggleBookmark}
@@ -219,7 +219,7 @@ const ProjectCard = ({ project, userName }) => {
           </button>
         )}
 
-        {/* Score â€” top-right */}
+        {/* Score — top-right */}
         {score != null && (
           <div className={`absolute top-3 ${canBookmark ? "right-12" : "right-3"} flex items-baseline gap-0.5 px-2.5 py-1.5 rounded-lg backdrop-blur-sm ${
             dark
@@ -231,7 +231,7 @@ const ProjectCard = ({ project, userName }) => {
           </div>
         )}
 
-        {/* Premium â€” bottom-right (above the scrim) */}
+        {/* Premium — bottom-right (above the scrim) */}
         {project?.premium && (
           <div className={`absolute bottom-3.5 right-3.5 text-[9px] font-black tracking-[0.12em] uppercase px-2.5 py-[5px] rounded-lg backdrop-blur-sm ${
             dark
@@ -243,7 +243,7 @@ const ProjectCard = ({ project, userName }) => {
         )}
       </div>
 
-      {/* â•â• BODY â•â• */}
+      {/* ══ BODY ══ */}
       <div className="flex flex-col flex-1 px-5 pt-4 pb-4 gap-0">
 
         {/* Title */}
@@ -291,7 +291,7 @@ const ProjectCard = ({ project, userName }) => {
         )}
       </div>
 
-      {/* â•â• FOOTER â•â• */}
+      {/* ══ FOOTER ══ */}
       <div className={`flex items-center gap-3 px-5 py-3 border-t ${
         dark ? "border-[#182535] bg-[#091017]" : "border-gray-100 bg-gray-50/60"
       }`}>
@@ -340,7 +340,7 @@ const ProjectCard = ({ project, userName }) => {
           <span className={`text-[10px] font-bold tracking-wide uppercase ${dark ? "text-[#3b4f63]" : "text-gray-300"}`}>Free</span>
         )}
 
-        {/* Arrow CTA button â€” published only */}
+        {/* Arrow CTA button — published only */}
         {isClickable && (
           <div className={`ml-1 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-300 ${
             dark

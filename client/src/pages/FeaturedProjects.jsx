@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001";
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 /* ── Icons ─────────────────────────────────────────── */
 const SparklesIcon = () => (
