@@ -931,6 +931,8 @@ export const requestScriptPurchase = async (req, res) => {
       writer: script.creator._id,
       amount,
       frozenAmount,
+      paymentMethod: "wallet",
+      paymentStatus: amount > 0 ? "escrow_held" : "pending",
       note: note || "",
     });
 
@@ -1009,6 +1011,7 @@ export const approveScriptPurchase = async (req, res) => {
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const paymentMethod = purchaseRequest.paymentMethod || "wallet";
 
     const investorDoc = await User.findById(investor._id);
     if (!investorDoc) {
@@ -1036,13 +1039,15 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     if (amountToRelease > 0) {
-      if ((investorDoc.wallet.pendingBalance || 0) < amountToRelease) {
-        return res.status(409).json({
-          message: "Escrow amount is unavailable. Please contact support.",
-        });
+      if (paymentMethod === "wallet") {
+        if ((investorDoc.wallet.pendingBalance || 0) < amountToRelease) {
+          return res.status(409).json({
+            message: "Escrow amount is unavailable. Please contact support.",
+          });
+        }
+        investorDoc.wallet.pendingBalance -= amountToRelease;
       }
 
-      investorDoc.wallet.pendingBalance -= amountToRelease;
       const writerBalanceBefore = writer.wallet.balance || 0;
       writer.wallet.balance = writerBalanceBefore + amountToRelease;
       writer.wallet.totalEarnings = (writer.wallet.totalEarnings || 0) + amountToRelease;
@@ -1067,6 +1072,7 @@ export const approveScriptPurchase = async (req, res) => {
           ...existingMetadata,
           stage: "settled_to_writer",
           settledAt: new Date().toISOString(),
+          settlementMethod: paymentMethod,
           writerId: writer._id.toString(),
         };
         await pendingEscrowTx.save();
@@ -1080,7 +1086,7 @@ export const approveScriptPurchase = async (req, res) => {
         status: "completed",
         description: `Script purchase payout: "${script.title}"`,
         reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
-        paymentMethod: "wallet",
+        paymentMethod: paymentMethod === "razorpay" ? "razorpay" : "wallet",
         relatedScript: script._id,
         balanceBefore: writerBalanceBefore,
         balanceAfter: writer.wallet.balance,
@@ -1104,6 +1110,8 @@ export const approveScriptPurchase = async (req, res) => {
     await script.save();
 
     purchaseRequest.status = "approved";
+    purchaseRequest.paymentStatus = amountToRelease > 0 ? "released" : purchaseRequest.paymentStatus;
+    purchaseRequest.settledAt = new Date();
     await purchaseRequest.save();
 
     // Notify investor in-app
@@ -1120,11 +1128,12 @@ export const approveScriptPurchase = async (req, res) => {
       investor.email,
       investor.name,
       writer.name,
-      script.title
+      script.title,
+      script._id.toString()
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
     res.json({
-      message: "Purchase request approved. Investor now has full script access and payout has been transferred.",
+      message: "Purchase request approved. Investor now has full script access and funds were transferred to the writer.",
       purchaseRequest,
     });
   } catch (error) {
@@ -1153,30 +1162,90 @@ export const rejectScriptPurchase = async (req, res) => {
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRefund = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const paymentMethod = purchaseRequest.paymentMethod || "wallet";
+    let gatewayRefundId = "";
 
     if (amountToRefund > 0) {
-      const investorDoc = await User.findById(investor._id);
-      if (!investorDoc) {
-        return res.status(404).json({ message: "Investor account not found." });
-      }
+      if (paymentMethod === "wallet") {
+        const investorDoc = await User.findById(investor._id);
+        if (!investorDoc) {
+          return res.status(404).json({ message: "Investor account not found." });
+        }
 
-      if (!investorDoc.wallet) {
-        investorDoc.wallet = {
-          balance: 0,
+        if (!investorDoc.wallet) {
+          investorDoc.wallet = {
+            balance: 0,
+            currency: "INR",
+            pendingBalance: 0,
+            totalEarnings: 0,
+            totalWithdrawals: 0,
+          };
+        }
+
+        const pendingBefore = investorDoc.wallet.pendingBalance || 0;
+        const balanceBefore = investorDoc.wallet.balance || 0;
+
+        investorDoc.wallet.pendingBalance = Math.max(0, pendingBefore - amountToRefund);
+        investorDoc.wallet.balance = balanceBefore + amountToRefund;
+        const balanceAfter = investorDoc.wallet.balance;
+        await investorDoc.save();
+
+        await Transaction.create({
+          user: investor._id,
+          type: "refund",
+          amount: amountToRefund,
           currency: "INR",
-          pendingBalance: 0,
-          totalEarnings: 0,
-          totalWithdrawals: 0,
-        };
+          status: "completed",
+          description: `Refund for rejected purchase request: "${script.title}"`,
+          reference: `PRR-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+          paymentMethod: "wallet",
+          relatedScript: script._id,
+          balanceBefore,
+          balanceAfter,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            writerId: writer._id.toString(),
+            scriptId: script._id.toString(),
+            rejectionNote: note || "",
+          },
+        });
+      } else if (paymentMethod === "razorpay") {
+        if (!purchaseRequest.paymentGatewayPaymentId) {
+          return res.status(409).json({ message: "Payment reference missing for refund. Please contact support." });
+        }
+
+        const razorpay = getRazorpay();
+        const refund = await razorpay.payments.refund(purchaseRequest.paymentGatewayPaymentId, {
+          amount: Math.round(amountToRefund * 100),
+          notes: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            scriptId: script._id.toString(),
+            writerId: writer._id.toString(),
+          },
+        });
+        gatewayRefundId = refund?.id || "";
+
+        await Transaction.create({
+          user: investor._id,
+          type: "refund",
+          amount: amountToRefund,
+          currency: "INR",
+          status: "completed",
+          description: `Refund to original payment method for rejected request: "${script.title}"`,
+          reference: `PRR-RZP-${purchaseRequest.paymentGatewayPaymentId}`,
+          paymentMethod: "razorpay",
+          relatedScript: script._id,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            writerId: writer._id.toString(),
+            scriptId: script._id.toString(),
+            gatewayPaymentId: purchaseRequest.paymentGatewayPaymentId,
+            gatewayOrderId: purchaseRequest.paymentGatewayOrderId || "",
+            gatewayRefundId,
+            rejectionNote: note || "",
+          },
+        });
       }
-
-      const pendingBefore = investorDoc.wallet.pendingBalance || 0;
-      const balanceBefore = investorDoc.wallet.balance || 0;
-
-      investorDoc.wallet.pendingBalance = Math.max(0, pendingBefore - amountToRefund);
-      investorDoc.wallet.balance = balanceBefore + amountToRefund;
-      const balanceAfter = investorDoc.wallet.balance;
-      await investorDoc.save();
 
       const pendingEscrowTx = await Transaction.findOne({
         user: investor._id,
@@ -1195,33 +1264,17 @@ export const rejectScriptPurchase = async (req, res) => {
           ...existingMetadata,
           stage: "refunded_to_investor",
           refundedAt: new Date().toISOString(),
+          refundMethod: paymentMethod,
+          gatewayRefundId,
           rejectionNote: note || "",
         };
         await pendingEscrowTx.save();
       }
-
-      await Transaction.create({
-        user: investor._id,
-        type: "refund",
-        amount: amountToRefund,
-        currency: "INR",
-        status: "completed",
-        description: `Refund for rejected purchase request: "${script.title}"`,
-        reference: `PRR-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
-        paymentMethod: "wallet",
-        relatedScript: script._id,
-        balanceBefore,
-        balanceAfter,
-        metadata: {
-          purchaseRequestId: purchaseRequest._id.toString(),
-          writerId: writer._id.toString(),
-          scriptId: script._id.toString(),
-          rejectionNote: note || "",
-        },
-      });
     }
 
     purchaseRequest.status = "rejected";
+    purchaseRequest.paymentStatus = amountToRefund > 0 ? "refunded" : purchaseRequest.paymentStatus;
+    purchaseRequest.settledAt = new Date();
     if (note) purchaseRequest.note = note;
     await purchaseRequest.save();
 
@@ -1257,7 +1310,7 @@ export const rejectScriptPurchase = async (req, res) => {
 
     res.json({
       message: amountToRefund > 0
-        ? "Purchase request rejected. Escrow amount refunded to investor wallet."
+        ? "Purchase request rejected. Payment was refunded to the investor."
         : "Purchase request rejected.",
       purchaseRequest,
     });
@@ -1935,6 +1988,27 @@ export const createScriptPurchaseOrder = async (req, res) => {
       return res.status(400).json({ message: "You have already purchased this script" });
     }
 
+    if (script.purchaseRequestLocked) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
+        return res.status(409).json({
+          message: "This script is currently locked by another investor request.",
+        });
+      }
+    }
+
+    const existingPendingRequest = await ScriptPurchaseRequest.findOne({
+      script: scriptId,
+      investor: req.user._id,
+      status: "pending",
+    }).select("_id");
+
+    if (existingPendingRequest) {
+      return res.status(400).json({
+        message: "You already have a pending purchase request for this script.",
+      });
+    }
+
     // Check if trying to buy own script
     if (script.creator._id.toString() === req.user._id.toString()) {
       return res.status(400).json({ message: "You cannot purchase your own script" });
@@ -2015,7 +2089,7 @@ export const verifyScriptPurchase = async (req, res) => {
       });
     }
 
-    // Payment verified successfully, unlock the script
+    // Payment verified successfully, create escrowed purchase request for writer approval
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) {
       console.error("Script not found:", scriptId);
@@ -2033,92 +2107,111 @@ export const verifyScriptPurchase = async (req, res) => {
       });
     }
 
-    // Unlock the script for the buyer and mark as sold
-    script.unlockedBy.push(req.user._id);
-    script.isSold = true; // hide from all public listings once purchased
+    const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+    if (script.purchaseRequestLocked && lockOwnerId !== req.user._id.toString()) {
+      return res.status(409).json({
+        message: "This script is currently locked by another investor request.",
+        success: false,
+      });
+    }
+
+    let purchaseRequest = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      investor: req.user._id,
+      status: "pending",
+    });
+
+    if (purchaseRequest && purchaseRequest.paymentStatus === "escrow_held") {
+      return res.json({
+        success: true,
+        message: "Payment already verified. Waiting for writer approval.",
+        purchaseRequestId: purchaseRequest._id,
+      });
+    }
+
+    const amount = Number(script.price || 0);
+
+    if (!purchaseRequest) {
+      purchaseRequest = await ScriptPurchaseRequest.create({
+        script: script._id,
+        investor: req.user._id,
+        writer: script.creator._id,
+        amount,
+        frozenAmount: amount,
+        paymentMethod: "razorpay",
+        paymentStatus: amount > 0 ? "escrow_held" : "pending",
+        paymentGatewayOrderId: razorpay_order_id,
+        paymentGatewayPaymentId: razorpay_payment_id,
+        paymentGatewaySignature: razorpay_signature,
+      });
+    } else {
+      purchaseRequest.amount = amount;
+      purchaseRequest.frozenAmount = amount;
+      purchaseRequest.paymentMethod = "razorpay";
+      purchaseRequest.paymentStatus = amount > 0 ? "escrow_held" : "pending";
+      purchaseRequest.paymentGatewayOrderId = razorpay_order_id;
+      purchaseRequest.paymentGatewayPaymentId = razorpay_payment_id;
+      purchaseRequest.paymentGatewaySignature = razorpay_signature;
+      await purchaseRequest.save();
+    }
+
+    const holdReference = `PRH-RZP-${razorpay_payment_id}`;
+    const existingHoldTx = await Transaction.findOne({ reference: holdReference });
+    if (!existingHoldTx && amount > 0) {
+      await Transaction.create({
+        user: req.user._id,
+        type: "payment",
+        amount: -amount,
+        currency: "INR",
+        status: "pending",
+        description: `Escrow hold for purchase request: "${script.title}"`,
+        reference: holdReference,
+        paymentMethod: "razorpay",
+        relatedScript: script._id,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          stage: "escrow_hold",
+          writerId: script.creator._id.toString(),
+          scriptId: script._id.toString(),
+          razorpay_order_id,
+          razorpay_payment_id,
+        },
+      });
+    }
+
+    script.purchaseRequestLocked = true;
+    script.purchaseRequestLockedBy = req.user._id;
+    script.purchaseRequestLockedAt = new Date();
     await script.save();
 
-    const reference = `SCRIPT-PURCHASE-${razorpay_payment_id}`;
+    const investor = await User.findById(req.user._id).select("name email");
 
-    // Calculate platform fee and creator payout
-    const platformFee = script.price * 0.10; // 10% platform fee
-    const creatorPayout = script.price - platformFee;
-
-    // Create transaction record for buyer
-    await Transaction.create({
-      user: req.user._id,
-      type: "payment",
-      amount: -script.price,
-      currency: "INR",
-      status: "completed",
-      description: `Purchased script: "${script.title}"`,
-      reference,
-      paymentMethod: "razorpay",
-      relatedScript: script._id,
-      metadata: {
-        razorpay_order_id,
-        razorpay_payment_id,
-        platformFee,
-        creatorPayout
-      }
+    await Notification.create({
+      user: script.creator._id,
+      type: "purchase_request",
+      from: req.user._id,
+      script: script._id,
+      message: `${investor?.name || "An investor"} submitted a paid purchase request for "${script.title}". ₹${amount.toLocaleString("en-IN")} is held in escrow pending your approval.`,
     });
 
-    // Credit the creator
-    const creator = await User.findById(script.creator._id);
-    if (!creator.wallet) {
-      creator.wallet = { balance: 0, totalEarnings: 0 };
-    }
-    creator.wallet.balance += creatorPayout;
-    creator.wallet.totalEarnings += creatorPayout;
-    await creator.save();
-
-    // Create transaction record for creator (earnings)
-    await Transaction.create({
-      user: creator._id,
-      type: "credit",
-      amount: creatorPayout,
-      currency: "INR",
-      status: "completed",
-      description: `Earned from script sale: "${script.title}"`,
-      reference: `SCRIPT-EARNING-${razorpay_payment_id}`,
-      paymentMethod: "razorpay",
-      relatedScript: script._id,
-      metadata: {
-        buyerId: req.user._id.toString(),
-        platformFee,
-        originalAmount: script.price
-      }
-    });
-
-    // Notify the creator
-    try {
-      await Notification.create({
-        user: script.creator._id,
-        type: "purchase",
-        from: req.user._id,
-        script: script._id,
-        message: `Your script "${script.title}" was purchased! You earned ₹${creatorPayout.toFixed(2)}`
-      });
-    } catch (notifErr) {
-      console.error("Notification creation failed (non-fatal):", notifErr.message);
-    }
+    sendPurchaseRequestEmail(
+      script.creator.email,
+      script.creator.name,
+      investor?.name || "Investor",
+      script.title,
+      amount
+    ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
     
-    console.log("Script purchase completed:", { scriptId, buyerId: req.user._id, amount: script.price });
+    console.log("Script purchase payment escrowed:", { scriptId, buyerId: req.user._id, amount });
 
     res.json({
       success: true,
-      message: "Script purchased successfully!",
-      script: {
-        id: script._id,
-        title: script.title,
-        purchased: true
+      message: "Payment received and held in escrow. Request sent to writer for approval.",
+      purchaseRequest: {
+        id: purchaseRequest._id,
+        status: purchaseRequest.status,
+        paymentStatus: purchaseRequest.paymentStatus,
       },
-      transaction: {
-        reference,
-        amount: script.price,
-        platformFee,
-        creatorPayout
-      }
     });
   } catch (error) {
     console.error("Script purchase verification error:", error);
