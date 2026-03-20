@@ -241,7 +241,7 @@ const ScriptDetail = () => {
 
     // Show success message
     if (paymentType === "purchase") {
-      alert(`Script purchased successfully! ${paymentData.message || ""}`);
+      alert(paymentData.message || "Payment captured and sent to writer for approval.");
     } else {
       alert(`Hold placed successfully! ${paymentData.message || ""}`);
     }
@@ -807,17 +807,27 @@ const ScriptDetail = () => {
                             </svg>
                             Awaiting Writer Approval
                           </div>
+                          {script.myPendingRequest?.paymentStatus === "escrow_held" && (
+                            <p className="text-xs text-amber-700/90 text-center mt-1">Payment is secured in escrow.</p>
+                          )}
                         </div>
                       ) : (
                         <button
-                          onClick={() => setShowRequestModal(true)}
+                          onClick={() => {
+                            if (script.price > 0) {
+                              setPaymentType("purchase");
+                              setShowPurchaseModal(true);
+                              return;
+                            }
+                            setShowRequestModal(true);
+                          }}
                           className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                         >
                           <div className="flex items-center justify-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {script.price > 0 ? `Request to Purchase — ₹${script.price}` : "Request Access"}
+                            {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
                           </div>
                         </button>
                       )
@@ -1625,7 +1635,7 @@ const ScriptDetail = () => {
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (
                             <div>
-                              <p className={`text-sm mb-4 ${t.muted}`}>Submit a purchase request with upfront wallet payment. Writer approval grants full access; rejection auto-refunds to your wallet.</p>
+                              <p className={`text-sm mb-4 ${t.muted}`}>For paid scripts, complete checkout first. Your payment is held in escrow until the writer approves.</p>
                               {script.isUnlocked ? (
                                 <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1641,13 +1651,23 @@ const ScriptDetail = () => {
                                     </svg>
                                     Request Pending — Awaiting Writer Approval
                                   </div>
+                                  {script.myPendingRequest?.paymentStatus === "escrow_held" && (
+                                    <p className={`text-xs ${t.muted}`}>Payment secured in escrow and will auto-settle on writer decision.</p>
+                                  )}
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => setShowRequestModal(true)}
+                                  onClick={() => {
+                                    if (script.price > 0) {
+                                      setPaymentType("purchase");
+                                      setShowPurchaseModal(true);
+                                      return;
+                                    }
+                                    setShowRequestModal(true);
+                                  }}
                                   className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                 >
-                                  {script.price > 0 ? `Request to Purchase — ₹${script.price}` : "Request Access"}
+                                  {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
                                 </button>
                               )}
                             </div>
@@ -1758,13 +1778,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` ₹${script.price} will be debited from your wallet now and held in escrow.`
+                ? ` ₹${script.price} will be held in escrow until the writer reviews your request.`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
               <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Held in escrow now. Approved = released to writer, rejected = refunded to wallet.</p>}
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Approved = released to writer, rejected = refunded to your original payment method.</p>}
             </div>
             <button
               onClick={handleRequestPurchase}

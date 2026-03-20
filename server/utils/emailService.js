@@ -498,12 +498,12 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, investor
 };
 
 // Send purchase approved email to investor
-export const sendPurchaseApprovedEmail = async (investorEmail, investorName, writerName, scriptTitle) => {
+export const sendPurchaseApprovedEmail = async (investorEmail, investorName, writerName, scriptTitle, scriptId = "") => {
   try {
     const transporter = createTransporter();
     await transporter.verify();
 
-    const scriptsUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/search`;
+    const scriptsUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}${scriptId ? `/script/${scriptId}` : '/purchase-requests'}`;
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
@@ -540,7 +540,7 @@ export const sendPurchaseApprovedEmail = async (investorEmail, investorName, wri
               </div>
               <p>You can now view the complete synopsis, full content, and all script details on ckript.</p>
               <div style="text-align:center">
-                <a href="${scriptsUrl}" class="button">View My Scripts</a>
+                <a href="${scriptsUrl}" class="button">Open Approved Script</a>
               </div>
               <p>Congratulations on your acquisition,<br/><strong>The ckript Team</strong></p>
             </div>
@@ -552,7 +552,7 @@ export const sendPurchaseApprovedEmail = async (investorEmail, investorName, wri
         </body>
         </html>
       `,
-      text: `Hi ${investorName},\n\n${writerName} has approved your purchase request for "${scriptTitle}". You now have full access.\n\nView scripts: ${scriptsUrl}\n\nThe ckript Team`,
+      text: `Hi ${investorName},\n\n${writerName} has approved your purchase request for "${scriptTitle}". You now have full access.\n\nOpen script: ${scriptsUrl}\n\nThe ckript Team`,
     };
 
     const info = await transporter.sendMail(mailOptions);

@@ -142,7 +142,7 @@ export default function WriterPurchaseRequests() {
     setActionLoading(requestId);
     try {
       await api.put(`/scripts/purchase-request/${requestId}/approve`);
-      showToast("success", "Purchase approved! Funds transferred to your wallet.");
+      showToast("success", "Purchase approved. Investor access granted and payout settled.");
       fetchRequests();
     } catch (err) {
       showToast("error", err.response?.data?.message || "Failed to approve request.");
@@ -156,7 +156,7 @@ export default function WriterPurchaseRequests() {
     setActionLoading(rejectModal.id);
     try {
       await api.put(`/scripts/purchase-request/${rejectModal.id}/reject`, { note: rejectNote });
-      showToast("success", "Request declined. Funds returned to the investor.");
+      showToast("success", "Request declined. Refund processed to the investor.");
       setRejectModal(null);
       setRejectNote("");
       fetchRequests();
@@ -413,6 +413,19 @@ export default function WriterPurchaseRequests() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                           </svg>
                           <p className={`text-xs italic ${t.noteText}`}>"{req.note}"</p>
+                        </div>
+                      )}
+
+                      {req.status === "pending" && req.amount > 0 && (
+                        <div className={`mt-3 flex items-start gap-2 border rounded-xl px-3 py-2.5 ${t.noteBox}`}>
+                          <svg className={`w-4 h-4 flex-shrink-0 mt-0.5 ${t.noteIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className={`text-xs ${t.noteText}`}>
+                            {req.paymentStatus === "escrow_held"
+                              ? "Payment is secured in escrow and will be settled automatically after your decision."
+                              : "Paid request received and awaiting your decision."}
+                          </p>
                         </div>
                       )}
 
