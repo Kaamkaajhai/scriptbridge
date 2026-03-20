@@ -213,7 +213,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
         {/* Tips */}
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
-            💡 Tip: Check your spam folder if you don't see the email
+             Tip: Check your spam folder if you don't see the email
           </p>
         </div>
       </motion.div>

@@ -462,7 +462,7 @@ const CreatorDashboard = ({ user, dark }) => {
                                       <ul className="space-y-1">
                                         {r.strengths.map((s, i) => (
                                           <li key={i} className={`flex items-start gap-1.5 text-[12px] ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            <span className={`mt-0.5 shrink-0 text-xs ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>✓</span>{s}
+                                            {s}
                                           </li>
                                         ))}
                                       </ul>
@@ -478,7 +478,7 @@ const CreatorDashboard = ({ user, dark }) => {
                                           <ul className="space-y-1">
                                             {r.weaknesses.map((w, i) => (
                                               <li key={i} className={`flex items-start gap-1.5 text-[12px] ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                <span className={`mt-0.5 shrink-0 text-xs ${dark ? 'text-amber-400' : 'text-amber-600'}`}>△</span>{w}
+                                                {w}
                                               </li>
                                             ))}
                                           </ul>
@@ -597,7 +597,7 @@ const CreatorDashboard = ({ user, dark }) => {
                 {reviewTab === "platform" && (
                   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="space-y-7">
 
-                    {/* ── Admin Score Reviews ── */}
+                    {/*  Admin Score Reviews  */}
                     <div>
                       <div className="flex items-center gap-2.5 mb-4">
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? 'bg-indigo-500/20' : 'bg-indigo-50'}`}>

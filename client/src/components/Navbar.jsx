@@ -87,7 +87,7 @@ const Navbar = () => {
             onFocus={() => setShowDropdown(true)}
             onKeyDown={handleKeyDown}
             placeholder="Search..."
-            className="w-56 h-9 pl-9 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/15 focus:border-[#1e3a5f]/40 focus:bg-white transition-all"
+            className="w-56 h-9 pl-9 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#111111]/15 focus:border-[#111111]/40 focus:bg-white transition-all"
           />
         </div>
 
@@ -99,7 +99,7 @@ const Navbar = () => {
               <button
                 key={opt.key}
                 onClick={() => handleSearchNavigate(opt.key)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-50 hover:text-[#1e3a5f] transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-gray-700 hover:bg-gray-50 hover:text-[#111111] transition-colors"
               >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d={opt.icon} />

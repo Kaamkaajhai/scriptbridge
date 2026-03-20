@@ -5,17 +5,17 @@ import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 
-/* ── Genre emoji ── */
+/*  Genre emoji  */
 const GE = {
-  action:"🔥",comedy:"😂",drama:"🎭",horror:"💀",thriller:"🔪",romance:"❤️",
-  "sci-fi":"🚀",fantasy:"🧙",mystery:"🔍",adventure:"🗺️",crime:"🕵️",
-  documentary:"🎬",historical:"📜",animation:"✨",anime:"⛩️",musical:"🎵",
-  western:"🤠",war:"⚔️",family:"👨‍👩‍👧",biography:"📖",sports:"⚽",
-  superhero:"🦸",psychological:"🧠",satire:"😏",
+  action:"",comedy:"",drama:"",horror:"",thriller:"",romance:"",
+  "sci-fi":"",fantasy:"",mystery:"",adventure:"",crime:"",
+  documentary:"",historical:"",animation:"",anime:"",musical:"",
+  western:"",war:"",family:"",biography:"",sports:"",
+  superhero:"",psychological:"",satire:"",
 };
-const gEmoji = (g) => GE[g?.toLowerCase()] ?? "🎬";
+const gEmoji = (g) => GE[g?.toLowerCase()] ?? "";
 
-/* ── Fade-in wrapper ── */
+/*  Fade-in wrapper  */
 const Fade = ({ children, delay = 0, className = "" }) => (
   <motion.div
     initial={{ opacity: 0, y: 14 }}
@@ -27,9 +27,9 @@ const Fade = ({ children, delay = 0, className = "" }) => (
   </motion.div>
 );
 
-/* ══════════════════════════════════════════════
+/* 
    SECTION HEADER — label + count + "See all"
-══════════════════════════════════════════════ */
+ */
 const SectionHead = ({ icon, title, count, sub, to, dark }) => (
   <div className="flex items-end justify-between mb-5">
     <div className="flex items-center gap-2.5">
@@ -56,7 +56,7 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
     {to && (
       <Link to={to}
         className={`text-[11px] font-semibold flex items-center gap-0.5 transition-all hover:gap-1
-          ${dark ? "text-blue-400/80 hover:text-blue-300" : "text-[#1e3a5f]/70 hover:text-[#1e3a5f]"}`}>
+          ${dark ? "text-blue-400/80 hover:text-blue-300" : "text-[#111111]/70 hover:text-[#111111]"}`}>
         See all
         <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -66,9 +66,9 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
   </div>
 );
 
-/* ══════════════════════════════════════════════
+/* 
    HORIZONTAL ROW — flex nowrap scroll
-══════════════════════════════════════════════ */
+ */
 const HRow = ({ children, className = "" }) => (
   <div
     className={`flex flex-nowrap gap-4 overflow-x-auto pb-2 ${className}`}
@@ -160,9 +160,9 @@ const getGenreIcon = (g) => GENRE_ICON[g?.toLowerCase()] ?? (
   </svg>
 );
 
-/* ══════════════════════════════════════════════
+/* 
    SCRIPT CARD — poster style
-══════════════════════════════════════════════ */
+ */
 const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
   const [imgErr, setImgErr] = useState(false);
   const hasImg = script?.coverImage && !imgErr;
@@ -178,7 +178,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
     >
       <Link to={`/reader/script/${script._id}`} className="group block">
 
-        {/* ── Poster ── */}
+        {/*  Poster  */}
         <div className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden mb-2.5 transition-all duration-300
           group-hover:-translate-y-1 group-hover:shadow-2xl"
           style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.35)" }}>
@@ -190,7 +190,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
               className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-700 ease-out"
             />
           ) : (
-            /* ── Beautiful fallback poster ── */
+            /*  Beautiful fallback poster  */
             <div className="w-full h-full flex flex-col"
               style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)` }}>
               {/* Noise texture overlay */}
@@ -254,10 +254,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
               </span>
             )}
             {script.isFeatured && !script.premium && (
-              <span className="px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider rounded-md
-                bg-gradient-to-r from-violet-500 to-violet-600 text-white shadow">
-                ★
-              </span>
+              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Featured</span>
             )}
           </div>
 
@@ -270,9 +267,9 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
           )}
         </div>
 
-        {/* ── Info below poster ── */}
+        {/*  Info below poster  */}
         <h3 className={`text-[12.5px] font-bold leading-tight line-clamp-1 transition-colors
-          ${dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#1e3a5f]"}`}>
+          ${dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"}`}>
           {script.title}
         </h3>
         <div className="flex items-center justify-between mt-1 gap-1">
@@ -291,9 +288,9 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
   );
 };
 
-/* ══════════════════════════════════════════════
+/* 
    SKELETON
-══════════════════════════════════════════════ */
+ */
 const Skel = ({ dark }) => (
   <div className="shrink-0 w-[148px] sm:w-[164px]">
     <div className={`w-full aspect-[2/3] rounded-2xl mb-2 animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
@@ -302,9 +299,9 @@ const Skel = ({ dark }) => (
   </div>
 );
 
-/* ══════════════════════════════════════════════
+/* 
    MAIN COMPONENT
-══════════════════════════════════════════════ */
+ */
 const InvestorHome = () => {
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
@@ -344,7 +341,7 @@ const InvestorHome = () => {
   return (
     <div className={`min-h-screen ${bg} pb-28`}>
 
-      {/* ═══════ HERO HEADER ═══════ */}
+      {/*  HERO HEADER  */}
       <div className={`relative overflow-hidden
         ${dark ? "border-b border-white/[0.05] bg-[#07101f]" : "border-b border-gray-200 bg-white"}`}>
 
@@ -444,7 +441,7 @@ const InvestorHome = () => {
         </div>
       </div>
 
-      {/* ═══════ FEED ═══════ */}
+      {/*  FEED  */}
       <div className="max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 space-y-12">
 
         {/* Loading skeleton */}
@@ -465,7 +462,7 @@ const InvestorHome = () => {
         {!loading && feed && (
           <AnimatePresence>
             <>
-              {/* ── Genre Sections ── */}
+              {/*  Genre Sections  */}
               {genres.map(({ genre, scripts }, idx) => (
                 <Fade key={genre} delay={0.05 + idx * 0.06}>
                   <SectionHead
@@ -483,7 +480,7 @@ const InvestorHome = () => {
                 </Fade>
               ))}
 
-              {/* ── Trending ── */}
+              {/*  Trending  */}
               {trending.length > 0 && (
                 <Fade delay={0.15}>
                   <SectionHead
@@ -492,8 +489,12 @@ const InvestorHome = () => {
                         <path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
                       </svg>
                     }
-                    title="Trending Now" count={trending.length}
-                    sub="Most viewed & unlocked this month" to="/search" dark={dark} />
+                    title="Trending Now"
+                    count={trending.length}
+                    sub="Most viewed & unlocked this month"
+                    to="/search"
+                    dark={dark}
+                  />
                   <HRow>
                     {trending.map((s, i) => (
                       <ScriptPoster key={s._id} script={s} idx={i} rank={i + 1} dark={dark} />
@@ -503,7 +504,7 @@ const InvestorHome = () => {
                 </Fade>
               )}
 
-              {/* ── New Releases ── */}
+              {/*  New Releases  */}
               {newRel.length > 0 && (
                 <Fade delay={0.2}>
                   <SectionHead
@@ -521,7 +522,7 @@ const InvestorHome = () => {
                 </Fade>
               )}
 
-              {/* ── Explore ── */}
+              {/*  Explore  */}
               {explore.length > 0 && (
                 <Fade delay={0.25}>
                   <SectionHead
@@ -538,7 +539,7 @@ const InvestorHome = () => {
                 </Fade>
               )}
 
-              {/* ── Empty ── */}
+              {/*  Empty  */}
               {isEmpty && (
                 <Fade delay={0.1}>
                   <div className={`rounded-2xl border p-16 text-center
@@ -559,8 +560,8 @@ const InvestorHome = () => {
                     </p>
                     <div className="flex items-center justify-center gap-3 flex-wrap">
                       <Link to="/search"
-                        className="px-6 py-2.5 rounded-xl bg-[#1e3a5f] text-white text-[13px] font-bold hover:bg-[#17304e]
-                          transition-all shadow-lg shadow-[#1e3a5f]/25 hover:shadow-xl inline-flex items-center gap-2">
+                        className="px-6 py-2.5 rounded-xl bg-[#111111] text-white text-[13px] font-bold hover:bg-[#17304e]
+                          transition-all shadow-lg shadow-[#111111]/25 hover:shadow-xl inline-flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                         </svg>

@@ -58,28 +58,28 @@ const PricingPlans = () => {
       description: "Producers pay to see full scripts",
       creator: "You earn 50%",
       example: "$500 unlock = $250 for you",
-      icon: "🔓"
+      icon: ""
     },
     {
       title: "Pro Analysis",
       description: "Offer AI-powered script feedback",
       creator: "You earn 70%",
       example: "$10 analysis = $7 for you",
-      icon: "📊"
+      icon: ""
     },
     {
       title: "Option Fees",
       description: "Producers hold scripts with fees",
       creator: "Platform takes 10%",
       example: "$300 option = $270 for you",
-      icon: "⏳"
+      icon: ""
     },
     {
       title: "Domain Packages",
       description: "Bulk access to scripts by category",
       creator: "Revenue share included",
       example: "1000 buyers = Royalties",
-      icon: "📦"
+      icon: ""
     }
   ];
 
@@ -232,7 +232,7 @@ const PricingPlans = () => {
             className="mt-16 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-2xl p-8"
             variants={itemVariants}
           >
-            <h3 className="text-2xl font-bold text-green-400 mb-6">📈 Example Monthly Earnings (Creator)</h3>
+            <h3 className="text-2xl font-bold text-green-400 mb-6"> Example Monthly Earnings (Creator)</h3>
             <div className="grid md:grid-cols-4 gap-8">
               <div>
                 <p className="text-gray-400 text-sm mb-2">10 Script Unlocks</p>

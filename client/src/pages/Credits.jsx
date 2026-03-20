@@ -208,7 +208,7 @@ const Credits = () => {
     return colors[key] || (dark ? "from-gray-500/20 to-gray-500/10 text-gray-400" : "from-gray-50 to-gray-50 text-gray-600");
   };
 
-  // ─── Loading State ──────────────────────────────
+  //  Loading State 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -275,7 +275,7 @@ const Credits = () => {
           </motion.button>
         </div>
 
-        {/* ─── Balance Cards ─────────────────────────── */}
+        {/*  Balance Cards  */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Current Balance */}
           <motion.div
@@ -477,7 +477,7 @@ const Credits = () => {
           </motion.div>
         </div>
 
-        {/* ─── Tabs ──────────────────────────────────── */}
+        {/*  Tabs  */}
         <div
           className={`flex gap-1 p-1 rounded-xl ${
             dark ? "bg-white/[0.04]" : "bg-gray-100"
@@ -506,7 +506,7 @@ const Credits = () => {
           ))}
         </div>
 
-        {/* ─── Services Tab ──────────────────────────── */}
+        {/*  Services Tab  */}
         <AnimatePresence mode="wait">
           {activeTab === "overview" && (
             <motion.div
@@ -516,7 +516,7 @@ const Credits = () => {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-4"
             >
-              {/* ── Hero banner ── */}
+              {/*  Hero banner  */}
               <div className={`relative overflow-hidden rounded-2xl p-6 sm:p-8 ${
                 dark
                   ? "bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-transparent border border-white/[0.06]"
@@ -557,7 +557,7 @@ const Credits = () => {
                 </div>
               </div>
 
-              {/* ── Service cards ── */}
+              {/*  Service cards  */}
               {(() => {
                 const getCredits = (key, fallback) =>
                   pricing?.[key]?.credits ?? fallback;
@@ -748,7 +748,7 @@ const Credits = () => {
                                     ? dark ? "text-emerald-400" : "text-emerald-600"
                                     : dark ? "text-orange-400" : "text-orange-500"
                                 }`}>
-                                  {canAfford ? "✓ You can afford this" : `Need ${svc.credits - (balance?.balance || 0)} more`}
+                                  {canAfford ? " You can afford this" : `Need ${svc.credits - (balance?.balance || 0)} more`}
                                 </p>
                               )}
                             </div>
@@ -769,7 +769,7 @@ const Credits = () => {
                 );
               })()}
 
-              {/* ── Bottom tip ── */}
+              {/*  Bottom tip  */}
               <div className={`rounded-xl p-4 flex items-start gap-3 ${
                 dark
                   ? "bg-white/[0.03] border border-white/[0.06]"
@@ -796,7 +796,7 @@ const Credits = () => {
             </motion.div>
           )}
 
-          {/* ─── History Tab ─────────────────────────── */}
+          {/*  History Tab  */}
           {activeTab === "history" && (
             <motion.div
               key="history"
