@@ -26,6 +26,31 @@ const scriptPurchaseRequestSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    paymentMethod: {
+      type: String,
+      enum: ["wallet", "razorpay", "manual"],
+      default: "wallet",
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "escrow_held", "released", "refunded", "failed"],
+      default: "pending",
+    },
+    paymentGatewayOrderId: {
+      type: String,
+      default: "",
+    },
+    paymentGatewayPaymentId: {
+      type: String,
+      default: "",
+    },
+    paymentGatewaySignature: {
+      type: String,
+      default: "",
+    },
+    settledAt: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected", "cancelled"],

@@ -19,6 +19,10 @@ const MainLayout = ({ children }) => {
   const [pendingPurchaseCount, setPendingPurchaseCount] = useState(0);
   const [latestPendingPurchaseAt, setLatestPendingPurchaseAt] = useState("");
   const [showPurchasePopup, setShowPurchasePopup] = useState(false);
+  const [showInvestorApprovalPopup, setShowInvestorApprovalPopup] = useState(false);
+  const [latestApprovedPurchaseNotification, setLatestApprovedPurchaseNotification] = useState(null);
+  const [showInvestorRejectedPopup, setShowInvestorRejectedPopup] = useState(false);
+  const [latestRejectedPurchaseNotification, setLatestRejectedPurchaseNotification] = useState(null);
   const [notifLoading, setNotifLoading] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
@@ -82,6 +86,57 @@ const MainLayout = ({ children }) => {
     }
   }, [user?.role]);
 
+  const fetchInvestorPurchaseOutcomePopups = useCallback(async () => {
+    const isInvestor = ["investor", "producer", "director", "industry", "professional"].includes(user?.role);
+    if (!isInvestor || !user?._id) {
+      setLatestApprovedPurchaseNotification(null);
+      setShowInvestorApprovalPopup(false);
+      setLatestRejectedPurchaseNotification(null);
+      setShowInvestorRejectedPopup(false);
+      return;
+    }
+
+    try {
+      const { data } = await api.get("/notifications");
+      const unreadNotifications = Array.isArray(data) ? data.filter((n) => !n?.read) : [];
+      const approvedNotifications = unreadNotifications.filter((n) => n?.type === "purchase_approved");
+      const rejectedNotifications = unreadNotifications.filter((n) => n?.type === "purchase_rejected");
+
+      if (approvedNotifications.length === 0) {
+        setLatestApprovedPurchaseNotification(null);
+        setShowInvestorApprovalPopup(false);
+      } else {
+        const latest = approvedNotifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        setLatestApprovedPurchaseNotification(latest);
+
+        const popupKey = `investor_purchase_approved_seen_${user._id}`;
+        const seenLatest = sessionStorage.getItem(popupKey) || "";
+        if (!seenLatest || new Date(latest.createdAt) > new Date(seenLatest)) {
+          setShowInvestorApprovalPopup(true);
+        }
+      }
+
+      if (rejectedNotifications.length === 0) {
+        setLatestRejectedPurchaseNotification(null);
+        setShowInvestorRejectedPopup(false);
+      } else {
+        const latestRejected = rejectedNotifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        setLatestRejectedPurchaseNotification(latestRejected);
+
+        const popupKeyRejected = `investor_purchase_rejected_seen_${user._id}`;
+        const seenRejectedLatest = sessionStorage.getItem(popupKeyRejected) || "";
+        if (!seenRejectedLatest || new Date(latestRejected.createdAt) > new Date(seenRejectedLatest)) {
+          setShowInvestorRejectedPopup(true);
+        }
+      }
+    } catch {
+      setLatestApprovedPurchaseNotification(null);
+      setShowInvestorApprovalPopup(false);
+      setLatestRejectedPurchaseNotification(null);
+      setShowInvestorRejectedPopup(false);
+    }
+  }, [user?._id, user?.role]);
+
   useEffect(() => {
     if (!user) return undefined;
 
@@ -97,9 +152,10 @@ const MainLayout = ({ children }) => {
       fetchUnreadCount();
       fetchUnreadMessageCount();
       fetchPendingPurchaseCount();
+      fetchInvestorPurchaseOutcomePopups();
     }, 60000);
     return () => clearInterval(interval);
-  }, [fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user]);
+  }, [fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user]);
 
   useEffect(() => {
     const isWriter = ["writer", "creator"].includes(user?.role);
@@ -114,6 +170,10 @@ const MainLayout = ({ children }) => {
       setShowPurchasePopup(true);
     }
   }, [latestPendingPurchaseAt, pendingPurchaseCount, user?._id, user?.role]);
+
+  useEffect(() => {
+    fetchInvestorPurchaseOutcomePopups();
+  }, [fetchInvestorPurchaseOutcomePopups]);
 
   const fetchNotifications = async () => {
     setNotifLoading(true);
@@ -237,6 +297,60 @@ const MainLayout = ({ children }) => {
     setShowPurchasePopup(false);
   };
 
+  const dismissInvestorApprovalPopup = () => {
+    if (user?._id && latestApprovedPurchaseNotification?.createdAt) {
+      const popupKey = `investor_purchase_approved_seen_${user._id}`;
+      sessionStorage.setItem(popupKey, latestApprovedPurchaseNotification.createdAt);
+    }
+    setShowInvestorApprovalPopup(false);
+  };
+
+  const handleOpenApprovedScript = async () => {
+    const notificationId = latestApprovedPurchaseNotification?._id;
+    const scriptId = latestApprovedPurchaseNotification?.script?._id;
+
+    if (notificationId) {
+      try {
+        await api.put(`/notifications/${notificationId}/read`);
+        setNotifications((prev) => prev.map((n) => n._id === notificationId ? { ...n, read: true } : n));
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } catch {
+        // non-blocking
+      }
+    }
+
+    dismissInvestorApprovalPopup();
+    if (scriptId) {
+      navigate(`/script/${scriptId}`);
+    } else {
+      navigate("/purchase-requests");
+    }
+  };
+
+  const dismissInvestorRejectedPopup = () => {
+    if (user?._id && latestRejectedPurchaseNotification?.createdAt) {
+      const popupKey = `investor_purchase_rejected_seen_${user._id}`;
+      sessionStorage.setItem(popupKey, latestRejectedPurchaseNotification.createdAt);
+    }
+    setShowInvestorRejectedPopup(false);
+  };
+
+  const handleOpenPurchaseRequestsFromRejected = async () => {
+    const notificationId = latestRejectedPurchaseNotification?._id;
+    if (notificationId) {
+      try {
+        await api.put(`/notifications/${notificationId}/read`);
+        setNotifications((prev) => prev.map((n) => n._id === notificationId ? { ...n, read: true } : n));
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } catch {
+        // non-blocking
+      }
+    }
+
+    dismissInvestorRejectedPopup();
+    navigate("/purchase-requests");
+  };
+
   const handleGoToPurchaseRequests = () => {
     dismissPurchasePopup();
     navigate("/purchase-requests");
@@ -320,6 +434,120 @@ const MainLayout = ({ children }) => {
                 className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#1e3a5f] text-white hover:bg-[#2a4b77] transition-colors"
               >
                 Review now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvestorApprovalPopup && latestApprovedPurchaseNotification && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,420px)] animate-scaleIn">
+          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
+            isDarkMode
+              ? "bg-[#102417]/95 border-emerald-600/30 text-white shadow-black/40"
+              : "bg-white/95 border-emerald-200 text-gray-900 shadow-slate-200/80"
+          }`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
+                  isDarkMode ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600"
+                }`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                    Purchase Approved
+                  </p>
+                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-emerald-100/80" : "text-gray-600"}`}>
+                    {latestApprovedPurchaseNotification.message || "Your purchase request was approved. You now have full script access."}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={dismissInvestorApprovalPopup}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                  isDarkMode ? "text-emerald-200/80 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                }`}
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={dismissInvestorApprovalPopup}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  isDarkMode ? "text-emerald-100/80 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                Later
+              </button>
+              <button
+                onClick={handleOpenApprovedScript}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+              >
+                Open script
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvestorRejectedPopup && latestRejectedPurchaseNotification && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,420px)] animate-scaleIn">
+          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
+            isDarkMode
+              ? "bg-[#2a1313]/95 border-rose-600/30 text-white shadow-black/40"
+              : "bg-white/95 border-rose-200 text-gray-900 shadow-slate-200/80"
+          }`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
+                  isDarkMode ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-600"
+                }`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                    Purchase Request Declined
+                  </p>
+                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-rose-100/80" : "text-gray-600"}`}>
+                    {latestRejectedPurchaseNotification.message || "Your purchase request was declined. Your payment has been refunded."}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={dismissInvestorRejectedPopup}
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                  isDarkMode ? "text-rose-200/80 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                }`}
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={dismissInvestorRejectedPopup}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  isDarkMode ? "text-rose-100/80 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                Later
+              </button>
+              <button
+                onClick={handleOpenPurchaseRequestsFromRejected}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+              >
+                View details
               </button>
             </div>
           </div>
