@@ -127,9 +127,15 @@ const ProjectCard = ({ project, userName }) => {
           <div className={`absolute inset-0 overflow-hidden flex flex-col items-center justify-center gap-3 ${
             dark ? "bg-[#070d17]" : "bg-[#eef2fb]"
           }`}>
+            {/* scanlines */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              backgroundImage: dark
+                ? "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.016) 3px,rgba(255,255,255,0.016) 4px)"
+                : "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.022) 3px,rgba(0,0,0,0.022) 4px)",
+            }}/>
             {/* center ambient glow */}
             <div className={`absolute w-40 h-40 rounded-full blur-3xl pointer-events-none ${
-              dark ? "bg-white/5" : "bg-white/70"
+              dark ? "bg-[#1a5aaa]/20" : "bg-[#90b0f0]/25"
             }`}/>
             {/* icon container */}
             <div className={`relative flex items-center justify-center w-[62px] h-[62px] rounded-[18px] ${
