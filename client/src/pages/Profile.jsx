@@ -373,7 +373,7 @@ const Profile = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   /* â”€â”€ Loading â”€â”€ */
@@ -1450,7 +1450,7 @@ const Profile = () => {
                   {/* Thumbnail */}
                   <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 ${dark ? "bg-[#1a2d47]" : "bg-gray-100"}`}>
                     {script.coverImage ? (
-                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5001${script.coverImage}`}
+                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`}
                         alt={script.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">

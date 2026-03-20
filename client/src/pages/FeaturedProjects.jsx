@@ -123,7 +123,7 @@ const FeaturedProjects = () => {
 
   const getImageUrl = (url) => {
     if (!url) return null;
-    return url.startsWith("http") ? url : `http://localhost:5001${url}`;
+    return url.startsWith("http") ? url : `http://localhost:5002${url}`;
   };
 
   const rankBadge = (index) => {

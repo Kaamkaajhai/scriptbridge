@@ -331,12 +331,12 @@ const Search = () => {
 
   const getProfileImage = (user) => {
     if (!user.profileImage) return null;
-    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5001${user.profileImage}`;
+    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5002${user.profileImage}`;
   };
 
   const getCoverImage = (script) => {
     if (!script.coverImage) return null;
-    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5001${script.coverImage}`;
+    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`;
   };
 
   const ease = [0.25, 0.46, 0.45, 0.94];

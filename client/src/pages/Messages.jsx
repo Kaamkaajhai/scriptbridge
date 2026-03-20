@@ -46,7 +46,7 @@ const getMessagePreview = (msg) =>
 const resolveMediaUrl = (url) => {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return `http://localhost:5001${url}`;
+  return `http://localhost:5002${url}`;
 };
 
 const formatFileSize = (bytes = 0) => {
@@ -98,7 +98,7 @@ const Messages = () => {
 
   /* ── Socket setup ────────────────────────────────────────── */
   useEffect(() => {
-    const sock = io("http://localhost:5001");
+    const sock = io("http://localhost:5002");
     setSocket(sock);
 
     sock.on("receive-message", (msg) => {
@@ -410,7 +410,7 @@ const Messages = () => {
   /* ── Avatar URL helper ──────────────────────────────────── */
   const avatar = (u) =>
     u?.profileImage
-      ? u.profileImage.startsWith("http") ? u.profileImage : `http://localhost:5001${u.profileImage}`
+      ? u.profileImage.startsWith("http") ? u.profileImage : `http://localhost:5002${u.profileImage}`
       : `https://placehold.co/48x48/1e3a5f/ffffff?text=${encodeURIComponent(u?.name?.charAt(0) || "U")}`;
 
   /* ── Theme shorthand ────────────────────────────────────── */

@@ -360,7 +360,7 @@ const MainLayout = ({ children }) => {
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
 
-  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5001").replace(/\/$/, "");
+  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/$/, "");
   const rawProfileImage = user?.profileImage || user?.profilePicture || "";
   const normalizedProfileImagePath = typeof rawProfileImage === "string"
     ? rawProfileImage.trim().replace(/\\/g, "/")

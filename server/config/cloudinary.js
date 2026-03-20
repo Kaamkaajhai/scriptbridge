@@ -1,73 +1,45 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+import { v2 as cloudinary } from "cloudinary";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsRoot = path.join(__dirname, "..", "uploads");
+const hasCloudinaryConfig = () =>
+  Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
 
-const detectExtension = (buffer, resourceType) => {
-  if (!buffer || buffer.length < 12) {
-    return resourceType === "image" ? ".jpg" : ".bin";
-  }
-
-  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return ".jpg";
-  }
-
-  if (
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47
-  ) {
-    return ".png";
-  }
-
-  if (
-    buffer[0] === 0x47 &&
-    buffer[1] === 0x49 &&
-    buffer[2] === 0x46 &&
-    buffer[3] === 0x38
-  ) {
-    return ".gif";
-  }
-
-  if (
-    buffer[0] === 0x52 &&
-    buffer[1] === 0x49 &&
-    buffer[2] === 0x46 &&
-    buffer[3] === 0x46 &&
-    buffer[8] === 0x57 &&
-    buffer[9] === 0x45 &&
-    buffer[10] === 0x42 &&
-    buffer[11] === 0x50
-  ) {
-    return ".webp";
-  }
-
-  return resourceType === "image" ? ".jpg" : ".bin";
-};
+if (hasCloudinaryConfig()) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
 
 export const uploadToCloudinary = async (buffer, options = {}) => {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("uploadToCloudinary expects a file buffer");
   }
 
-  const folderName = options.folder?.split("/").filter(Boolean).at(-1) || "misc";
-  const targetDir = path.join(uploadsRoot, folderName);
-  const extension = detectExtension(buffer, options.resource_type);
-  const baseName = (options.public_id || `upload-${Date.now()}`)
-    .replace(/[^a-zA-Z0-9-_]/g, "-")
-    .replace(/-+/g, "-");
-  const fileName = `${baseName}${extension}`;
-  const filePath = path.join(targetDir, fileName);
+  if (!hasCloudinaryConfig()) {
+    throw new Error("Cloudinary credentials are not configured");
+  }
 
-  await mkdir(targetDir, { recursive: true });
-  await writeFile(filePath, buffer);
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: options.folder,
+        resource_type: options.resource_type || "auto",
+        public_id: options.public_id,
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
 
-  return {
-    secure_url: `/uploads/${folderName}/${fileName}`,
-    public_id: `${folderName}/${baseName}`,
-  };
+        resolve({
+          secure_url: result.secure_url,
+          public_id: result.public_id,
+        });
+      }
+    );
+
+    uploadStream.end(buffer);
+  });
 };

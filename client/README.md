@@ -1,16 +1,39 @@
-# React + Vite
+# Client Deployment (Vercel)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This frontend is configured for Vercel deployment with React Router SPA rewrites.
 
-Currently, two official plugins are available:
+## 1) Required environment variable
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Create a `.env` from `.env.example` for local development, and set the same variable in Vercel Project Settings:
 
-## React Compiler
+- `VITE_API_URL`: backend URL used by the frontend
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+How it works:
 
-## Expanding the ESLint configuration
+- set as origin (recommended): `https://api.yourdomain.com`
+- if you set `https://api.yourdomain.com/api`, the app auto-normalizes it
+- frontend constant `API_BASE_URL` is internal and is always derived as `${VITE_API_URL}/api`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Examples:
+
+- local: `http://localhost:5002`
+- production: `https://api.yourdomain.com`
+
+## 2) Vercel project settings
+
+When importing the repository in Vercel:
+
+- Root Directory: `client`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+
+`vercel.json` already includes SPA rewrites so direct route refreshes work.
+
+## 3) Backend CORS
+
+Your backend must allow the Vercel frontend domain. In server env:
+
+- `CLIENT_URL=https://your-frontend.vercel.app`
+- `CORS_ORIGINS=https://your-frontend.vercel.app,https://www.yourdomain.com`
+
+The server now reads these values for both Express CORS and Socket.io CORS.

@@ -4,6 +4,7 @@ import Script from "../models/Script.js";
 import Notification from "../models/Notification.js";
 import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -54,17 +55,6 @@ const sanitizeBankPayload = (bankDetails) => {
   return clean;
 };
 
-// Multer config for profile image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "..", "uploads", "profiles"));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${req.user._id}-${Date.now()}${ext}`);
-  },
-});
-
 const fileFilter = (req, file, cb) => {
   const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
   if (allowed.includes(file.mimetype)) {
@@ -74,7 +64,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-export const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+export const upload = multer({ storage: multer.memoryStorage(), fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 
 export const getWriters = async (req, res) => {
   try {
@@ -570,7 +560,13 @@ export const uploadProfileImage = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const imageUrl = `/uploads/profiles/${req.file.filename}`;
+    const result = await uploadToCloudinary(req.file.buffer, {
+      folder: "scriptbridge/profiles",
+      resource_type: "image",
+      public_id: `profile-${req.user._id}-${Date.now()}`,
+    });
+
+    const imageUrl = result.secure_url;
     user.profileImage = imageUrl;
     await user.save();
 

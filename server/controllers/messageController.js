@@ -1,14 +1,13 @@
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Script from "../models/Script.js";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 import multer from "multer";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const messageUploadsDir = path.join(__dirname, "..", "uploads", "messages");
 
 const detectFileType = (mimetype = "") => {
   if (mimetype.startsWith("image/")) return "image";
@@ -93,8 +92,6 @@ export const uploadAttachment = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded." });
     }
 
-    await mkdir(messageUploadsDir, { recursive: true });
-
     const ext = path.extname(req.file.originalname || "") || ".bin";
     const baseName = path
       .basename(req.file.originalname || "attachment", ext)
@@ -102,13 +99,21 @@ export const uploadAttachment = async (req, res) => {
       .replace(/-+/g, "-")
       .slice(0, 60) || "attachment";
 
-    const storedName = `${Date.now()}-${baseName}${ext}`;
-    const fullPath = path.join(messageUploadsDir, storedName);
+    const storedName = `${Date.now()}-${baseName}`;
+    const resourceType = req.file.mimetype?.startsWith("image/")
+      ? "image"
+      : req.file.mimetype?.startsWith("video/")
+        ? "video"
+        : "raw";
 
-    await writeFile(fullPath, req.file.buffer);
+    const uploadResult = await uploadToCloudinary(req.file.buffer, {
+      folder: "scriptbridge/messages",
+      resource_type: resourceType,
+      public_id: storedName,
+    });
 
     return res.status(201).json({
-      fileUrl: `/uploads/messages/${storedName}`,
+      fileUrl: uploadResult.secure_url,
       fileType: detectFileType(req.file.mimetype),
       fileName: req.file.originalname,
       fileSize: req.file.size,
