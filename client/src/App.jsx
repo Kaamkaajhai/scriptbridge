@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useContext } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
@@ -70,6 +71,7 @@ function App() {
                 </div>
               }
             >
+            <Analytics />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
