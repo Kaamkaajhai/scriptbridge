@@ -1,7 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useContext } from "react";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
@@ -23,6 +21,7 @@ const NewProject = lazy(() => import("./pages/NewProject"));
 const CreateProject = lazy(() => import("./pages/CreateProject"));
 const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
+const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
 const Messages = lazy(() => import("./pages/Messages"));
@@ -72,7 +71,6 @@ function App() {
                 </div>
               }
             >
-            <Analytics />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -101,7 +99,13 @@ function App() {
               />
               <Route
                 path="/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <FeaturedProjects />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route
                 path="/trending"
@@ -314,7 +318,6 @@ function App() {
           </AdminLoginHandler>
         </Router>
       </AuthProvider>
-      <SpeedInsights />
     </DarkModeProvider>
   );
 }

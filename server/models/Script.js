@@ -1,5 +1,14 @@
 import mongoose from "mongoose";
 
+const createSid = (prefix) => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let token = "";
+  for (let i = 0; i < 8; i += 1) {
+    token += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${prefix}-${token}`;
+};
+
 const roleSchema = new mongoose.Schema({
   characterName: { type: String, required: true },
   description: { type: String },
@@ -9,6 +18,7 @@ const roleSchema = new mongoose.Schema({
 }, { _id: true });
 
 const scriptSchema = new mongoose.Schema({
+  sid: { type: String, unique: true, sparse: true, index: true },
   creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   title: { type: String, required: true },
   logline: { type: String }, // Max 50 chars hook for compact cards
@@ -59,6 +69,22 @@ const scriptSchema = new mongoose.Schema({
     evaluation: { type: Boolean, default: false },
     aiTrailer: { type: Boolean, default: false }
   },
+  billing: {
+    evaluationCreditsCharged: { type: Number, default: 0 },
+    aiTrailerCreditsCharged: { type: Number, default: 0 },
+    evaluationCreditsChargedAtUpload: { type: Number, default: 0 },
+    aiTrailerCreditsChargedAtUpload: { type: Number, default: 0 },
+    evaluationCreditsRefunded: { type: Number, default: 0 },
+    aiTrailerCreditsRefunded: { type: Number, default: 0 },
+    spotlightCreditsSpent: { type: Number, default: 0 },
+    lastSpotlightRefundCredits: { type: Number, default: 0 },
+    lastSpotlightActivatedAt: { type: Date },
+  },
+  evaluationStatus: {
+    type: String,
+    enum: ["none", "requested", "completed"],
+    default: "none",
+  },
 
   // Legal & Compliance
   legal: {
@@ -68,6 +94,14 @@ const scriptSchema = new mongoose.Schema({
   },
 
   premium: { type: Boolean, default: false },
+  verifiedBadge: { type: Boolean, default: false },
+  promotion: {
+    spotlightActive: { type: Boolean, default: false },
+    spotlightStartAt: { type: Date },
+    spotlightEndAt: { type: Date },
+    lastSpotlightPurchaseAt: { type: Date },
+    totalSpotlightCreditsSpent: { type: Number, default: 0 },
+  },
   price: { type: Number, default: 0 },
   isSold: { type: Boolean, default: false }, // true once any buyer purchases — hides script from all public listings
   purchaseRequestLocked: { type: Boolean, default: false },
@@ -150,5 +184,20 @@ const scriptSchema = new mongoose.Schema({
   // Admin approval
   rejectionReason: { type: String },
 }, { timestamps: true });
+
+scriptSchema.pre("validate", async function () {
+  if (this.sid) return;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = createSid("PRJ");
+    const exists = await this.constructor.exists({ sid: candidate });
+    if (!exists) {
+      this.sid = candidate;
+      return;
+    }
+  }
+
+  throw new Error("Unable to generate unique project SID");
+});
 
 export default mongoose.model("Script", scriptSchema);

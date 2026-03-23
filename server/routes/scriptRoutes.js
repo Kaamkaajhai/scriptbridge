@@ -12,6 +12,7 @@ import {
   uploadThumbnail, uploadTrailer,
   uploadScriptThumbnail, uploadScriptTrailer,
   requestScriptAITrailer, submitTrailerFeedback,
+  activateProjectSpotlight,
   getInvestorHomeFeed, getTopList,
   requestScriptPurchase, approveScriptPurchase, rejectScriptPurchase, getMyPurchaseRequests,
 } from "../controllers/scriptController.js";
@@ -29,6 +30,9 @@ router.post("/:id/upload-thumbnail", protect, uploadThumbnail.single("thumbnail"
 router.post("/:id/upload-trailer", protect, uploadTrailer.single("trailer"), uploadScriptTrailer);
 router.post("/:id/request-ai-trailer", protect, requestScriptAITrailer);
 router.post("/:id/trailer-feedback", protect, submitTrailerFeedback);
+router.post("/:id/activate-spotlight", protect, activateProjectSpotlight);
+router.post("/activate-spotlight", protect, activateProjectSpotlight);
+router.post("/spotlight/activate", protect, activateProjectSpotlight);
 
 // Razorpay payment routes for scripts
 router.post("/purchase/create-order", protect, createScriptPurchaseOrder);

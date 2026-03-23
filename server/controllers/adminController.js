@@ -55,6 +55,7 @@ export const getUsers = async (req, res) => {
         if (role) filter.role = role;
         if (search) {
             filter.$or = [
+                { sid: { $regex: search, $options: "i" } },
                 { name: { $regex: search, $options: "i" } },
                 { email: { $regex: search, $options: "i" } },
             ];
@@ -79,6 +80,7 @@ export const getScripts = async (req, res) => {
         if (status) filter.status = status;
         if (search) {
             filter.$or = [
+                { sid: { $regex: search, $options: "i" } },
                 { title: { $regex: search, $options: "i" } },
                 { genre: { $regex: search, $options: "i" } },
             ];
@@ -89,6 +91,14 @@ export const getScripts = async (req, res) => {
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(Number(limit));
+        await Promise.all(
+            scripts
+                .filter((script) => !script.sid)
+                .map(async (script) => {
+                    script.markModified("sid");
+                    await script.save();
+                })
+        );
         res.json({ scripts, total, page: Number(page), totalPages: Math.ceil(total / limit) });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -230,16 +240,21 @@ export const getInvoices = async (req, res) => {
                                 totalCreditsRequired: 1,
                                 creditsBalanceBefore: 1,
                                 creditsBalanceAfter: 1,
+                                creatorSid: 1,
+                                scriptSid: 1,
                                 rows: 1,
+                                pdfPath: 1,
                                 createdAt: 1,
                                 creator: {
                                     _id: "$creator._id",
+                                    sid: "$creator.sid",
                                     name: "$creator.name",
                                     email: "$creator.email",
                                     role: "$creator.role",
                                 },
                                 script: {
                                     _id: "$script._id",
+                                    sid: "$script.sid",
                                     title: "$script.title",
                                 },
                             },

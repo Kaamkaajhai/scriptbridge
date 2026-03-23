@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
 import axios from "axios";
+import { jsPDF } from "jspdf";
 import BrandLogo from "../components/BrandLogo";
 import { formatCurrency } from "../utils/currency";
 
@@ -41,6 +42,21 @@ const Icon = ({ d, className = "w-5 h-5" }) => (
     <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d={d} />
     </svg>
+);
+
+const DownloadIconButton = ({ onClick, title, disabled, className = "" }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        aria-label={title}
+        className={`w-9 h-9 inline-flex items-center justify-center rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
+    >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4.5 15.75v1.5A2.25 2.25 0 006.75 19.5h10.5a2.25 2.25 0 002.25-2.25v-1.5" />
+        </svg>
+    </button>
 );
 
 // ─── Stat Card ───
@@ -128,7 +144,12 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                 <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
                     {scripts.map((s) => (
                         <tr key={s._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
-                            <td className={`px-5 py-3.5 text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{s.title}</td>
+                            <td className="px-5 py-3.5">
+                                <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{s.title}</p>
+                                <p className={`text-[11px] mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                    SID: {s.sid || "Pending"}
+                                </p>
+                            </td>
                             {showCreator && (
                                 <td className="px-5 py-3.5">
                                     <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.creator?.name || "—"}</span>
@@ -268,6 +289,19 @@ const SearchBar = ({ value, onChange, placeholder, isDark }) => (
         </div>
         <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || "Search..."} className={`flex-1 px-3 py-2.5 text-sm font-medium outline-none bg-transparent ${isDark ? "text-gray-200 placeholder-gray-500" : "text-gray-800 placeholder-gray-400"}`} />
+        {value && (
+            <button
+                type="button"
+                onClick={() => onChange("")}
+                className={`mr-2 h-7 w-7 rounded-md flex items-center justify-center transition-colors ${isDark ? "text-gray-400 hover:text-gray-200 hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/70"}`}
+                aria-label="Clear search"
+                title="Clear search"
+            >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        )}
     </div>
 );
 
@@ -297,6 +331,78 @@ const formatBadgeCount = (count) => {
     return `+${count}`;
 };
 
+const SEARCH_PLACEHOLDER_BY_TAB = {
+    overview: "Search everything in admin...",
+    investors: "Search investors...",
+    writers: "Search writers...",
+    readers: "Search readers...",
+    projects: "Search projects...",
+    "ai-usage": "Search AI usage...",
+    evaluations: "Search evaluations...",
+    "investor-purchases": "Search purchases...",
+    invoices: "Search invoices...",
+    payments: "Search payments...",
+    scores: "Search scores...",
+    approvals: "Search approvals...",
+    trailers: "Search AI trailers...",
+    "pending-investors": "Search investor requests...",
+    queries: "Search queries...",
+};
+
+const EMPTY_GLOBAL_RESULTS = {
+    users: [],
+    scripts: [],
+    transactions: [],
+    invoices: [],
+    pendingInvestors: [],
+    contacts: [],
+};
+
+const formatExportDate = (value) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
+};
+
+const writePdfSections = ({ fileName, title, sections }) => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const marginX = 40;
+    const maxWidth = 515;
+    let y = 44;
+
+    const addWrappedText = (text, opts = {}) => {
+        const lines = doc.splitTextToSize(String(text), opts.maxWidth || maxWidth);
+        if (y + lines.length * 13 > 790) {
+            doc.addPage();
+            y = 44;
+        }
+        doc.text(lines, marginX, y);
+        y += lines.length * 13 + (opts.gap || 0);
+    };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    addWrappedText(title, { gap: 6 });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    addWrappedText(`Generated: ${new Date().toLocaleString()}`, { gap: 10 });
+
+    sections.forEach((section) => {
+        if (!section?.title) return;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        addWrappedText(section.title, { gap: 4 });
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        const lines = Array.isArray(section.lines) && section.lines.length > 0 ? section.lines : ["No records"];
+        lines.forEach((line) => addWrappedText(line));
+        y += 8;
+    });
+
+    doc.save(fileName);
+};
+
 const AdminDashboard = () => {
     const { isDarkMode: isDark } = useDarkMode();
     const [activeTab, setActiveTab] = useState("overview");
@@ -314,9 +420,9 @@ const AdminDashboard = () => {
     const [scripts, setScripts] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [invoices, setInvoices] = useState([]);
-    const [invoiceModal, setInvoiceModal] = useState(null);
     const [totalPages, setTotalPages] = useState(1);
     const [page, setPage] = useState(1);
+    const [searchInput, setSearchInput] = useState("");
     const [search, setSearch] = useState("");
     const [scoreModal, setScoreModal] = useState(null);
     const [scoreSubTab, setScoreSubTab] = useState("ai");
@@ -326,6 +432,9 @@ const AdminDashboard = () => {
     const [contacts, setContacts] = useState([]);
     const [alertSummary, setAlertSummary] = useState({});
     const previousAlertSummaryRef = useRef(null);
+    const [exportingCurrent, setExportingCurrent] = useState(false);
+    const [exportingAll, setExportingAll] = useState(false);
+    const [globalResults, setGlobalResults] = useState(EMPTY_GLOBAL_RESULTS);
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
@@ -367,10 +476,224 @@ const AdminDashboard = () => {
         return Number.isFinite(count) ? count : 0;
     };
 
+    const searchTerm = search.trim().toLowerCase();
+    const hasSearch = searchTerm.length > 0;
+    const isGlobalSearchMode = activeTab === "overview" && hasSearch;
+    const matchesSearch = (...values) => !hasSearch || values.some((value) => String(value ?? "").toLowerCase().includes(searchTerm));
+
+    const sourceUsers = isGlobalSearchMode ? globalResults.users : users;
+    const sourceScripts = isGlobalSearchMode ? globalResults.scripts : scripts;
+    const sourceTransactions = isGlobalSearchMode ? globalResults.transactions : transactions;
+    const sourceInvoices = isGlobalSearchMode ? globalResults.invoices : invoices;
+    const sourcePendingInvestors = isGlobalSearchMode ? globalResults.pendingInvestors : pendingInvestors;
+    const sourceContacts = isGlobalSearchMode ? globalResults.contacts : contacts;
+
+    const filteredUsers = sourceUsers.filter((u) => matchesSearch(u.name, u.email, u.role, u.sid));
+    const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, s.creator?.name));
+    const filteredTransactions = sourceTransactions.filter((t) => matchesSearch(t.user?.name, t.type, t.status, t.description, t.amount, t.currency, t.createdAt));
+    const filteredInvoices = sourceInvoices.filter((inv) => matchesSearch(inv.invoiceNumber, inv.creator?.name, inv.creatorSid, inv.creator?.sid, inv.script?.title, inv.scriptSid, inv.script?.sid, inv.accessType));
+    const filteredPendingInvestors = sourcePendingInvestors.filter((inv) => matchesSearch(inv.name, inv.email, inv.createdAt));
+    const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
+
+    const buildCurrentSectionPayload = () => {
+        switch (activeTab) {
+            case "overview":
+                return {
+                    title: "Platform Overview",
+                    lines: stats
+                        ? [
+                            `Total Users: ${stats.totalUsers || 0}`,
+                            `Total Scripts: ${stats.totalScripts || 0}`,
+                            `Writers: ${stats.totalWriters || 0}`,
+                            `Investors: ${stats.totalInvestors || 0}`,
+                            `Readers: ${stats.totalReaders || 0}`,
+                            `Pending Approvals: ${stats.pendingApprovals || 0}`,
+                            `Transactions: ${stats.totalTransactions || 0}`,
+                            `Total Revenue: ${formatCurrency(stats.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        ]
+                        : ["No records"],
+                };
+            case "investors":
+            case "writers":
+            case "readers":
+                return {
+                    title: `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} (${users.length})`,
+                    lines: users.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | Role: ${u.role || "-"} | SID: ${u.sid || "-"} | Joined: ${formatExportDate(u.createdAt)}`),
+                };
+            case "projects":
+            case "ai-usage":
+            case "evaluations":
+            case "investor-purchases":
+            case "scores":
+            case "approvals":
+            case "trailers":
+                return {
+                    title: `${TABS.find((tab) => tab.key === activeTab)?.label || "Scripts"} (${scripts.length})`,
+                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${s.creator?.name || "-"} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                };
+            case "payments":
+                return {
+                    title: `Payments (${transactions.length})`,
+                    lines: transactions.map((t, idx) => `${idx + 1}. ${t.user?.name || "-"} | ${t.type || "-"} | ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${t.status || "-"} | ${t.description || "-"} | ${formatExportDate(t.createdAt)}`),
+                };
+            case "invoices":
+                return {
+                    title: `Invoices (${invoices.length})`,
+                    lines: invoices.map((inv, idx) => `${idx + 1}. ${inv.invoiceNumber || "-"} | Creator: ${inv.creator?.name || "-"} (${inv.creatorSid || inv.creator?.sid || "-"}) | Project: ${inv.script?.title || "-"} (${inv.scriptSid || inv.script?.sid || "-"}) | Access: ${inv.accessType || "-"} | Credits: ${inv.totalCreditsRequired || 0} | Date: ${formatExportDate(inv.invoiceDate || inv.createdAt)}`),
+                };
+            case "pending-investors":
+                return {
+                    title: `Investor Requests (${pendingInvestors.length})`,
+                    lines: pendingInvestors.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
+                };
+            case "queries":
+                return {
+                    title: `Queries (${contacts.length})`,
+                    lines: contacts.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
+                };
+            default:
+                return { title: "Section", lines: ["No records"] };
+        }
+    };
+
+    const handleDownloadCurrentSectionPdf = async () => {
+        try {
+            setExportingCurrent(true);
+            const section = buildCurrentSectionPayload();
+            writePdfSections({
+                fileName: `admin-${activeTab}-report-${Date.now()}.pdf`,
+                title: `Admin ${section.title} Report`,
+                sections: [section],
+            });
+            showToast("Section PDF downloaded");
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to download section PDF", "error");
+        } finally {
+            setExportingCurrent(false);
+        }
+    };
+
+    const fetchList = async (url, key) => {
+        const { data } = await adminApi.get(url);
+        return key ? (data?.[key] || []) : data;
+    };
+
+    const handleDownloadWholeDashboardPdf = async () => {
+        try {
+            setExportingAll(true);
+
+            const [
+                overview,
+                investorsData,
+                writersData,
+                creatorsData,
+                readersData,
+                projectsData,
+                aiUsageData,
+                evaluationsData,
+                purchasesData,
+                invoicesData,
+                paymentsData,
+                aiScoresData,
+                platformScoresData,
+                readerScoresData,
+                approvalsData,
+                trailersData,
+                pendingInvestorsData,
+                queriesData,
+            ] = await Promise.all([
+                fetchList("/admin/stats"),
+                fetchList("/admin/users?role=investor&page=1&limit=1000", "users"),
+                fetchList("/admin/users?role=writer&page=1&limit=1000", "users"),
+                fetchList("/admin/users?role=creator&page=1&limit=1000", "users"),
+                fetchList("/admin/users?role=reader&page=1&limit=1000", "users"),
+                fetchList("/admin/scripts?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts/ai-usage?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts/evaluation-purchases?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts/investor-purchases?page=1&limit=1000", "scripts"),
+                fetchList("/admin/invoices?page=1&limit=1000", "invoices"),
+                fetchList("/admin/payments?page=1&limit=1000", "transactions"),
+                fetchList("/admin/scores/ai?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scores/platform?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scores/reader?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts/pending?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts/trailer-requests?page=1&limit=1000", "scripts"),
+                fetchList("/admin/investors/pending?page=1&limit=1000", "investors"),
+                fetchList("/admin/queries?page=1&limit=1000", "submissions"),
+            ]);
+
+            const sectionFromUsers = (title, list) => ({
+                title: `${title} (${list.length})`,
+                lines: list.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | Role: ${u.role || "-"} | SID: ${u.sid || "-"} | Joined: ${formatExportDate(u.createdAt)}`),
+            });
+
+            const sectionFromScripts = (title, list) => ({
+                title: `${title} (${list.length})`,
+                lines: list.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${s.creator?.name || "-"} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+            });
+
+            writePdfSections({
+                fileName: `admin-complete-report-${Date.now()}.pdf`,
+                title: "Admin Complete Dashboard Report",
+                sections: [
+                    {
+                        title: "Overview",
+                        lines: [
+                            `Total Users: ${overview?.totalUsers || 0}`,
+                            `Total Scripts: ${overview?.totalScripts || 0}`,
+                            `Writers: ${overview?.totalWriters || 0}`,
+                            `Investors: ${overview?.totalInvestors || 0}`,
+                            `Readers: ${overview?.totalReaders || 0}`,
+                            `Pending Approvals: ${overview?.pendingApprovals || 0}`,
+                            `Transactions: ${overview?.totalTransactions || 0}`,
+                            `Total Revenue: ${formatCurrency(overview?.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        ],
+                    },
+                    sectionFromUsers("Investors", investorsData),
+                    sectionFromUsers("Writers", [...writersData, ...creatorsData]),
+                    sectionFromUsers("Readers", readersData),
+                    sectionFromScripts("Projects", projectsData),
+                    sectionFromScripts("AI Usage", aiUsageData),
+                    sectionFromScripts("Evaluation Purchases", evaluationsData),
+                    sectionFromScripts("Investor Purchases", purchasesData),
+                    {
+                        title: `Invoices (${invoicesData.length})`,
+                        lines: invoicesData.map((inv, idx) => `${idx + 1}. ${inv.invoiceNumber || "-"} | Creator: ${inv.creator?.name || "-"} (${inv.creatorSid || inv.creator?.sid || "-"}) | Project: ${inv.script?.title || "-"} (${inv.scriptSid || inv.script?.sid || "-"}) | Access: ${inv.accessType || "-"} | Credits: ${inv.totalCreditsRequired || 0} | Date: ${formatExportDate(inv.invoiceDate || inv.createdAt)}`),
+                    },
+                    {
+                        title: `Payments (${paymentsData.length})`,
+                        lines: paymentsData.map((t, idx) => `${idx + 1}. ${t.user?.name || "-"} | ${t.type || "-"} | ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${t.status || "-"} | ${t.description || "-"} | ${formatExportDate(t.createdAt)}`),
+                    },
+                    sectionFromScripts("AI Scores", aiScoresData),
+                    sectionFromScripts("Platform Scores", platformScoresData),
+                    sectionFromScripts("Reader Scores", readerScoresData),
+                    sectionFromScripts("Pending Approvals", approvalsData),
+                    sectionFromScripts("AI Trailers", trailersData),
+                    {
+                        title: `Investor Requests (${pendingInvestorsData.length})`,
+                        lines: pendingInvestorsData.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
+                    },
+                    {
+                        title: `Queries (${queriesData.length})`,
+                        lines: queriesData.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
+                    },
+                ],
+            });
+            showToast("Complete dashboard PDF downloaded");
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to download full dashboard PDF", "error");
+        } finally {
+            setExportingAll(false);
+        }
+    };
+
     // ─── Fetch data function ───
-    const fetchData = async () => {
+    const fetchData = async (searchValue = "") => {
         if (!authorized) return;
         setLoading(true);
+        const activeSearch = searchValue.trim();
         try {
             switch (activeTab) {
                 case "overview": {
@@ -379,23 +702,23 @@ const AdminDashboard = () => {
                     break;
                 }
                 case "investors": {
-                    const { data } = await adminApi.get(`/admin/users?role=investor&page=${page}&search=${search}`);
+                    const { data } = await adminApi.get(`/admin/users?role=investor&page=${page}&search=${encodeURIComponent(activeSearch)}`);
                     setUsers(data.users); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
                 case "writers": {
-                    const { data } = await adminApi.get(`/admin/users?role=writer&page=${page}&search=${search}`);
-                    const { data: data2 } = await adminApi.get(`/admin/users?role=creator&page=${page}&search=${search}`);
+                    const { data } = await adminApi.get(`/admin/users?role=writer&page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                    const { data: data2 } = await adminApi.get(`/admin/users?role=creator&page=${page}&search=${encodeURIComponent(activeSearch)}`);
                     setUsers([...data.users, ...data2.users]); setTotalPages(Math.max(data.totalPages, data2.totalPages)); setTotal(data.total + data2.total);
                     break;
                 }
                 case "readers": {
-                    const { data } = await adminApi.get(`/admin/users?role=reader&page=${page}&search=${search}`);
+                    const { data } = await adminApi.get(`/admin/users?role=reader&page=${page}&search=${encodeURIComponent(activeSearch)}`);
                     setUsers(data.users); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
                 case "projects": {
-                    const { data } = await adminApi.get(`/admin/scripts?page=${page}&search=${search}`);
+                    const { data } = await adminApi.get(`/admin/scripts?page=${page}&search=${encodeURIComponent(activeSearch)}`);
                     setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
@@ -420,7 +743,7 @@ const AdminDashboard = () => {
                     break;
                 }
                 case "invoices": {
-                    const { data } = await adminApi.get(`/admin/invoices?page=${page}&search=${encodeURIComponent(search || "")}`);
+                    const { data } = await adminApi.get(`/admin/invoices?page=${page}&search=${encodeURIComponent(activeSearch)}`);
                     setInvoices(data.invoices); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
@@ -463,14 +786,98 @@ const AdminDashboard = () => {
         setLoading(false);
     };
 
+    const fetchGlobalSearchData = async (searchValue = "") => {
+        if (!authorized) return;
+        const activeSearch = searchValue.trim();
+        if (!activeSearch) {
+            setGlobalResults(EMPTY_GLOBAL_RESULTS);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const [
+                investorsRes,
+                writersRes,
+                creatorsRes,
+                readersRes,
+                scriptsRes,
+                invoicesRes,
+                paymentsRes,
+                pendingInvestorsRes,
+                queriesRes,
+            ] = await Promise.all([
+                adminApi.get(`/admin/users?role=investor&page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
+                adminApi.get(`/admin/users?role=writer&page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
+                adminApi.get(`/admin/users?role=creator&page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
+                adminApi.get(`/admin/users?role=reader&page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
+                adminApi.get(`/admin/scripts?page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
+                adminApi.get(`/admin/invoices?page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
+                adminApi.get(`/admin/payments?page=1&limit=200`),
+                adminApi.get(`/admin/investors/pending?page=1&limit=200`),
+                adminApi.get(`/admin/queries?page=1&limit=200`),
+            ]);
+
+            setGlobalResults({
+                users: [
+                    ...(investorsRes.data?.users || []),
+                    ...(writersRes.data?.users || []),
+                    ...(creatorsRes.data?.users || []),
+                    ...(readersRes.data?.users || []),
+                ],
+                scripts: scriptsRes.data?.scripts || [],
+                transactions: paymentsRes.data?.transactions || [],
+                invoices: invoicesRes.data?.invoices || [],
+                pendingInvestors: pendingInvestorsRes.data?.investors || [],
+                contacts: queriesRes.data?.submissions || [],
+            });
+        } catch (err) {
+            console.error("Admin global search fetch error:", err);
+            if (err.response?.status === 401) {
+                sessionStorage.removeItem("admin-session");
+                setAuthorized(false);
+                showToast("Session expired. Please re-enter the access code.", "error");
+            }
+        }
+        setLoading(false);
+    };
+
     // ─── Effects ───
-    useEffect(() => { if (authorized) { setPage(1); setSearch(""); } }, [activeTab, authorized]);
-    useEffect(() => { if (authorized) fetchData(); }, [activeTab, page, scoreSubTab, authorized]);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearch(searchInput);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
+    useEffect(() => {
+        if (authorized) setPage(1);
+    }, [activeTab, scoreSubTab, authorized]);
+
+    useEffect(() => {
+        if (authorized) setPage(1);
+    }, [search, authorized]);
+
     useEffect(() => {
         if (!authorized) return;
-        const t = setTimeout(() => { if (search !== undefined) { setPage(1); fetchData(); } }, 400);
-        return () => clearTimeout(t);
-    }, [search, authorized]);
+        if (activeTab === "overview" && hasSearch) return;
+        fetchData(search);
+    }, [activeTab, page, scoreSubTab, authorized, search, hasSearch]);
+
+    useEffect(() => {
+        if (!authorized || activeTab !== "overview") return;
+        if (!hasSearch) {
+            setGlobalResults(EMPTY_GLOBAL_RESULTS);
+            return;
+        }
+        fetchGlobalSearchData(search);
+    }, [authorized, activeTab, hasSearch, search]);
+
+    useEffect(() => {
+        if (authorized && searchInput !== search) {
+            setLoading(true);
+        }
+    }, [searchInput, search, authorized]);
     useEffect(() => {
         if (!authorized) return;
         fetchAlertSummary({ silent: true });
@@ -588,6 +995,33 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleInvoicePdfAction = async (invoice, action = "open") => {
+        try {
+            const { data } = await adminApi.get(`/invoices/${invoice._id}/pdf`, {
+                params: action === "download" ? { download: 1 } : {},
+                responseType: "blob",
+            });
+            const blobUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
+
+            if (action === "download") {
+                const link = document.createElement("a");
+                link.href = blobUrl;
+                link.download = `${invoice.invoiceNumber || "invoice"}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                return;
+            }
+
+            window.open(blobUrl, "_blank", "noopener,noreferrer");
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to open invoice PDF", "error");
+        }
+    };
+
     const handleCodeSubmit = async (e) => {
         e.preventDefault();
         setCodeError("");
@@ -673,6 +1107,96 @@ const AdminDashboard = () => {
         switch (activeTab) {
             case "overview":
                 if (!stats) return null;
+                if (hasSearch) {
+                    const totalMatches =
+                        filteredUsers.length +
+                        filteredScripts.length +
+                        filteredInvoices.length +
+                        filteredTransactions.length +
+                        filteredPendingInvestors.length +
+                        filteredContacts.length;
+
+                    const resultBlocks = [
+                        {
+                            key: "users",
+                            title: "Users",
+                            count: filteredUsers.length,
+                            lines: filteredUsers.slice(0, 6).map((u) => `${u.name || "-"} • ${u.email || "-"} • ${u.role || "-"}`),
+                        },
+                        {
+                            key: "projects",
+                            title: "Projects",
+                            count: filteredScripts.length,
+                            lines: filteredScripts.slice(0, 6).map((s) => `${s.title || "-"} • SID: ${s.sid || "-"} • ${s.creator?.name || "-"}`),
+                        },
+                        {
+                            key: "invoices",
+                            title: "Invoices",
+                            count: filteredInvoices.length,
+                            lines: filteredInvoices.slice(0, 6).map((inv) => `${inv.invoiceNumber || "-"} • ${inv.creator?.name || "-"} • ${inv.script?.title || "-"}`),
+                        },
+                        {
+                            key: "payments",
+                            title: "Payments",
+                            count: filteredTransactions.length,
+                            lines: filteredTransactions.slice(0, 6).map((t) => `${t.user?.name || "-"} • ${t.type || "-"} • ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
+                        },
+                        {
+                            key: "requests",
+                            title: "Investor Requests",
+                            count: filteredPendingInvestors.length,
+                            lines: filteredPendingInvestors.slice(0, 6).map((inv) => `${inv.name || "-"} • ${inv.email || "-"}`),
+                        },
+                        {
+                            key: "queries",
+                            title: "Queries",
+                            count: filteredContacts.length,
+                            lines: filteredContacts.slice(0, 6).map((c) => `${c.name || "-"} • ${c.reason || "-"} • ${c.email || "-"}`),
+                        },
+                    ];
+
+                    return (
+                        <div>
+                            <div className="flex items-end justify-between mb-5 gap-4">
+                                <div>
+                                    <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Search Results</h2>
+                                    <p className={`text-sm mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                        Showing cross-section matches for "{search.trim()}"
+                                    </p>
+                                </div>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-full ${isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700"}`}>
+                                    {totalMatches} match{totalMatches === 1 ? "" : "es"}
+                                </span>
+                            </div>
+
+                            {totalMatches === 0 ? (
+                                <div className={`rounded-2xl border p-10 text-center ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                    <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                        No results found. Try a different keyword.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {resultBlocks.filter((block) => block.count > 0).map((block) => (
+                                        <div key={block.key} className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className={`text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>{block.title}</h3>
+                                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${isDark ? "bg-white/10 text-gray-300" : "bg-gray-100 text-gray-700"}`}>{block.count}</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {block.lines.map((line, index) => (
+                                                    <p key={`${block.key}-${index}`} className={`text-xs leading-relaxed ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                                        {line}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                }
                 return (
                     <div>
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Platform Overview</h2>
@@ -697,11 +1221,10 @@ const AdminDashboard = () => {
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
                                 {activeTab === "investors" ? "Investors" : activeTab === "writers" ? "Writers" : "Readers"}
-                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span>
+                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredUsers.length : total})</span>
                             </h2>
-                            <div className="w-72"><SearchBar value={search} onChange={setSearch} placeholder={`Search ${activeTab}...`} isDark={isDark} /></div>
                         </div>
-                        <UserTable users={users} isDark={isDark} onLoginAs={activeTab === "investors" ? handleLoginAs : null} roleLabel={activeTab} />
+                        <UserTable users={filteredUsers} isDark={isDark} onLoginAs={activeTab === "investors" ? handleLoginAs : null} roleLabel={activeTab} />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
@@ -710,10 +1233,9 @@ const AdminDashboard = () => {
                 return (
                     <div>
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>All Projects<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
-                            <div className="w-72"><SearchBar value={search} onChange={setSearch} placeholder="Search projects..." isDark={isDark} /></div>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>All Projects<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         </div>
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={true}
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true}
                             actions={(s) => (
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
@@ -728,8 +1250,8 @@ const AdminDashboard = () => {
             case "ai-usage":
                 return (
                     <div>
-                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>AI Usage in Projects<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={true} />
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>AI Usage in Projects<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true} />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
@@ -737,8 +1259,8 @@ const AdminDashboard = () => {
             case "evaluations":
                 return (
                     <div>
-                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Evaluation Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={true} />
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Evaluation Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true} />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
@@ -746,8 +1268,8 @@ const AdminDashboard = () => {
             case "investor-purchases":
                 return (
                     <div>
-                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Investor Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={false}
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Investor Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={false}
                             actions={(s) => (
                                 <div className="flex flex-wrap gap-1">
                                     {s.unlockedBy?.map((u) => (
@@ -765,8 +1287,8 @@ const AdminDashboard = () => {
             case "payments":
                 return (
                     <div>
-                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Payment Transactions<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
-                        <TransactionTable transactions={transactions} isDark={isDark} />
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Payment Transactions<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredTransactions.length : total})</span></h2>
+                        <TransactionTable transactions={filteredTransactions} isDark={isDark} />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
@@ -775,8 +1297,7 @@ const AdminDashboard = () => {
                 return (
                     <div>
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Invoices<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
-                            <div className="w-72"><SearchBar value={search} onChange={setSearch} placeholder="Search invoice #, creator, project..." isDark={isDark} /></div>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Invoices<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredInvoices.length : total})</span></h2>
                         </div>
                         <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                             <div className="overflow-x-auto">
@@ -797,11 +1318,21 @@ const AdminDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
-                                        {invoices.map((inv) => (
+                                        {filteredInvoices.map((inv) => (
                                             <tr key={inv._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
                                                 <td className={`px-5 py-3.5 text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{inv.invoiceNumber}</td>
-                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{inv.creator?.name || "-"}</td>
-                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{inv.script?.title || "-"}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{inv.creator?.name || "-"}</p>
+                                                    <p className={`text-[11px] mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                                        SID: {inv.creatorSid || inv.creator?.sid || "-"}
+                                                    </p>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{inv.script?.title || "-"}</p>
+                                                    <p className={`text-[11px] mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                                        SID: {inv.scriptSid || inv.script?.sid || "-"}
+                                                    </p>
+                                                </td>
                                                 <td className="px-5 py-3.5">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${inv.accessType === "premium" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
                                                         {inv.accessType === "premium" ? "Premium" : "Free"}
@@ -810,16 +1341,24 @@ const AdminDashboard = () => {
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{inv.totalCreditsRequired || 0} cr</td>
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString()}</td>
                                                 <td className="px-5 py-3.5">
-                                                    <button
-                                                        onClick={() => setInvoiceModal(inv)}
-                                                        className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10"
-                                                    >
-                                                        Open
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleInvoicePdfAction(inv, "open")}
+                                                            className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10"
+                                                        >
+                                                            Open PDF
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleInvoicePdfAction(inv, "download")}
+                                                            className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10"
+                                                        >
+                                                            Download
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
-                                        {invoices.length === 0 && (
+                                        {filteredInvoices.length === 0 && (
                                             <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No invoices found</td></tr>
                                         )}
                                     </tbody>
@@ -845,7 +1384,7 @@ const AdminDashboard = () => {
                                 ))}
                             </div>
                         </div>
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={true}
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true}
                             actions={(s) => (
                                 <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
                             )}
@@ -860,10 +1399,10 @@ const AdminDashboard = () => {
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
                                 Pending Approvals
-                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span>
+                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span>
                             </h2>
                         </div>
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={false}
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={false}
                             actions={(s) => (
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleApprove(s._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">✓ Approve</button>
@@ -878,11 +1417,11 @@ const AdminDashboard = () => {
                 );
 
             case "trailers":
-                const regenerationRequests = scripts.filter((s) => s.trailerWriterFeedback?.status === "revision_requested");
+                const regenerationRequests = filteredScripts.filter((s) => s.trailerWriterFeedback?.status === "revision_requested");
                 return (
                     <div>
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Requests<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span></h2>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Requests<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         </div>
                         <div className={`rounded-2xl border p-5 mb-5 ${isDark ? "bg-gradient-to-r from-purple-500/5 to-blue-500/5 border-purple-500/20" : "bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200/40"}`}>
                             <div className="flex items-center gap-3 mb-2">
@@ -922,7 +1461,7 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         )}
-                        <ScriptTable scripts={scripts} isDark={isDark} showScore={false}
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={false}
                             actions={(s) => (
                                 <div className="flex flex-wrap items-center gap-2">
                                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${s.trailerStatus === "ready" ? "bg-emerald-100 text-emerald-700" :
@@ -952,10 +1491,10 @@ const AdminDashboard = () => {
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
                                 Investor Account Requests
-                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span>
+                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredPendingInvestors.length : total})</span>
                             </h2>
                         </div>
-                        {pendingInvestors.length === 0 ? (
+                        {filteredPendingInvestors.length === 0 ? (
                             <div className={`rounded-2xl border p-12 text-center ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${isDark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
                                     <svg className={`w-6 h-6 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -975,7 +1514,7 @@ const AdminDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
-                                        {pendingInvestors.map((inv) => (
+                                        {filteredPendingInvestors.map((inv) => (
                                             <tr key={inv._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
                                                 <td className="px-5 py-3.5">
                                                     <div className="flex items-center gap-3">
@@ -1021,7 +1560,7 @@ const AdminDashboard = () => {
                     <div>
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>
                             Contact Queries
-                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span>
+                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredContacts.length : total})</span>
                         </h2>
                         <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                             <div className="overflow-x-auto">
@@ -1034,7 +1573,7 @@ const AdminDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
-                                        {contacts.map((c) => (
+                                        {filteredContacts.map((c) => (
                                             <tr key={c._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
                                                 <td className={`px-5 py-3.5 text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{c.name}</td>
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{c.email}</td>
@@ -1054,7 +1593,7 @@ const AdminDashboard = () => {
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(c.createdAt).toLocaleDateString()}</td>
                                             </tr>
                                         ))}
-                                        {contacts.length === 0 && (
+                                        {filteredContacts.length === 0 && (
                                             <tr><td colSpan={5} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No queries yet</td></tr>
                                         )}
                                     </tbody>
@@ -1100,68 +1639,6 @@ const AdminDashboard = () => {
         );
     };
 
-    const InvoiceModal = ({ invoice, onClose }) => {
-        if (!invoice) return null;
-        return (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-                <div className={`w-full max-w-3xl mx-4 rounded-2xl p-6 ${isDark ? "bg-[#0f1d35] border border-[#1a3050]" : "bg-white shadow-2xl"}`} onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                        <div>
-                            <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Invoice {invoice.invoiceNumber}</h3>
-                            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Issued on {new Date(invoice.invoiceDate || invoice.createdAt).toLocaleString()}</p>
-                        </div>
-                        <button onClick={onClose} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${isDark ? "text-gray-400 hover:bg-[#1a3050]" : "text-gray-500 hover:bg-gray-100"}`}>Close</button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                        <div className={`rounded-xl p-3 border ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`}>
-                            <p className={`text-[11px] font-bold uppercase ${isDark ? "text-gray-500" : "text-gray-400"}`}>Creator</p>
-                            <p className={`text-sm mt-1 ${isDark ? "text-gray-200" : "text-gray-800"}`}>{invoice.creator?.name || "-"}</p>
-                            <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>{invoice.creator?.email || ""}</p>
-                        </div>
-                        <div className={`rounded-xl p-3 border ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`}>
-                            <p className={`text-[11px] font-bold uppercase ${isDark ? "text-gray-500" : "text-gray-400"}`}>Project</p>
-                            <p className={`text-sm mt-1 ${isDark ? "text-gray-200" : "text-gray-800"}`}>{invoice.script?.title || "-"}</p>
-                            <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>{invoice.accessType === "premium" ? `Premium at ₹${invoice.scriptPrice || 0}` : "Free access"}</p>
-                        </div>
-                    </div>
-
-                    <div className={`rounded-xl border overflow-hidden ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
-                        <div className={`grid grid-cols-[1.2fr_0.8fr_100px] px-4 py-2 text-[10px] font-bold uppercase ${isDark ? "bg-[#132744] text-gray-400" : "bg-gray-50 text-gray-500"}`}>
-                            <span>Item</span>
-                            <span>Type</span>
-                            <span className="text-right">Amount</span>
-                        </div>
-                        {(invoice.rows || []).map((row, idx) => (
-                            <div key={`${row.item}-${idx}`} className={`grid grid-cols-[1.2fr_0.8fr_100px] px-4 py-3 text-sm ${isDark ? "border-t border-[#1a3050]" : "border-t border-gray-100"}`}>
-                                <div>
-                                    <p className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
-                                    <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
-                                </div>
-                                <p className={`${isDark ? "text-gray-400" : "text-gray-600"}`}>{row.type}</p>
-                                <p className={`text-right font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{row.amountLabel}</p>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                        <div className={`rounded-xl p-3 border ${isDark ? "border-blue-500/20 bg-blue-500/10" : "border-blue-100 bg-blue-50"}`}>
-                            <p className={`text-[10px] font-bold uppercase ${isDark ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
-                            <p className={`text-lg font-black mt-1 ${isDark ? "text-white" : "text-gray-900"}`}>{invoice.totalCreditsRequired || 0} cr</p>
-                        </div>
-                        <div className={`rounded-xl p-3 border ${isDark ? "border-emerald-500/20 bg-emerald-500/10" : "border-emerald-100 bg-emerald-50"}`}>
-                            <p className={`text-[10px] font-bold uppercase ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>Balance After</p>
-                            <p className={`text-lg font-black mt-1 ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>{invoice.creditsBalanceAfter ?? 0}</p>
-                        </div>
-                        <div className={`rounded-xl p-3 border ${isDark ? "border-purple-500/20 bg-purple-500/10" : "border-purple-100 bg-purple-50"}`}>
-                            <p className={`text-[10px] font-bold uppercase ${isDark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                            <p className={`text-lg font-black mt-1 ${isDark ? "text-white" : "text-gray-900"}`}>₹{invoice.writerEarnsPerSale || 0}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
 
     return (
         <div className="fixed inset-0 z-[9999] flex flex-col bg-[#060e1a] text-white overflow-hidden">
@@ -1175,7 +1652,21 @@ const AdminDashboard = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                    <div className="hidden md:block w-72">
+                        <SearchBar
+                            value={searchInput}
+                            onChange={setSearchInput}
+                            placeholder={SEARCH_PLACEHOLDER_BY_TAB[activeTab] || "Search current section..."}
+                            isDark={true}
+                        />
+                    </div>
                     <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:block">Admin Mode</span>
+                    <DownloadIconButton
+                        onClick={handleDownloadWholeDashboardPdf}
+                        disabled={exportingAll}
+                        title={exportingAll ? "Preparing full dashboard PDF..." : "Download Complete Dashboard PDF"}
+                        className="text-gray-400 hover:text-blue-300 hover:bg-blue-500/10 border-[#1a3050]"
+                    />
                     <div className="w-px h-5 bg-[#1a3050] hidden sm:block"></div>
                     <button onClick={handleLogout}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
@@ -1228,6 +1719,14 @@ const AdminDashboard = () => {
 
                 {/* Main content */}
                 <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+                    <div className="flex items-center justify-end mb-4">
+                        <DownloadIconButton
+                            onClick={handleDownloadCurrentSectionPdf}
+                            disabled={loading || exportingCurrent}
+                            title={exportingCurrent ? "Preparing section PDF..." : "Download This Section PDF"}
+                            className={`${isDark ? "text-gray-300 hover:text-blue-300 hover:bg-blue-500/10 border-[#1a3050]" : "text-gray-600 hover:text-blue-600 hover:bg-blue-50 border-gray-300"}`}
+                        />
+                    </div>
                     {renderContent()}
                 </main>
             </div>
@@ -1266,8 +1765,6 @@ const AdminDashboard = () => {
             {/* Reject Investor Modal */}
             {rejectModal && <RejectInvestorModal investor={rejectModal} onClose={() => setRejectModal(null)} onConfirm={handleRejectInvestor} />}
 
-            {/* Invoice Modal */}
-            {invoiceModal && <InvoiceModal invoice={invoiceModal} onClose={() => setInvoiceModal(null)} />}
         </div>
     );
 };
