@@ -1,9 +1,7 @@
 import { useEffect, useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
-import { getInvestorPitches } from "../services/scriptPitchService";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 
@@ -58,8 +56,8 @@ const InvestorDashboard = () => {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <div className={`w-14 h-14 rounded-2xl ${dark ? "bg-white/[0.06]" : "bg-gray-100"} flex items-center justify-center`}>
-            <div className={`w-8 h-8 border-[3px] rounded-full animate-spin ${dark ? "border-gray-700 border-t-gray-400" : "border-gray-200 border-t-[#1e3a5f]"}`} />
+          <div className={`w-14 h-14 rounded-2xl ${dark ? "bg-blue-500/10" : "bg-blue-50"} flex items-center justify-center`}>
+            <div className={`w-8 h-8 border-[3px] rounded-full animate-spin ${dark ? "border-gray-700 border-t-blue-400" : "border-gray-200 border-t-blue-600"}`} />
           </div>
           <p className={`text-sm font-semibold ${dark ? "text-gray-400" : "text-gray-600"}`}>Loading dashboard...</p>
         </div>
@@ -87,7 +85,7 @@ const InvestorDashboard = () => {
                 <div>
                   <h1 className={`text-xl sm:text-2xl font-extrabold tracking-tight
                     ${dark ? "text-white" : "text-gray-900"}`}>
-                    Welcome back, <span className={dark ? "text-gray-300" : "text-[#1e3a5f]"}>{firstName}</span>
+                    Welcome back, <span className={dark ? "text-blue-400" : "text-[#1e3a5f]"}>{firstName}</span>
                   </h1>
                   <p className={`text-sm font-medium mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>
                     {profile.company ? `${profile.jobTitle || "Investor"} at ${profile.company}` : "Your deal flow & market intelligence"}
@@ -106,7 +104,7 @@ const InvestorDashboard = () => {
                   Browse Scripts
                 </Link>
                 <Link to="/mandates"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1e3a5f] hover:bg-[#162d4a] text-white text-[13px] font-semibold transition-colors">
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
                   </svg>
@@ -119,23 +117,18 @@ const InvestorDashboard = () => {
 
         {/* ─────────────── KPI ROW ─────────────── */}
         <Fade delay={0.04}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-3 gap-3 mb-6">
             {[
               {
                 label: "Scripts Viewed", value: stats.totalViewed || 0,
                 iconD: "M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z",
                 iconD2: "M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-                accent: dark ? "text-gray-300 bg-white/[0.06]" : "text-[#1e3a5f] bg-gray-100"
+                accent: dark ? "text-blue-400 bg-blue-500/10" : "text-blue-600 bg-blue-50"
               },
               {
-                label: "Successful Projects", value: stats.successfulProjects || 0,
+                label: "Deals Closed", value: stats.convertedDeals || 0,
                 iconD: "M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.746 3.746 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.746 3.746 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.745 3.745 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z",
                 accent: dark ? "text-emerald-400 bg-emerald-500/10" : "text-emerald-600 bg-emerald-50"
-              },
-              {
-                label: "Scripts Purchased", value: stats.scriptsPurchased || 0,
-                iconD: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z",
-                accent: dark ? "text-purple-400 bg-purple-500/10" : "text-purple-600 bg-purple-50"
               },
               {
                 label: "Total Invested", value: `₹${(stats.totalInvested || 0).toLocaleString()}`,
@@ -176,10 +169,6 @@ const InvestorDashboard = () => {
                 d: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
               },
               {
-                key: "pitches", label: "Pitches",
-                d: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-              },
-              {
                 key: "finance", label: "Finance",
                 d: "M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"
               },
@@ -187,7 +176,7 @@ const InvestorDashboard = () => {
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all
                   ${activeTab === tab.key
-                    ? dark ? "bg-[#151f2e] text-gray-300" : "bg-white text-[#1e3a5f] shadow-sm"
+                    ? dark ? "bg-[#14263f] text-blue-400" : "bg-white text-blue-600 shadow-sm"
                     : dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d={tab.d} />
@@ -212,8 +201,8 @@ const InvestorDashboard = () => {
                 <Card dark={dark} className="p-5">
                   <CardTitle dark={dark}
                     icon={<path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />}
-                    iconBg={dark ? "bg-white/[0.06]" : "bg-gray-100"}
-                    iconColor={dark ? "text-gray-300" : "text-[#1e3a5f]"}
+                    iconBg={dark ? "bg-blue-500/10" : "bg-blue-50"}
+                    iconColor={dark ? "text-blue-400" : "text-blue-600"}
                     title="Market Pulse" />
                   <div className="grid grid-cols-3 gap-3 mt-4">
                     {[
@@ -222,7 +211,7 @@ const InvestorDashboard = () => {
                       { label: "Available", value: market.available || 0 },
                     ].map((m, i) => (
                       <div key={i} className={`rounded-xl p-3 text-center ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
-                        <p className={`text-lg font-extrabold tabular-nums ${m.highlight ? (dark ? "text-gray-300" : "text-[#1e3a5f]") : (dark ? "text-white" : "text-gray-900")}`}>
+                        <p className={`text-lg font-extrabold tabular-nums ${m.highlight ? (dark ? "text-blue-400" : "text-blue-600") : (dark ? "text-white" : "text-gray-900")}`}>
                           {m.value.toLocaleString()}
                         </p>
                         <p className={`text-[9px] font-bold uppercase tracking-[0.12em] mt-0.5 ${dark ? "text-gray-600" : "text-gray-400"}`}>
@@ -237,10 +226,10 @@ const InvestorDashboard = () => {
                 <Card dark={dark} className="p-5">
                   <CardTitle dark={dark}
                     icon={<path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />}
-                    iconBg={dark ? "bg-white/[0.06]" : "bg-gray-100"}
-                    iconColor={dark ? "text-gray-300" : "text-[#1e3a5f]"}
+                    iconBg={dark ? "bg-cyan-500/10" : "bg-cyan-50"}
+                    iconColor={dark ? "text-cyan-400" : "text-cyan-600"}
                     title="My Mandates"
-                    action={<Link to="/mandates" className={`text-[11px] font-semibold ${dark ? "text-gray-300 hover:text-gray-200" : "text-[#1e3a5f] hover:text-[#162d4a]"}`}>Edit →</Link>} />
+                    action={<Link to="/mandates" className={`text-[11px] font-semibold ${dark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}>Edit →</Link>} />
                   {mandates.genres?.length > 0 || mandates.formats?.length > 0 ? (
                     <div className="mt-4 space-y-3">
                       {mandates.genres?.length > 0 && (
@@ -347,6 +336,13 @@ const InvestorDashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dark ? "bg-blue-500" : "bg-blue-600"}`} />
+                        <div className="flex-1">
+                          <p className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-gray-500" : "text-gray-400"}`}>Balance</p>
+                          <p className={`text-sm font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-900"}`}>₹{walletBalance.toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
                         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dark ? "bg-amber-500" : "bg-amber-600"}`} />
                         <div className="flex-1">
                           <p className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-gray-500" : "text-gray-400"}`}>Deals</p>
@@ -372,7 +368,7 @@ const InvestorDashboard = () => {
                       const maxVal = Math.max(viewed, 1);
                       const conversionRate = viewed > 0 ? ((closed / viewed) * 100).toFixed(1) : "0.0";
                       const bars = [
-                        { label: "Viewed", value: viewed, pct: 100, color: dark ? "bg-gray-400" : "bg-[#1e3a5f]" },
+                        { label: "Viewed", value: viewed, pct: 100, color: dark ? "bg-blue-500" : "bg-blue-600" },
                         { label: "Deals Closed", value: closed, pct: Math.max((closed / maxVal) * 100, closed > 0 ? 8 : 0), color: dark ? "bg-emerald-500" : "bg-emerald-600" },
                         { label: "Invested", value: `₹${invested.toLocaleString()}`, pct: Math.max((closed / maxVal) * 100 * 0.7, invested > 0 ? 6 : 0), color: dark ? "bg-amber-500" : "bg-amber-600" },
                       ];
@@ -449,15 +445,15 @@ const InvestorDashboard = () => {
               <Card dark={dark} className="p-5 mt-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
-                      <svg className={`w-4 h-4 ${dark ? "text-gray-300" : "text-[#1e3a5f]"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${dark ? "bg-blue-500/10" : "bg-blue-50"}`}>
+                      <svg className={`w-4 h-4 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                       </svg>
                     </div>
                     <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>Writer Messages</h3>
                   </div>
                   <Link to="/messages"
-                    className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors ${dark ? "bg-white/[0.06] text-gray-300 hover:bg-white/[0.12]" : "bg-gray-100 text-[#1e3a5f] hover:bg-gray-200"}`}>
+                    className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors ${dark ? "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
                     Open Messages →
                   </Link>
                 </div>
@@ -489,7 +485,7 @@ const InvestorDashboard = () => {
                       <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>Top Rated Scripts</h3>
                       <p className={`text-[11px] font-medium ${dark ? "text-gray-600" : "text-gray-400"}`}>Highest AI-scored on platform</p>
                     </div>
-                    <Link to="/search" className={`text-[11px] font-semibold ${dark ? "text-gray-300 hover:text-gray-200" : "text-[#1e3a5f] hover:text-[#162d4a]"}`}>View all →</Link>
+                    <Link to="/search" className={`text-[11px] font-semibold ${dark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}>View all →</Link>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {data.topRated.map((script, idx) => (
@@ -507,7 +503,7 @@ const InvestorDashboard = () => {
                       <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>Matched For You</h3>
                       <p className={`text-[11px] font-medium ${dark ? "text-gray-600" : "text-gray-400"}`}>Based on your mandates &amp; preferences</p>
                     </div>
-                    <Link to="/mandates" className={`text-[11px] font-semibold ${dark ? "text-gray-300 hover:text-gray-200" : "text-[#1e3a5f] hover:text-[#162d4a]"}`}>Edit mandates →</Link>
+                    <Link to="/mandates" className={`text-[11px] font-semibold ${dark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}>Edit mandates →</Link>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {data.matchedScripts.map((script, idx) => (
@@ -526,13 +522,6 @@ const InvestorDashboard = () => {
             </motion.div>
           )}
 
-          {/* ═══ PITCHES ═══ */}
-          {activeTab === "pitches" && (
-            <motion.div key="pitches" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              <PitchesTab dark={dark} />
-            </motion.div>
-          )}
-
           {/* ═══ FINANCE ═══ */}
           {activeTab === "finance" && (
             <motion.div key="finance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
@@ -541,8 +530,8 @@ const InvestorDashboard = () => {
               <Card dark={dark} className="p-5 mb-4">
                 <CardTitle dark={dark}
                   icon={<path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />}
-                  iconBg={dark ? "bg-white/[0.06]" : "bg-gray-100"}
-                  iconColor={dark ? "text-gray-300" : "text-[#1e3a5f]"}
+                  iconBg={dark ? "bg-blue-500/10" : "bg-blue-50"}
+                  iconColor={dark ? "text-blue-400" : "text-blue-600"}
                   title="Transaction Activity" />
                 {(() => {
                   const debits = transactions.filter(t => t.type === "payment" || t.type === "debit");
@@ -640,7 +629,7 @@ const InvestorDashboard = () => {
                       <div className="mt-3">
                         <div className={`w-full h-2 rounded-full overflow-hidden flex ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
                           <div className={`h-full ${dark ? "bg-amber-500" : "bg-amber-600"}`} style={{ width: `${spentPct}%`, transition: "width 1s ease-out" }} />
-                          <div className={`h-full ${dark ? "bg-gray-500" : "bg-[#1e3a5f]"}`} style={{ width: `${100 - spentPct}%`, transition: "width 1s ease-out" }} />
+                          <div className={`h-full ${dark ? "bg-blue-500" : "bg-blue-600"}`} style={{ width: `${100 - spentPct}%`, transition: "width 1s ease-out" }} />
                         </div>
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-1.5">
@@ -648,7 +637,7 @@ const InvestorDashboard = () => {
                             <span className={`text-[10px] font-semibold ${dark ? "text-gray-500" : "text-gray-400"}`}>Spent {spentPct}%</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${dark ? "bg-gray-500" : "bg-[#1e3a5f]"}`} />
+                            <span className={`w-2 h-2 rounded-full ${dark ? "bg-blue-500" : "bg-blue-600"}`} />
                             <span className={`text-[10px] font-semibold ${dark ? "text-gray-500" : "text-gray-400"}`}>Balance {100 - spentPct}%</span>
                           </div>
                         </div>
@@ -720,7 +709,7 @@ const InvestorDashboard = () => {
                     {data.recentDeals.map(deal => {
                       const statusColor =
                         deal.status === "active" ? (dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600")
-                          : deal.status === "converted" ? (dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-[#1e3a5f]")
+                          : deal.status === "converted" ? (dark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-600")
                             : deal.status === "cancelled" ? (dark ? "bg-red-500/10 text-red-400" : "bg-red-50 text-red-600")
                               : (dark ? "bg-gray-500/10 text-gray-400" : "bg-gray-100 text-gray-500");
                       return (
@@ -799,7 +788,7 @@ const EmptySmall = ({ dark, text, cta }) => (
   <div className={`flex flex-col items-center justify-center py-8 ${dark ? "text-gray-600" : "text-gray-400"}`}>
     <p className="text-xs font-semibold">{text}</p>
     {cta && (
-      <Link to={cta.to} className="mt-3 px-3 py-1.5 bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-lg text-[12px] font-semibold transition-colors">
+      <Link to={cta.to} className="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[12px] font-semibold transition-colors">
         {cta.label}
       </Link>
     )}
@@ -816,7 +805,7 @@ const EmptySection = ({ dark, iconD, title, sub, cta }) => (
     <h3 className={`text-lg font-bold mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>{title}</h3>
     <p className={`text-sm mb-5 max-w-sm mx-auto ${dark ? "text-gray-500" : "text-gray-400"}`}>{sub}</p>
     {cta && (
-      <Link to={cta.to} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl text-sm font-semibold transition-colors">
+      <Link to={cta.to} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors">
         {cta.label}
       </Link>
     )}
@@ -839,7 +828,7 @@ const ScriptSection = ({ dark, navigate, title, sub, iconBg, iconColor, iconD, s
         </div>
       </div>
       {seeAllTo && (
-        <Link to={seeAllTo} className={`text-[11px] font-semibold ${dark ? "text-gray-300 hover:text-gray-200" : "text-[#1e3a5f] hover:text-[#162d4a]"}`}>
+        <Link to={seeAllTo} className={`text-[11px] font-semibold ${dark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-700"}`}>
           View all →
         </Link>
       )}
@@ -849,10 +838,10 @@ const ScriptSection = ({ dark, navigate, title, sub, iconBg, iconColor, iconD, s
         <div key={script._id} onClick={() => navigate(`/script/${script._id}`)}
           className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${dark ? "hover:bg-white/[0.03]" : "hover:bg-gray-50"}`}>
           <div className={`w-9 h-11 rounded-lg shrink-0 overflow-hidden flex items-center justify-center
-            ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
+            ${dark ? "bg-blue-500/10" : "bg-blue-50"}`}>
             {script.coverImage
               ? <img src={script.coverImage} alt="" className="w-full h-full object-cover" />
-              : <svg className={`w-4 h-4 ${dark ? "text-gray-500" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              : <svg className={`w-4 h-4 ${dark ? "text-blue-400/30" : "text-blue-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
             }
@@ -874,7 +863,7 @@ const ScriptSection = ({ dark, navigate, title, sub, iconBg, iconColor, iconD, s
                 ${script.scriptScore.overall >= 80
                   ? (dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600")
                   : script.scriptScore.overall >= 60
-                    ? (dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-[#1e3a5f]")
+                    ? (dark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-600")
                     : (dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-50 text-gray-500")}`}>
                 {script.scriptScore.overall}
               </span>
@@ -907,7 +896,7 @@ const ScriptMiniCard = ({ script, dark, idx, navigate }) => {
         }
         {score && (
           <div className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[11px] font-bold
-            ${score >= 80 ? "bg-emerald-600 text-white" : score >= 60 ? "bg-[#1e3a5f] text-white" : "bg-gray-600 text-white"}`}>
+            ${score >= 80 ? "bg-emerald-600 text-white" : score >= 60 ? "bg-blue-600 text-white" : "bg-gray-600 text-white"}`}>
             {score}
           </div>
         )}
@@ -919,7 +908,7 @@ const ScriptMiniCard = ({ script, dark, idx, navigate }) => {
         )}
       </div>
       <div className="p-3.5">
-        <h4 className={`text-sm font-bold truncate mb-1 group-hover:text-[#1e3a5f] transition-colors ${dark ? "text-gray-100" : "text-gray-900"}`}>
+        <h4 className={`text-sm font-bold truncate mb-1 group-hover:text-blue-500 transition-colors ${dark ? "text-gray-100" : "text-gray-900"}`}>
           {script.title}
         </h4>
         {script.logline && (
@@ -939,74 +928,6 @@ const ScriptMiniCard = ({ script, dark, idx, navigate }) => {
         </div>
       </div>
     </motion.div>
-  );
-};
-
-/* ── PitchesTab ────────────────────────────────────────────── */
-const PitchesTab = ({ dark }) => {
-  const [pitches, setPitches] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPitches = async () => {
-      try {
-        const data = await getInvestorPitches();
-        setPitches(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPitches();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className={`w-8 h-8 border-[3px] rounded-full animate-spin ${dark ? "border-gray-700 border-t-purple-400" : "border-gray-200 border-t-purple-600"}`} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {pitches.length === 0 ? (
-        <EmptySmall dark={dark} text="No pitches received yet." />
-      ) : (
-        pitches.map(pitch => (
-          <div key={pitch._id} className={`p-5 rounded-2xl border ${dark ? "bg-[#0a1628] border-[#162240]" : "bg-white border-gray-100 shadow-sm"}`}>
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h4 className={`font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>{pitch.script?.title || "Unknown Script"}</h4>
-                <p className={`text-sm mt-0.5 ${dark ? "text-gray-400" : "text-gray-500"}`}>Pitched by {pitch.writer?.name || "Unknown Writer"}</p>
-              </div>
-              <span className={`text-xs font-bold px-2.5 py-1.5 rounded-lg capitalize tracking-wide ${
-                pitch.status === 'pending' ? (dark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600') :
-                pitch.status === 'approved' ? (dark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
-                pitch.status === 'rejected' ? (dark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600') :
-                (dark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600')
-              }`}>
-                {pitch.status}
-              </span>
-            </div>
-            {pitch.note && (
-              <div className={`mt-4 p-4 rounded-xl text-sm leading-relaxed ${dark ? "bg-white/[0.03] text-gray-300 border border-white/[0.04]" : "bg-gray-50 text-gray-700 border border-gray-100"}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Pitch Note</p>
-                {pitch.note}
-              </div>
-            )}
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              {pitch.script && (
-                <Link to={`/script/${pitch.script._id}`} className={`text-[13px] px-5 py-2.5 rounded-xl font-bold transition-all border ${dark ? "border-white/[0.1] hover:bg-white/[0.05] text-white" : "border-gray-200 hover:bg-gray-50 text-gray-800"}`}>
-                  View Script
-                </Link>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
   );
 };
 

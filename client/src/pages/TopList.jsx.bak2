@@ -22,11 +22,11 @@ const CONTENT_TYPES = [
 ];
 
 const BUDGETS = [
-  { key: "micro", label: "Micro (<₹10L)" },
-  { key: "low", label: "Low (₹10L-₹1Cr)" },
-  { key: "mid", label: "Mid (₹1Cr-₹10Cr)" },
-  { key: "high", label: "High (₹10Cr-₹100Cr)" },
-  { key: "blockbuster", label: "Blockbuster (>₹100Cr)" },
+  { key: "micro", label: "Micro (<$10k)" },
+  { key: "low", label: "Low ($10k–$100k)" },
+  { key: "mid", label: "Mid ($100k–$1M)" },
+  { key: "high", label: "High ($1M–$10M)" },
+  { key: "blockbuster", label: "Blockbuster (>$10M)" },
 ];
 
 const PREMIUM_OPTIONS = [

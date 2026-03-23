@@ -2,57 +2,12 @@ import User from "../models/User.js";
 import Post from "../models/Post.js";
 import Script from "../models/Script.js";
 import Notification from "../models/Notification.js";
-import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
-import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
-
-const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
-
-const normalizeStringArray = (value, maxItems) => {
-  if (!Array.isArray(value)) return [];
-  const unique = [];
-  for (const item of value) {
-    const normalized = normalizeString(item);
-    if (!normalized) continue;
-    if (!unique.includes(normalized)) unique.push(normalized);
-    if (maxItems && unique.length >= maxItems) break;
-  }
-  return unique;
-};
-
-const sanitizeBankPayload = (bankDetails) => {
-  if (!bankDetails || typeof bankDetails !== "object") return null;
-
-  const clean = {
-    accountHolderName: normalizeString(bankDetails.accountHolderName) || "",
-    bankName: normalizeString(bankDetails.bankName) || "",
-    accountNumber: typeof bankDetails.accountNumber === "string"
-      ? bankDetails.accountNumber.replace(/\s+/g, "")
-      : "",
-    routingNumber: typeof bankDetails.routingNumber === "string"
-      ? bankDetails.routingNumber.replace(/\s+/g, "")
-      : "",
-    accountType: normalizeString(bankDetails.accountType) || "checking",
-    swiftCode: normalizeString(bankDetails.swiftCode)?.toUpperCase() || "",
-    iban: normalizeString(bankDetails.iban)?.toUpperCase() || "",
-    country: (normalizeString(bankDetails.country) || "IN").toUpperCase(),
-    currency: (normalizeString(bankDetails.currency) || "INR").toUpperCase(),
-  };
-
-  // Do not allow masked values to overwrite real account number.
-  if (clean.accountNumber.startsWith("****")) {
-    clean.accountNumber = undefined;
-  }
-
-  return clean;
-};
 
 // Multer config for profile image uploads
 const storage = multer.diskStorage({
@@ -80,19 +35,8 @@ export const getWriters = async (req, res) => {
   try {
     const { sort, genre, search } = req.query;
 
-    const currentUser = await User.findById(req.user._id).select("blockedUsers").lean();
-    const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user._id }).select("_id").lean();
-    const blockedUserIds = [
-      ...(currentUser?.blockedUsers || []),
-      ...usersWhoBlockedCurrent.map((u) => u._id),
-    ];
-
-    // Base match: include both writer and creator accounts
-    const matchStage = { role: { $in: ["writer", "creator"] } };
-
-    if (blockedUserIds.length > 0) {
-      matchStage._id = { $nin: blockedUserIds };
-    }
+    // Base match: only writers
+    const matchStage = { role: "writer" };
 
     // Name search (case-insensitive)
     if (search && search.trim()) {
@@ -212,52 +156,23 @@ export const getCurrentUser = async (req, res) => {
 
 export const getUserProfile = async (req, res) => {
   try {
-    const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
-
-    let userQuery = User.findById(req.params.id)
+    const user = await User.findById(req.params.id)
       .select("-password")
       .populate("followers", "name profileImage")
       .populate("following", "name profileImage");
 
-    if (isOwnProfile) {
-      userQuery = userQuery.populate("blockedUsers", "name profileImage role");
-    }
-
-    const user = await userQuery;
-
     if (!user) {
       return res.status(404).json({ message: "User not found" });
-    }
-
-    let blockedByCurrent = false;
-    let blockedByProfile = false;
-
-    if (!isOwnProfile) {
-      const currentUser = await User.findById(req.user._id).select("blockedUsers");
-      blockedByCurrent = currentUser?.blockedUsers?.some((uid) => uid.toString() === req.params.id.toString()) || false;
-      blockedByProfile = user?.blockedUsers?.some((uid) => uid.toString() === req.user._id.toString()) || false;
-
-      if (blockedByProfile) {
-        return res.status(403).json({
-          message: "This user has blocked you.",
-          blocked: true,
-          blockedByCurrent,
-          blockedByProfile,
-        });
-      }
     }
 
     const posts = await Post.find({ user: req.params.id })
       .populate("user", "name profileImage role")
       .sort({ createdAt: -1 });
 
+    const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
     const scriptQuery = isOwnProfile
       ? { creator: req.params.id }
-      : {
-          creator: req.params.id,
-          status: { $ne: "draft" },
-          purchaseRequestLocked: { $ne: true },
-        };
+      : { creator: req.params.id, status: { $ne: "draft" } };
 
     const scripts = await Script.find(scriptQuery)
       .populate("creator", "name profileImage role")
@@ -273,34 +188,16 @@ export const getUserProfile = async (req, res) => {
         .sort({ createdAt: -1 });
     }
 
-    let bookmarkedScripts = [];
-    if (isOwnProfile && Array.isArray(user.favoriteScripts) && user.favoriteScripts.length > 0) {
-      bookmarkedScripts = await Script.find({
-        _id: { $in: user.favoriteScripts },
-        status: "published",
-        $or: [
-          { purchaseRequestLocked: { $ne: true } },
-          { purchaseRequestLockedBy: req.user._id },
-        ],
-      })
-        .populate("creator", "name profileImage role")
-        .sort({ updatedAt: -1 });
-    }
-
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
     if (!isOwnProfile && userObj.bankDetails) {
       delete userObj.bankDetails;
-      delete userObj.pendingEmail;
     } else if (isOwnProfile && userObj.bankDetails && userObj.bankDetails.accountNumber) {
       // Sanitize account number even for own profile (for security)
       userObj.bankDetails.accountNumber = '****' + userObj.bankDetails.accountNumber.slice(-4);
     }
 
-    userObj.blockedByCurrent = blockedByCurrent;
-    userObj.blockedByProfile = blockedByProfile;
-
-    res.json({ user: userObj, posts, scripts, purchasedScripts, bookmarkedScripts });
+    res.json({ user: userObj, posts, scripts, purchasedScripts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -309,13 +206,15 @@ export const getUserProfile = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const {
-      name, bio, skills, profileImage, writerProfile,
+      name, bio, skills, profileImage, coverImage, writerProfile,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
+      // Reader preferences (genres + contentTypes)
+      preferences,
       // onboarding completion
       onboardingComplete,
       // investor profile fields
-      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange,
+      company, linkedInUrl, investmentRange,
       // bank details
       bankDetails,
       // notification preferences
@@ -327,12 +226,11 @@ export const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.name = normalizeString(name) || user.name;
-    user.bio = bio !== undefined ? normalizeString(bio) : user.bio;
-    if (skills !== undefined) {
-      user.skills = normalizeStringArray(skills, 25);
-    }
-    user.profileImage = normalizeString(profileImage) || user.profileImage;
+    user.name = name || user.name;
+    user.bio = bio !== undefined ? bio : user.bio;
+    user.skills = skills || user.skills;
+    user.profileImage = profileImage || user.profileImage;
+    if (coverImage !== undefined) user.coverImage = coverImage;
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
@@ -344,6 +242,14 @@ export const updateUserProfile = async (req, res) => {
       if (!user.industryProfile.mandates) user.industryProfile.mandates = {};
       user.industryProfile.mandates.genres = preferredGenres;
       user.markModified("industryProfile");
+    }
+
+    // Reader / generic preferences (genres + contentTypes)
+    if (preferences !== undefined) {
+      if (!user.preferences) user.preferences = {};
+      if (preferences.genres !== undefined) user.preferences.genres = preferences.genres;
+      if (preferences.contentTypes !== undefined) user.preferences.contentTypes = preferences.contentTypes;
+      user.markModified("preferences");
     }
     if (preferredBudgets !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
@@ -361,16 +267,10 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined) {
+    if (company !== undefined || linkedInUrl !== undefined || investmentRange !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
-      if (subRole !== undefined) user.industryProfile.subRole = normalizeString(subRole);
-      if (company !== undefined) user.industryProfile.company = normalizeString(company);
-      if (jobTitle !== undefined) user.industryProfile.jobTitle = normalizeString(jobTitle);
-      if (imdbUrl !== undefined) user.industryProfile.imdbUrl = normalizeString(imdbUrl);
-      if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = normalizeString(linkedInUrl);
-      if (otherUrl !== undefined) user.industryProfile.otherUrl = normalizeString(otherUrl);
-      if (previousCredits !== undefined) user.industryProfile.previousCredits = normalizeString(previousCredits);
-      if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
+      if (company !== undefined) user.industryProfile.company = company;
+      if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = linkedInUrl;
       user.markModified("industryProfile");
     }
 
@@ -391,78 +291,61 @@ export const updateUserProfile = async (req, res) => {
     if (writerProfile) {
       if (!user.writerProfile) user.writerProfile = {};
       if (writerProfile.representationStatus !== undefined) {
-        const representationStatus = normalizeString(writerProfile.representationStatus);
-        if (!WRITER_REPRESENTATION_STATUSES.includes(representationStatus)) {
-          return res.status(400).json({ message: "Invalid representation status" });
-        }
-        user.writerProfile.representationStatus = representationStatus;
+        user.writerProfile.representationStatus = writerProfile.representationStatus;
       }
       if (writerProfile.agencyName !== undefined) {
-        user.writerProfile.agencyName = normalizeString(writerProfile.agencyName) || "";
+        user.writerProfile.agencyName = writerProfile.agencyName;
       }
       if (writerProfile.wgaMember !== undefined) {
         user.writerProfile.wgaMember = writerProfile.wgaMember;
       }
       if (writerProfile.genres !== undefined) {
-        user.writerProfile.genres = normalizeStringArray(writerProfile.genres, 12);
+        user.writerProfile.genres = writerProfile.genres;
       }
       if (writerProfile.specializedTags !== undefined) {
-        user.writerProfile.specializedTags = normalizeStringArray(writerProfile.specializedTags, 5);
+        user.writerProfile.specializedTags = writerProfile.specializedTags;
       }
       if (writerProfile.diversity !== undefined) {
         if (!user.writerProfile.diversity) user.writerProfile.diversity = {};
         if (writerProfile.diversity.gender !== undefined) {
-          user.writerProfile.diversity.gender = normalizeString(writerProfile.diversity.gender);
+          user.writerProfile.diversity.gender = writerProfile.diversity.gender;
         }
         if (writerProfile.diversity.ethnicity !== undefined) {
-          user.writerProfile.diversity.ethnicity = normalizeString(writerProfile.diversity.ethnicity);
+          user.writerProfile.diversity.ethnicity = writerProfile.diversity.ethnicity;
         }
       }
-
-      const currentStatus = user.writerProfile.representationStatus || "unrepresented";
-      if (["agent", "manager", "manager_and_agent"].includes(currentStatus) && !user.writerProfile.agencyName) {
-        return res.status(400).json({ message: "Agency name is required for represented writers" });
-      }
-
-      user.markModified("writerProfile");
     }
 
     // Bank details
     if (bankDetails) {
-      const sanitizedBankDetails = sanitizeBankPayload(bankDetails);
       if (!user.bankDetails) user.bankDetails = {};
-      if (sanitizedBankDetails.accountHolderName !== undefined) {
-        user.bankDetails.accountHolderName = sanitizedBankDetails.accountHolderName;
+      if (bankDetails.accountHolderName !== undefined) {
+        user.bankDetails.accountHolderName = bankDetails.accountHolderName;
       }
-      if (sanitizedBankDetails.bankName !== undefined) {
-        user.bankDetails.bankName = sanitizedBankDetails.bankName;
+      if (bankDetails.bankName !== undefined) {
+        user.bankDetails.bankName = bankDetails.bankName;
       }
-      if (sanitizedBankDetails.accountNumber !== undefined) {
-        user.bankDetails.accountNumber = sanitizedBankDetails.accountNumber;
+      if (bankDetails.accountNumber !== undefined) {
+        user.bankDetails.accountNumber = bankDetails.accountNumber;
       }
-      if (sanitizedBankDetails.routingNumber !== undefined) {
-        user.bankDetails.routingNumber = sanitizedBankDetails.routingNumber;
+      if (bankDetails.routingNumber !== undefined) {
+        user.bankDetails.routingNumber = bankDetails.routingNumber;
       }
-      if (sanitizedBankDetails.accountType !== undefined) {
-        user.bankDetails.accountType = sanitizedBankDetails.accountType;
+      if (bankDetails.accountType !== undefined) {
+        user.bankDetails.accountType = bankDetails.accountType;
       }
-      if (sanitizedBankDetails.swiftCode !== undefined) {
-        user.bankDetails.swiftCode = sanitizedBankDetails.swiftCode;
+      if (bankDetails.swiftCode !== undefined) {
+        user.bankDetails.swiftCode = bankDetails.swiftCode;
       }
-      if (sanitizedBankDetails.iban !== undefined) {
-        user.bankDetails.iban = sanitizedBankDetails.iban;
+      if (bankDetails.iban !== undefined) {
+        user.bankDetails.iban = bankDetails.iban;
       }
-      if (sanitizedBankDetails.country !== undefined) {
-        user.bankDetails.country = sanitizedBankDetails.country;
+      if (bankDetails.country !== undefined) {
+        user.bankDetails.country = bankDetails.country;
       }
-      if (sanitizedBankDetails.currency !== undefined) {
-        user.bankDetails.currency = sanitizedBankDetails.currency;
+      if (bankDetails.currency !== undefined) {
+        user.bankDetails.currency = bankDetails.currency;
       }
-
-      if (user.bankDetails.country === "IN" && user.bankDetails.currency !== "INR") {
-        user.bankDetails.currency = "INR";
-      }
-
       // Set addedAt if this is the first time adding bank details
       if (!user.bankDetails.addedAt) {
         user.bankDetails.addedAt = new Date();
@@ -500,6 +383,7 @@ export const updateUserProfile = async (req, res) => {
       bio: user.bio,
       skills: user.skills,
       profileImage: user.profileImage,
+      coverImage: user.coverImage,
       writerProfile: user.writerProfile,
       industryProfile: user.industryProfile,
       preferences: user.preferences,
@@ -518,21 +402,6 @@ export const followUser = async (req, res) => {
 
     if (!userToFollow) {
       return res.status(404).json({ message: "User not found" });
-    }
-
-    if (req.body.userId === req.user._id.toString()) {
-      return res.status(400).json({ message: "You cannot follow yourself" });
-    }
-
-    const currentBlockedTarget = currentUser.blockedUsers?.some(
-      (id) => id.toString() === req.body.userId
-    );
-    const targetBlockedCurrent = userToFollow.blockedUsers?.some(
-      (id) => id.toString() === req.user._id.toString()
-    );
-
-    if (currentBlockedTarget || targetBlockedCurrent) {
-      return res.status(403).json({ message: "Follow action is not allowed for blocked users" });
     }
 
     if (currentUser.following.includes(req.body.userId)) {
@@ -602,75 +471,6 @@ export const unfollowUser = async (req, res) => {
     res.json({ message: "User unfollowed successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
-  }
-};
-
-export const blockUser = async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ message: "userId is required" });
-    }
-
-    if (userId === req.user._id.toString()) {
-      return res.status(400).json({ message: "You cannot block yourself" });
-    }
-
-    const userToBlock = await User.findById(userId);
-    const currentUser = await User.findById(req.user._id);
-
-    if (!userToBlock) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const alreadyBlocked = currentUser.blockedUsers?.some((id) => id.toString() === userId);
-    if (!alreadyBlocked) {
-      currentUser.blockedUsers.push(userId);
-    }
-
-    // Remove follow relationship in both directions on block.
-    currentUser.following = (currentUser.following || []).filter((id) => id.toString() !== userId);
-    currentUser.followers = (currentUser.followers || []).filter((id) => id.toString() !== userId);
-    userToBlock.following = (userToBlock.following || []).filter((id) => id.toString() !== req.user._id.toString());
-    userToBlock.followers = (userToBlock.followers || []).filter((id) => id.toString() !== req.user._id.toString());
-
-    await currentUser.save();
-    await userToBlock.save();
-
-    return res.json({ message: "User blocked successfully" });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-};
-
-export const unblockUser = async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ message: "userId is required" });
-    }
-
-    const currentUser = await User.findById(req.user._id);
-    currentUser.blockedUsers = (currentUser.blockedUsers || []).filter((id) => id.toString() !== userId);
-    await currentUser.save();
-
-    return res.json({ message: "User unblocked successfully" });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-};
-
-export const getBlockedUsers = async (req, res) => {
-  try {
-    const currentUser = await User.findById(req.user._id)
-      .select("blockedUsers")
-      .populate("blockedUsers", "name profileImage role");
-
-    return res.json(currentUser?.blockedUsers || []);
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -810,114 +610,13 @@ export const changeEmail = async (req, res) => {
     const isMatch = await user.matchPassword(password);
     if (!isMatch) return res.status(401).json({ message: "Password is incorrect" });
 
-    const normalizedEmail = newEmail.trim().toLowerCase();
-
-    if (normalizedEmail === user.email) {
-      return res.status(400).json({ message: "New email must be different from current email" });
-    }
-
-    const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+    const existing = await User.findOne({ email: newEmail });
     if (existing) return res.status(409).json({ message: "Email is already in use" });
 
-    const existingPending = await User.findOne({ pendingEmail: normalizedEmail, _id: { $ne: user._id } });
-    if (existingPending) return res.status(409).json({ message: "Email is already pending verification for another user" });
-
-    const otp = generateOTP();
-
-    const emailResult = await sendOTPEmail(normalizedEmail, user.name, otp);
-    if (!emailResult.success) {
-      return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
-    }
-
-    // Internal copy for compliance/audit visibility. Do not block user flow if this fails.
-    await sendEmailChangeOTPToCompany({
-      userName: user.name,
-      currentEmail: user.email,
-      newEmail: normalizedEmail,
-      otp,
-      trigger: "changeEmail",
-    });
-
-    // Keep current email active until OTP verification succeeds.
-    user.pendingEmail = normalizedEmail;
-    user.emailVerificationToken = otp;
-    user.emailVerificationExpires = generateOTPExpiry();
+    user.email = newEmail;
+    user.emailVerified = false;
     await user.save();
-    res.json({
-      message: "Verification code sent to new email. Current email remains active until verification.",
-      email: user.email,
-      pendingEmail: user.pendingEmail,
-      requiresVerification: true,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const sendEmailVerificationCode = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const targetEmail = user.pendingEmail || user.email;
-    if (!user.pendingEmail && user.emailVerified) {
-      return res.status(400).json({ message: "Email already verified" });
-    }
-
-    const otp = generateOTP();
-    user.emailVerificationToken = otp;
-    user.emailVerificationExpires = generateOTPExpiry();
-    await user.save();
-
-    const emailResult = await sendOTPEmail(targetEmail, user.name, otp);
-    if (!emailResult.success) {
-      return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
-    }
-
-    // If user is verifying a pending email change, send a company copy as well.
-    if (user.pendingEmail) {
-      await sendEmailChangeOTPToCompany({
-        userName: user.name,
-        currentEmail: user.email,
-        newEmail: user.pendingEmail,
-        otp,
-        trigger: "resendEmailVerificationCode",
-      });
-    }
-
-    res.json({ message: `Verification code sent to ${targetEmail}` });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const verifyEmailVerificationCode = async (req, res) => {
-  try {
-    const { otp } = req.body;
-    if (!otp) return res.status(400).json({ message: "Verification code is required" });
-
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (!user.emailVerificationToken) return res.status(400).json({ message: "No verification code found. Please resend code." });
-    if (isOTPExpired(user.emailVerificationExpires)) return res.status(400).json({ message: "Verification code expired. Please resend code." });
-    if (String(user.emailVerificationToken) !== String(otp).trim()) return res.status(400).json({ message: "Invalid verification code" });
-
-    if (user.pendingEmail) {
-      const emailOwner = await User.findOne({ email: user.pendingEmail, _id: { $ne: user._id } });
-      if (emailOwner) {
-        return res.status(409).json({ message: "Pending email is already used by another account" });
-      }
-
-      user.email = user.pendingEmail;
-      user.pendingEmail = undefined;
-    }
-
-    user.emailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
-    await user.save();
-
-    res.json({ message: "Email verified successfully", emailVerified: true, email: user.email });
+    res.json({ message: "Email changed successfully", email: user.email });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

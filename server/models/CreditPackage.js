@@ -15,7 +15,7 @@ const creditPackageSchema = new mongoose.Schema({
   },
   currency: {
     type: String,
-    default: "INR"
+    default: "USD"
   },
   discount: {
     type: Number,

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
-import BuyCreditsModal from "../components/BuyCreditsModal";
 import api from "../services/api";
 
 const MainLayout = ({ children }) => {
@@ -15,18 +14,7 @@ const MainLayout = ({ children }) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [pendingPurchaseCount, setPendingPurchaseCount] = useState(0);
-  const [latestPendingPurchaseAt, setLatestPendingPurchaseAt] = useState("");
-  const [showPurchasePopup, setShowPurchasePopup] = useState(false);
-  const [showInvestorApprovalPopup, setShowInvestorApprovalPopup] = useState(false);
-  const [latestApprovedPurchaseNotification, setLatestApprovedPurchaseNotification] = useState(null);
-  const [showInvestorRejectedPopup, setShowInvestorRejectedPopup] = useState(false);
-  const [latestRejectedPurchaseNotification, setLatestRejectedPurchaseNotification] = useState(null);
   const [notifLoading, setNotifLoading] = useState(false);
-  const [showBuyCredits, setShowBuyCredits] = useState(false);
-  const [creditsBalance, setCreditsBalance] = useState(0);
-  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -47,133 +35,14 @@ const MainLayout = ({ children }) => {
     } catch { }
   }, []);
 
-  const fetchUnreadMessageCount = useCallback(async () => {
-    if (!user) {
-      setUnreadMessageCount(0);
-      return;
-    }
-    try {
-      const { data } = await api.get("/messages/unread-count");
-      setUnreadMessageCount(data.count || 0);
-    } catch {
-      setUnreadMessageCount(0);
-    }
-  }, [user]);
-
-  const fetchPendingPurchaseCount = useCallback(async () => {
-    const isWriter = ["writer", "creator"].includes(user?.role);
-    if (!isWriter) {
-      setPendingPurchaseCount(0);
-      setLatestPendingPurchaseAt("");
-      return;
-    }
-
-    try {
-      const { data } = await api.get("/scripts/purchase-requests/mine");
-      const pendingRequests = Array.isArray(data) ? data.filter((r) => r.status === "pending") : [];
-      const pending = pendingRequests.length;
-      const latestAt = pendingRequests.reduce((latest, request) => {
-        const createdAt = request?.createdAt || "";
-        if (!createdAt) return latest;
-        return !latest || new Date(createdAt) > new Date(latest) ? createdAt : latest;
-      }, "");
-
-      setPendingPurchaseCount(pending);
-      setLatestPendingPurchaseAt(latestAt);
-    } catch {
-      setPendingPurchaseCount(0);
-      setLatestPendingPurchaseAt("");
-    }
-  }, [user?.role]);
-
-  const fetchInvestorPurchaseOutcomePopups = useCallback(async () => {
-    const isInvestor = ["investor", "producer", "director", "industry", "professional"].includes(user?.role);
-    if (!isInvestor || !user?._id) {
-      setLatestApprovedPurchaseNotification(null);
-      setShowInvestorApprovalPopup(false);
-      setLatestRejectedPurchaseNotification(null);
-      setShowInvestorRejectedPopup(false);
-      return;
-    }
-
-    try {
-      const { data } = await api.get("/notifications");
-      const unreadNotifications = Array.isArray(data) ? data.filter((n) => !n?.read) : [];
-      const approvedNotifications = unreadNotifications.filter((n) => n?.type === "purchase_approved");
-      const rejectedNotifications = unreadNotifications.filter((n) => n?.type === "purchase_rejected");
-
-      if (approvedNotifications.length === 0) {
-        setLatestApprovedPurchaseNotification(null);
-        setShowInvestorApprovalPopup(false);
-      } else {
-        const latest = approvedNotifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        setLatestApprovedPurchaseNotification(latest);
-
-        const popupKey = `investor_purchase_approved_seen_${user._id}`;
-        const seenLatest = sessionStorage.getItem(popupKey) || "";
-        if (!seenLatest || new Date(latest.createdAt) > new Date(seenLatest)) {
-          setShowInvestorApprovalPopup(true);
-        }
-      }
-
-      if (rejectedNotifications.length === 0) {
-        setLatestRejectedPurchaseNotification(null);
-        setShowInvestorRejectedPopup(false);
-      } else {
-        const latestRejected = rejectedNotifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        setLatestRejectedPurchaseNotification(latestRejected);
-
-        const popupKeyRejected = `investor_purchase_rejected_seen_${user._id}`;
-        const seenRejectedLatest = sessionStorage.getItem(popupKeyRejected) || "";
-        if (!seenRejectedLatest || new Date(latestRejected.createdAt) > new Date(seenRejectedLatest)) {
-          setShowInvestorRejectedPopup(true);
-        }
-      }
-    } catch {
-      setLatestApprovedPurchaseNotification(null);
-      setShowInvestorApprovalPopup(false);
-      setLatestRejectedPurchaseNotification(null);
-      setShowInvestorRejectedPopup(false);
-    }
-  }, [user?._id, user?.role]);
-
   useEffect(() => {
     if (!user) return undefined;
 
     fetchUnreadCount();
-    fetchUnreadMessageCount();
-    fetchPendingPurchaseCount();
-    // Only fetch credits balance for non-investors
-    if (user.role !== "investor") {
-      fetchCreditsBalance();
-    }
 
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-      fetchUnreadMessageCount();
-      fetchPendingPurchaseCount();
-      fetchInvestorPurchaseOutcomePopups();
-    }, 60000);
+    const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
-  }, [fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user]);
-
-  useEffect(() => {
-    const isWriter = ["writer", "creator"].includes(user?.role);
-    if (!isWriter || !user?._id || pendingPurchaseCount <= 0 || !latestPendingPurchaseAt) {
-      setShowPurchasePopup(false);
-      return;
-    }
-
-    const popupKey = `purchase_popup_seen_latest_${user._id}`;
-    const seenLatest = sessionStorage.getItem(popupKey) || "";
-    if (!seenLatest || new Date(latestPendingPurchaseAt) > new Date(seenLatest)) {
-      setShowPurchasePopup(true);
-    }
-  }, [latestPendingPurchaseAt, pendingPurchaseCount, user?._id, user?.role]);
-
-  useEffect(() => {
-    fetchInvestorPurchaseOutcomePopups();
-  }, [fetchInvestorPurchaseOutcomePopups]);
+  }, [fetchUnreadCount, user]);
 
   const fetchNotifications = async () => {
     setNotifLoading(true);
@@ -182,19 +51,6 @@ const MainLayout = ({ children }) => {
       setNotifications(data);
     } catch { setNotifications([]); }
     finally { setNotifLoading(false); }
-  };
-
-  const fetchCreditsBalance = async () => {
-    try {
-      const { data } = await api.get("/credits/balance");
-      setCreditsBalance(data.balance || 0);
-    } catch {
-      setCreditsBalance(0);
-    }
-  };
-
-  const handleCreditsUpdate = (data) => {
-    setCreditsBalance(data.credits.balance);
   };
 
   const handleNotifToggle = () => {
@@ -253,21 +109,8 @@ const MainLayout = ({ children }) => {
     return icons[type] || icons.like;
   };
 
-  const getNotifColor = (type) => {
-    const map = {
-      like:          isDarkMode ? "text-rose-400 bg-rose-500/10"       : "text-rose-500 bg-rose-50",
-      comment:       isDarkMode ? "text-blue-400 bg-blue-500/10"        : "text-blue-600 bg-blue-50",
-      follow:        isDarkMode ? "text-violet-400 bg-violet-500/10"   : "text-violet-600 bg-violet-50",
-      unlock:        isDarkMode ? "text-emerald-400 bg-emerald-500/10" : "text-emerald-600 bg-emerald-50",
-      hold:          isDarkMode ? "text-amber-400 bg-amber-500/10"     : "text-amber-600 bg-amber-50",
-      hold_expiring: isDarkMode ? "text-orange-400 bg-orange-500/10"   : "text-orange-600 bg-orange-50",
-      script_score:  isDarkMode ? "text-yellow-400 bg-yellow-500/10"   : "text-yellow-600 bg-yellow-50",
-      trailer_ready: isDarkMode ? "text-indigo-400 bg-indigo-500/10"   : "text-indigo-600 bg-indigo-50",
-      audition:      isDarkMode ? "text-teal-400 bg-teal-500/10"       : "text-teal-600 bg-teal-50",
-      smart_match:   isDarkMode ? "text-purple-400 bg-purple-500/10"   : "text-purple-600 bg-purple-50",
-      profile_view:  isDarkMode ? "text-blue-400 bg-blue-500/10"       : "text-blue-600 bg-blue-50",
-    };
-    return map[type] || (isDarkMode ? "text-[#8896a7] bg-white/5" : "text-gray-500 bg-gray-100");
+  const getNotifColor = () => {
+    return "text-[#1e3a5f] bg-[#1e3a5f]/[0.06]";
   };
 
   const timeAgo = (date) => {
@@ -287,288 +130,26 @@ const MainLayout = ({ children }) => {
     if (searchQuery.trim()) navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
-  const dismissPurchasePopup = () => {
-    if (user?._id) {
-      const popupKey = `purchase_popup_seen_latest_${user._id}`;
-      if (latestPendingPurchaseAt) {
-        sessionStorage.setItem(popupKey, latestPendingPurchaseAt);
-      }
-    }
-    setShowPurchasePopup(false);
-  };
-
-  const dismissInvestorApprovalPopup = () => {
-    if (user?._id && latestApprovedPurchaseNotification?.createdAt) {
-      const popupKey = `investor_purchase_approved_seen_${user._id}`;
-      sessionStorage.setItem(popupKey, latestApprovedPurchaseNotification.createdAt);
-    }
-    setShowInvestorApprovalPopup(false);
-  };
-
-  const handleOpenApprovedScript = async () => {
-    const notificationId = latestApprovedPurchaseNotification?._id;
-    const scriptId = latestApprovedPurchaseNotification?.script?._id;
-
-    if (notificationId) {
-      try {
-        await api.put(`/notifications/${notificationId}/read`);
-        setNotifications((prev) => prev.map((n) => n._id === notificationId ? { ...n, read: true } : n));
-        setUnreadCount((c) => Math.max(0, c - 1));
-      } catch {
-        // non-blocking
-      }
-    }
-
-    dismissInvestorApprovalPopup();
-    if (scriptId) {
-      navigate(`/script/${scriptId}`);
-    } else {
-      navigate("/purchase-requests");
-    }
-  };
-
-  const dismissInvestorRejectedPopup = () => {
-    if (user?._id && latestRejectedPurchaseNotification?.createdAt) {
-      const popupKey = `investor_purchase_rejected_seen_${user._id}`;
-      sessionStorage.setItem(popupKey, latestRejectedPurchaseNotification.createdAt);
-    }
-    setShowInvestorRejectedPopup(false);
-  };
-
-  const handleOpenPurchaseRequestsFromRejected = async () => {
-    const notificationId = latestRejectedPurchaseNotification?._id;
-    if (notificationId) {
-      try {
-        await api.put(`/notifications/${notificationId}/read`);
-        setNotifications((prev) => prev.map((n) => n._id === notificationId ? { ...n, read: true } : n));
-        setUnreadCount((c) => Math.max(0, c - 1));
-      } catch {
-        // non-blocking
-      }
-    }
-
-    dismissInvestorRejectedPopup();
-    navigate("/purchase-requests");
-  };
-
-  const handleGoToPurchaseRequests = () => {
-    dismissPurchasePopup();
-    navigate("/purchase-requests");
-  };
-
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
 
-  const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
-  const rawProfileImage = user?.profileImage || user?.profilePicture || "";
-  const normalizedProfileImagePath = typeof rawProfileImage === "string"
-    ? rawProfileImage.trim().replace(/\\/g, "/")
-    : "";
-  const resolvedProfileImage = normalizedProfileImagePath
-    ? (normalizedProfileImagePath.startsWith("http")
-      ? normalizedProfileImagePath
-      : `${apiBaseUrl}${normalizedProfileImagePath.startsWith("/") ? "" : "/"}${normalizedProfileImagePath}`)
-    : "";
-
-  useEffect(() => {
-    setAvatarLoadError(false);
-  }, [resolvedProfileImage]);
-
   return (
-    <>
-      <BuyCreditsModal 
-        isOpen={showBuyCredits} 
-        onClose={() => setShowBuyCredits(false)}
-        onSuccess={handleCreditsUpdate}
-      />
-
-      {showPurchasePopup && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,380px)] animate-scaleIn">
-          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
-            isDarkMode
-              ? "bg-[#0f1d2d]/95 border-[#27415f] text-white shadow-black/40"
-              : "bg-white/95 border-[#d5e2ef] text-gray-900 shadow-slate-200/80"
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isDarkMode ? "bg-sky-500/15 text-sky-300" : "bg-sky-50 text-sky-600"
-                }`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    New Purchase Request{pendingPurchaseCount > 1 ? "s" : ""}
-                  </p>
-                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-[#9db2c9]" : "text-gray-600"}`}>
-                    You have <span className="font-semibold">{pendingPurchaseCount}</span> pending request{pendingPurchaseCount > 1 ? "s" : ""} waiting for your decision.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={dismissPurchasePopup}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                  isDarkMode ? "text-[#8ca5be] hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                }`}
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={dismissPurchasePopup}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  isDarkMode ? "text-[#9db2c9] hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Later
-              </button>
-              <button
-                onClick={handleGoToPurchaseRequests}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#1e3a5f] text-white hover:bg-[#2a4b77] transition-colors"
-              >
-                Review now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showInvestorApprovalPopup && latestApprovedPurchaseNotification && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,420px)] animate-scaleIn">
-          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
-            isDarkMode
-              ? "bg-[#102417]/95 border-emerald-600/30 text-white shadow-black/40"
-              : "bg-white/95 border-emerald-200 text-gray-900 shadow-slate-200/80"
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isDarkMode ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600"
-                }`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    Purchase Approved
-                  </p>
-                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-emerald-100/80" : "text-gray-600"}`}>
-                    {latestApprovedPurchaseNotification.message || "Your purchase request was approved. You now have full script access."}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={dismissInvestorApprovalPopup}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                  isDarkMode ? "text-emerald-200/80 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                }`}
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={dismissInvestorApprovalPopup}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  isDarkMode ? "text-emerald-100/80 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Later
-              </button>
-              <button
-                onClick={handleOpenApprovedScript}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-              >
-                Open script
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showInvestorRejectedPopup && latestRejectedPurchaseNotification && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,420px)] animate-scaleIn">
-          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
-            isDarkMode
-              ? "bg-[#2a1313]/95 border-rose-600/30 text-white shadow-black/40"
-              : "bg-white/95 border-rose-200 text-gray-900 shadow-slate-200/80"
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isDarkMode ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-600"
-                }`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    Purchase Request Declined
-                  </p>
-                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-rose-100/80" : "text-gray-600"}`}>
-                    {latestRejectedPurchaseNotification.message || "Your purchase request was declined. Your payment has been refunded."}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={dismissInvestorRejectedPopup}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                  isDarkMode ? "text-rose-200/80 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                }`}
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={dismissInvestorRejectedPopup}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  isDarkMode ? "text-rose-100/80 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Later
-              </button>
-              <button
-                onClick={handleOpenPurchaseRequestsFromRejected}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors"
-              >
-                View details
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <div className={`min-h-screen ${isDarkMode ? "bg-[#080e18]" : "bg-[#eef0f3]"}`}>
-      <Sidebar purchaseRequestCount={pendingPurchaseCount} unreadMessageCount={unreadMessageCount} />
+    <div className={`min-h-screen ${isDarkMode ? "bg-[#060d18]" : "bg-[#eef0f3]"}`}>
+      <Sidebar />
 
       {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
-        isDarkMode ? "bg-[#080e18]/95 border-[#151f2e] backdrop-blur-xl" : "glass-strong border-gray-200/60"
+      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[280px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
+        isDarkMode ? "bg-[#0b1426]/95 border-[#1a3050] backdrop-blur-xl" : "glass-strong border-gray-200/60"
       }`}>
         {/* Search */}
         <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-lg">
           <div className={`group flex items-center w-full rounded-xl overflow-hidden transition-all duration-300 ${
             isDarkMode
-              ? "border border-[#1c2a3a] bg-[#0d1520] hover:border-[#2a3a4e] focus-within:border-[#2a3a4e] focus-within:ring-2 focus-within:ring-white/5"
+              ? "border border-[#1a3050] bg-[#0e1c2e] hover:border-[#24466e] focus-within:border-[#2d5a8e]/60 focus-within:ring-2 focus-within:ring-[#1e3a5f]/20"
               : "bg-gray-100/80 hover:bg-gray-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a5f]/10 focus-within:shadow-md"
           }`}>
-            <div className={`pl-4 transition-colors ${isDarkMode ? "text-[#4a5a6e] group-focus-within:text-[#8896a7]" : "text-gray-400 group-focus-within:text-[#1e3a5f]"}`}>
+            <div className={`pl-4 transition-colors ${isDarkMode ? "text-gray-500 group-focus-within:text-[#1e3a5f]" : "text-gray-400 group-focus-within:text-[#1e3a5f]"}`}>
               <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -579,12 +160,12 @@ const MainLayout = ({ children }) => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`flex-1 px-3 py-2.5 text-[14px] font-medium outline-none bg-transparent ${
-                isDarkMode ? "text-white placeholder-[#3a4a5e]" : "text-gray-800 placeholder-gray-400"
+                isDarkMode ? "text-gray-200 placeholder-gray-500" : "text-gray-800 placeholder-gray-400"
               }`}
             />
             {searchQuery && (
               <button type="button" onClick={() => setSearchQuery("")}
-                className={`pr-3 transition-colors ${isDarkMode ? "text-[#3a4a5e] hover:text-[#8896a7]" : "text-gray-300 hover:text-gray-500"}`}>
+                className={`pr-3 transition-colors ${isDarkMode ? "text-gray-400 hover:text-gray-600" : "text-gray-300 hover:text-gray-500"}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -598,7 +179,7 @@ const MainLayout = ({ children }) => {
           <button
             onClick={toggleDarkMode}
             className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
-              isDarkMode ? "text-amber-300 hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
+              isDarkMode ? "text-amber-300 hover:bg-[#1a3050] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
             }`}
             aria-label="Toggle dark mode"
             title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
@@ -618,7 +199,7 @@ const MainLayout = ({ children }) => {
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
               className={`relative w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
-                isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
+                isDarkMode ? "text-gray-400 hover:text-blue-400 hover:bg-[#1a3050] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
               }`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -632,41 +213,27 @@ const MainLayout = ({ children }) => {
 
             {/* Notification Panel */}
             {notifOpen && (
-              <div className={`absolute right-0 mt-2 w-[360px] max-h-[500px] rounded-xl z-50 flex flex-col overflow-hidden animate-scaleIn ${
-                isDarkMode
-                  ? "bg-[#0b1622] border border-[#1a2a3a] shadow-2xl shadow-black/40"
-                  : "bg-white border border-gray-200 shadow-xl shadow-gray-200/60"
+              <div className={`absolute right-0 mt-2 w-[380px] max-h-[520px] rounded-2xl z-50 flex flex-col overflow-hidden animate-scaleIn ${
+                isDarkMode ? "bg-[#0f1d35] border border-[#1a3050] shadow-2xl" : "bg-white border border-gray-200/80 shadow-xl shadow-gray-200/50"
               }`}>
                 {/* Header */}
-                <div className={`flex items-center justify-between px-4 py-3 border-b ${
-                  isDarkMode ? "border-[#1a2a3a]" : "border-gray-100"
-                }`}>
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}>
+                  <h3 className={`text-base font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Notifications</h3>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[13px] font-bold tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                      Notifications
-                    </span>
-                    {unreadCount > 0 && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        isDarkMode ? "bg-white/8 text-[#8896a7]" : "bg-gray-100 text-gray-500"
-                      }`}>{unreadCount}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
                     {unreadCount > 0 && (
                       <button onClick={handleMarkAllRead}
-                        className={`text-[11px] font-semibold transition-colors ${
-                          isDarkMode ? "text-[#4a6a8a] hover:text-white" : "text-gray-400 hover:text-gray-700"
-                        }`}>
+                        className="text-xs font-semibold text-[#1e3a5f] hover:text-[#162d4a] transition-colors">
                         Mark all read
                       </button>
                     )}
                     {notifications.length > 0 && (
-                      <button onClick={handleClearAll}
-                        className={`text-[11px] font-semibold transition-colors ${
-                          isDarkMode ? "text-[#4a6a8a] hover:text-red-400" : "text-gray-400 hover:text-red-500"
-                        }`}>
-                        Clear all
-                      </button>
+                      <>
+                        <span className="text-gray-300">|</span>
+                        <button onClick={handleClearAll}
+                          className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+                          Clear all
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -675,89 +242,72 @@ const MainLayout = ({ children }) => {
                 <div className="flex-1 overflow-y-auto">
                   {notifLoading ? (
                     <div className="flex justify-center items-center py-12">
-                      <div className={`w-5 h-5 border-2 rounded-full animate-spin ${
-                        isDarkMode ? "border-[#1a2a3a] border-t-[#8896a7]" : "border-gray-200 border-t-gray-400"
-                      }`} />
+                      <div className="w-6 h-6 border-2 border-gray-200 border-t-[#1e3a5f] rounded-full animate-spin"></div>
                     </div>
                   ) : notifications.length > 0 ? (
-                    notifications.map((n) => (
-                      <div key={n._id}
-                        className={`relative flex items-start gap-3 px-4 py-3 transition-colors group ${
-                          isDarkMode
-                            ? `hover:bg-white/[0.03] ${!n.read ? "bg-white/[0.025]" : ""}`
-                            : `hover:bg-gray-50 ${!n.read ? "bg-gray-50/60" : ""}`
-                        }`}>
-                        {/* Unread left strip */}
-                        {!n.read && (
-                          <div className={`absolute left-0 top-3 bottom-3 w-0.5 rounded-full ${
-                            isDarkMode ? "bg-white/20" : "bg-gray-300"
-                          }`} />
-                        )}
-
-                        {/* Icon */}
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${getNotifColor(n.type)}`}>
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d={getNotifIcon(n.type)} />
-                          </svg>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 pr-1">
-                          <p className={`text-[12.5px] leading-[1.45] ${
-                            isDarkMode ? "text-[#b0c0d0]" : "text-gray-600"
+                    <div>
+                      {notifications.map((n) => (
+                        <div key={n._id}
+                          className={`flex items-start gap-3 px-4 py-3 border-b transition-colors group ${
+                            isDarkMode
+                              ? `border-[#182840] hover:bg-white/[0.03] ${!n.read ? "bg-[#1e3a5f]/[0.06]" : ""}`
+                              : `border-gray-50 hover:bg-gray-50/50 ${!n.read ? "bg-[#1e3a5f]/[0.02]" : ""}`
                           }`}>
-                            {n.from?.name && (
-                              <span className={`font-semibold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                                {n.from.name}{" "}
-                              </span>
-                            )}
-                            {n.message}
-                            {n.script?.title && (
-                              <span className={`font-semibold ${isDarkMode ? "text-[#b0c0d0]" : "text-gray-700"}`}>
-                                {" "}"{n.script.title}"
-                              </span>
-                            )}
-                          </p>
-                          <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-[#3d5470]" : "text-gray-400"}`}>
-                            {timeAgo(n.createdAt)}
-                          </p>
-                        </div>
+                          {/* Icon */}
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${getNotifColor(n.type)}`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d={getNotifIcon(n.type)} />
+                            </svg>
+                          </div>
 
-                        {/* Actions (hover) */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          {!n.read && (
-                            <button onClick={() => handleMarkOneRead(n._id)} title="Mark as read"
-                              className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${
-                                isDarkMode ? "text-[#3d5470] hover:text-white hover:bg-white/8" : "text-gray-300 hover:text-gray-700 hover:bg-gray-100"
-                              }`}>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm leading-snug ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                              {n.from?.name && (
+                                <span className={`font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{n.from.name} </span>
+                              )}
+                              <span>{n.message}</span>
+                              {n.script?.title && (
+                                <span className="font-semibold text-[#1e3a5f]"> {n.script.title}</span>
+                              )}
+                            </p>
+                            <p className={`text-xs font-medium mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(n.createdAt)}</p>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+                            {!n.read && (
+                              <button onClick={() => handleMarkOneRead(n._id)} title="Mark as read"
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-[#1e3a5f] hover:bg-[#1e3a5f]/5 transition-colors">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                </svg>
+                              </button>
+                            )}
+                            <button onClick={() => handleDeleteNotif(n._id)} title="Delete"
+                              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
+                          </div>
+
+                          {/* Unread dot */}
+                          {!n.read && (
+                            <div className="w-2 h-2 bg-[#1e3a5f] rounded-full shrink-0 mt-2"></div>
                           )}
-                          <button onClick={() => handleDeleteNotif(n._id)} title="Delete"
-                            className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${
-                              isDarkMode ? "text-[#3d5470] hover:text-red-400 hover:bg-red-500/10" : "text-gray-300 hover:text-red-500 hover:bg-red-50"
-                            }`}>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2.5 ${
-                        isDarkMode ? "bg-[#0f1e2e]" : "bg-gray-100"
-                      }`}>
-                        <svg className={`w-5 h-5 ${isDarkMode ? "text-[#2a3a4e]" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                    <div className="flex flex-col items-center justify-center py-14">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+                        <svg className={`w-7 h-7 ${isDarkMode ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                         </svg>
                       </div>
-                      <p className={`text-[13px] font-semibold ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-500"}`}>
-                        All caught up
-                      </p>
+                      <p className={`text-sm font-bold ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No notifications yet</p>
+                      <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>You're all caught up</p>
                     </div>
                   )}
                 </div>
@@ -765,61 +315,35 @@ const MainLayout = ({ children }) => {
             )}
           </div>
 
-          {/* Credits Button - Hidden for investors */}
-          {user?.role !== "investor" && (
-            <button
-              onClick={() => setShowBuyCredits(true)}
-              className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
-                isDarkMode
-                  ? "bg-[#0a1628] border-white/[0.07] hover:bg-[#0d1c2e] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
-                  : "bg-white border-gray-200 hover:border-sky-300 hover:bg-sky-50 shadow-sm hover:shadow-md"
-              }`}
-            >
-              <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                isDarkMode ? "text-sky-400 group-hover:text-sky-300" : "text-sky-500 group-hover:text-sky-600"
-              }`} viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" />
-              </svg>
-              <span className={`font-bold text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
-              <span className={`hidden sm:inline text-[11px] font-medium ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-400"}`}>CR</span>
-            </button>
-          )}
-
           {/* User menu */}
           <div className="relative" ref={dropdownRef}>
             <button onClick={() => setDropdownOpen(!dropdownOpen)}
-              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#0d1520]" : "hover:bg-gray-100"}`}>
-              {resolvedProfileImage && !avatarLoadError ? (
-                <img
-                  src={resolvedProfileImage}
-                  alt={user?.name || "User"}
-                  onError={() => setAvatarLoadError(true)}
-                  className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1c2a3a]" : "ring-gray-100 hover:ring-gray-200"}`}
-                />
+              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#1a3050]" : "hover:bg-gray-100"}`}>
+              {user?.profileImage ? (
+                <img src={user.profileImage} alt={user.name} className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1a3050]" : "ring-gray-100 hover:ring-gray-200"}`} />
               ) : (
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-[#0d1520] text-[#8896a7] ring-1 ring-[#1c2a3a]" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-blue-500/20 text-blue-400" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
                   {initials}
                 </div>
               )}
-              <span className={`hidden sm:block text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-gray-700"}`}>{user?.name || "User"}</span>
-              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${isDarkMode ? "text-[#4a5a6e]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <span className={`hidden sm:block text-[14px] font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>{user?.name || "User"}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {dropdownOpen && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl border py-1.5 z-50 animate-scaleIn ${isDarkMode ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-200/80 shadow-gray-200/50"}`}>
+              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl border py-1.5 z-50 animate-scaleIn ${isDarkMode ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/80 shadow-gray-200/50"}`}>
                 <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
-                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-300 hover:bg-[#1a3050]" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   Profile
                 </button>
-
-                <div className={`border-t my-1 ${isDarkMode ? "border-[#1c2a3a]" : "border-gray-100"}`}></div>
+                <div className={`border-t my-1 ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}></div>
                 <button onClick={() => { logout(); navigate("/login"); }}
-                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-red-400" : "text-gray-500 hover:bg-gray-50"}`}>
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-gray-400 hover:bg-[#1a3050] hover:text-gray-200" : "text-gray-500 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
@@ -832,13 +356,12 @@ const MainLayout = ({ children }) => {
       </header>
 
       {/* Main content */}
-      <main className="pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
+      <main className="pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[280px] min-h-screen">
+        <div className="w-full p-0">
           {children}
         </div>
       </main>
     </div>
-    </>
   );
 };
 

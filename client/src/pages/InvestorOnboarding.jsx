@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import OTPVerification from "../components/OTPVerification";
 import {
+  DollarSign,
   TrendingUp,
   CheckCircle,
   ArrowRight,
@@ -97,11 +98,11 @@ const InvestorOnboarding = () => {
   ];
 
   const investmentRanges = [
-    { value: "under_50k", label: "Under ₹50L" },
-    { value: "50k_250k", label: "₹50L – ₹2Cr" },
-    { value: "250k_1m", label: "₹2Cr – ₹10Cr" },
-    { value: "1m_5m", label: "₹10Cr – ₹50Cr" },
-    { value: "over_5m", label: "Over ₹50Cr" },
+    { value: "under_50k", label: "Under $50K" },
+    { value: "50k_250k", label: "$50K – $250K" },
+    { value: "250k_1m", label: "$250K – $1M" },
+    { value: "1m_5m", label: "$1M – $5M" },
+    { value: "over_5m", label: "Over $5M" },
   ];
 
   const genreOptions = [
@@ -111,8 +112,8 @@ const InvestorOnboarding = () => {
   ];
 
   const budgetOptions = [
-    "Micro Budget (< ₹1Cr)", "Low Budget (₹1Cr–₹5Cr)", "Mid Budget (₹5Cr–₹30Cr)",
-    "High Budget (₹30Cr–₹100Cr)", "Tentpole (₹100Cr+)",
+    "Micro Budget (< $1M)", "Low Budget ($1M–$5M)", "Mid Budget ($5M–$30M)",
+    "High Budget ($30M–$100M)", "Tentpole ($100M+)",
   ];
 
   const formatOptions = [
@@ -261,9 +262,9 @@ const InvestorOnboarding = () => {
     setLoading(true);
     try {
       await api.put("/users/update", { onboardingComplete: true });
-      navigate("/investor-home");
+      navigate("/dashboard");
     } catch {
-      navigate("/investor-home");
+      navigate("/dashboard");
     } finally {
       setLoading(false);
     }

@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
-import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, User, CreditCard, Briefcase, Globe, Target, Heart, BadgeCheck, Sparkles, Clapperboard, Link as LinkIcon } from "lucide-react";
+import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, Bell, User, CreditCard, Briefcase, Globe, Target, Heart } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { AuthContext } from "../context/AuthContext";
 
 const GENRE_OPTIONS = [
   "Action", "Comedy", "Drama", "Horror", "Thriller",
@@ -51,8 +52,43 @@ const FORMAT_OPTIONS = [
   "Short Film", "Anime", "Limited Series", "Reality Show"
 ];
 
+const READER_GENRE_OPTIONS = [
+  { label: "Action" },
+  { label: "Comedy" },
+  { label: "Drama" },
+  { label: "Horror" },
+  { label: "Thriller" },
+  { label: "Romance" },
+  { label: "Sci-Fi" },
+  { label: "Fantasy" },
+  { label: "Mystery" },
+  { label: "Adventure" },
+  { label: "Crime" },
+  { label: "Animation" },
+  { label: "Documentary" },
+  { label: "Historical" },
+  { label: "Biographical" },
+  { label: "Sports" },
+  { label: "Musical" },
+  { label: "Family" },
+  { label: "Psychological" },
+  { label: "Dark Comedy" },
+];
+
+const READER_CONTENT_TYPES = [
+  { label: "feature_film", display: "Feature Film" },
+  { label: "tv_pilot", display: "TV Pilot" },
+  { label: "web_series", display: "Web Series" },
+  { label: "short_film", display: "Short Film" },
+  { label: "documentary", display: "Documentary" },
+  { label: "animation", display: "Animation" },
+  { label: "limited_series", display: "Limited Series" },
+  { label: "reality_show", display: "Reality Show" },
+];
+
 const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const { isDarkMode: dark } = useDarkMode();
+  const { setUser } = useContext(AuthContext);
   const isWriter = profile.role === "creator" || profile.role === "writer";
   const isInvestor = profile.role === "investor";
   const wp = profile.writerProfile || {};
@@ -64,22 +100,24 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
     profileImage: profile.profileImage || "",
+    coverImage: profile.coverImage || "",
   });
 
   // Investor-specific state
   const [investorData, setInvestorData] = useState({
-    subRole: ip.subRole || "producer",
-    jobTitle: ip.jobTitle || "",
     company: ip.company || "",
-    imdbUrl: ip.imdbUrl || "",
     linkedInUrl: ip.linkedInUrl || "",
-    otherUrl: ip.otherUrl || "",
-    previousCredits: ip.previousCredits || "",
-    investmentRange: ip.investmentRange || "",
+    investmentRange: "",
   });
   const [investorGenres, setInvestorGenres] = useState(mandates.genres || profile.preferences?.genres || []);
   const [investorBudgets, setInvestorBudgets] = useState(mandates.budgetTiers || []);
   const [investorFormats, setInvestorFormats] = useState(mandates.formats || []);
+  const [notifPrefs, setNotifPrefs] = useState({
+    smartMatchAlerts: profile.notificationPrefs?.smartMatchAlerts ?? true,
+    auditionAlerts: profile.notificationPrefs?.auditionAlerts ?? true,
+    holdAlerts: profile.notificationPrefs?.holdAlerts ?? true,
+    viewAlerts: profile.notificationPrefs?.viewAlerts ?? true,
+  });
 
   // Writer-specific state
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
@@ -92,30 +130,29 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     ethnicity: wp.diversity?.ethnicity || "",
   });
   const [showTagError, setShowTagError] = useState(false);
-  const maskedAccountNumber =
-    typeof profile.bankDetails?.accountNumber === "string" &&
-      profile.bankDetails.accountNumber.startsWith("****")
-      ? profile.bankDetails.accountNumber
-      : "";
 
-  // Bank details state
-  const [bankDetails, setBankDetails] = useState({
-    accountHolderName: profile.bankDetails?.accountHolderName || "",
-    bankName: profile.bankDetails?.bankName || "",
-    accountNumber: "",
-    routingNumber: profile.bankDetails?.routingNumber || "",
-    accountType: profile.bankDetails?.accountType || "checking",
-    swiftCode: profile.bankDetails?.swiftCode || "",
-    iban: profile.bankDetails?.iban || "",
-    country: profile.bankDetails?.country || "IN",
-    currency: profile.bankDetails?.currency || "INR"
-  });
+  // Reader preferences state
+  const isReader = profile.role === "reader";
+  const [readerGenres, setReaderGenres] = useState(profile.preferences?.genres || []);
+  const [readerContentTypes, setReaderContentTypes] = useState(profile.preferences?.contentTypes || []);
+
+  const toggleReaderGenre = (genre) => {
+    setReaderGenres((prev) => prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]);
+  };
+  const toggleReaderContentType = (ct) => {
+    setReaderContentTypes((prev) => prev.includes(ct) ? prev.filter(c => c !== ct) : [...prev, ct]);
+  };
+
+
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
   const [error, setError] = useState("");
   const [imagePreview, setImagePreview] = useState(profile.profileImage || "");
+  const [coverImagePreview, setCoverImagePreview] = useState(profile.coverImage || "");
   const fileInputRef = useRef(null);
+  const fileInputRefCover = useRef(null);
 
   // Active section for mobile-friendly navigation
   const [activeSection, setActiveSection] = useState("basic");
@@ -127,19 +164,22 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       { key: "genres", label: "Genres", icon: <Film size={13} /> },
       { key: "tags", label: "Tags", icon: <Target size={13} /> },
       { key: "diversity", label: "Diversity", icon: <Heart size={13} /> },
-      { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
     ]
     : isInvestor
       ? [
         { key: "basic", label: "Basic", icon: <User size={13} /> },
-        { key: "investor", label: "Professional", icon: <BadgeCheck size={13} /> },
+        { key: "investor", label: "Investor", icon: <TrendingUp size={13} /> },
         { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
-        { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
+        { key: "notifications", label: "Alerts", icon: <Bell size={13} /> },
       ]
-      : [
-        { key: "basic", label: "Basic", icon: <User size={13} /> },
-        { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
-      ];
+      : isReader
+        ? [
+          { key: "basic", label: "Basic", icon: <User size={13} /> },
+          { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
+        ]
+        : [
+          { key: "basic", label: "Basic", icon: <User size={13} /> },
+        ];
 
   const toggleGenre = (genre) => {
     setSelectedGenres((prev) =>
@@ -187,7 +227,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setFormData({ ...formData, profileImage: data.profileImage });
-      setImagePreview(`${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${data.profileImage}`);
+      setImagePreview(`http://localhost:5002${data.profileImage}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to upload image");
       setImagePreview(profile.profileImage || "");
@@ -202,6 +242,48 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleCoverImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      setError("Only JPEG, PNG, WebP and GIF images are allowed");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Cover image must be under 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setCoverImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+
+    setCoverUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("profileImage", file);
+      const { data } = await api.post("/users/upload-image", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setFormData({ ...formData, coverImage: data.profileImage });
+      setCoverImagePreview(`http://localhost:5002${data.profileImage}`);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to upload cover image");
+      setCoverImagePreview(profile.coverImage || "");
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const handleRemoveCoverImage = () => {
+    setFormData({ ...formData, coverImage: "" });
+    setCoverImagePreview("");
+    if (fileInputRefCover.current) fileInputRefCover.current.value = "";
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -212,18 +294,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s);
-
-      if (isWriter && ["agent", "manager", "manager_and_agent"].includes(representationStatus) && !agencyName.trim()) {
-        setError("Agency name is required when representation is selected.");
-        setLoading(false);
-        return;
-      }
-
-      if (isWriter && specializedTags.length > 5) {
-        setError("Please keep specialized tags to 5 or fewer.");
-        setLoading(false);
-        return;
-      }
 
       const payload = {
         ...formData,
@@ -242,61 +312,28 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       }
 
       if (isInvestor) {
-        payload.subRole = investorData.subRole;
-        payload.jobTitle = investorData.jobTitle;
         payload.company = investorData.company;
-        payload.imdbUrl = investorData.imdbUrl;
         payload.linkedInUrl = investorData.linkedInUrl;
-        payload.otherUrl = investorData.otherUrl;
-        payload.previousCredits = investorData.previousCredits;
         payload.investmentRange = investorData.investmentRange;
         payload.preferredGenres = investorGenres;
         payload.preferredBudgets = investorBudgets;
         payload.preferredFormats = investorFormats;
+        payload.notificationPrefs = notifPrefs;
       }
 
-      const normalizedBankDetails = {
-        accountHolderName: bankDetails.accountHolderName.trim(),
-        bankName: bankDetails.bankName.trim(),
-        accountNumber: bankDetails.accountNumber.replace(/\s+/g, ""),
-        routingNumber: bankDetails.routingNumber.replace(/\s+/g, ""),
-        accountType: bankDetails.accountType || "checking",
-        swiftCode: bankDetails.swiftCode.trim().toUpperCase(),
-        iban: bankDetails.iban.trim().toUpperCase(),
-        country: (bankDetails.country || "IN").trim().toUpperCase(),
-        currency: (bankDetails.currency || "INR").trim().toUpperCase(),
-      };
-
-      const hasEditableBankValues =
-        normalizedBankDetails.accountHolderName ||
-        normalizedBankDetails.bankName ||
-        normalizedBankDetails.accountNumber ||
-        normalizedBankDetails.routingNumber ||
-        normalizedBankDetails.swiftCode ||
-        normalizedBankDetails.iban;
-
-      if (hasEditableBankValues) {
-        if (!normalizedBankDetails.accountHolderName || !normalizedBankDetails.bankName) {
-          setError("Account holder name and bank name are required for bank details.");
-          setLoading(false);
-          return;
-        }
-
-        if (!normalizedBankDetails.accountNumber && !maskedAccountNumber) {
-          setError("Account number is required for bank details.");
-          setLoading(false);
-          return;
-        }
-
-        // Keep existing account number if the user did not provide a new one.
-        if (!normalizedBankDetails.accountNumber && maskedAccountNumber) {
-          delete normalizedBankDetails.accountNumber;
-        }
-
-        payload.bankDetails = normalizedBankDetails;
+      // Reader preferences
+      if (isReader) {
+        payload.preferences = {
+          genres: readerGenres,
+          contentTypes: readerContentTypes,
+        };
       }
+
+
 
       const { data } = await api.put("/users/update", payload);
+      // Sync AuthContext so ReaderHome / For You bar picks up new preferences
+      setUser((prev) => prev ? { ...prev, ...data } : prev);
       onUpdate(data);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update profile");
@@ -308,7 +345,13 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const displayImage = imagePreview
     ? imagePreview.startsWith("data:") || imagePreview.startsWith("http")
       ? imagePreview
-      : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${imagePreview}`
+      : `http://localhost:5002${imagePreview}`
+    : "";
+
+  const displayCoverImage = coverImagePreview
+    ? coverImagePreview.startsWith("data:") || coverImagePreview.startsWith("http")
+      ? coverImagePreview
+      : `http://localhost:5002${coverImagePreview}`
     : "";
 
   const inputClass = dark
@@ -416,6 +459,58 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       <button
                         type="button"
                         onClick={handleRemoveImage}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${dark ? 'bg-[#242424] text-gray-400 border-[#444] hover:text-red-400 hover:border-red-500/40' : 'bg-white text-gray-500 border-gray-200 hover:text-red-500 hover:border-red-200'}`}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <p className="text-[10px] text-gray-400">JPG, PNG, WebP or GIF. Max 5MB</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cover Image Upload */}
+              <div>
+                <label className={labelClass}>Cover Image</label>
+                <div className="space-y-2">
+                  <div className="relative w-full h-[120px] rounded-lg overflow-hidden border-2 border-gray-200">
+                    {displayCoverImage ? (
+                      <img
+                        src={displayCoverImage}
+                        alt="Cover"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#1e3a5f]/20 to-[#0f2544]/20 flex items-center justify-center">
+                        <span className={`text-sm font-semibold ${dark ? 'text-gray-600' : 'text-gray-400'}`}>No cover image</span>
+                      </div>
+                    )}
+                    {coverUploading && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      ref={fileInputRefCover}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={handleCoverImageUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRefCover.current?.click()}
+                      disabled={coverUploading}
+                      className="px-3.5 py-1.5 bg-[#1e3a5f] text-white rounded-lg text-xs font-semibold hover:bg-[#162d4a] transition-colors disabled:opacity-50"
+                    >
+                      {coverUploading ? "Uploading..." : "Upload Cover"}
+                    </button>
+                    {coverImagePreview && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoverImage}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${dark ? 'bg-[#242424] text-gray-400 border-[#444] hover:text-red-400 hover:border-red-500/40' : 'bg-white text-gray-500 border-gray-200 hover:text-red-500 hover:border-red-200'}`}
                       >
                         Remove
@@ -631,39 +726,8 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "investor" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Investor Professional Profile</h3>
-                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>These details help writers and readers understand your domain, credibility, and investment fit.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5"><Briefcase size={12} /> Investor Role</span>
-                  </label>
-                  <select
-                    value={investorData.subRole}
-                    onChange={(e) => setInvestorData({ ...investorData, subRole: e.target.value })}
-                    className={inputClass}
-                  >
-                    <option value="producer">Producer</option>
-                    <option value="agent">Agent</option>
-                    <option value="director">Director</option>
-                    <option value="actor">Actor</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5"><BadgeCheck size={12} /> Job Title</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={investorData.jobTitle}
-                    onChange={(e) => setInvestorData({ ...investorData, jobTitle: e.target.value })}
-                    className={inputClass}
-                    placeholder="e.g., Creative Producer"
-                  />
-                </div>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Investor Profile</h3>
+                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Business details visible to creators and writers</p>
               </div>
 
               <div>
@@ -681,58 +745,15 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
               <div>
                 <label className={labelClass}>
-                  <span className="flex items-center gap-1.5"><Clapperboard size={12} /> Previous Credits</span>
+                  <span className="flex items-center gap-1.5"><Linkedin size={12} /> LinkedIn URL</span>
                 </label>
-                <textarea
-                  value={investorData.previousCredits}
-                  onChange={(e) => setInvestorData({ ...investorData, previousCredits: e.target.value })}
-                  className={`${inputClass} resize-none`}
-                  rows="3"
-                  maxLength={400}
-                  placeholder="Mention films, series, campaigns, funded projects, festivals, or distribution credits"
+                <input
+                  type="url"
+                  value={investorData.linkedInUrl}
+                  onChange={(e) => setInvestorData({ ...investorData, linkedInUrl: e.target.value })}
+                  className={inputClass}
+                  placeholder="https://linkedin.com/in/yourprofile"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">{investorData.previousCredits.length}/400</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5"><LinkIcon size={12} /> IMDb URL</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={investorData.imdbUrl}
-                    onChange={(e) => setInvestorData({ ...investorData, imdbUrl: e.target.value })}
-                    className={inputClass}
-                    placeholder="https://www.imdb.com/name/..."
-                  />
-                </div>
-
-                <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5"><Linkedin size={12} /> LinkedIn URL</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={investorData.linkedInUrl}
-                    onChange={(e) => setInvestorData({ ...investorData, linkedInUrl: e.target.value })}
-                    className={inputClass}
-                    placeholder="https://linkedin.com/in/yourprofile"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5"><Globe size={12} /> Other URL</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={investorData.otherUrl}
-                    onChange={(e) => setInvestorData({ ...investorData, otherUrl: e.target.value })}
-                    className={inputClass}
-                    placeholder="https://your-website.com or any relevant profile link"
-                  />
-                </div>
               </div>
 
               <div>
@@ -753,30 +774,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </select>
               </div>
 
-              <div className={`rounded-xl border p-3.5 ${dark ? 'bg-[#0f2544]/18 border-[#1e3a5f]/35' : 'bg-[#f3f8ff] border-[#d7e6f8]'}`}>
-                <p className={`text-[11px] font-semibold mb-1.5 ${dark ? 'text-blue-300' : 'text-[#1e3a5f]'}`}>
-                  Profile tip for better inbound pitches
-                </p>
-                <p className={`text-[11px] leading-relaxed ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Add your role, recent credits, and links. Writers and readers can quickly evaluate fit and send higher-quality, relevant pitches.
+              <div className={`flex items-start gap-2.5 p-3 rounded-lg ${dark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
+                <TrendingUp size={16} className={`mt-0.5 shrink-0 ${dark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                <p className={`text-xs ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                  Complete your investor profile to get better script recommendations and connect with relevant creators.
                 </p>
               </div>
-
             </motion.div>
           )}
 
           {/* === INVESTOR PREFERENCES SECTION === */}
           {activeSection === "preferences" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-              <div className={`rounded-xl border p-3.5 ${dark ? 'bg-white/[0.03] border-[#333]' : 'bg-gray-50 border-gray-200'}`}>
-                <div className="flex items-start gap-2.5">
-                  <Sparkles size={15} className={`mt-0.5 ${dark ? 'text-blue-300' : 'text-[#1e3a5f]'}`} />
-                  <p className={`text-[11px] leading-relaxed ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Keep your mandates specific. Clear genre, format, and budget preferences improve your recommendation quality and reduce irrelevant requests.
-                  </p>
-                </div>
-              </div>
-
               {/* Preferred Genres */}
               <div>
                 <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Preferred Genres</h3>
@@ -848,133 +857,160 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
             </motion.div>
           )}
 
-          {/* === BANK DETAILS SECTION === */}
-          {activeSection === "bank" && (
+          {/* === NOTIFICATION PREFERENCES SECTION === */}
+          {activeSection === "notifications" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Bank Account Details</h3>
-                <p className="text-xs text-gray-400 mb-4">
-                  Secure payment information for receiving funds
-                </p>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Notification Preferences</h3>
+                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Control which alerts you receive</p>
               </div>
 
+              {[
+                { key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "Get notified when scripts match your preferences" },
+                { key: "holdAlerts", label: "Hold Updates", desc: "Updates when scripts you've held have changes" },
+                { key: "viewAlerts", label: "Profile Views", desc: "Know when creators view your investor profile" },
+                { key: "auditionAlerts", label: "Audition Alerts", desc: "Notifications about audition opportunities" },
+              ].map((item) => (
+                <label
+                  key={item.key}
+                  className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${dark
+                    ? notifPrefs[item.key] ? 'bg-[#0f2544]/30 border-[#1e3a5f]/40' : 'bg-white/[0.02] border-[#333] hover:border-[#444]'
+                    : notifPrefs[item.key] ? 'bg-[#1e3a5f]/[0.04] border-[#1e3a5f]/20' : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div>
+                    <p className={`text-sm font-semibold ${dark ? 'text-gray-200' : 'text-gray-800'}`}>{item.label}</p>
+                    <p className={`text-[11px] mt-0.5 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{item.desc}</p>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs[item.key]}
+                      onChange={(e) => setNotifPrefs({ ...notifPrefs, [item.key]: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-10 h-6 rounded-full transition-colors ${notifPrefs[item.key]
+                      ? 'bg-[#1e3a5f]'
+                      : dark ? 'bg-[#333]' : 'bg-gray-300'
+                    }`}>
+                      <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${notifPrefs[item.key] ? 'translate-x-4' : ''}`} />
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </motion.div>
+          )}
+
+          {/* === READER PREFERENCES SECTION === */}
+          {activeSection === "preferences" && isReader && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {/* Genres */}
               <div>
-                <label className={labelClass}>Account Holder Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.accountHolderName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, accountHolderName: e.target.value })}
-                  className={inputClass}
-                  placeholder="Full name as it appears on your account"
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>Bank Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.bankName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g., HDFC Bank, ICICI Bank, SBI"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Account Number</label>
-                  <input
-                    type="text"
-                    value={bankDetails.accountNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                    className={inputClass}
-                    placeholder={maskedAccountNumber ? `Current: ${maskedAccountNumber}` : "Account number"}
-                  />
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className={`text-sm font-bold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Favourite Genres</h3>
+                  {readerGenres.length > 0 && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${dark ? 'bg-[#1e3a5f]/30 text-[#7aafff]' : 'bg-[#1e3a5f]/10 text-[#1e3a5f]'}`}>
+                      {readerGenres.length} selected
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className={labelClass}>Routing Number</label>
-                  <input
-                    type="text"
-                    value={bankDetails.routingNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, routingNumber: e.target.value })}
-                    className={inputClass}
-                    placeholder="9-digit routing"
-                    maxLength="9"
-                  />
+                <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Tap to select genres you love — we'll show those scripts first</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {READER_GENRE_OPTIONS.map(({ label }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleReaderGenre(label)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl font-medium text-xs transition-all border-2 text-left ${
+                        readerGenres.includes(label)
+                          ? dark
+                            ? 'bg-[#1e3a5f] text-white border-[#3a7bd5] shadow-md shadow-[#1e3a5f]/30'
+                            : 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                          : dark
+                            ? 'bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50 hover:text-gray-200'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-gray-900'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      {readerGenres.includes(label) && (
+                        <svg className="w-3 h-3 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
                 </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className={labelClass}>Account Type</label>
-                  <select
-                    value={bankDetails.accountType}
-                    onChange={(e) => setBankDetails({ ...bankDetails, accountType: e.target.value })}
-                    className={inputClass}
+                {readerGenres.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReaderGenres([])}
+                    className={`mt-2 text-[11px] font-semibold hover:underline ${dark ? 'text-white/30 hover:text-white/50' : 'text-gray-400 hover:text-gray-600'}`}
                   >
-                    <option value="checking">Checking</option>
-                    <option value="savings">Savings</option>
-                    <option value="business">Business</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Country</label>
-                  <input
-                    type="text"
-                    value={bankDetails.country}
-                    onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
-                    className={inputClass}
-                    placeholder="IN"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Currency</label>
-                  <input
-                    type="text"
-                    value={bankDetails.currency}
-                    onChange={(e) => setBankDetails({ ...bankDetails, currency: e.target.value })}
-                    className={inputClass}
-                    placeholder="INR"
-                  />
-                </div>
+                    Clear all
+                  </button>
+                )}
               </div>
 
-              <div className={`p-3 rounded-lg ${dark ? 'bg-white/[0.03]' : 'bg-gray-50'}`}>
-                <p className={`text-xs font-semibold mb-2 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  International Transfers (Optional)
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelClass}>SWIFT Code</label>
-                    <input
-                      type="text"
-                      value={bankDetails.swiftCode}
-                      onChange={(e) => setBankDetails({ ...bankDetails, swiftCode: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g., CHASUS33"
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>IBAN</label>
-                    <input
-                      type="text"
-                      value={bankDetails.iban}
-                      onChange={(e) => setBankDetails({ ...bankDetails, iban: e.target.value })}
-                      className={inputClass}
-                      placeholder="International number"
-                    />
-                  </div>
+              {/* Content Types */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className={`text-sm font-bold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Content Types</h3>
+                  {readerContentTypes.length > 0 && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${dark ? 'bg-[#1e3a5f]/30 text-[#7aafff]' : 'bg-[#1e3a5f]/10 text-[#1e3a5f]'}`}>
+                      {readerContentTypes.length} selected
+                    </span>
+                  )}
                 </div>
+                <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>What formats do you enjoy watching?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {READER_CONTENT_TYPES.map(({ label, display }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleReaderContentType(label)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl font-medium text-xs transition-all border-2 text-left ${
+                        readerContentTypes.includes(label)
+                          ? dark
+                            ? 'bg-[#1e3a5f] text-white border-[#3a7bd5] shadow-md shadow-[#1e3a5f]/30'
+                            : 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                          : dark
+                            ? 'bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50 hover:text-gray-200'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-gray-900'
+                      }`}
+                    >
+                      <span>{display}</span>
+                      {readerContentTypes.includes(label) && (
+                        <svg className="w-3 h-3 ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {readerContentTypes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setReaderContentTypes([])}
+                    className={`mt-2 text-[11px] font-semibold hover:underline ${dark ? 'text-white/30 hover:text-white/50' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    Clear all
+                  </button>
+                )}
               </div>
 
-              <div className={`flex items-start gap-2 p-3 rounded-lg ${dark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'}`}>
-                <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? 'text-blue-400' : 'text-blue-600'}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
-                <p className={`text-xs ${dark ? 'text-blue-300' : 'text-blue-700'}`}>
-                  All bank details are encrypted and stored securely. This information is used only for payment processing.
-                </p>
-              </div>
+              {/* Summary banner */}
+              {(readerGenres.length > 0 || readerContentTypes.length > 0) && (
+                <div className={`flex items-start gap-2.5 p-3 rounded-xl border ${
+                  dark ? 'bg-[#1e3a5f]/10 border-[#1e3a5f]/25' : 'bg-[#1e3a5f]/[0.04] border-[#1e3a5f]/15'
+                }`}>
+                  <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? 'text-[#7aafff]' : 'text-[#1e3a5f]'}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  </svg>
+                  <p className={`text-xs leading-relaxed ${dark ? 'text-[#7aafff]/70' : 'text-[#1e3a5f]/70'}`}>
+                    Your home feed will prioritise <strong>{readerGenres.length > 0 ? readerGenres.slice(0, 3).join(", ") : ""}{readerGenres.length > 3 ? ` +${readerGenres.length - 3} more` : ""}</strong>{readerGenres.length > 0 && readerContentTypes.length > 0 ? " · " : ""}<strong>{readerContentTypes.length > 0 ? readerContentTypes.map(c => READER_CONTENT_TYPES.find(x => x.label === c)?.display).join(", ") : ""}</strong> content.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 

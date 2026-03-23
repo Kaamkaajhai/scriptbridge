@@ -1,7 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useContext } from "react";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
@@ -25,12 +23,14 @@ const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
+const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Writers = lazy(() => import("./pages/Writers"));
 const InvestorHome = lazy(() => import("./pages/InvestorHome"));
 const ReaderHome = lazy(() => import("./pages/ReaderHome"));
 const ScriptReader = lazy(() => import("./pages/ScriptReader"));
 const ReaderProfile = lazy(() => import("./pages/ReaderProfile"));
+const Credits = lazy(() => import("./pages/Credits"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
@@ -72,7 +72,6 @@ function App() {
                 </div>
               }
             >
-            <Analytics />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -101,7 +100,13 @@ function App() {
               />
               <Route
                 path="/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <FeaturedProjects />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route
                 path="/trending"
@@ -129,7 +134,13 @@ function App() {
               />
               <Route
                 path="/credits"
-                element={<Navigate to="/dashboard" replace />}
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <Credits />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route
                 path="/purchase-requests"
@@ -303,7 +314,7 @@ function App() {
               />
               <Route
                 path="/reader/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={<Navigate to="/featured" replace />}
               />
               <Route
                 path="/admin"
@@ -314,7 +325,6 @@ function App() {
           </AdminLoginHandler>
         </Router>
       </AuthProvider>
-      <SpeedInsights />
     </DarkModeProvider>
   );
 }

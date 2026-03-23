@@ -1,7 +1,9 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  IndianRupee,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
   ArrowUpRight,
   ArrowDownLeft,
   Calendar,
@@ -12,33 +14,28 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Wallet,
   CreditCard,
   RefreshCw,
   Award,
   FileText
 } from "lucide-react";
 import api from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { formatCurrency, formatCredits } from "../utils/currency";
 
 const Transactions = ({ dark }) => {
-  const { user } = useContext(AuthContext);
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState(null);
   const [wallet, setWallet] = useState(null);
-  const [accountSummary, setAccountSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const isWriter = ["creator", "writer"].includes(user?.role);
   
   useEffect(() => {
     fetchTransactions();
     fetchStats();
     fetchWallet();
-    fetchAccountSummary();
   }, [currentPage, filter]);
 
   const fetchTransactions = async () => {
@@ -85,15 +82,6 @@ const Transactions = ({ dark }) => {
     }
   };
 
-  const fetchAccountSummary = async () => {
-    try {
-      const { data } = await api.get("/users/me");
-      setAccountSummary(data);
-    } catch (error) {
-      console.error("Failed to fetch account summary:", error);
-    }
-  };
-
   const getTransactionIcon = (type) => {
     switch (type) {
       case "credit":
@@ -109,7 +97,7 @@ const Transactions = ({ dark }) => {
       case "subscription":
         return <Award className="w-5 h-5" />;
       default:
-        return <IndianRupee className="w-5 h-5" />;
+        return <DollarSign className="w-5 h-5" />;
     }
   };
 
@@ -143,6 +131,13 @@ const Transactions = ({ dark }) => {
     }
   };
 
+  const formatCurrency = (amount, currency = "USD") => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency
+    }).format(Math.abs(amount));
+  };
+
   const formatDate = (date) => {
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
@@ -158,120 +153,112 @@ const Transactions = ({ dark }) => {
     t.reference?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const creditSummary = accountSummary?.credits || {};
-  const projectSalesAmount = formatCurrency(
-    stats?.projectSalesEarnings || 0,
-    "INR"
-  );
-  const totalProjectRevenueAmount = formatCurrency(
-    stats?.totalProjectRevenue || 0,
-    "INR"
-  );
-  const structuredSummary = [
-    {
-      label: "Available",
-      value: formatCurrency(wallet?.balance || 0, wallet?.currency || "INR"),
-      note: "Usable now",
-    },
-    {
-      label: "Pending",
-      value: formatCurrency(wallet?.pendingBalance || 0, wallet?.currency || "INR"),
-      note: "In processing",
-    },
-    {
-      label: "Open Transactions",
-      value: (stats?.pendingTransactions || 0).toLocaleString("en-IN"),
-      note: "Awaiting completion",
-    },
-  ];
-
-  if (isWriter) {
-    structuredSummary.push(
-      {
-        label: "Current Credits",
-        value: formatCredits(creditSummary.balance || 0),
-        note: "Credits available",
-      },
-      {
-        label: "Project Revenue",
-        value: totalProjectRevenueAmount,
-        note: "Sales + holds",
-      }
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Wallet Overview */}
-      {isWriter && (
-        <div className="grid grid-cols-1 gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className={`rounded-2xl p-6 border ${
-              dark
-                ? "bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-white/[0.06]"
-                : "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200/50"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                dark ? "bg-white/10" : "bg-white"
-              }`}>
-                <IndianRupee className={`w-6 h-6 ${dark ? "text-emerald-400" : "text-emerald-600"}`} />
-              </div>
-            </div>
-            <h3 className={`text-3xl font-black mb-1 ${
-              dark ? "text-white" : "text-gray-900"
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0 }}
+          className={`rounded-2xl p-6 border ${
+            dark
+              ? "bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-white/[0.06]"
+              : "bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200/50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+              dark ? "bg-white/10" : "bg-white"
             }`}>
-              {projectSalesAmount}
-            </h3>
-            <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
-              From Project Sales
-            </p>
-            {(stats?.holdEarnings || 0) > 0 && (
-              <p className={`text-xs mt-2 ${dark ? "text-white/45" : "text-gray-500"}`}>
-                Total with holds: {totalProjectRevenueAmount}
-              </p>
-            )}
-          </motion.div>
-        </div>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: isWriter ? 0.35 : 0.25 }}
-        className={`rounded-2xl border p-4 sm:p-5 ${
-          dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200"
-        }`}
-      >
-        <div className="flex items-center justify-between mb-3">
-          <h3 className={`text-sm font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Structured Financial Summary</h3>
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.06] text-white/60" : "bg-gray-100 text-gray-600"}`}>
-            {wallet?.currency || "INR"}
-          </span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
-          {structuredSummary.map((item) => (
-            <div
-              key={item.label}
-              className={`rounded-xl border px-3.5 py-3 ${dark ? "bg-white/[0.02] border-white/[0.07]" : "bg-gray-50 border-gray-200"}`}
-            >
-              <p className={`text-[11px] uppercase tracking-[0.08em] font-bold ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
-              <p className={`text-base font-black mt-1 tabular-nums ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-              <p className={`text-[11px] mt-0.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.note}</p>
+              <Wallet className={`w-6 h-6 ${dark ? "text-blue-400" : "text-blue-600"}`} />
             </div>
-          ))}
-        </div>
-      </motion.div>
+            <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+              dark ? "bg-white/10 text-white/60" : "bg-white text-gray-600"
+            }`}>
+              Available
+            </span>
+          </div>
+          <h3 className={`text-3xl font-black mb-1 ${
+            dark ? "text-white" : "text-gray-900"
+          }`}>
+            {formatCurrency(wallet?.balance || 0, wallet?.currency)}
+          </h3>
+          <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
+            Current Balance
+          </p>
+          {wallet?.pendingBalance > 0 && (
+            <div className={`mt-3 pt-3 border-t flex items-center gap-2 ${
+              dark ? "border-white/10 text-yellow-400" : "border-gray-200 text-yellow-600"
+            }`}>
+              <Clock className="w-4 h-4" />
+              <span className="text-xs font-semibold">
+                {formatCurrency(wallet.pendingBalance, wallet.currency)} pending
+              </span>
+            </div>
+          )}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className={`rounded-2xl p-6 border ${
+            dark
+              ? "bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-white/[0.06]"
+              : "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200/50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+              dark ? "bg-white/10" : "bg-white"
+            }`}>
+              <TrendingUp className={`w-6 h-6 ${dark ? "text-green-400" : "text-green-600"}`} />
+            </div>
+          </div>
+          <h3 className={`text-3xl font-black mb-1 ${
+            dark ? "text-white" : "text-gray-900"
+          }`}>
+            {formatCurrency(stats?.totalEarnings || 0)}
+          </h3>
+          <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
+            Total Earnings
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className={`rounded-2xl p-6 border ${
+            dark
+              ? "bg-gradient-to-br from-orange-500/10 to-red-500/10 border-white/[0.06]"
+              : "bg-gradient-to-br from-orange-50 to-red-50 border-orange-200/50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+              dark ? "bg-white/10" : "bg-white"
+            }`}>
+              <TrendingDown className={`w-6 h-6 ${dark ? "text-orange-400" : "text-orange-600"}`} />
+            </div>
+          </div>
+          <h3 className={`text-3xl font-black mb-1 ${
+            dark ? "text-white" : "text-gray-900"
+          }`}>
+            {formatCurrency(stats?.totalSpending || 0)}
+          </h3>
+          <p className={`text-sm ${dark ? "text-white/40" : "text-gray-600"}`}>
+            Total Spending
+          </p>
+        </motion.div>
+      </div>
 
       {/* Transactions List */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: isWriter ? 0.4 : 0.3 }}
+        transition={{ delay: 0.3 }}
         className={`rounded-2xl border overflow-hidden ${
           dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200"
         }`}
@@ -440,7 +427,7 @@ const Transactions = ({ dark }) => {
                           : dark ? "text-red-400" : "text-red-600"
                       }`}>
                         {transaction.amount >= 0 ? "+" : "-"}
-                        {formatCurrency(Math.abs(transaction.amount), transaction.currency || "INR")}
+                        {formatCurrency(transaction.amount, transaction.currency)}
                       </p>
                       {transaction.paymentMethod && (
                         <p className={`text-xs capitalize mt-0.5 ${

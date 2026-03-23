@@ -19,52 +19,52 @@ const SORT_TABS = [
 ];
 
 /* ─── Rank tiers (no gold) ────────────────────── */
-// 1 = graphite  2 = steel  3 = emerald-slate
+// 1 = blue-violet (premier)  2 = slate  3 = teal
 const RANK_TIERS = {
   1: {
-    strip:    "from-gray-200 via-gray-400 to-gray-300",
-    avatarRing: "ring-white/25",
-    badge:    "from-[#263a55] to-[#1e3a5f] text-white",
-    glow:     "shadow-[0_8px_30px_rgba(2,6,23,0.32)]",
-    border:   { l: "border-gray-300/70",   d: "border-white/[0.14]" },
-    bg:       { l: "bg-gray-100/60",       d: "bg-[#0d1520]" },
-    label:    { l: "text-[#1e3a5f] bg-white border-gray-200", d: "text-gray-200 bg-white/[0.06] border-white/[0.14]" },
+    strip:    "from-blue-500 via-violet-500 to-indigo-500",
+    avatarRing: "ring-blue-400/30",
+    badge:    "from-blue-500 to-violet-500 text-white",
+    glow:     "shadow-[0_4px_32px_rgba(99,102,241,0.14)]",
+    border:   { l: "border-blue-200/60",   d: "border-blue-500/20" },
+    bg:       { l: "bg-blue-50/30",        d: "bg-[#0a1628]" },
+    label:    { l: "text-blue-600 bg-blue-50 border-blue-100",    d: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
   },
   2: {
-    strip:    "from-[#6f8097] to-[#8fa4bb]",
-    avatarRing: "ring-[#8fa4bb]/35",
-    badge:    "from-[#304962] to-[#243d56] text-white",
-    glow:     "shadow-[0_6px_22px_rgba(30,58,95,0.20)]",
-    border:   { l: "border-[#d4deea]",     d: "border-[#2c3d52]" },
-    bg:       { l: "bg-[#edf2f8]",         d: "bg-[#0f1823]" },
-    label:    { l: "text-[#2f4259] bg-[#e7edf5] border-[#d4deea]", d: "text-[#9db2c9] bg-[#1a2a3d] border-[#2c3d52]" },
+    strip:    "from-slate-400 to-slate-300",
+    avatarRing: "ring-slate-300/40",
+    badge:    "from-slate-400 to-slate-300 text-slate-800",
+    glow:     "shadow-[0_4px_20px_rgba(100,116,139,0.14)]",
+    border:   { l: "border-slate-200",     d: "border-slate-500/20" },
+    bg:       { l: "bg-slate-50/40",       d: "bg-[#0f1823]" },
+    label:    { l: "text-slate-600 bg-slate-100 border-slate-200", d: "text-slate-400 bg-slate-500/10 border-slate-500/20" },
   },
   3: {
-    strip:    "from-[#7f90a6] to-[#9fb2c8]",
-    avatarRing: "ring-[#9fb2c8]/32",
-    badge:    "from-[#29425b] to-[#233a51] text-white",
-    glow:     "shadow-[0_6px_22px_rgba(30,58,95,0.18)]",
-    border:   { l: "border-[#dbe5ef]",     d: "border-[#2f455f]" },
-    bg:       { l: "bg-[#f0f4fa]",         d: "bg-[#101a27]" },
-    label:    { l: "text-[#2f4259] bg-[#eaf0f7] border-[#dbe5ef]", d: "text-[#a7bbd0] bg-[#1a2c42] border-[#2f455f]" },
+    strip:    "from-teal-400 to-cyan-400",
+    avatarRing: "ring-teal-400/30",
+    badge:    "from-teal-400 to-cyan-400 text-teal-900",
+    glow:     "shadow-[0_4px_20px_rgba(20,184,166,0.13)]",
+    border:   { l: "border-teal-200/60",   d: "border-teal-500/20" },
+    bg:       { l: "bg-teal-50/20",        d: "bg-[#081a1c]" },
+    label:    { l: "text-teal-700 bg-teal-50 border-teal-100",    d: "text-teal-400 bg-teal-500/10 border-teal-500/20" },
   },
 };
 
 const GENRE_COLORS = {
-  Thriller:  { l: "bg-[#eef2f7] text-[#2f4259] border-[#d4deea]", d: "bg-[#1a2636] text-[#9db2c9] border-[#2c3d52]" },
-  Drama:     { l: "bg-[#f3f0f5] text-[#57436a] border-[#e3d8ea]", d: "bg-[#221a2b] text-[#b4a0c6] border-[#3a2d48]" },
-  Comedy:    { l: "bg-[#f6f5ef] text-[#5e5532] border-[#e6e1c9]", d: "bg-[#242214] text-[#c7ba84] border-[#3e3822]" },
-  "Sci-Fi":  { l: "bg-[#edf3f5] text-[#35545b] border-[#cfe0e5]", d: "bg-[#162126] text-[#9ebac0] border-[#2a3d42]" },
+  Thriller:  { l: "bg-rose-50 text-rose-600 border-rose-100",       d: "bg-rose-500/10 text-rose-400 border-rose-500/20" },
+  Drama:     { l: "bg-purple-50 text-purple-600 border-purple-100", d: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+  Comedy:    { l: "bg-sky-50 text-sky-600 border-sky-100",          d: "bg-sky-500/10 text-sky-400 border-sky-500/20" },
+  "Sci-Fi":  { l: "bg-cyan-50 text-cyan-700 border-cyan-100",       d: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
   Horror:    { l: "bg-gray-100 text-gray-700 border-gray-200",      d: "bg-gray-700/40 text-gray-300 border-gray-600/30" },
-  Romance:   { l: "bg-[#f6f0f2] text-[#6a4454] border-[#e8d7de]", d: "bg-[#2a1b21] text-[#c29aad] border-[#442c35]" },
-  Action:    { l: "bg-[#f5efef] text-[#6a3f3f] border-[#e8d7d7]", d: "bg-[#2b1818] text-[#c19898] border-[#462c2c]" },
-  Mystery:   { l: "bg-[#f0f1f6] text-[#454c6d] border-[#d9dced]", d: "bg-[#1d2131] text-[#a2a9ca] border-[#313754]" },
-  Fantasy:   { l: "bg-[#f3eff6] text-[#5a436a] border-[#e0d6e8]", d: "bg-[#221b2a] text-[#af9bc2] border-[#3a2f48]" },
+  Romance:   { l: "bg-pink-50 text-pink-600 border-pink-100",       d: "bg-pink-500/10 text-pink-400 border-pink-500/20" },
+  Action:    { l: "bg-red-50 text-red-600 border-red-100",          d: "bg-red-500/10 text-red-400 border-red-500/20" },
+  Mystery:   { l: "bg-indigo-50 text-indigo-600 border-indigo-100", d: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" },
+  Fantasy:   { l: "bg-violet-50 text-violet-600 border-violet-100", d: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
   Crime:     { l: "bg-slate-100 text-slate-600 border-slate-200",   d: "bg-slate-600/20 text-slate-400 border-slate-600/30" },
-  Adventure: { l: "bg-[#edf4f1] text-[#39584f] border-[#cee1da]", d: "bg-[#16231f] text-[#9bb8b0] border-[#2a3f39]" },
-  Animation: { l: "bg-[#eef5f3] text-[#35534e] border-[#cee0dc]", d: "bg-[#182624] text-[#9bb8b2] border-[#2b3f3c]" },
+  Adventure: { l: "bg-green-50 text-green-700 border-green-100",    d: "bg-green-500/10 text-green-400 border-green-500/20" },
+  Animation: { l: "bg-teal-50 text-teal-700 border-teal-100",       d: "bg-teal-500/10 text-teal-400 border-teal-500/20" },
 };
-const GENRE_DEFAULT = { l: "bg-gray-100 text-gray-600 border-gray-200", d: "bg-white/[0.05] text-gray-400 border-white/[0.12]" };
+const GENRE_DEFAULT = { l: "bg-gray-100 text-gray-500 border-gray-200", d: "bg-gray-700/30 text-gray-400 border-gray-600/30" };
 
 /* ─── Helpers ────────────────────────────────── */
 const fmtNum = (n) => {
@@ -117,12 +117,12 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
   const avatarUrl = writer.profileImage
     ? writer.profileImage.startsWith("http")
       ? writer.profileImage
-      : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${writer.profileImage}`
+      : `${import.meta.env.VITE_API_URL || "http://localhost:5002"}${writer.profileImage}`
     : null;
 
   const scoreColor =
     score >= 80 ? (dark ? "text-emerald-400" : "text-emerald-600") :
-    score >= 60 ? (dark ? "text-[#9db2c9]"   : "text-[#1e3a5f]")   :
+    score >= 60 ? (dark ? "text-blue-400"    : "text-blue-600")    :
                   (dark ? "text-gray-500"    : "text-gray-500");
 
   const highlighted = (() => {
@@ -169,8 +169,8 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
                     isTop3
                       ? `bg-gradient-to-br ${tier.badge.split(" ").slice(0,2).join(" ")} ${tier.badge.split(" ").slice(-1)[0]} ring-1 ${tier.avatarRing}`
                       : dark
-                        ? "bg-gradient-to-br from-[#1e3a5f] to-[#2a4b77] text-white ring-1 ring-white/[0.07]"
-                        : "bg-gradient-to-br from-[#1e3a5f] to-[#2a4b77] text-white ring-1 ring-gray-100"
+                      ? "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white ring-1 ring-white/[0.07]"
+                      : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white ring-1 ring-gray-100"
                   }`}>
                     {writer.name?.charAt(0)?.toUpperCase()}
                   </div>
@@ -182,13 +182,13 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
               <div className="flex-1 min-w-0 pt-0.5">
                 <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                   <span className={`text-[14px] font-bold leading-tight truncate transition-colors ${
-                    dark ? "text-white group-hover:text-gray-200" : "text-gray-900 group-hover:text-[#1e3a5f]"
+                    dark ? "text-white group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#1e3a5f]"
                   }`}>
                     {writer.name}
                   </span>
                   {isWGA && (
                     <span className={`text-[8px] font-black tracking-widest px-1.5 py-px rounded border shrink-0 ${
-                      dark ? "text-[#9db2c9] bg-[#1a2a3d] border-[#2c3d52]" : "text-[#1e3a5f] bg-[#eef2f7] border-[#d4deea]"
+                      dark ? "text-blue-400 bg-blue-500/10 border-blue-500/20" : "text-blue-700 bg-blue-50 border-blue-100"
                     }`}>WGA</span>
                   )}
                   {isRepped && (
@@ -251,8 +251,8 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
             {/* ── CTA ── */}
             <div className={`mt-auto flex items-center justify-between px-3 py-2 rounded-lg text-[11px] font-semibold transition-all duration-200 ${
               dark
-                ? "bg-white/[0.03] text-gray-600 group-hover:bg-white/[0.08] group-hover:text-gray-200"
-                : "bg-gray-50 text-gray-500 group-hover:bg-[#1e3a5f]/[0.08] group-hover:text-[#1e3a5f]"
+                ? "bg-white/[0.03] text-gray-600 group-hover:bg-blue-500/10 group-hover:text-blue-400"
+                : "bg-gray-50 text-gray-400 group-hover:bg-[#1e3a5f]/[0.05] group-hover:text-[#1e3a5f]"
             }`}>
               <span>View profile</span>
               <svg className="w-3 h-3 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -316,24 +316,24 @@ const Writers = () => {
 
   /* Tokens */
   const tk = {
-    page:       `min-h-screen ${dark ? "bg-[#080e18]" : "bg-[#f5f7fa]"}`,
+    page:       "min-h-screen",
     text:       dark ? "text-white"          : "text-gray-900",
-    sub:        dark ? "text-[#8896a7]"      : "text-gray-500",
-    muted:      dark ? "text-[#4a5a6e]"      : "text-gray-400",
-    surface:    dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-200",
+    sub:        dark ? "text-gray-400"       : "text-gray-500",
+    muted:      dark ? "text-gray-600"       : "text-gray-400",
+    surface:    dark ? "bg-[#0f1923] border-white/[0.07]" : "bg-white border-gray-100",
     inputBg:    dark
-      ? "bg-[#080e18] border-[#1c2a3a] text-white placeholder:text-[#4a5a6e] focus:border-[#2a3a4e] focus:ring-white/5"
+      ? "bg-[#0c1520] border-white/[0.09] text-white placeholder:text-gray-600 focus:border-blue-500/50 focus:ring-blue-500/10"
       : "bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-[#1e3a5f]/40 focus:ring-[#1e3a5f]/8",
-    tabWrap:    dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-gray-100/70 border-transparent",
-    tabOn:      dark ? "bg-white/[0.08] text-white border-white/[0.14]" : "bg-white text-gray-900 shadow-sm border-gray-200",
-    tabOff:     dark ? "text-[#4a5a6e] hover:text-[#8896a7] border-transparent" : "text-gray-400 hover:text-gray-700 border-transparent",
-    pillOn:     dark ? "bg-white/[0.08] text-white border-white/[0.14]"
+    tabWrap:    dark ? "bg-[#0c1520] border-white/[0.07]" : "bg-gray-100/70 border-transparent",
+    tabOn:      dark ? "bg-white/[0.09] text-white"        : "bg-white text-gray-900 shadow-sm",
+    tabOff:     dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-700",
+    pillOn:     dark ? "bg-blue-500/15 text-blue-400 border-blue-500/25"
                      : "bg-[#1e3a5f] text-white border-[#1e3a5f]",
     pillOff:    dark
-      ? "bg-transparent text-[#4a5a6e] border-[#1c2a3a] hover:border-[#2a3a4e] hover:text-[#8896a7]"
+      ? "bg-transparent text-gray-500 border-white/[0.08] hover:border-white/[0.15] hover:text-gray-300"
       : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700",
-    divider:    dark ? "bg-[#1c2a3a]" : "bg-gray-100",
-    badgeSurf:  dark ? "bg-[#151f2e] border-[#1c2a3a]" : "bg-gray-50 border-gray-200",
+    divider:    dark ? "bg-white/[0.05]" : "bg-gray-100",
+    badgeSurf:  dark ? "bg-[#0c1520] border-white/[0.07]" : "bg-gray-50 border-gray-200",
   };
 
   const isFiltered = search || genre !== "All";
@@ -355,7 +355,7 @@ const Writers = () => {
       {/* ── Slim refetch indicator (only on filter/sort changes, not initial load) ── */}
       {fetching && (
         <div className="fixed top-0 left-0 right-0 z-50 h-[2px] overflow-hidden">
-          <div className={`h-full w-1/2 animate-progress ${dark ? "bg-gray-300" : "bg-[#1e3a5f]"}`} />
+          <div className="h-full w-1/2 bg-blue-500 animate-progress" />
         </div>
       )}
       <div className="max-w-6xl mx-auto px-3 sm:px-5 py-8">
@@ -367,10 +367,10 @@ const Writers = () => {
           <div className="flex items-start justify-between flex-wrap gap-4 mb-5">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h1 className={`text-[24px] sm:text-[30px] font-black tracking-tight leading-none ${tk.text}`}>
-                  Writer Rankings
+                <h1 className={`text-[28px] sm:text-[34px] font-black tracking-tight leading-none ${tk.text}`}>
+                  Browse Writers
                 </h1>
-                <span className={`w-2 h-2 rounded-full animate-pulse ${dark ? "bg-gray-300" : "bg-[#1e3a5f]"}`} />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
               <p className={`text-[13px] ${tk.sub}`}>
                 {sortBy === "reputation" ? "Ranked by overall reputation" :
@@ -385,9 +385,9 @@ const Writers = () => {
             {!loading && writers.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 {[
-                  { val: writers.length, label: "Writers",  icon: "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z", cl: dark ? "text-[#9db2c9]" : "text-[#1e3a5f]" },
-                  { val: totalScripts,   label: "Scripts",  icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z", cl: dark ? "text-[#b4a0c6]" : "text-[#57436a]" },
-                  ...(avgScore > 0 ? [{ val: `${avgScore}/100`, label: "Avg Score", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z", cl: dark ? "text-[#c7ba84]" : "text-[#5e5532]" }] : [])
+                  { val: writers.length, label: "Writers",  icon: "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z", cl: "text-blue-400" },
+                  { val: totalScripts,   label: "Scripts",  icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z", cl: "text-violet-400" },
+                  ...(avgScore > 0 ? [{ val: `${avgScore}/100`, label: "Avg Score", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z", cl: "text-cyan-400" }] : [])
                 ].map(({ val, label, icon, cl }) => (
                   <div key={label} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${tk.badgeSurf}`}>
                     <Svg d={icon} cls={`w-3 h-3 ${cl}`} />
@@ -419,7 +419,7 @@ const Writers = () => {
             <div className={`flex items-center gap-0.5 p-1 rounded-lg border overflow-x-auto ${tk.tabWrap}`}>
               {SORT_TABS.map((tab) => (
                 <button key={tab.key} onClick={() => setSortBy(tab.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-[11px] font-semibold transition-all whitespace-nowrap ${sortBy === tab.key ? tk.tabOn : tk.tabOff}`}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap ${sortBy === tab.key ? tk.tabOn : tk.tabOff}`}
                 >
                   <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />

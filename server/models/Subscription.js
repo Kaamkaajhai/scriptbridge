@@ -21,7 +21,7 @@ const subscriptionSchema = new mongoose.Schema({
     default: "pending"
   },
   amount: { type: Number, required: true }, // In cents
-  currency: { type: String, default: "INR" },
+  currency: { type: String, default: "USD" },
   
   // Billing cycle
   billingCycle: { 

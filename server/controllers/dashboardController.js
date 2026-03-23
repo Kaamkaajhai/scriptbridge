@@ -123,7 +123,7 @@ export const getDashboardReviews = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const scripts = await Script.find({ creator: userId, status: "published" })
+    const scripts = await Script.find({ creator: userId })
       .select("title scriptScore platformScore views unlockedBy genre price holdStatus trailerStatus createdAt")
       .sort({ createdAt: -1 });
 
@@ -298,10 +298,6 @@ export const getInvestorDashboard = async (req, res) => {
     const totalInvested = allDeals.reduce((sum, d) => sum + d.fee, 0);
     const activeDealsCount = allDeals.filter(d => d.status === "active").length;
     const convertedDealsCount = allDeals.filter(d => d.status === "converted").length;
-    const successfulProjects = convertedDealsCount; // Successful projects = converted deals
-
-    // Count scripts purchased by this investor
-    const scriptsPurchased = await Script.countDocuments({ unlockedBy: userId });
 
     // Scripts viewed recently
     const recentViews = await Script.find({ _id: { $in: viewedScriptIds.slice(-20) } })
@@ -315,7 +311,6 @@ export const getInvestorDashboard = async (req, res) => {
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       "scriptScore.overall": { $exists: true },
       holdStatus: "available",
     })
@@ -327,13 +322,7 @@ export const getInvestorDashboard = async (req, res) => {
     // Preference-matched scripts (mandates take priority over general preferences)
     const mandateGenres = user.industryProfile?.mandates?.genres;
     const prefGenres = (mandateGenres?.length > 0) ? mandateGenres : (user.preferences?.genres || []);
-    const prefQuery = {
-      status: "published",
-      adminApproved: true,
-      holdStatus: "available",
-      isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
-    };
+    const prefQuery = { status: "published", adminApproved: true, holdStatus: "available", isSold: { $ne: true } };
     if (prefGenres.length > 0) {
       prefQuery.genre = { $in: prefGenres };
     }
@@ -363,19 +352,17 @@ export const getInvestorDashboard = async (req, res) => {
       .limit(5);
 
     // Platform-wide stats (gives investor a market pulse)
-    const totalPlatformScripts = await Script.countDocuments({ status: "published", adminApproved: true, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } });
+    const totalPlatformScripts = await Script.countDocuments({ status: "published", adminApproved: true, isSold: { $ne: true } });
     const newThisWeek = await Script.countDocuments({
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
     });
     const availableScripts = await Script.countDocuments({
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       holdStatus: "available",
     });
 
@@ -389,8 +376,6 @@ export const getInvestorDashboard = async (req, res) => {
         avgViewedScore,
         followingCount: user.following?.length || 0,
         followersCount: user.followers?.length || 0,
-        successfulProjects,
-        scriptsPurchased,
       },
       marketPulse: {
         totalScripts: totalPlatformScripts,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
@@ -6,11 +6,10 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { Film } from "lucide-react";
 import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
-import { formatCurrency } from "../utils/currency";
 
 const ScriptDetail = () => {
   const { id } = useParams();
-  const { user, setUser } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
 
@@ -35,8 +34,6 @@ const ScriptDetail = () => {
   const [pendingReqActionId, setPendingReqActionId] = useState(null);
   const [rejectNoteModal, setRejectNoteModal] = useState(null); // { id, investorName }
   const [rejectNoteText, setRejectNoteText] = useState("");
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const viewStartRef = useRef(Date.now());
 
   /* ── Handlers ─────────────────────────────────────────── */
 
@@ -56,7 +53,7 @@ const ScriptDetail = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
+    return `http://localhost:5002${url}`;
   };
 
   const handlePrint = () => {
@@ -107,32 +104,6 @@ const ScriptDetail = () => {
     fetchScript();
     setCoverError(false);
   }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    viewStartRef.current = Date.now();
-
-    return () => {
-      const elapsed = Date.now() - viewStartRef.current;
-      if (elapsed < 2000) return;
-      api
-        .post(`/scripts/${id}/interactions`, {
-          type: "time_spent",
-          timeSpentMs: elapsed,
-          source: "script_detail_page",
-        })
-        .catch(() => null);
-    };
-  }, [id]);
-
-  useEffect(() => {
-    const favoriteIds = user?.favoriteScripts || [];
-    const hasBookmark = Array.isArray(favoriteIds)
-      ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === id)
-      : false;
-    setIsBookmarked(hasBookmark);
-  }, [user?.favoriteScripts, id]);
 
   useEffect(() => {
     if (script?.isCreator) {
@@ -238,14 +209,14 @@ const ScriptDetail = () => {
   const handlePaymentSuccess = async (paymentData) => {
     // Refresh script data after successful payment
     await fetchScript();
-
+    
     // Show success message
     if (paymentType === "purchase") {
-      alert(paymentData.message || "Payment captured and sent to writer for approval.");
+      alert(`Script purchased successfully! ${paymentData.message || ""}`);
     } else {
       alert(`Hold placed successfully! ${paymentData.message || ""}`);
     }
-
+    
     // Close modal
     setShowHoldModal(false);
     setShowPurchaseModal(false);
@@ -285,34 +256,6 @@ const ScriptDetail = () => {
       alert(err.response?.data?.message || "Failed to unlock synopsis");
     } finally {
       setUnlockLoading(false);
-    }
-  };
-
-  const handleToggleBookmark = async () => {
-    if (!user?._id || !script?._id || script?.creator?._id === user?._id) return;
-    try {
-      const { data } = await api.post(`/scripts/${script._id}/favorite`);
-      const nextFavorited = Boolean(data?.favorited);
-      setIsBookmarked(nextFavorited);
-
-      setUser((prev) => {
-        if (!prev) return prev;
-        const currentIds = Array.isArray(prev.favoriteScripts)
-          ? prev.favoriteScripts.map((item) => (typeof item === "string" ? item : item?._id)).filter(Boolean)
-          : [];
-        const updatedIds = nextFavorited
-          ? Array.from(new Set([...currentIds, script._id]))
-          : currentIds.filter((item) => item !== script._id);
-        const updatedUser = { ...prev, favoriteScripts: updatedIds };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        return updatedUser;
-      });
-
-      window.dispatchEvent(new CustomEvent("bookmarkUpdated", {
-        detail: { scriptId: script._id, bookmarked: nextFavorited },
-      }));
-    } catch {
-      // silent fail for bookmark toggle
     }
   };
 
@@ -406,11 +349,11 @@ const ScriptDetail = () => {
 
   const fmtBudget = (b) => {
     const map = {
-      micro: "Micro (<₹1Cr)",
-      low: "Low (₹1Cr\u2013₹10Cr)",
-      medium: "Medium (₹10Cr\u2013₹150Cr)",
-      high: "High (₹150Cr\u2013₹750Cr)",
-      blockbuster: "Blockbuster (₹750Cr+)",
+      micro: "Micro (<$100K)",
+      low: "Low ($100K\u2013$1M)",
+      medium: "Medium ($1M\u2013$15M)",
+      high: "High ($15M\u2013$75M)",
+      blockbuster: "Blockbuster ($75M+)",
     };
     return map[b] || b?.charAt(0).toUpperCase() + b?.slice(1) || "\u2014";
   };
@@ -427,8 +370,8 @@ const ScriptDetail = () => {
     card: isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200",
     cardHov: isDarkMode ? "hover:border-white/[0.12]" : "hover:border-gray-300",
     tabs: isDarkMode ? "bg-[#0a1220] border-white/[0.04]" : "bg-gray-100/80 border-gray-200",
-    tabAct: isDarkMode ? "bg-[#1e3a5f] text-white"
-      : "bg-white text-[#1e3a5f]",
+    tabAct: isDarkMode ? "bg-[#1e3a5f] text-white shadow-md shadow-[#0a1520]/60"
+      : "bg-white text-[#1e3a5f] shadow-sm shadow-gray-200",
     tabInact: isDarkMode ? "text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.04]"
       : "text-gray-400 hover:text-gray-700 hover:bg-white/60",
     title: isDarkMode ? "text-white" : "text-gray-900",
@@ -486,12 +429,8 @@ const ScriptDetail = () => {
 
   const score = script.scriptScore || {};
   const isOwner = script.creator?._id === user?._id;
-  const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
-  const trailerSourceUrl = script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl;
-  const hasTrailer = Boolean(trailerSourceUrl);
-  const heroImage = script.trailerThumbnail || script.coverImage;
-  const showCoverPlaceholder = !heroImage || coverError;
+  const showCoverPlaceholder = !script.coverImage || coverError;
   const cl = script.classification || {};
   const ci = script.contentIndicators || {};
 
@@ -539,21 +478,7 @@ const ScriptDetail = () => {
 
             {/* Cover / Trailer */}
             <div className={`relative h-52 sm:h-72 ${isDarkMode ? "bg-gradient-to-br from-[#060c17] via-[#0c1a2d] to-[#0f2035]" : "bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200"}`}>
-              {hasTrailer ? (
-                <>
-                  <video
-                    src={resolveImage(trailerSourceUrl)}
-                    poster={heroImage ? resolveImage(heroImage) : undefined}
-                    muted
-                    loop
-                    autoPlay
-                    playsInline
-                    preload="metadata"
-                    className="w-full h-full object-cover absolute inset-0"
-                  />
-                  <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t ${isDarkMode ? "from-black/35 via-black/10" : "from-white/25 via-transparent"} to-transparent`} />
-                </>
-              ) : showCoverPlaceholder ? (
+              {showCoverPlaceholder ? (
                 <div className="w-full h-full flex flex-col items-center justify-center">
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border mb-4 ${isDarkMode ? "border-white/[0.08] bg-white/[0.03]" : "border-gray-200 bg-white/60"}`}>
                     <Film size={28} strokeWidth={1.5} className={isDarkMode ? "text-white/30" : "text-gray-400"} />
@@ -565,7 +490,7 @@ const ScriptDetail = () => {
                 </div>
               ) : (
                 <img
-                  src={resolveImage(heroImage)}
+                  src={resolveImage(script.coverImage)}
                   alt={script.title}
                   onError={() => setCoverError(true)}
                   className="w-full h-full object-cover absolute inset-0"
@@ -573,15 +498,12 @@ const ScriptDetail = () => {
               )}
 
               {/* Play overlay */}
-              {hasTrailer && (
+              {(script.trailerUrl || script.uploadedTrailerUrl) && (
                 <button onClick={() => setShowTrailer(true)} className="absolute inset-0 flex items-center justify-center group">
-                  <div className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md inline-flex items-center gap-2 ring-1 ring-white/15">
-                    <span className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </span>
-                    <span className="text-[11px] font-semibold tracking-wide uppercase text-white/90">Watch Trailer</span>
+                  <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xl ring-1 ring-white/10">
+                    <svg className="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
                   </div>
                 </button>
               )}
@@ -589,7 +511,7 @@ const ScriptDetail = () => {
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-wrap gap-2">
                 {script.premium && (
-                  <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold">
+                  <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold shadow-lg shadow-amber-500/20">
                     &#9733; Premium
                   </span>
                 )}
@@ -602,7 +524,7 @@ const ScriptDetail = () => {
               </div>
 
               {/* Bottom overlay chips */}
-              <div className={`absolute bottom-0 left-0 right-0 pt-12 pb-4 px-5 bg-gradient-to-t ${isDarkMode ? "from-black/45 via-black/15" : "from-white/75 via-white/25"} to-transparent`}>
+              <div className={`absolute bottom-0 left-0 right-0 pt-12 pb-4 px-5 bg-gradient-to-t ${isDarkMode ? "from-[#0d1829] via-[#0d1829]/80" : "from-white/95 via-white/70"} to-transparent`}>
                 <div className="flex items-end justify-between">
                   <div className="flex gap-2">
                     <span className={`px-2.5 py-1 backdrop-blur-md rounded-lg text-[11px] font-semibold border ${t.chip}`}>
@@ -630,65 +552,54 @@ const ScriptDetail = () => {
 
             {/* ── Script Info Area ──────────────────────────── */}
             <div className="p-5 sm:p-7">
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 lg:gap-8">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
 
                 {/* Left column */}
-                <div className="flex-1 min-w-0 space-y-4">
-                  <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Project Overview</p>
-                    <h1 className={`text-2xl sm:text-3xl font-bold mb-4 tracking-tight leading-tight ${t.title}`}>
-                      {script.title}
-                    </h1>
+                <div className="flex-1 min-w-0">
+                  <h1 className={`text-2xl sm:text-3xl font-bold mb-2 tracking-tight leading-tight ${t.title}`}>
+                    {script.title}
+                  </h1>
 
-                    <div className={`flex flex-wrap items-center gap-2.5 text-xs mb-5 ${t.muted}`}>
-                      <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{fmtFormat(script.format)}</span>
-                      {(script.primaryGenre || script.genre) && (
-                        <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{script.primaryGenre || script.genre}</span>
-                      )}
-                      <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{script.views || 0} views</span>
-                    </div>
-
-                    {/* Author */}
-                    <Link to={`/profile/${script.creator?._id}`} className="inline-flex items-center gap-2.5 group">
-                      {script.creator?.profileImage && !coverError ? (
-                        <img
-                          src={resolveImage(script.creator.profileImage)}
-                          alt=""
-                          className={`w-8 h-8 rounded-full object-cover ring-2 ${isDarkMode ? "ring-white/10" : "ring-gray-200"}`}
-                          onError={(e) => { e.target.style.display = "none"; }}
-                        />
-                      ) : (
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white ring-2 ${isDarkMode ? "bg-gradient-to-br from-[#1e3a5f] to-[#2a5080] ring-white/10" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] ring-gray-200"}`}>
-                          {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
-                        </div>
-                      )}
-                      <div className="leading-tight">
-                        <p className={`text-[10px] font-bold uppercase tracking-wider ${t.label}`}>Writer</p>
-                        <p className={`text-sm font-semibold transition group-hover:text-[#1e3a5f] ${t.sub}`}>{script.creator?.name}</p>
+                  {/* Author */}
+                  <Link to={`/profile/${script.creator?._id}`} className="inline-flex items-center gap-2.5 mb-5 group">
+                    {script.creator?.profileImage && !coverError ? (
+                      <img
+                        src={resolveImage(script.creator.profileImage)}
+                        alt=""
+                        className={`w-7 h-7 rounded-full object-cover ring-2 ${isDarkMode ? "ring-white/10" : "ring-gray-200"}`}
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    ) : (
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ring-2 ${isDarkMode ? "bg-gradient-to-br from-[#1e3a5f] to-[#2a5080] ring-white/10" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] ring-gray-200"}`}>
+                        {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}
                       </div>
-                    </Link>
-                  </div>
+                    )}
+                    <span className={`text-sm font-semibold transition group-hover:text-[#1e3a5f] ${t.sub}`}>
+                      {script.creator?.name}
+                    </span>
+                  </Link>
 
+                  {/* Logline */}
                   {script.logline && (
-                    <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Logline</p>
-                      <div className="max-h-28 overflow-y-auto sidebar-scroll pr-2">
-                        <p className={`text-[15px] leading-relaxed italic whitespace-pre-wrap break-words ${t.sub}`}>
-                          &ldquo;{script.logline}&rdquo;
-                        </p>
-                      </div>
+                    <div className={`bg-gradient-to-r rounded-xl p-4 mb-5 border-l-2 ${t.logline}`}>
+                      <p className={`text-[13px] leading-relaxed italic ${t.sub}`}>
+                        &ldquo;{script.logline}&rdquo;
+                      </p>
                     </div>
+                  )}
+
+                  {/* Description */}
+                  {script.description && (
+                    <p className={`text-sm leading-relaxed mb-5 ${t.muted}`}>{script.description}</p>
                   )}
 
                   {/* Synopsis preview */}
                   {script.synopsis && (
-                    <div className={`rounded-2xl p-5 sm:p-6 border ${t.inset}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Synopsis</p>
-                      <div className="max-h-56 overflow-y-auto sidebar-scroll pr-2">
-                        <p className={`text-[14px] leading-relaxed whitespace-pre-wrap break-words ${t.sub}`}>{script.synopsis}</p>
-                      </div>
+                    <div className={`rounded-xl p-4 mb-5 border ${t.inset}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${t.label}`}>Synopsis</p>
+                      <p className={`text-[13px] leading-relaxed whitespace-pre-wrap ${t.sub}`}>{script.synopsis}</p>
                       {script.isSynopsisLocked && (
-                        <div className={`mt-4 pt-3 border-t flex items-center gap-2 text-xs ${t.divider} ${t.muted}`}>
+                        <div className={`mt-3 pt-3 border-t flex items-center gap-2 text-xs ${t.divider} ${t.muted}`}>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                             <path d="M7 11V7a5 5 0 0110 0v4" />
@@ -699,52 +610,48 @@ const ScriptDetail = () => {
                     </div>
                   )}
 
-                  {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation || script.tags?.length > 0) && (
-                    <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Metadata</p>
-
-                      {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation) && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {ci.bechdelTest && (
-                            <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg text-[11px] font-bold border border-emerald-500/20">
-                              &#10003; Bechdel Test
-                            </span>
-                          )}
-                          {ci.basedOnTrueStory && (
-                            <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 rounded-lg text-[11px] font-bold border border-blue-500/20">
-                              Based on True Story
-                            </span>
-                          )}
-                          {ci.adaptation && (
-                            <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 rounded-lg text-[11px] font-bold border border-purple-500/20">
-                              Adaptation{ci.adaptationSource ? `: ${ci.adaptationSource}` : ""}
-                            </span>
-                          )}
-                        </div>
+                  {/* Content indicators */}
+                  {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation) && (
+                    <div className="flex flex-wrap gap-2 mb-5">
+                      {ci.bechdelTest && (
+                        <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg text-[11px] font-bold border border-emerald-500/20">
+                          &#10003; Bechdel Test
+                        </span>
                       )}
-
-                      {script.tags?.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto sidebar-scroll pr-2">
-                          {script.tags.map((tag) => (
-                            <span key={tag} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium ring-1 transition ${t.tag}`}>
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
+                      {ci.basedOnTrueStory && (
+                        <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 rounded-lg text-[11px] font-bold border border-blue-500/20">
+                          Based on True Story
+                        </span>
                       )}
+                      {ci.adaptation && (
+                        <span className="px-2.5 py-1 bg-purple-500/10 text-purple-600 rounded-lg text-[11px] font-bold border border-purple-500/20">
+                          Adaptation{ci.adaptationSource ? `: ${ci.adaptationSource}` : ""}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {script.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {script.tags.map((tag) => (
+                        <span key={tag} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium ring-1 transition ${t.tag}`}>
+                          #{tag}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
 
                 {/* ── Right Sidebar ─────────────────────────── */}
-                <div className="lg:w-72 space-y-3 flex-shrink-0 lg:sticky lg:top-4 self-start">
+                <div className="lg:w-64 space-y-3 flex-shrink-0">
 
                   {/* Price card */}
-                  <div className={`rounded-2xl p-5 border ${t.priceSub}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${t.label}`}>Commercial</p>
-                    <p className={`text-3xl font-extrabold mb-4 ${t.title}`}>
-                      {formatCurrency(script.price)}
-                      <span className={`text-sm font-medium ml-1 ${t.muted}`}>INR</span>
+                  <div className={`rounded-xl p-5 border ${t.priceSub}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${t.label}`}>Price</p>
+                    <p className={`text-3xl font-extrabold mb-3 ${t.title}`}>
+                      ${script.price}
+                      <span className={`text-sm font-medium ml-1 ${t.muted}`}>USD</span>
                     </p>
                     <div className={`grid grid-cols-2 gap-3 pt-3 border-t ${t.divider}`}>
                       <div>
@@ -766,24 +673,7 @@ const ScriptDetail = () => {
                   </div>
 
                   {/* Action buttons */}
-                  <div className={`rounded-2xl p-4 border space-y-2 ${t.priceSub}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${t.label}`}>Actions</p>
-
-                    {canBookmark && (
-                      <button
-                        onClick={handleToggleBookmark}
-                        className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${isBookmarked
-                          ? "bg-amber-500/12 text-amber-400 border-amber-400/30"
-                          : t.btnSec
-                        }`}
-                      >
-                        <svg className={`w-3.5 h-3.5 ${isBookmarked ? "fill-current" : ""}`} viewBox="0 0 24 24" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 4.5h13.5a.75.75 0 01.75.75v15.69a.75.75 0 01-1.219.594L12 16.34l-6.281 5.194a.75.75 0 01-1.219-.594V5.25a.75.75 0 01.75-.75z" />
-                        </svg>
-                        {isBookmarked ? "Bookmarked" : "Bookmark Project"}
-                      </button>
-                    )}
-
+                  <div className="space-y-2">
                     {isOwner && (
                       <button
                         onClick={() => navigate(`/upload?edit=${script._id}`)}
@@ -807,27 +697,17 @@ const ScriptDetail = () => {
                             </svg>
                             Awaiting Writer Approval
                           </div>
-                          {script.myPendingRequest?.paymentStatus === "escrow_held" && (
-                            <p className="text-xs text-amber-700/90 text-center mt-1">Payment is secured in escrow.</p>
-                          )}
                         </div>
                       ) : (
                         <button
-                          onClick={() => {
-                            if (script.price > 0) {
-                              setPaymentType("purchase");
-                              setShowPurchaseModal(true);
-                              return;
-                            }
-                            setShowRequestModal(true);
-                          }}
-                          className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
+                          onClick={() => setShowRequestModal(true)}
+                          className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition shadow-lg ${t.btnPrim}`}
                         >
                           <div className="flex items-center justify-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
+                            {script.price > 0 ? `Request to Purchase — $${script.price}` : "Request Access"}
                           </div>
                         </button>
                       )
@@ -858,6 +738,15 @@ const ScriptDetail = () => {
                           </button>
                         )}
                       </>
+                    )}
+
+                    {!isOwner && isPro && script.holdStatus === "available" && (
+                      <button
+                        onClick={handleHold}
+                        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition shadow-sm ${t.btnGhost}`}
+                      >
+                        Place Hold &mdash; ₹{script.holdFee || 200}
+                      </button>
                     )}
 
                     {script.holdStatus === "held" && (
@@ -917,8 +806,8 @@ const ScriptDetail = () => {
 
                   {/* Services */}
                   {script.services && (
-                    <div className={`rounded-2xl p-4 border ${t.priceSub}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${t.label}`}>Active Services</p>
+                    <div className={`rounded-xl p-4 border ${t.priceSub}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${t.label}`}>Active Services</p>
                       <div className="space-y-1.5">
                         {script.services.hosting && (
                           <div className="flex items-center gap-2 text-xs">
@@ -942,9 +831,9 @@ const ScriptDetail = () => {
                     </div>
                   )}
 
-                  <div className={`rounded-2xl p-3 border text-center ${t.priceSub}`}>
-                    <p className={`text-[11px] font-medium ${t.muted}`}>Uploaded {formatDate(script.createdAt)}</p>
-                  </div>
+                  <p className={`text-[11px] font-medium text-center ${t.muted}`}>
+                    Uploaded {formatDate(script.createdAt)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -997,7 +886,7 @@ const ScriptDetail = () => {
                       { label: "Secondary Genre", value: cl.secondaryGenre },
                       { label: "Page Count", value: script.pageCount },
                       { label: "Budget Level", value: fmtBudget(script.budget) },
-                      { label: "Hold Fee", value: script.holdFee ? `₹${script.holdFee}` : null },
+                      { label: "Hold Fee", value: script.holdFee ? `$${script.holdFee}` : null },
                       { label: "Hold Status", value: script.holdStatus?.charAt(0).toUpperCase() + script.holdStatus?.slice(1) },
                       { label: "Uploaded", value: formatDate(script.createdAt) },
                     ]
@@ -1050,10 +939,10 @@ const ScriptDetail = () => {
 
               /* Dimension definitions — each has a distinct semantic color */
               const dims = [
-                { key: "plot", label: "Plot", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253", color: dk ? "#818cf8" : "#4f46e5" },
-                { key: "characters", label: "Characters", icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z", color: dk ? "#a78bfa" : "#7c3aed" },
-                { key: "dialogue", label: "Dialogue", icon: "M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z", color: dk ? "#34d399" : "#059669" },
-                { key: "pacing", label: "Pacing", icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z", color: dk ? "#fbbf24" : "#d97706" },
+                { key: "plot",          label: "Plot",          icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253", color: dk ? "#818cf8" : "#4f46e5" },
+                { key: "characters",    label: "Characters",    icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z", color: dk ? "#a78bfa" : "#7c3aed" },
+                { key: "dialogue",      label: "Dialogue",      icon: "M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z", color: dk ? "#34d399" : "#059669" },
+                { key: "pacing",        label: "Pacing",        icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z", color: dk ? "#fbbf24" : "#d97706" },
                 { key: "marketability", label: "Marketability", icon: "M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941", color: dk ? "#fb923c" : "#ea580c" },
               ];
 
@@ -1061,17 +950,17 @@ const ScriptDetail = () => {
               const gradeLabel = (v) => v >= 90 ? "S" : v >= 80 ? "A" : v >= 70 ? "B" : v >= 60 ? "C" : v >= 50 ? "D" : "F";
               const gradeColor = (v) =>
                 v >= 90 ? (dk ? "#c084fc" : "#9333ea") :
-                  v >= 80 ? (dk ? "#34d399" : "#059669") :
-                    v >= 70 ? (dk ? "#60a5fa" : "#2563eb") :
-                      v >= 60 ? (dk ? "#fbbf24" : "#d97706") :
-                        (dk ? "#f87171" : "#dc2626");
+                v >= 80 ? (dk ? "#34d399" : "#059669") :
+                v >= 70 ? (dk ? "#60a5fa" : "#2563eb") :
+                v >= 60 ? (dk ? "#fbbf24" : "#d97706") :
+                           (dk ? "#f87171" : "#dc2626");
               const gradeText = (v) => v >= 90 ? "Exceptional" : v >= 80 ? "Excellent" : v >= 70 ? "Strong" : v >= 60 ? "Promising" : v >= 50 ? "Developing" : "Needs Work";
               const gradeBand = (v) =>
-                v >= 90 ? (dk ? "bg-purple-400/10 border-purple-400/20 text-purple-300" : "bg-purple-50 border-purple-200 text-purple-700") :
-                  v >= 80 ? (dk ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700") :
-                    v >= 70 ? (dk ? "bg-blue-400/10 border-blue-400/20 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700") :
-                      v >= 60 ? (dk ? "bg-amber-400/10 border-amber-400/20 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-700") :
-                        (dk ? "bg-red-400/10 border-red-400/20 text-red-300" : "bg-red-50 border-red-200 text-red-700");
+                v >= 90 ? (dk ? "bg-purple-400/10 border-purple-400/20 text-purple-300"   : "bg-purple-50 border-purple-200 text-purple-700") :
+                v >= 80 ? (dk ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700") :
+                v >= 70 ? (dk ? "bg-blue-400/10 border-blue-400/20 text-blue-300"         : "bg-blue-50 border-blue-200 text-blue-700") :
+                v >= 60 ? (dk ? "bg-amber-400/10 border-amber-400/20 text-amber-300"       : "bg-amber-50 border-amber-200 text-amber-700") :
+                           (dk ? "bg-red-400/10 border-red-400/20 text-red-300"             : "bg-red-50 border-red-200 text-red-700");
 
               /* Radar geometry */
               const cx = 110, cy = 110, rr = 80;
@@ -1154,7 +1043,7 @@ const ScriptDetail = () => {
                           <svg viewBox="0 0 220 220" className="w-full max-w-xs mx-auto">
                             <defs>
                               <radialGradient id="evalRadarFill" cx="50%" cy="50%" r="50%">
-                                <stop offset="0%" stopColor={overallColor} stopOpacity={dk ? "0.22" : "0.16"} />
+                                <stop offset="0%"   stopColor={overallColor} stopOpacity={dk ? "0.22" : "0.16"} />
                                 <stop offset="100%" stopColor={overallColor} stopOpacity="0" />
                               </radialGradient>
                             </defs>
@@ -1247,11 +1136,11 @@ const ScriptDetail = () => {
                       {script.platformScore?.overall > 0 && (() => {
                         const ps = script.platformScore;
                         const psDims = [
-                          { key: "content", label: "Main Content", color: "#6366f1", track: dk ? "rgba(99,102,241,0.15)" : "#ede9fe" },
-                          { key: "trailer", label: "Trailer", color: "#8b5cf6", track: dk ? "rgba(139,92,246,0.15)" : "#ede9fe" },
-                          { key: "title", label: "Title", color: "#f59e0b", track: dk ? "rgba(245,158,11,0.15)" : "#fef3c7" },
-                          { key: "synopsis", label: "Synopsis", color: "#10b981", track: dk ? "rgba(16,185,129,0.15)" : "#d1fae5" },
-                          { key: "tags", label: "Tag & Meta", color: "#f97316", track: dk ? "rgba(249,115,22,0.15)" : "#ffedd5" },
+                          { key: "content",  label: "Main Content", color: "#6366f1", track: dk ? "rgba(99,102,241,0.15)"  : "#ede9fe" },
+                          { key: "trailer",  label: "Trailer",      color: "#8b5cf6", track: dk ? "rgba(139,92,246,0.15)" : "#ede9fe" },
+                          { key: "title",    label: "Title",        color: "#f59e0b", track: dk ? "rgba(245,158,11,0.15)"  : "#fef3c7" },
+                          { key: "synopsis", label: "Synopsis",     color: "#10b981", track: dk ? "rgba(16,185,129,0.15)"  : "#d1fae5" },
+                          { key: "tags",     label: "Tag & Meta",   color: "#f97316", track: dk ? "rgba(249,115,22,0.15)"  : "#ffedd5" },
                         ];
                         const ov = ps.overall ?? 0;
                         const gc = ov >= 85 ? "#8b5cf6" : ov >= 70 ? "#10b981" : ov >= 55 ? "#3b82f6" : ov >= 40 ? "#f59e0b" : "#ef4444";
@@ -1412,9 +1301,9 @@ const ScriptDetail = () => {
                       {(() => {
                         const ps = script.platformScore || {};
                         const sections = [
-                          { key: "strengths", label: "Strengths", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z", band: dk ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700" },
-                          { key: "weaknesses", label: "Weaknesses", icon: "M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z", band: dk ? "bg-red-400/10 border-red-400/20 text-red-300" : "bg-red-50 border-red-200 text-red-700" },
-                          { key: "prospects", label: "Prospects", icon: "M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941", band: dk ? "bg-indigo-400/10 border-indigo-400/20 text-indigo-300" : "bg-indigo-50 border-indigo-200 text-indigo-700" },
+                          { key: "strengths",  label: "Strengths",  icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z",        band: dk ? "bg-emerald-400/10 border-emerald-400/20 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700" },
+                          { key: "weaknesses", label: "Weaknesses", icon: "M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z", band: dk ? "bg-red-400/10 border-red-400/20 text-red-300"             : "bg-red-50 border-red-200 text-red-700" },
+                          { key: "prospects",  label: "Prospects",  icon: "M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941", band: dk ? "bg-indigo-400/10 border-indigo-400/20 text-indigo-300" : "bg-indigo-50 border-indigo-200 text-indigo-700" },
                         ];
                         return (
                           <div className="space-y-3">
@@ -1635,7 +1524,7 @@ const ScriptDetail = () => {
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (
                             <div>
-                              <p className={`text-sm mb-4 ${t.muted}`}>For paid scripts, complete checkout first. Your payment is held in escrow until the writer approves.</p>
+                              <p className={`text-sm mb-4 ${t.muted}`}>Submit a purchase request to the writer. Once approved, you'll get full access to this script.</p>
                               {script.isUnlocked ? (
                                 <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1651,23 +1540,13 @@ const ScriptDetail = () => {
                                     </svg>
                                     Request Pending — Awaiting Writer Approval
                                   </div>
-                                  {script.myPendingRequest?.paymentStatus === "escrow_held" && (
-                                    <p className={`text-xs ${t.muted}`}>Payment secured in escrow and will auto-settle on writer decision.</p>
-                                  )}
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => {
-                                    if (script.price > 0) {
-                                      setPaymentType("purchase");
-                                      setShowPurchaseModal(true);
-                                      return;
-                                    }
-                                    setShowRequestModal(true);
-                                  }}
+                                  onClick={() => setShowRequestModal(true)}
                                   className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                 >
-                                  {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
+                                  {script.price > 0 ? `Request to Purchase — $${script.price}` : "Request Access"}
                                 </button>
                               )}
                             </div>
@@ -1717,7 +1596,7 @@ const ScriptDetail = () => {
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-sm font-semibold truncate ${t.title}`}>{pr.investor?.name}</p>
                                   <p className={`text-xs ${t.muted}`}>
-                                    {pr.amount > 0 ? `₹${pr.amount} offered` : "Free access request"}
+                                    {pr.amount > 0 ? `$${pr.amount} offered` : "Free access request"}
                                     {" · "}
                                     {new Date(pr.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                   </p>
@@ -1778,13 +1657,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` ₹${script.price} will be held in escrow until the writer reviews your request.`
+                ? ` You will be contacted to complete payment of $${script.price} once the writer approves.`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
-              <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Approved = released to writer, rejected = refunded to your original payment method.</p>}
+              <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `$${script.price}` : "Free"}</p>
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Payment collected after writer approves</p>}
             </div>
             <button
               onClick={handleRequestPurchase}
@@ -1846,7 +1725,7 @@ const ScriptDetail = () => {
       )}
 
       {/* Trailer modal */}
-      {showTrailer && hasTrailer && (
+      {showTrailer && (script.trailerUrl || script.uploadedTrailerUrl) && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTrailer(false)}>
           <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-end mb-2">
@@ -1854,13 +1733,12 @@ const ScriptDetail = () => {
                 &#10005;
               </button>
             </div>
-            <div className="rounded-xl overflow-hidden ring-1 ring-white/10">
-              <video
-                src={resolveImage(trailerSourceUrl)}
-                poster={script.trailerThumbnail ? resolveImage(script.trailerThumbnail) : undefined}
-                controls
-                autoPlay
-                className="w-full"
+            <div className="rounded-xl overflow-hidden shadow-2xl">
+              <video 
+                src={script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl} 
+                controls 
+                autoPlay 
+                className="w-full" 
               />
             </div>
           </div>

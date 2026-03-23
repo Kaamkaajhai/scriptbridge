@@ -88,11 +88,11 @@ const IndustryOnboarding = () => {
   ];
 
   const budgetTierOptions = [
-    { value: "micro", label: "Micro (<₹50L)", desc: "Executable indie scripts" },
-    { value: "low", label: "Low (₹50L - ₹5Cr)", desc: "Independent features" },
-    { value: "medium", label: "Medium (₹5Cr - ₹25Cr)", desc: "Mid-budget productions" },
-    { value: "high", label: "High (₹25Cr - ₹75Cr)", desc: "Studio features" },
-    { value: "blockbuster", label: "Blockbuster (>₹75Cr)", desc: "Big IP & franchises" }
+    { value: "micro", label: "Micro (<$500K)", desc: "Executable indie scripts" },
+    { value: "low", label: "Low ($500K - $5M)", desc: "Independent features" },
+    { value: "medium", label: "Medium ($5M - $25M)", desc: "Mid-budget productions" },
+    { value: "high", label: "High ($25M - $75M)", desc: "Studio features" },
+    { value: "blockbuster", label: "Blockbuster (>$75M)", desc: "Big IP & franchises" }
   ];
 
   const genreOptions = [
@@ -438,7 +438,7 @@ const IndustryOnboarding = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-[#111111] text-white py-3 rounded-lg font-semibold hover:bg-[#000000] transition disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? "Verifying..." : "Verify Email"}
                 <ArrowRight size={20} />
@@ -816,7 +816,7 @@ const IndustryOnboarding = () => {
               <button
                 type="submit"
                 disabled={loading || !agreementAccepted}
-                className="flex-1 bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 bg-[#111111] text-white py-3 rounded-lg font-semibold hover:bg-[#000000] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? "Processing..." : "Complete Setup & Browse Scripts"}
                 <CheckCircle size={20} />
@@ -852,12 +852,12 @@ const IndustryOnboarding = () => {
                 <div key={step.num} className="flex items-center flex-1">
                   <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition text-xs font-semibold ${
                     isComplete 
-                      ? 'bg-[#1e3a5f] border-[#1e3a5f] text-white' 
+                      ? 'bg-[#111111] border-[#111111] text-white' 
                       : isActive 
                         ? 'bg-[#0f2544] border-[#0f2544] text-white' 
                         : 'bg-white border-gray-300 text-gray-400'
                   }`}>
-                    {isComplete ? '✓' : step.num}
+                    {isComplete ? '' : step.num}
                   </div>
                   <div className="ml-2 hidden sm:block">
                     <div className={`text-xs font-semibold ${
@@ -868,7 +868,7 @@ const IndustryOnboarding = () => {
                   </div>
                   {index < steps.length - 1 && (
                     <div className={`flex-1 h-0.5 mx-4 ${
-                      isComplete ? 'bg-[#1e3a5f]' : 'bg-gray-300'
+                      isComplete ? 'bg-[#111111]' : 'bg-gray-300'
                     }`} />
                   )}
                 </div>

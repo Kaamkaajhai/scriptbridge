@@ -4,12 +4,12 @@ import bcrypt from "bcryptjs";
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  pendingEmail: { type: String },
   password: { type: String, required: true },
   role: { type: String, enum: ["creator", "investor", "producer", "director", "actor", "reader", "writer", "industry", "professional", "admin"], required: true },
   bio: { type: String },
   skills: [String],
   profileImage: { type: String },
+  coverImage: { type: String },
 
   // Account settings
   isPrivate: { type: Boolean, default: false },
@@ -59,9 +59,7 @@ const userSchema = new mongoose.Schema({
     jobTitle: { type: String },
     imdbUrl: { type: String },
     linkedInUrl: { type: String },
-    otherUrl: { type: String },
     previousCredits: { type: String },
-    investmentRange: { type: String },
     isVerified: { type: Boolean, default: false },
     // Mandates (what they're looking for)
     mandates: {
@@ -78,7 +76,6 @@ const userSchema = new mongoose.Schema({
 
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   // Smart Match preferences
   preferences: {
     genres: [String],
@@ -122,19 +119,6 @@ const userSchema = new mongoose.Schema({
     holdAlerts: { type: Boolean, default: true },
     viewAlerts: { type: Boolean, default: true },
   },
-  recommendationProfile: {
-    detectedGenres: [String],
-    preferredFormats: [String],
-    preferredBudgets: [String],
-    behavior: {
-      genreWeights: { type: Map, of: Number, default: {} },
-      tagWeights: { type: Map, of: Number, default: {} },
-      formatWeights: { type: Map, of: Number, default: {} },
-      budgetWeights: { type: Map, of: Number, default: {} },
-      avgTimeSpentMs: { type: Number, default: 0 },
-    },
-    updatedAt: { type: Date },
-  },
   // Financial information
   bankDetails: {
     accountHolderName: { type: String },
@@ -148,15 +132,15 @@ const userSchema = new mongoose.Schema({
     },
     swiftCode: { type: String }, // For international transfers
     iban: { type: String }, // For international transfers
-    country: { type: String, default: "IN" },
-    currency: { type: String, default: "INR" },
+    country: { type: String, default: "US" },
+    currency: { type: String, default: "USD" },
     isVerified: { type: Boolean, default: false },
     verifiedAt: { type: Date },
     addedAt: { type: Date }
   },
   wallet: {
     balance: { type: Number, default: 0 },
-    currency: { type: String, default: "INR" },
+    currency: { type: String, default: "USD" },
     pendingBalance: { type: Number, default: 0 }, // Funds being processed
     totalEarnings: { type: Number, default: 0 },
     totalWithdrawals: { type: Number, default: 0 }

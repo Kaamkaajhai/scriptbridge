@@ -17,13 +17,6 @@ router.get("/", authMiddleware, async (req, res) => {
     }
     const searchRegex = new RegExp(q.trim(), "i");
 
-    const currentUser = await User.findById(req.user._id).select("blockedUsers").lean();
-    const usersWhoBlockedCurrent = await User.find({ blockedUsers: req.user._id }).select("_id").lean();
-    const blockedUserIds = [
-      ...(currentUser?.blockedUsers || []),
-      ...usersWhoBlockedCurrent.map((u) => u._id),
-    ];
-
     let results = { users: [], scripts: [] };
 
     // Search users (optionally filter by role)
@@ -49,10 +42,6 @@ router.get("/", authMiddleware, async (req, res) => {
         userQuery.role = role;
       }
 
-      if (blockedUserIds.length > 0) {
-        userQuery._id = { $nin: blockedUserIds };
-      }
-
       results.users = await User.find(userQuery)
         .select("name email role bio skills profileImage followers following writerProfile.genres writerProfile.wgaMember writerProfile.representationStatus")
         .limit(30)
@@ -68,33 +57,20 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Search scripts/projects
     if (type === "all" || type === "projects") {
-      const scriptQuery = {
-        status: "published",
-        isSold: { $ne: true },
-        $or: [
-          { purchaseRequestLocked: { $ne: true } },
-          { purchaseRequestLockedBy: req.user._id },
-          { creator: req.user._id },
-        ],
-      };
+      const scriptQuery = { status: "published", isSold: { $ne: true } };
       if (q && q.trim()) {
-        scriptQuery.$and = [{
-          $or: [
+        scriptQuery.$or = [
           { title: searchRegex },
           { description: searchRegex },
           { genre: searchRegex },
           { contentType: searchRegex },
-          ],
-        }];
+        ];
       }
       if (genre) scriptQuery.genre = genre;
       if (contentType) scriptQuery.contentType = contentType;
       if (budget) scriptQuery.budget = budget;
       if (premium === "true") scriptQuery.premium = true;
       else if (premium === "false") scriptQuery.premium = { $ne: true };
-      if (blockedUserIds.length > 0) {
-        scriptQuery.creator = { $nin: blockedUserIds };
-      }
 
       results.scripts = await Script.find(scriptQuery)
         .populate("creator", "name profileImage role")
@@ -117,4 +93,55 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/search/suggestions?q=
+router.get("/suggestions", authMiddleware, async (req, res) => {
+  try {
+    const { q = "" } = req.query;
+    if (!q.trim() || q.trim().length < 2) return res.json({ scripts: [], users: [] });
+
+    const regex = new RegExp(q.trim(), "i");
+
+    const [scripts, users] = await Promise.all([
+      Script.find({ title: regex })
+        .select("title genre coverImage creator readsCount scriptScore")
+        .populate("creator", "name profileImage")
+        .sort({ readsCount: -1 })
+        .limit(5)
+        .lean(),
+      User.find({ name: regex, role: { $in: ["writer", "investor"] } })
+        .select("name profileImage role")
+        .limit(3)
+        .lean(),
+    ]);
+
+    res.json({ scripts, users });
+  } catch (error) {
+    console.error("Suggestions error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET /api/search/trending
+router.get("/trending", async (req, res) => {
+  try {
+    const trendingScripts = await Script.find({ isPublished: true })
+      .select("title genre readsCount scriptScore coverImage creator")
+      .populate("creator", "name")
+      .sort({ readsCount: -1, scriptScore: -1 })
+      .limit(8)
+      .lean();
+
+    const trendingGenres = [
+      "Drama", "Comedy", "Thriller", "Romance", "Action",
+      "Horror", "Sci-Fi", "Documentary",
+    ];
+
+    res.json({ scripts: trendingScripts, genres: trendingGenres });
+  } catch (error) {
+    console.error("Trending error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;
+
