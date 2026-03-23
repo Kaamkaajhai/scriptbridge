@@ -6,4 +6,3 @@ dist/
 build/
 *.log
 .vercel/
-_deploy_master_only/
