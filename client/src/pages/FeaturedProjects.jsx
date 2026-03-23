@@ -412,6 +412,11 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
                     {script.premium ? "Premium" : "Sponsored"}
                   </span>
                 )}
+                {script.verifiedBadge && (
+                  <span className="flex items-center gap-1 text-[10px] font-black text-white bg-blue-600/90 border border-blue-300/60 px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-lg">
+                    Verified
+                  </span>
+                )}
                 {!(script.premium || script.isFeatured) && (
                   <span className="flex items-center gap-1 text-[10px] font-black text-white bg-gray-700 border border-gray-600 px-2.5 py-1 rounded-lg uppercase tracking-widest">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1633,6 +1638,14 @@ const FeaturedProjects = () => {
                                 <span className="text-[9px] font-black text-white uppercase tracking-wide">
                                   {script.premium ? "Premium" : "Sponsored"}
                                 </span>
+                              </div>
+                            )}
+                            {script.verifiedBadge && (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 border border-blue-300/60 rounded-lg shadow-lg">
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-[9px] font-black text-white uppercase tracking-wide">Verified</span>
                               </div>
                             )}
                             {rank && (

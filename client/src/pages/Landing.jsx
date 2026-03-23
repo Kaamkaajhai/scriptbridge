@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useSearchParams } from "react-router-dom";
 import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, HelpCircle, MessageSquare, CheckCircle, PenLine, BookOpen, ArrowRight, Clock3, XCircle } from "lucide-react";
@@ -6,6 +6,7 @@ import FeaturesShowcase from "../components/FeaturesShowcase";
 import SuccessStories from "../components/SuccessStories";
 import api from "../services/api";
 import BrandLogo from "../components/BrandLogo";
+import { AuthContext } from "../context/AuthContext";
 
 const contactReasons = [
   { value: "doubt", label: "I have a question / doubt", icon: HelpCircle },
@@ -237,6 +238,7 @@ const ContactSection = () => {
 const Landing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showInvestorReviewPopup, setShowInvestorReviewPopup] = useState(false);
+  const { user } = useContext(AuthContext);
 
   const reviewStatus = useMemo(() => {
     const value = (searchParams.get("investorReview") || "").toLowerCase();
@@ -327,12 +329,25 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <BrandLogo className="h-10 w-auto" />
           <div className="flex items-center gap-3">
-            <Link to="/login" className="px-5 py-2 text-sm font-medium text-[#8896a7] hover:text-white transition-colors">
-              Sign In
-            </Link>
-            <Link to="/join" className="px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-sm font-semibold transition-colors">
-              Get Started
-            </Link>
+            {user ? (
+              <>
+                <Link to="/profile" className="px-5 py-2 text-sm font-medium text-[#8896a7] hover:text-white transition-colors">
+                  {user?.name || "My Account"}
+                </Link>
+                <Link to="/dashboard" className="px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-sm font-semibold transition-colors">
+                  Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="px-5 py-2 text-sm font-medium text-[#8896a7] hover:text-white transition-colors">
+                  Sign In
+                </Link>
+                <Link to="/join" className="px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-sm font-semibold transition-colors">
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

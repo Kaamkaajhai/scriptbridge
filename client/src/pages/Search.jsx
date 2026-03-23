@@ -688,6 +688,9 @@ const Search = () => {
                           {user.bio && (
                             <p className={`text-[12px] line-clamp-1 mt-0.5 ${t.personBio}`}>{user.bio}</p>
                           )}
+                          {user.sid && (
+                            <p className={`text-[10px] font-semibold mt-0.5 ${t.personFollowers}`}>SID: {user.sid}</p>
+                          )}
                         </div>
 
                         {/* Right side — meta */}

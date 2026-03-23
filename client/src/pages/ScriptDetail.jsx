@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
-import { Film } from "lucide-react";
+import { Film, BadgeCheck } from "lucide-react";
 import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
 import { formatCurrency } from "../utils/currency";
 
@@ -22,6 +22,7 @@ const ScriptDetail = () => {
   const [holdLoading, setHoldLoading] = useState(false);
   const [trailerLoading, setTrailerLoading] = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
+  const [spotlightLoading, setSpotlightLoading] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [unlockLoading, setUnlockLoading] = useState(false);
@@ -265,14 +266,91 @@ const ScriptDetail = () => {
   };
 
   const handleGenerateScore = async () => {
+    setActiveTab("evaluation");
     setScoreLoading(true);
     try {
-      await api.post("/ai/script-score", { scriptId: script._id });
+      const { data } = await api.post("/ai/script-score", { scriptId: script._id });
       await fetchScript();
+      if (data?.message) {
+        alert(data.message);
+      } else {
+        alert("Evaluation request submitted. Opened Evaluation tab to view progress.");
+      }
     } catch (err) {
       alert(err.response?.data?.message || "Failed to generate score");
     } finally {
       setScoreLoading(false);
+    }
+  };
+
+  const handleActivateSpotlight = async () => {
+    if (!script?._id) return;
+    setSpotlightLoading(true);
+    try {
+      const endpointAttempts = [
+        { url: `/scripts/${script._id}/activate-spotlight`, body: {} },
+        { url: "/scripts/activate-spotlight", body: { scriptId: script._id } },
+        { url: "/scripts/spotlight/activate", body: { scriptId: script._id } },
+      ];
+
+      let data = null;
+      let lastError = null;
+
+      for (const attempt of endpointAttempts) {
+        try {
+          const response = await api.post(attempt.url, attempt.body);
+          data = response.data;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (error?.response?.status !== 404) {
+            throw error;
+          }
+        }
+      }
+
+      if (!data && lastError) {
+        throw lastError;
+      }
+
+      await fetchScript();
+
+      if (data?.credits?.balance !== undefined) {
+        setUser((prev) => {
+          if (!prev) return prev;
+          const updated = {
+            ...prev,
+            credits: {
+              ...(prev.credits || {}),
+              balance: data.credits.balance,
+            },
+          };
+          localStorage.setItem("user", JSON.stringify(updated));
+          return updated;
+        });
+      }
+
+      const refunded = Number(data?.package?.creditsRefunded || 0);
+      const refundNote = refunded > 0 ? ` Refunded ${refunded} AI trailer credits based on spotlight policy.` : "";
+      const isExtension = Boolean(data?.package?.isExtension);
+      alert(
+        isExtension
+          ? `Project Spotlight extended: featured top placement is extended for 1 month.${refundNote}`
+          : `Project Spotlight activated: verified badge is now permanent, free evaluation started, AI trailer queued (2-3 business days), and featured top placement is live for 1 month.${refundNote}`
+      );
+    } catch (err) {
+      const status = err?.response?.status;
+      let message = err?.response?.data?.message || "Failed to activate or extend Project Spotlight";
+
+      if (status === 404) {
+        message = "Project Spotlight is not available on this backend version yet. Deploy latest backend routes and try again.";
+      } else if (!err?.response) {
+        message = "Unable to reach backend. Please check API URL/server status.";
+      }
+
+      alert(message);
+    } finally {
+      setSpotlightLoading(false);
     }
   };
 
@@ -490,8 +568,12 @@ const ScriptDetail = () => {
   const isPro = ["investor", "producer", "director"].includes(user?.role);
   const trailerSourceUrl = script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl;
   const hasTrailer = Boolean(trailerSourceUrl);
-  const heroImage = script.trailerThumbnail || script.coverImage;
-  const showCoverPlaceholder = !heroImage || coverError;
+  const heroImage = hasTrailer ? (script.trailerThumbnail || script.coverImage) : null;
+  const showCoverPlaceholder = !hasTrailer || !heroImage || coverError;
+  const spotlightEndsAt = script?.promotion?.spotlightEndAt ? new Date(script.promotion.spotlightEndAt) : null;
+  const spotlightActive = Boolean(spotlightEndsAt && spotlightEndsAt >= new Date());
+  const hasEvaluationService = Boolean(script?.services?.evaluation);
+  const evaluationPending = !score?.overall && (script?.evaluationStatus === "requested" || hasEvaluationService);
   const cl = script.classification || {};
   const ci = script.contentIndicators || {};
 
@@ -591,6 +673,17 @@ const ScriptDetail = () => {
                 {script.premium && (
                   <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold">
                     &#9733; Premium
+                  </span>
+                )}
+                {script.verifiedBadge && (
+                  <span
+                    className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 p-[1.5px] shadow-[0_8px_20px_rgba(30,64,175,0.45)]"
+                    title="Verified Project"
+                    aria-label="Verified Project"
+                  >
+                    <span className="w-full h-full rounded-full bg-slate-950/15 border border-white/35 flex items-center justify-center backdrop-blur-sm">
+                      <BadgeCheck size={14} strokeWidth={2.35} className="text-white" />
+                    </span>
                   </span>
                 )}
                 {script.holdStatus === "held" && (
@@ -786,6 +879,37 @@ const ScriptDetail = () => {
 
                     {isOwner && (
                       <button
+                        onClick={handleActivateSpotlight}
+                        disabled={spotlightLoading}
+                        className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l2.6 5.27 5.82.85-4.21 4.1.99 5.78L12 16.9l-5.2 2.73.99-5.78-4.21-4.1 5.82-.85L12 3z" />
+                        </svg>
+                        {spotlightLoading
+                          ? "Activating Spotlight..."
+                          : spotlightActive
+                          ? "Extend Spotlight — 150 credits"
+                          : "Activate Spotlight — 310 credits"}
+                      </button>
+                    )}
+
+                    {isOwner && (
+                      <div className={`w-full px-3 py-2 rounded-xl border text-[11px] ${t.inset}`}>
+                        <p className={`font-bold ${t.sub}`}>Project Spotlight includes:</p>
+                        <p className={`mt-1 ${t.muted}`}>
+                          Verified badge (permanent once unlocked), free evaluation, free AI trailer, and top featured placement for 1 month.
+                        </p>
+                        {spotlightActive && spotlightEndsAt && (
+                          <p className={`mt-1 font-semibold ${t.sub}`}>
+                            Active until {formatDate(spotlightEndsAt)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {isOwner && (
+                      <button
                         onClick={() => navigate(`/upload?edit=${script._id}`)}
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${t.btnSec}`}
                       >
@@ -866,7 +990,7 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && !script.trailerUrl && !script.uploadedTrailerUrl && script.trailerStatus !== "generating" && script.trailerStatus !== "ready" && (
+                    {isOwner && !script.trailerUrl && !script.uploadedTrailerUrl && !["requested", "generating", "ready"].includes(script.trailerStatus) && (
                       <button
                         onClick={handleGenerateTrailer}
                         disabled={trailerLoading}
@@ -877,13 +1001,13 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
-                    {script.trailerStatus === "generating" && (
+                    {["requested", "generating"].includes(script.trailerStatus) && (
                       <div className={`w-full px-4 py-3 rounded-xl text-xs font-bold text-center border flex flex-col items-center justify-center gap-1.5 ${t.inset}`}>
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 border-2 rounded-full animate-spin ${isDarkMode ? "border-neutral-600 border-t-amber-400" : "border-gray-300 border-t-amber-500"}`} />
-                          <span className={isDarkMode ? "text-amber-400" : "text-amber-600"}>Trailer Requested</span>
+                          <span className={isDarkMode ? "text-amber-400" : "text-amber-600"}>AI Trailer In Queue</span>
                         </div>
-                        <span className={`text-[10px] font-medium ${isDarkMode ? "text-neutral-500" : "text-gray-400"}`}>Ready in approximately 2 business days</span>
+                        <span className={`text-[10px] font-medium ${isDarkMode ? "text-neutral-500" : "text-gray-400"}`}>Expected delivery: 2-3 business days.</span>
                       </div>
                     )}
 
@@ -896,7 +1020,7 @@ const ScriptDetail = () => {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path d="M18 20V10M12 20V4M6 20v-6" />
                         </svg>
-                        {scoreLoading ? "Scoring..." : "Get Script Score \u2014 10 credits"}
+                        {scoreLoading ? "Scoring..." : hasEvaluationService ? "Generate Included Evaluation" : "Get Script Score \u2014 10 credits"}
                       </button>
                     )}
 
@@ -944,6 +1068,9 @@ const ScriptDetail = () => {
 
                   <div className={`rounded-2xl p-3 border text-center ${t.priceSub}`}>
                     <p className={`text-[11px] font-medium ${t.muted}`}>Uploaded {formatDate(script.createdAt)}</p>
+                    {script?.sid && (
+                      <p className={`text-[10px] font-semibold mt-1 ${t.sub}`}>SID: {script.sid}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1449,9 +1576,13 @@ const ScriptDetail = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                         </svg>
                       </div>
-                      <h3 className={`text-base font-bold mb-1.5 ${t.title}`}>No Evaluation Yet</h3>
+                      <h3 className={`text-base font-bold mb-1.5 ${t.title}`}>{evaluationPending ? "Evaluation In Progress" : "No Evaluation Yet"}</h3>
                       <p className={`text-sm mb-5 max-w-xs mx-auto ${t.muted}`}>
-                        {isOwner ? "Get an AI-powered score across 5 dimensions with detailed feedback." : "This project hasn't been evaluated yet."}
+                        {evaluationPending
+                          ? "Evaluation service is active for this project. Generate or refresh the included report now."
+                          : isOwner
+                          ? "Get an AI-powered score across 5 dimensions with detailed feedback."
+                          : "This project hasn't been evaluated yet."}
                       </p>
                       {isOwner && (
                         <button onClick={handleGenerateScore} disabled={scoreLoading}
@@ -1459,7 +1590,7 @@ const ScriptDetail = () => {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                           </svg>
-                          {scoreLoading ? "Evaluating…" : "Get Evaluation — 10 credits"}
+                          {scoreLoading ? "Evaluating…" : hasEvaluationService ? "Generate Included Evaluation" : "Get Evaluation — 10 credits"}
                         </button>
                       )}
                     </div>

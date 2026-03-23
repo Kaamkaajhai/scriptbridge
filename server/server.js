@@ -33,12 +33,24 @@ import transactionRoutes from "./routes/transactionRoutes.js";
 import creditsRoutes from "./routes/creditsRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import scriptPitchRoutes from "./routes/scriptPitchRoutes.js";
+import invoiceRoutes from "./routes/invoiceRoutes.js";
+import {
+  applyGlobalSecurity,
+  apiLimiter,
+  authLimiter,
+  paymentLimiter,
+} from "./middleware/securityMiddleware.js";
 connectDB().catch((error) => {
   console.error("Initial database connection failed:", error.message);
 });
 
 const app = express();
 const isVercel = Boolean(process.env.VERCEL);
+
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
+applyGlobalSecurity(app);
 
 const localOrigins = [
   "http://localhost:5173",
@@ -119,8 +131,11 @@ app.use(cors({
 }));
 
 // Body parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Baseline abuse protection (route-level limiters remain stricter for sensitive endpoints)
+app.use("/api", apiLimiter);
 
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -131,11 +146,11 @@ app.get('/api/test', (req, res) => {
 });
 
 // Routes
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/scripts", scriptRoutes);
-app.use("/api/payment", paymentRoutes);
+app.use("/api/payment", paymentLimiter, paymentRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/search", searchRoutes);
@@ -148,9 +163,10 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/transactions", transactionRoutes);
-app.use("/api/credits", creditsRoutes);
+app.use("/api/credits", paymentLimiter, creditsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/script-pitches", scriptPitchRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 export default app;
 

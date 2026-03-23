@@ -1,4 +1,5 @@
 import Script from "../models/Script.js";
+import mongoose from "mongoose";
 import ScriptOption from "../models/ScriptOption.js";
 import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import User from "../models/User.js";
@@ -11,6 +12,7 @@ import {
   sendPurchaseRejectedEmail,
 } from "../utils/emailService.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
+import { generateAndSaveInvoicePdf } from "../utils/invoicePdf.js";
 import { CREDIT_PRICES } from "./creditsController.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
@@ -47,6 +49,15 @@ const PUBLIC_SCRIPT_FILTER = {
   status: "published",
   isSold: { $ne: true },
   purchaseRequestLocked: { $ne: true },
+};
+
+const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
+const PROJECT_SPOTLIGHT_EXTENSION_CREDITS = 150;
+const PROJECT_SPOTLIGHT_DURATION_DAYS = 30;
+
+const isSpotlightActive = (script, now = new Date()) => {
+  const endAt = script?.promotion?.spotlightEndAt;
+  return Boolean(endAt && new Date(endAt) >= now);
 };
 
 const getBlockedUserIdsForViewer = async (viewerId) => {
@@ -427,6 +438,17 @@ export const uploadScript = async (req, res) => {
         evaluation: services.evaluation || false,
         aiTrailer: services.aiTrailer || false
       } : { hosting: true, evaluation: false, aiTrailer: false },
+      billing: {
+        evaluationCreditsCharged: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
+        aiTrailerCreditsCharged: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        evaluationCreditsChargedAtUpload: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
+        aiTrailerCreditsChargedAtUpload: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        evaluationCreditsRefunded: 0,
+        aiTrailerCreditsRefunded: 0,
+        spotlightCreditsSpent: 0,
+        lastSpotlightRefundCredits: 0,
+      },
+      evaluationStatus: services?.evaluation ? "requested" : "none",
 
       // Legal compliance
       legal: legal ? {
@@ -476,11 +498,13 @@ export const uploadScript = async (req, res) => {
       });
     }
 
-    await Invoice.create({
+    const invoice = await Invoice.create({
       invoiceNumber,
       invoiceDate,
       creator: req.user._id,
+      creatorSid: creator?.sid || "",
       script: script._id,
+      scriptSid: script?.sid || "",
       accessType: isPremiumAccess ? "premium" : "free",
       scriptPrice: effectivePrice,
       platformFeeRate,
@@ -519,6 +543,18 @@ export const uploadScript = async (req, res) => {
       ],
     });
 
+    const generatedInvoicePdf = await generateAndSaveInvoicePdf({
+      invoice,
+      creatorName: creator.name,
+      creatorEmail: creator.email,
+      creatorSid: creator?.sid,
+      scriptTitle: script.title,
+      scriptSid: script?.sid,
+    });
+    invoice.pdfPath = generatedInvoicePdf.relativePath;
+    invoice.pdfGeneratedAt = new Date();
+    await invoice.save();
+
     // --- Async Service Processing ---
     // TODO: Implement these async workflows:
 
@@ -555,8 +591,15 @@ export const uploadScript = async (req, res) => {
       // });
     }
 
-    // Return the created script
-    res.status(201).json(script);
+    // Return the created script with invoice metadata
+    res.status(201).json({
+      ...script.toObject(),
+      invoice: {
+        _id: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        pdfPath: invoice.pdfPath,
+      },
+    });
   } catch (error) {
     console.error("Script upload error:", error);
     res.status(500).json({ message: error.message });
@@ -578,10 +621,12 @@ export const getScripts = async (req, res) => {
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
     if (search) {
+      const searchRegex = new RegExp(escapeRegExp(search), "i");
       query.$or = [
-        { title: new RegExp(search, "i") },
-        { description: new RegExp(search, "i") },
-        { tags: new RegExp(search, "i") },
+        { sid: searchRegex },
+        { title: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex },
       ];
     }
 
@@ -662,6 +707,15 @@ export const getScripts = async (req, res) => {
     const scripts = await Script.find(query)
       .populate("creator", "name profileImage role")
       .sort(sortObj);
+
+    await Promise.all(
+      scripts.map(async (doc) => {
+        if (!doc.sid) {
+          await doc.save();
+        }
+      })
+    );
+
     // Strip full synopsis and fullContent from list view
     const sanitized = scripts.map(s => {
       const obj = s.toObject();
@@ -1486,11 +1540,33 @@ export const addRoles = async (req, res) => {
 
 export const getFeaturedScripts = async (req, res) => {
   try {
+    const now = new Date();
     // Step 1: rank published scripts by trendScore via aggregation
     const ranked = await Script.aggregate([
       { $match: { ...PUBLIC_SCRIPT_FILTER } },
       {
         $addFields: {
+          verifiedPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$verifiedBadge", false] }, true] }, 1, 0],
+          },
+          aiTrailerPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.aiTrailer", false] }, true] }, 1, 0],
+          },
+          evaluationPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.evaluation", false] }, true] }, 1, 0],
+          },
+          spotlightPriority: {
+            $cond: [
+              {
+                $and: [
+                  { $ifNull: ["$promotion.spotlightActive", false] },
+                  { $gte: ["$promotion.spotlightEndAt", now] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
           trendScore: {
             $add: [
               { $multiply: [{ $ifNull: ["$reviewCount", 0] }, 3] },
@@ -1500,7 +1576,7 @@ export const getFeaturedScripts = async (req, res) => {
           },
         },
       },
-      { $sort: { trendScore: -1, rating: -1, createdAt: -1 } },
+      { $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, trendScore: -1, rating: -1, createdAt: -1 } },
       { $limit: 12 },
       { $project: { _id: 1 } },
     ]);
@@ -1528,6 +1604,7 @@ export const getFeaturedScripts = async (req, res) => {
 
 export const getTopScripts = async (req, res) => {
   try {
+    const now = new Date();
     const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
     const sortBy = req.query.sort || "rating";
     let sortObj = { rating: -1 };
@@ -1541,7 +1618,27 @@ export const getTopScripts = async (req, res) => {
       .populate("creator", "name profileImage role")
       .sort(sortObj)
       .limit(20);
-    res.json(scripts);
+
+    const boostedFirst = [...scripts].sort((a, b) => {
+      const aVerified = a?.verifiedBadge ? 1 : 0;
+      const bVerified = b?.verifiedBadge ? 1 : 0;
+      if (aVerified !== bVerified) return bVerified - aVerified;
+
+      const aTrailer = a?.services?.aiTrailer ? 1 : 0;
+      const bTrailer = b?.services?.aiTrailer ? 1 : 0;
+      if (aTrailer !== bTrailer) return bTrailer - aTrailer;
+
+      const aEvaluation = a?.services?.evaluation ? 1 : 0;
+      const bEvaluation = b?.services?.evaluation ? 1 : 0;
+      if (aEvaluation !== bEvaluation) return bEvaluation - aEvaluation;
+
+      const aBoost = isSpotlightActive(a, now) ? 1 : 0;
+      const bBoost = isSpotlightActive(b, now) ? 1 : 0;
+      if (aBoost !== bBoost) return bBoost - aBoost;
+      return 0;
+    });
+
+    res.json(boostedFirst);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1556,8 +1653,8 @@ export const searchScriptsReader = async (req, res) => {
       query.creator = { $nin: blockedUserIds };
     }
     if (q) {
-      const regex = new RegExp(q, "i");
-      query.$or = [{ title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
+      const regex = new RegExp(escapeRegExp(q), "i");
+      query.$or = [{ sid: regex }, { title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
     }
     if (category) query.contentType = category;
     if (genre) query.genre = genre;
@@ -1567,6 +1664,15 @@ export const searchScriptsReader = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+
+    await Promise.all(
+      scripts.map(async (doc) => {
+        if (!doc.sid) {
+          await doc.save();
+        }
+      })
+    );
+
     res.json({ scripts, totalPages: Math.ceil(total / limit), page: parseInt(page), total });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1871,6 +1977,7 @@ export const getInvestorHomeFeed = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getTopList = async (req, res) => {
   try {
+    const now = new Date();
     const { genre, contentType, budget, sort = "platform", premium } = req.query;
     const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
     const match = { ...PUBLIC_SCRIPT_FILTER };
@@ -1887,6 +1994,27 @@ export const getTopList = async (req, res) => {
       { $match: match },
       {
         $addFields: {
+          verifiedPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$verifiedBadge", false] }, true] }, 1, 0],
+          },
+          aiTrailerPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.aiTrailer", false] }, true] }, 1, 0],
+          },
+          evaluationPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.evaluation", false] }, true] }, 1, 0],
+          },
+          spotlightPriority: {
+            $cond: [
+              {
+                $and: [
+                  { $ifNull: ["$promotion.spotlightActive", false] },
+                  { $gte: ["$promotion.spotlightEndAt", now] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
           unlockCount: { $size: { $ifNull: ["$unlockedBy", []] } },
           trendScore: {
             $add: [
@@ -1928,11 +2056,11 @@ export const getTopList = async (req, res) => {
     ];
 
     // Sort based on tab
-    if (sort === "trending") pipeline.push({ $sort: { trendScore: -1 } });
-    else if (sort === "featured") pipeline.push({ $sort: { engagementScore: -1, trendScore: -1 } });
-    else if (sort === "score") pipeline.push({ $sort: { "scriptScore.overall": -1 } });
-    else if (sort === "views") pipeline.push({ $sort: { views: -1 } });
-    else pipeline.push({ $sort: { platformScore: -1 } }); // default: platform
+    if (sort === "trending") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, trendScore: -1 } });
+    else if (sort === "featured") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, engagementScore: -1, trendScore: -1 } });
+    else if (sort === "score") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, "scriptScore.overall": -1 } });
+    else if (sort === "views") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, views: -1 } });
+    else pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, platformScore: -1 } }); // default: platform
 
     // Populate creator
     pipeline.push({
@@ -2046,6 +2174,285 @@ export const createScriptPurchaseOrder = async (req, res) => {
   } catch (error) {
     console.error("Razorpay order creation error:", error);
     res.status(500).json({ message: "Failed to create payment order", error: error.message });
+  }
+};
+
+// @desc    Activate project spotlight package for a script
+// @route   POST /api/scripts/:id/activate-spotlight
+// @access  Private (script owner)
+export const activateProjectSpotlight = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    let script;
+    let user;
+    let endAt;
+    let isExtensionPurchase = false;
+    let spotlightCreditsCharged = PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+    let refundCredits = 0;
+    let refundBreakdown = { evaluation: 0, aiTrailer: 0 };
+    const scriptId = req.params?.id || req.body?.scriptId || req.query?.scriptId;
+
+    if (!scriptId) {
+      return res.status(400).json({ message: "Script ID is required" });
+    }
+
+    await session.withTransaction(async () => {
+      script = await Script.findById(scriptId).session(session);
+      if (!script) {
+        const error = new Error("Script not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (script.creator.toString() !== req.user._id.toString()) {
+        const error = new Error("Only the script creator can activate spotlight");
+        error.statusCode = 403;
+        throw error;
+      }
+
+      if (script.status !== "published") {
+        const error = new Error("Publish the project before activating spotlight");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      user = await User.findById(req.user._id).session(session);
+      if (!user) {
+        const error = new Error("User not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (!user.credits) {
+        user.credits = { balance: 0, totalPurchased: 0, totalSpent: 0, transactions: [] };
+      }
+
+      const now = new Date();
+
+      const spotlightCurrentlyActive = isSpotlightActive(script, now);
+      const spotlightCreditsRequired = spotlightCurrentlyActive
+        ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
+        : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+      isExtensionPurchase = spotlightCurrentlyActive;
+      spotlightCreditsCharged = spotlightCreditsRequired;
+
+      // Prefer billing-tracked service charges, then backfill from upload invoice for older scripts.
+      const currentBilling = script.billing || {};
+      let evaluationCharged = Number(currentBilling.evaluationCreditsCharged || 0);
+      let aiTrailerCharged = Number(currentBilling.aiTrailerCreditsCharged || 0);
+      let evaluationChargedAtUpload = Number(currentBilling.evaluationCreditsChargedAtUpload || 0);
+      let aiTrailerChargedAtUpload = Number(currentBilling.aiTrailerCreditsChargedAtUpload || 0);
+      let evaluationRefunded = Number(currentBilling.evaluationCreditsRefunded || 0);
+      let aiTrailerRefunded = Number(currentBilling.aiTrailerCreditsRefunded || 0);
+
+      const needsUploadBackfill =
+        (evaluationCharged > 0 && evaluationChargedAtUpload === 0) ||
+        (aiTrailerCharged > 0 && aiTrailerChargedAtUpload === 0);
+
+      // Backfill upload-time charge markers for legacy or partially-migrated scripts.
+      if (needsUploadBackfill) {
+        const uploadInvoice = await Invoice.findOne({ script: script._id, creator: req.user._id })
+          .sort({ createdAt: -1 })
+          .session(session)
+          .lean();
+
+        if (uploadInvoice?.services?.evaluation) {
+          evaluationCharged = Math.max(evaluationCharged, CREDIT_PRICES.AI_EVALUATION);
+          evaluationChargedAtUpload = CREDIT_PRICES.AI_EVALUATION;
+        }
+        if (uploadInvoice?.services?.aiTrailer) {
+          aiTrailerCharged = Math.max(aiTrailerCharged, CREDIT_PRICES.AI_TRAILER);
+          aiTrailerChargedAtUpload = CREDIT_PRICES.AI_TRAILER;
+        }
+      }
+
+      const hasPaidEvaluation = evaluationCharged > 0;
+      const refundableEvaluation = 0;
+      const nonUploadTrailerCharged = Math.max(0, aiTrailerCharged - aiTrailerChargedAtUpload);
+      const refundableTrailer = hasPaidEvaluation ? Math.max(0, nonUploadTrailerCharged - aiTrailerRefunded) : 0;
+      const refundableCredits = refundableEvaluation + refundableTrailer;
+
+      const balance = user.credits.balance || 0;
+      const effectiveBalance = balance + refundableCredits;
+      if (effectiveBalance < spotlightCreditsRequired) {
+        const actionLabel = spotlightCurrentlyActive ? "Spotlight extension" : "Project Spotlight activation";
+        const error = new Error(`Insufficient credits. ${actionLabel} requires ${spotlightCreditsRequired} credits.`);
+        error.statusCode = 402;
+        error.payload = {
+          requiresCredits: true,
+          required: spotlightCreditsRequired,
+          balance: effectiveBalance,
+          shortfall: spotlightCreditsRequired - effectiveBalance,
+        };
+        throw error;
+      }
+
+      if (refundableCredits > 0) {
+        const balanceBeforeRefund = user.credits.balance || 0;
+        user.credits.balance = balanceBeforeRefund + refundableCredits;
+        user.credits.totalSpent = Math.max(0, (user.credits.totalSpent || 0) - refundableCredits);
+        user.credits.transactions.push({
+          type: "refund",
+          amount: refundableCredits,
+          description: `Spotlight package credit adjustment for "${script.title}"`,
+          reference: `SPRF-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: now,
+        });
+
+        await Transaction.create([
+          {
+            user: req.user._id,
+            type: "refund",
+            amount: refundableCredits,
+            currency: "INR",
+            status: "completed",
+            description: `Credit refund for previously paid services on "${script.title}"`,
+            reference: `SPRF-TX-${Date.now().toString(36).toUpperCase()}`,
+            paymentMethod: "wallet",
+            relatedScript: script._id,
+            balanceBefore: balanceBeforeRefund,
+            balanceAfter: user.credits.balance,
+            metadata: {
+              package: "project_spotlight_refund",
+              refundedEvaluationCredits: refundableEvaluation,
+              refundedAiTrailerCredits: refundableTrailer,
+            },
+          },
+        ], { session });
+
+        refundCredits = refundableCredits;
+        refundBreakdown = {
+          evaluation: refundableEvaluation,
+          aiTrailer: refundableTrailer,
+        };
+
+        evaluationRefunded += refundableEvaluation;
+        aiTrailerRefunded += refundableTrailer;
+      }
+
+      const currentEnd = script.promotion?.spotlightEndAt ? new Date(script.promotion.spotlightEndAt) : null;
+      const extensionStart = currentEnd && currentEnd > now ? currentEnd : now;
+      endAt = new Date(extensionStart.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+      user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
+      user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
+      user.credits.transactions.push({
+        type: "spent",
+        amount: -spotlightCreditsRequired,
+        description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
+        reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
+        createdAt: now,
+      });
+      await user.save({ session });
+
+      script.premium = true;
+      script.isFeatured = true;
+      script.verifiedBadge = true;
+      script.services = {
+        hosting: true,
+        evaluation: true,
+        aiTrailer: true,
+      };
+      script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+
+      if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+        script.trailerStatus = "requested";
+      }
+
+      const previousSpent = script.promotion?.totalSpotlightCreditsSpent || 0;
+      script.promotion = {
+        spotlightActive: true,
+        spotlightStartAt: now,
+        spotlightEndAt: endAt,
+        lastSpotlightPurchaseAt: now,
+        totalSpotlightCreditsSpent: previousSpent + spotlightCreditsRequired,
+      };
+      script.billing = {
+        evaluationCreditsCharged: evaluationCharged,
+        aiTrailerCreditsCharged: aiTrailerCharged,
+        evaluationCreditsChargedAtUpload: evaluationChargedAtUpload,
+        aiTrailerCreditsChargedAtUpload: aiTrailerChargedAtUpload,
+        evaluationCreditsRefunded: evaluationRefunded,
+        aiTrailerCreditsRefunded: aiTrailerRefunded,
+        spotlightCreditsSpent: Number(currentBilling.spotlightCreditsSpent || 0) + spotlightCreditsRequired,
+        lastSpotlightRefundCredits: refundableCredits,
+        lastSpotlightActivatedAt: now,
+      };
+      script.markModified("services");
+      script.markModified("promotion");
+      script.markModified("billing");
+      await script.save({ session });
+
+      await Transaction.create([
+        {
+          user: req.user._id,
+          type: "debit",
+          amount: -spotlightCreditsRequired,
+          currency: "INR",
+          status: "completed",
+          description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
+          reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
+          paymentMethod: "wallet",
+          relatedScript: script._id,
+          metadata: {
+            package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
+            isExtension: spotlightCurrentlyActive,
+            includesVerifiedBadge: true,
+            includesFreeEvaluation: true,
+            includesFreeAITrailer: true,
+            featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
+            spotlightEndAt: endAt.toISOString(),
+          },
+        },
+      ], { session });
+    });
+
+    await notifyAdminWorkflowEvent({
+      title: isExtensionPurchase ? "Project Spotlight Extended" : "Project Spotlight Activated",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project Spotlight ${isExtensionPurchase ? "extended" : "activated"} for "${script.title}". Featured placement is active for 1 month and verified badge remains permanent once unlocked.`,
+      metadata: {
+        scriptId: script._id,
+        writerId: req.user._id,
+        spotlightEndAt: endAt.toISOString(),
+      },
+    });
+
+    res.json({
+      message: isExtensionPurchase
+        ? "Project Spotlight extended successfully"
+        : "Project Spotlight activated successfully",
+      package: {
+        name: "Project Spotlight",
+        isExtension: isExtensionPurchase,
+        creditsCharged: spotlightCreditsCharged,
+        creditsRefunded: refundCredits,
+        refundBreakdown,
+        spotlightEndAt: endAt,
+        benefits: [
+          "Verified project badge (permanent once unlocked)",
+          "Free script evaluation",
+          "Free AI trailer",
+          "Featured and top placement for 1 month",
+        ],
+      },
+      credits: {
+        balance: user.credits.balance,
+        spent: spotlightCreditsCharged,
+        refunded: refundCredits,
+      },
+      script,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      message: error.message,
+      ...(error.payload || {}),
+    });
+  } finally {
+    await session.endSession();
   }
 };
 

@@ -186,7 +186,7 @@ const SCRIPTS = [
     title: "Burn Rate",
     genre: "Drama",
     logline: "A startup founder on the verge of unicorn status discovers her co-founder has been laundering money through their platform — using her name.",
-    description: "BURN RATE is a taut, modern drama set inside Silicon Valley's pressure cooker. Maya built Velo from a dorm room idea into a ₹7,500Cr logistics platform. Now, two weeks before their Series C closes, an anonymous tip leads her to ledgers she was never supposed to see.",
+    description: "BURN RATE is a taut, modern drama set inside Silicon Valley's pressure cooker. Maya built Velo from a dorm room idea into a $900M logistics platform. Now, two weeks before their Series C closes, an anonymous tip leads her to ledgers she was never supposed to see.",
     synopsis: "The company is her life. But is it worth her freedom?",
     contentType: "movie",
     format: "feature_film",

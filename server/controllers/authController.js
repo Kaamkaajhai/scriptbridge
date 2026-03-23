@@ -217,6 +217,10 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      if (!user.sid) {
+        await user.save();
+      }
+
       // Check if email is verified
       if (!user.emailVerified) {
         return res.status(403).json({ 
@@ -245,6 +249,7 @@ export const login = async (req, res) => {
       const { token, expiresAt } = generateToken(user._id);
       res.json({
         _id: user._id,
+        sid: user.sid,
         name: user.name,
         email: user.email,
         role: user.role,

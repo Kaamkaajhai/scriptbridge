@@ -257,6 +257,11 @@ const ProjectCard = ({ project, userName }) => {
         <p className={`mt-[3px] text-[11px] font-medium ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
           by {userName || "Unknown Author"}
         </p>
+        {project?.sid && (
+          <p className={`mt-1 text-[10px] font-semibold tracking-wide ${dark ? "text-[#5f87b8]" : "text-[#1e3a5f]"}`}>
+            SID: {project.sid}
+          </p>
+        )}
 
         {/* Divider */}
         <div className={`my-3 h-px ${dark ? "bg-[#182535]" : "bg-gray-100"}`} />

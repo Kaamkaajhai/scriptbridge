@@ -62,8 +62,11 @@ export const AuthProvider = ({ children }) => {
     const restoreSession = async () => {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
+        let sessionUser = null;
+        let sessionExpiry = null;
         try {
           const parsed = JSON.parse(storedUser);
+          sessionUser = parsed;
           if (!parsed?.token) {
             localStorage.removeItem("user");
             setLoading(false);
@@ -71,6 +74,7 @@ export const AuthProvider = ({ children }) => {
           }
 
           const effectiveExpiry = parsed?.expiresAt || getTokenExpiryFromJwt(parsed.token);
+          sessionExpiry = effectiveExpiry;
 
           // Quick client-side expiry check before hitting the server
           if (!effectiveExpiry || isTokenExpired(effectiveExpiry)) {
@@ -101,10 +105,24 @@ export const AuthProvider = ({ children }) => {
           setUser(refreshedUser);
           localStorage.setItem("user", JSON.stringify(refreshedUser));
           scheduleAutoLogout(refreshedUser.expiresAt);
-        } catch {
-          // Token expired or invalid — clear session
-          localStorage.removeItem("user");
-          setUser(null);
+        } catch (error) {
+          const status = error?.response?.status;
+          const isUnauthorized = status === 401 || status === 403;
+
+          if (isUnauthorized) {
+            // Token is invalid/expired on server.
+            localStorage.removeItem("user");
+            setUser(null);
+          } else {
+            // Keep session on transient failures (network/server hiccups).
+            if (sessionUser && sessionExpiry && !isTokenExpired(sessionExpiry)) {
+              setUser(sessionUser);
+              scheduleAutoLogout(sessionExpiry);
+            } else {
+              localStorage.removeItem("user");
+              setUser(null);
+            }
+          }
         }
       }
       setLoading(false);
