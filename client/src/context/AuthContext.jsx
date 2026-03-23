@@ -3,12 +3,18 @@ import axios from "axios";
 
 export const AuthContext = createContext();
 
-const API_URL = "http://localhost:5002/api";
+const API_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const logoutTimerRef = useRef(null);
+
+  const redirectInvestorReview = useCallback((status) => {
+    if (typeof window === "undefined") return;
+    const reason = status === "rejected" ? "rejected" : "pending";
+    window.location.href = `/?investorReview=${reason}`;
+  }, []);
 
   // Clear any existing auto-logout timer
   const clearLogoutTimer = useCallback(() => {
@@ -83,6 +89,15 @@ export const AuthProvider = ({ children }) => {
             token: parsed.token,
             expiresAt: data.expiresAt || effectiveExpiry,
           };
+
+          if (refreshedUser?.role === "investor" && ["pending", "rejected"].includes(refreshedUser?.approvalStatus)) {
+            localStorage.removeItem("user");
+            setUser(null);
+            redirectInvestorReview(refreshedUser.approvalStatus);
+            setLoading(false);
+            return;
+          }
+
           setUser(refreshedUser);
           localStorage.setItem("user", JSON.stringify(refreshedUser));
           scheduleAutoLogout(refreshedUser.expiresAt);
@@ -99,7 +114,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const { data } = await axios.post(`${API_URL}/auth/login`, { email, password });
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const { data } = await axios.post(`${API_URL}/auth/login`, { email: normalizedEmail, password });
     
     // If OTP verification is required, don't set user yet
     if (data.requiresVerification) {

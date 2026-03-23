@@ -25,6 +25,13 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   const { isDarkMode: dark } = useDarkMode();
   const [packages, setPackages] = useState([]);
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [customPricing, setCustomPricing] = useState({
+    pricePerCredit: 9,
+    minCredits: 1,
+    maxCredits: 10000,
+  });
+  const [customCredits, setCustomCredits] = useState("1");
+  const [useCustomCredits, setUseCustomCredits] = useState(false);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState("");
@@ -55,6 +62,8 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
       setError("");
       setSuccess(false);
       setSelectedPackage(null);
+      setUseCustomCredits(false);
+      setCustomCredits("1");
     }
   }, [isOpen]);
 
@@ -72,9 +81,17 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
       setLoading(true);
       setError("");
       const { data } = await api.get("/credits/packages");
-      setPackages(data);
+      const packageList = Array.isArray(data) ? data : data?.packages || [];
+      const customConfig = data?.customPricing;
+
+      setPackages(packageList);
+      if (customConfig) {
+        setCustomPricing(customConfig);
+        setCustomCredits(String(customConfig.minCredits || 1));
+      }
+
       // Auto-select popular package
-      const popular = data.find((p) => p.popular);
+      const popular = packageList.find((p) => p.popular);
       if (popular) setSelectedPackage(popular);
     } catch {
       setError("Failed to load credit packages. Please try again.");
@@ -84,8 +101,22 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const handlePurchase = async () => {
-    if (!selectedPackage) {
+    const parsedCustomCredits = Number(customCredits);
+    const customSelected = useCustomCredits;
+
+    if (!customSelected && !selectedPackage) {
       setError("Please select a credit package");
+      return;
+    }
+    if (
+      customSelected &&
+      (!Number.isInteger(parsedCustomCredits) ||
+        parsedCustomCredits < (customPricing.minCredits || 1) ||
+        parsedCustomCredits > (customPricing.maxCredits || 10000))
+    ) {
+      setError(
+        `Custom credits must be between ${customPricing.minCredits || 1} and ${customPricing.maxCredits || 10000}`
+      );
       return;
     }
     if (!razorpayLoaded) {
@@ -98,7 +129,9 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
       setError("");
 
       const { data: orderData } = await api.post("/credits/create-order", {
-        packageId: selectedPackage._id,
+        ...(customSelected
+          ? { customCredits: parsedCustomCredits }
+          : { packageId: selectedPackage._id }),
       });
 
       const options = {
@@ -116,7 +149,9 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                packageId: selectedPackage._id,
+                ...(customSelected
+                  ? { customCredits: parsedCustomCredits }
+                  : { packageId: selectedPackage._id }),
               }
             );
 
@@ -138,7 +173,9 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
         },
         prefill: {},
         notes: {
-          package: selectedPackage.name,
+          package: customSelected
+            ? `Custom ${parsedCustomCredits} Credits`
+            : selectedPackage.name,
           credits: orderData.packageDetails.totalCredits,
         },
         theme: { color: "#3b82f6" },
@@ -174,8 +211,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const getCurrency = (c) => {
-    const map = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
-    return map[c] || "₹";
+    return "₹";
   };
 
   const getGradient = (name) => {
@@ -211,6 +247,21 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   if (!isOpen) return null;
+
+  const parsedCustomCredits = Number(customCredits);
+  const customMin = customPricing.minCredits || 1;
+  const customMax = customPricing.maxCredits || 10000;
+  const customUnitPrice = customPricing.pricePerCredit || 9;
+  const customTotal =
+    Number.isFinite(parsedCustomCredits) && parsedCustomCredits > 0
+      ? parsedCustomCredits * customUnitPrice
+      : 0;
+  const packageGridCols =
+    packages.length >= 4
+      ? "lg:grid-cols-4"
+      : packages.length === 3
+      ? "lg:grid-cols-3"
+      : "lg:grid-cols-2";
 
   return (
     <AnimatePresence>
@@ -378,7 +429,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 </AnimatePresence>
 
                 {/* Package Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className={`grid grid-cols-1 sm:grid-cols-2 ${packageGridCols} gap-3`}>
                   {packages.map((pkg, idx) => {
                     const Icon = getIcon(pkg.name);
                     const isSelected = selectedPackage?._id === pkg._id;
@@ -394,7 +445,10 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                         transition={{ delay: idx * 0.06 }}
                         whileHover={{ y: -2 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedPackage(pkg)}
+                        onClick={() => {
+                          setUseCustomCredits(false);
+                          setSelectedPackage(pkg);
+                        }}
                         className={`relative rounded-2xl border cursor-pointer transition-all duration-200 ${
                           isSelected
                             ? dark
@@ -528,6 +582,101 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                   })}
                 </div>
 
+                {/* Custom Credits */}
+                <div
+                  className={`mt-4 rounded-2xl border p-4 ${
+                    useCustomCredits
+                      ? dark
+                        ? "border-blue-500 bg-blue-500/[0.08]"
+                        : "border-blue-400 bg-blue-50"
+                      : dark
+                      ? "border-white/[0.08] bg-white/[0.02]"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <p
+                        className={`text-sm font-black ${
+                          dark ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        Custom Credits
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          dark ? "text-white/45" : "text-gray-500"
+                        }`}
+                      >
+                        1 credit = ₹{customUnitPrice}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseCustomCredits(true);
+                        setSelectedPackage(null);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        useCustomCredits
+                          ? "bg-blue-600 text-white"
+                          : dark
+                          ? "bg-white/[0.08] text-white/70 hover:bg-white/[0.12]"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      Use Custom
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label
+                        className={`text-[11px] font-semibold mb-1.5 block ${
+                          dark ? "text-white/50" : "text-gray-600"
+                        }`}
+                      >
+                        Credits ({customMin} - {customMax})
+                      </label>
+                      <input
+                        type="number"
+                        min={customMin}
+                        max={customMax}
+                        step="1"
+                        value={customCredits}
+                        onChange={(e) => {
+                          setCustomCredits(e.target.value);
+                          setUseCustomCredits(true);
+                          setSelectedPackage(null);
+                        }}
+                        className={`w-full px-3 py-2 rounded-xl border text-sm font-semibold outline-none ${
+                          dark
+                            ? "bg-[#0f1b30] border-white/[0.12] text-white"
+                            : "bg-white border-gray-300 text-gray-900"
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <p
+                        className={`text-[11px] font-semibold mb-1.5 ${
+                          dark ? "text-white/50" : "text-gray-600"
+                        }`}
+                      >
+                        Total
+                      </p>
+                      <div
+                        className={`h-[42px] rounded-xl px-3 flex items-center text-sm font-black ${
+                          dark
+                            ? "bg-white/[0.06] text-white"
+                            : "bg-gray-100 text-gray-900"
+                        }`}
+                      >
+                        ₹{customTotal.toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Trust badges */}
                 <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
                   {[
@@ -559,7 +708,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
             }`}
           >
             <div>
-              {selectedPackage && (
+              {(selectedPackage || useCustomCredits) && (
                 <div className="flex items-center gap-2">
                   <span
                     className={`text-sm ${
@@ -573,8 +722,11 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                       dark ? "text-white" : "text-gray-900"
                     }`}
                   >
-                    {getCurrency(selectedPackage.currency || "INR")}
-                    {selectedPackage.price.toLocaleString("en-IN")}
+                    ₹
+                    {(useCustomCredits
+                      ? customTotal
+                      : selectedPackage?.price || 0
+                    ).toLocaleString("en-IN")}
                   </span>
                   <span
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
@@ -583,9 +735,12 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                         : "bg-blue-50 text-blue-600"
                     }`}
                   >
-                    {selectedPackage.credits +
-                      (selectedPackage.bonusCredits || 0)}{" "}
-                    credits
+                    {useCustomCredits
+                      ? `${parsedCustomCredits || 0} credits`
+                      : `${
+                          (selectedPackage?.credits || 0) +
+                          (selectedPackage?.bonusCredits || 0)
+                        } credits`}
                   </span>
                 </div>
               )}
@@ -606,8 +761,15 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handlePurchase}
-                disabled={!selectedPackage || purchasing}
-                className="px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                disabled={
+                  purchasing ||
+                  (!selectedPackage && !useCustomCredits) ||
+                  (useCustomCredits &&
+                    (!Number.isInteger(parsedCustomCredits) ||
+                      parsedCustomCredits < customMin ||
+                      parsedCustomCredits > customMax))
+                }
+                className="px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
               >
                 {purchasing ? (
                   <>

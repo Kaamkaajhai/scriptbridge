@@ -1,10 +1,19 @@
 import { Link } from "react-router-dom";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
 const BrandLogo = ({ className = "h-10 w-auto", title = "Ckript" }) => {
   const logoSrc = "/cklogo-nobg.png";
+  const { user } = useContext(AuthContext);
+
+  const handleLogoClick = (e) => {
+    if (!user) return;
+    e.preventDefault();
+    window.location.reload();
+  };
 
   return (
-    <Link to="/" className="inline-flex items-center" aria-label="Go to home page" title={title}>
+    <Link to="/" onClick={handleLogoClick} className="inline-flex items-center" aria-label="Go to home page" title={title}>
       <img
         src={logoSrc}
         alt="Ckript"

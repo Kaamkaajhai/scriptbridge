@@ -20,10 +20,10 @@ const Mandates = () => {
 
   const formats = ["Feature Film", "TV Pilot", "Limited Series", "Short Film", "Web Series"];
   const budgetTiers = [
-    { value: "micro", label: "Micro (<$500K)" },
-    { value: "low", label: "Low ($500K–$5M)" },
-    { value: "medium", label: "Medium ($5M–$25M)" },
-    { value: "high", label: "High ($25M+)" },
+    { value: "micro", label: "Micro (<₹50L)" },
+    { value: "low", label: "Low (₹50L–₹5Cr)" },
+    { value: "medium", label: "Medium (₹5Cr–₹25Cr)" },
+    { value: "high", label: "High (₹25Cr+)" },
     { value: "any", label: "Any Budget" },
   ];
   const genres = [
@@ -67,8 +67,7 @@ const Mandates = () => {
 
     try {
       await api.put("/onboarding/mandates", { mandates });
-      setMessage("Mandates updated successfully!");
-      setTimeout(() => setMessage(""), 3000);
+      navigate("/home", { replace: true });
     } catch (error) {
       console.error("Error saving mandates:", error);
       setMessage("Error saving mandates. Please try again.");
@@ -146,7 +145,7 @@ const Mandates = () => {
           </div>
 
           {message && (
-            <div className={`mb-6 p-4 rounded-lg ${message.includes("Error") ? "bg-red-50 text-red-700" : "bg-[#111111]/[0.06] text-[#111111]"} flex items-center gap-2`}>
+            <div className={`mb-6 p-4 rounded-lg ${message.includes("Error") ? "bg-red-50 text-red-700" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]"} flex items-center gap-2`}>
               <CheckCircle className="w-5 h-5" />
               <p className="font-medium">{message}</p>
             </div>
@@ -212,7 +211,7 @@ const Mandates = () => {
                     onClick={() => toggleGenre(genre)}
                     className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                       mandates.genres.includes(genre)
-                        ? "bg-[#111111] text-white shadow-md"
+                        ? "bg-[#1e3a5f] text-white shadow-md"
                         : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
@@ -291,12 +290,6 @@ const Mandates = () => {
           </form>
         </div>
 
-        <div className={`mt-6 border rounded-lg p-4 ${dark ? 'bg-white/[0.03] border-[#182840]' : 'bg-gray-50 border-gray-200'}`}>
-          <p className={`text-sm ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
-            <strong> How it works:</strong> Based on these mandates, our AI will automatically recommend scripts that match your criteria. 
-            You'll receive notifications when new matching scripts are uploaded.
-          </p>
-        </div>
       </div>
     </div>
   );

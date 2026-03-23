@@ -4,18 +4,44 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
+import ProjectCard from "../components/ProjectCard";
 
-/*  Genre emoji  */
+/* ── Genre emoji ── */
 const GE = {
-  action:"",comedy:"",drama:"",horror:"",thriller:"",romance:"",
-  "sci-fi":"",fantasy:"",mystery:"",adventure:"",crime:"",
-  documentary:"",historical:"",animation:"",anime:"",musical:"",
-  western:"",war:"",family:"",biography:"",sports:"",
-  superhero:"",psychological:"",satire:"",
+  action:"🔥",comedy:"😂",drama:"🎭",horror:"💀",thriller:"🔪",romance:"❤️",
+  "sci-fi":"🚀",fantasy:"🧙",mystery:"🔍",adventure:"🗺️",crime:"🕵️",
+  documentary:"🎬",historical:"📜",animation:"✨",anime:"⛩️",musical:"🎵",
+  western:"🤠",war:"⚔️",family:"👨‍👩‍👧",biography:"📖",sports:"⚽",
+  superhero:"🦸",psychological:"🧠",satire:"😏",
 };
-const gEmoji = (g) => GE[g?.toLowerCase()] ?? "";
+const gEmoji = (g) => GE[g?.toLowerCase()] ?? "🎬";
 
-/*  Fade-in wrapper  */
+const normGenre = (value = "") => {
+  const v = String(value || "").toLowerCase().trim();
+  if (!v) return "";
+  const compact = v.replace(/[\s_]+/g, "-");
+  if (compact === "science-fiction" || compact === "sci fi" || compact === "scifi") return "sci-fi";
+  return compact;
+};
+
+const rankScriptsByDetectedGenres = (scripts = [], detectedGenres = []) => {
+  if (!Array.isArray(scripts) || scripts.length === 0) return [];
+  if (!Array.isArray(detectedGenres) || detectedGenres.length === 0) return scripts;
+
+  const order = new Map(detectedGenres.map((g, idx) => [normGenre(g), idx]));
+
+  return scripts
+    .map((script, idx) => {
+      const primary = normGenre(script?.genre || script?.primaryGenre || script?.classification?.primaryGenre || "");
+      const genreScore = order.has(primary) ? 1000 - order.get(primary) * 40 : 0;
+      const score = genreScore + (script?.rating || 0) * 10 + Math.min(80, (script?.readsCount || 0) * 0.2);
+      return { script, idx, score };
+    })
+    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
+    .map((item) => item.script);
+};
+
+/* ── Fade-in wrapper ── */
 const Fade = ({ children, delay = 0, className = "" }) => (
   <motion.div
     initial={{ opacity: 0, y: 14 }}
@@ -27,9 +53,9 @@ const Fade = ({ children, delay = 0, className = "" }) => (
   </motion.div>
 );
 
-/* 
+/* ══════════════════════════════════════════════
    SECTION HEADER — label + count + "See all"
- */
+══════════════════════════════════════════════ */
 const SectionHead = ({ icon, title, count, sub, to, dark }) => (
   <div className="flex items-end justify-between mb-5">
     <div className="flex items-center gap-2.5">
@@ -56,7 +82,7 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
     {to && (
       <Link to={to}
         className={`text-[11px] font-semibold flex items-center gap-0.5 transition-all hover:gap-1
-          ${dark ? "text-blue-400/80 hover:text-blue-300" : "text-[#111111]/70 hover:text-[#111111]"}`}>
+          ${dark ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"}`}>
         See all
         <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -66,9 +92,9 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
   </div>
 );
 
-/* 
+/* ══════════════════════════════════════════════
    HORIZONTAL ROW — flex nowrap scroll
- */
+══════════════════════════════════════════════ */
 const HRow = ({ children, className = "" }) => (
   <div
     className={`flex flex-nowrap gap-4 overflow-x-auto pb-2 ${className}`}
@@ -160,9 +186,9 @@ const getGenreIcon = (g) => GENRE_ICON[g?.toLowerCase()] ?? (
   </svg>
 );
 
-/* 
+/* ══════════════════════════════════════════════
    SCRIPT CARD — poster style
- */
+══════════════════════════════════════════════ */
 const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
   const [imgErr, setImgErr] = useState(false);
   const hasImg = script?.coverImage && !imgErr;
@@ -178,7 +204,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
     >
       <Link to={`/reader/script/${script._id}`} className="group block">
 
-        {/*  Poster  */}
+        {/* ── Poster ── */}
         <div className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden mb-2.5 transition-all duration-300
           group-hover:-translate-y-1 group-hover:shadow-2xl"
           style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.35)" }}>
@@ -190,7 +216,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
               className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-700 ease-out"
             />
           ) : (
-            /*  Beautiful fallback poster  */
+            /* ── Beautiful fallback poster ── */
             <div className="w-full h-full flex flex-col"
               style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)` }}>
               {/* Noise texture overlay */}
@@ -254,7 +280,10 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
               </span>
             )}
             {script.isFeatured && !script.premium && (
-              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">Featured</span>
+              <span className="px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider rounded-md
+                bg-gradient-to-r from-violet-500 to-violet-600 text-white shadow">
+                ★
+              </span>
             )}
           </div>
 
@@ -267,9 +296,9 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
           )}
         </div>
 
-        {/*  Info below poster  */}
+        {/* ── Info below poster ── */}
         <h3 className={`text-[12.5px] font-bold leading-tight line-clamp-1 transition-colors
-          ${dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"}`}>
+          ${dark ? "text-gray-100 group-hover:text-gray-300" : "text-gray-900 group-hover:text-gray-700"}`}>
           {script.title}
         </h3>
         <div className="flex items-center justify-between mt-1 gap-1">
@@ -288,9 +317,9 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
   );
 };
 
-/* 
+/* ══════════════════════════════════════════════
    SKELETON
- */
+══════════════════════════════════════════════ */
 const Skel = ({ dark }) => (
   <div className="shrink-0 w-[148px] sm:w-[164px]">
     <div className={`w-full aspect-[2/3] rounded-2xl mb-2 animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
@@ -299,9 +328,9 @@ const Skel = ({ dark }) => (
   </div>
 );
 
-/* 
+/* ══════════════════════════════════════════════
    MAIN COMPONENT
- */
+══════════════════════════════════════════════ */
 const InvestorHome = () => {
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
@@ -322,127 +351,95 @@ const InvestorHome = () => {
     } catch {
       try {
         const { data } = await api.get("/scripts/latest");
-        setFeed({ detectedGenres: [], genreSections: [], trending: [], newReleases: data, explore: [] });
+        setFeed({ detectedGenres: [], genreSections: [], trending: data, newReleases: [], explore: [] });
       } catch { /* silent */ }
     } finally { setLoading(false); }
   };
 
   /* derived */
-  const genres     = feed?.genreSections || [];
-  const trending   = feed?.trending || [];
-  const newRel     = feed?.newReleases || [];
-  const explore    = feed?.explore || [];
-  const totalScripts = genres.reduce((n, g) => n + g.scripts.length, 0) + trending.length + newRel.length + explore.length;
+  const detectedGenres = (feed?.detectedGenres || []).map(normGenre).filter(Boolean);
+  const genres = (feed?.genreSections || []).map((section) => ({
+    ...section,
+    scripts: rankScriptsByDetectedGenres(section.scripts || [], detectedGenres),
+  }));
+  const matched = rankScriptsByDetectedGenres(feed?.trending || [], detectedGenres);
+  const totalScripts = genres.reduce((n, g) => n + g.scripts.length, 0) + matched.length;
   const isEmpty    = totalScripts === 0 && !loading;
 
-  const bg  = dark ? "bg-[#060e1d]" : "bg-[#f6f7fa]";
-  const sep = dark ? "bg-white/[0.04]" : "bg-gray-200/50";
+  const bg = dark ? "bg-[#070f1d]" : "bg-[#f6f8fc]";
+  const panel = dark
+    ? "bg-[#0d1829]"
+    : "bg-white";
+
+  const quickStats = [
+    { label: "Active Focus", value: feed?.detectedGenres?.length || 0 },
+    { label: "Matched Projects", value: matched.length },
+  ];
 
   return (
-    <div className={`min-h-screen ${bg} pb-28`}>
+    <div className={`min-h-screen ${bg} pb-24`}>
 
-      {/*  HERO HEADER  */}
-      <div className={`relative overflow-hidden
-        ${dark ? "border-b border-white/[0.05] bg-[#07101f]" : "border-b border-gray-200 bg-white"}`}>
-
-        {/* Solid top accent line */}
-        <div className={`absolute top-0 left-0 right-0 h-[3px] z-20
-          ${dark ? "bg-blue-600" : "bg-[#1e3a5f]"}`} />
-
-        <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-10 pb-9">
-          <div className="flex items-start justify-between gap-8">
-
-            {/* LEFT — greeting, name, subtitle, genres, stats */}
-            <div className="flex-1 min-w-0">
-              <Fade>
-                {/* Greeting label */}
-                <p className={`text-[9px] font-extrabold uppercase tracking-[0.3em] mb-4
-                  ${dark ? "text-blue-500" : "text-[#1e3a5f]"}`}>{greeting}</p>
-
-                {/* Main heading */}
-                <h1 className={`text-[28px] sm:text-[38px] font-extrabold tracking-[-0.02em] leading-[1.1]
-                  ${dark ? "text-white" : "text-gray-900"}`}>
-                  Welcome back,{" "}
-                  <span className={dark ? "text-blue-400" : "text-[#1e3a5f]"}>{firstName}.</span>
-                </h1>
-
-                {/* Subtitle */}
-                <p className={`text-[13px] mt-2.5 leading-relaxed
-                  ${dark ? "text-gray-500" : "text-gray-500"}`}>
-                  {feed?.detectedGenres?.length > 0
-                    ? "Your investment feed, personalised by mandate profile."
-                    : "Complete your mandate profile to receive personalised script recommendations."}
-                </p>
-              </Fade>
-
-              {/* Genre chips */}
-              {!loading && feed?.detectedGenres?.length > 0 && (
-                <Fade delay={0.08}>
-                  <div className="flex items-center gap-1.5 mt-5 flex-wrap">
-                    <span className={`text-[8px] font-extrabold uppercase tracking-[0.28em] mr-2
-                      ${dark ? "text-gray-600" : "text-gray-400"}`}>Focus</span>
-                    {feed.detectedGenres.map((g) => (
-                      <span key={g}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border leading-none
-                          ${dark
-                            ? "bg-white/[0.04] border-white/[0.09] text-gray-200"
-                            : "bg-gray-50 border-gray-200 text-gray-700"}`}>
-                        <span className={`w-3.5 h-3.5 shrink-0 inline-flex items-center justify-center ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                          {getGenreIcon(g)}
-                        </span>
-                        <span className="capitalize leading-none">{g}</span>
-                      </span>
-                    ))}
-                    <Link to="/mandates"
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors
-                        ${dark
-                          ? "border-white/[0.07] text-gray-500 hover:text-gray-200 hover:border-white/[0.14]"
-                          : "border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300"}`}>
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                      </svg>
-                      Edit
-                    </Link>
-                  </div>
-                </Fade>
-              )}
-
-
-            </div>
-
-            {/* RIGHT — avatar card (desktop only) */}
-            <Fade delay={0.05}>
-              <div className="hidden md:flex flex-col items-end gap-3 shrink-0 pt-1">
-                {/* Avatar */}
-                <div className="relative">
-                  <div className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center
-                    text-[20px] font-extrabold select-none
-                    ${dark ? "bg-white/[0.06] text-white border border-white/[0.1]" : "bg-[#1e3a5f] text-white"}`}>
-                    {firstName.charAt(0).toUpperCase()}
-                  </div>
-                  <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500
-                    border-2 ${dark ? "border-[#07101f]" : "border-white"}`} />
-                </div>
-
-                {/* Role badge */}
-                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[9px] font-bold uppercase tracking-[0.18em]
-                  ${dark
-                    ? "bg-white/[0.03] border-white/[0.07] text-gray-500"
-                    : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-                  </svg>
-                  Investor
-                </div>
+      {/* ═══════ HERO HEADER ═══════ */}
+      <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-5">
+        <div className={`relative overflow-hidden rounded-xl ${panel}`}>
+          <div className="relative z-10 px-4 sm:px-5 py-4 sm:py-5">
+            <Fade>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${dark ? "text-gray-300" : "text-gray-600"}`}>{greeting}</p>
+                <span className={`text-[10px] font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>Investor Workspace</span>
               </div>
+
+              <h1 className={`text-[20px] sm:text-[24px] font-extrabold tracking-[-0.01em] leading-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                <span className={dark ? "text-gray-300" : "text-gray-700"}>{firstName}</span>
+              </h1>
+
             </Fade>
 
+            <Fade delay={0.05} className="mt-3 flex flex-wrap items-center gap-2">
+              {quickStats.map((item) => (
+                <span
+                  key={item.label}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 border text-[10px] ${dark ? "bg-white/[0.03] border-white/[0.1] text-gray-300" : "bg-gray-50 border-gray-200 text-gray-600"}`}
+                >
+                  <strong className={`text-[11px] ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</strong>
+                  {item.label}
+                </span>
+              ))}
+              <Link
+                to="/mandates"
+                className={`ml-auto px-3 py-1.5 rounded-md border text-[11px] font-semibold transition-colors ${dark ? "border-white/[0.14] text-gray-200 hover:bg-white/[0.05]" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+              >
+                Mandate
+              </Link>
+            </Fade>
+
+            {!loading && feed?.detectedGenres?.length > 0 && (
+              <Fade delay={0.08} className="mt-2.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`text-[8px] font-bold uppercase tracking-[0.2em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Focus</span>
+                  {feed.detectedGenres.slice(0, 6).map((g) => (
+                    <span
+                      key={g}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] border ${dark ? "bg-white/[0.04] border-white/[0.1] text-gray-300" : "bg-white border-gray-200 text-gray-600"}`}
+                    >
+                      <span className="capitalize">{g}</span>
+                    </span>
+                  ))}
+                  <Link
+                    to="/mandates"
+                    className={`text-[10px] font-semibold ${dark ? "text-gray-300 hover:text-gray-100" : "text-gray-700 hover:text-gray-900"}`}
+                  >
+                    Edit focus
+                  </Link>
+                </div>
+              </Fade>
+            )}
           </div>
         </div>
       </div>
 
-      {/*  FEED  */}
-      <div className="max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 space-y-12">
+      {/* ═══════ FEED ═══════ */}
+      <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 space-y-7">
 
         {/* Loading skeleton */}
         {loading && !feed && (
@@ -462,88 +459,49 @@ const InvestorHome = () => {
         {!loading && feed && (
           <AnimatePresence>
             <>
-              {/*  Genre Sections  */}
+              {/* ── Genre Sections ── */}
               {genres.map(({ genre, scripts }, idx) => (
                 <Fade key={genre} delay={0.05 + idx * 0.06}>
-                  <SectionHead
-                    icon={getGenreIcon(genre)}
-                    title={genre}
-                    count={scripts.length}
-                    sub={idx === 0 ? "Best match from your profile" : null}
-                    to="/search"
-                    dark={dark}
-                  />
-                  <HRow>
-                    {scripts.map((s, i) => <ScriptPoster key={s._id} script={s} idx={i} dark={dark} />)}
-                  </HRow>
-                  <div className={`mt-10 h-px ${sep}`} />
+                  <section className={`rounded-2xl p-5 sm:p-6 ${panel}`}>
+                    <SectionHead
+                      icon={getGenreIcon(genre)}
+                      title={genre}
+                      count={scripts.length}
+                      sub={idx === 0 ? "Top profile matches" : null}
+                      to="/search"
+                      dark={dark}
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {scripts.map((s, i) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
+                    </div>
+                  </section>
                 </Fade>
               ))}
 
-              {/*  Trending  */}
-              {trending.length > 0 && (
+              {/* ── Matched For You ── */}
+              {matched.length > 0 && (
                 <Fade delay={0.15}>
-                  <SectionHead
-                    icon={
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-                        <path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-                      </svg>
-                    }
-                    title="Trending Now"
-                    count={trending.length}
-                    sub="Most viewed & unlocked this month"
-                    to="/search"
-                    dark={dark}
-                  />
-                  <HRow>
-                    {trending.map((s, i) => (
-                      <ScriptPoster key={s._id} script={s} idx={i} rank={i + 1} dark={dark} />
-                    ))}
-                  </HRow>
-                  <div className={`mt-10 h-px ${sep}`} />
+                  <section className={`rounded-2xl p-5 sm:p-6 ${panel}`}>
+                    <SectionHead
+                      icon={
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+                          <path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                        </svg>
+                      }
+                      title="Matched For You" count={matched.length}
+                      sub="Based on your profile, genres, and activity" to="/search" dark={dark} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {matched.map((s, i) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
+                    </div>
+                  </section>
                 </Fade>
               )}
 
-              {/*  New Releases  */}
-              {newRel.length > 0 && (
-                <Fade delay={0.2}>
-                  <SectionHead
-                    icon={
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-                      </svg>
-                    }
-                    title="New Releases" count={newRel.length}
-                    sub="Uploaded in the last 30 days" to="/search" dark={dark} />
-                  <HRow>
-                    {newRel.map((s, i) => <ScriptPoster key={s._id} script={s} idx={i} dark={dark} />)}
-                  </HRow>
-                  <div className={`mt-10 h-px ${sep}`} />
-                </Fade>
-              )}
-
-              {/*  Explore  */}
-              {explore.length > 0 && (
-                <Fade delay={0.25}>
-                  <SectionHead
-                    icon={
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-                        <path d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253M3.157 7.582A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253" />
-                      </svg>
-                    }
-                    title="Explore" count={explore.length}
-                    sub="Outside your usual interests" to="/search" dark={dark} />
-                  <HRow>
-                    {explore.map((s, i) => <ScriptPoster key={s._id} script={s} idx={i} dark={dark} />)}
-                  </HRow>
-                </Fade>
-              )}
-
-              {/*  Empty  */}
+              {/* ── Empty ── */}
               {isEmpty && (
                 <Fade delay={0.1}>
                   <div className={`rounded-2xl border p-16 text-center
-                    ${dark ? "bg-[#0a1628] border-white/[0.04]" : "bg-white border-gray-100 shadow-sm"}`}>
+                    ${dark ? "bg-[#0a1628] border-white/[0.08]" : "bg-white border-gray-200 shadow-sm"}`}>
                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6
                       ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
                       <svg className={`w-8 h-8 ${dark ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.3} viewBox="0 0 24 24">
@@ -552,16 +510,16 @@ const InvestorHome = () => {
                       </svg>
                     </div>
                     <h3 className={`text-base font-bold mb-1.5 ${dark ? "text-gray-100" : "text-gray-800"}`}>
-                      Your feed is getting ready
+                      Your personalized feed is on the way
                     </h3>
                     <p className={`text-[13px] mb-7 max-w-sm mx-auto leading-relaxed
                       ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                      Writers upload scripts every day. Fill out your investor profile so we can personalise recommendations.
+                      Your profile is used automatically to surface scripts that match your interests.
                     </p>
                     <div className="flex items-center justify-center gap-3 flex-wrap">
                       <Link to="/search"
-                        className="px-6 py-2.5 rounded-xl bg-[#111111] text-white text-[13px] font-bold hover:bg-[#17304e]
-                          transition-all shadow-lg shadow-[#111111]/25 hover:shadow-xl inline-flex items-center gap-2">
+                        className="px-6 py-2.5 rounded-xl bg-gray-700 text-white text-[13px] font-bold hover:bg-gray-800
+                          transition-all shadow-lg shadow-gray-700/20 hover:shadow-xl inline-flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                         </svg>
@@ -569,7 +527,7 @@ const InvestorHome = () => {
                       </Link>
                       <Link to="/dashboard"
                         className={`px-6 py-2.5 rounded-xl border text-[13px] font-semibold transition-all inline-flex items-center gap-2
-                          ${dark ? "border-white/[0.08] text-gray-300 hover:bg-white/[0.03]" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                          ${dark ? "border-white/[0.14] text-gray-300 hover:bg-white/[0.03]" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
                         Update Profile
                       </Link>
                     </div>
@@ -579,6 +537,7 @@ const InvestorHome = () => {
             </>
           </AnimatePresence>
         )}
+
       </div>
     </div>
   );

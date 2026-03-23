@@ -8,7 +8,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 
 
 const sourceBarColor = (source) => {
-  if (source === "AI") return "#111111";
+  if (source === "AI") return "#1e3a5f";
   if (source === "Reader") return "#4a6d8c";
   return "#a8c4d8";
 };
@@ -19,7 +19,7 @@ const distBarFill = (range) => {
     "21-40": "#a8c4d8",
     "41-60": "#7a9bb5",
     "61-80": "#4a6d8c",
-    "81-100": "#111111",
+    "81-100": "#1e3a5f",
   };
   return map[range] || "#94a3b8";
 };
@@ -207,7 +207,7 @@ const DashboardCharts = ({ reviews }) => {
             </div>
             <div className="flex items-center justify-center gap-5 mt-2">
               {[
-                { s: "AI", c: "#111111" },
+                { s: "AI", c: "#1e3a5f" },
                 { s: "Reader", c: "#4a6d8c" },
                 { s: "Editorial", c: "#a8c4d8" },
               ].map((l) => (

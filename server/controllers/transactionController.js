@@ -1,5 +1,17 @@
 import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
+import Script from "../models/Script.js";
+import ScriptOption from "../models/ScriptOption.js";
+
+const normalizedCurrency = "INR";
+
+const serializeTransaction = (transaction) => {
+  const plainTransaction = transaction?.toObject ? transaction.toObject() : transaction;
+  return {
+    ...plainTransaction,
+    currency: normalizedCurrency,
+  };
+};
 
 // @desc    Get user transactions
 // @route   GET /api/transactions
@@ -23,7 +35,7 @@ export const getUserTransactions = async (req, res) => {
     const total = await Transaction.countDocuments(query);
     
     res.json({
-      transactions,
+      transactions: transactions.map(serializeTransaction),
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
@@ -49,7 +61,7 @@ export const getTransactionById = async (req, res) => {
       return res.status(404).json({ message: "Transaction not found" });
     }
     
-    res.json(transaction);
+    res.json(serializeTransaction(transaction));
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -61,7 +73,13 @@ export const getTransactionById = async (req, res) => {
 export const getWalletBalance = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('wallet');
-    res.json(user.wallet || { balance: 0, currency: 'USD', pendingBalance: 0 });
+    res.json({
+      balance: user?.wallet?.balance || 0,
+      currency: normalizedCurrency,
+      pendingBalance: user?.wallet?.pendingBalance || 0,
+      totalEarnings: user?.wallet?.totalEarnings || 0,
+      totalWithdrawals: user?.wallet?.totalWithdrawals || 0,
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -150,8 +168,8 @@ export const updateBankDetails = async (req, res) => {
       accountType: accountType || 'checking',
       swiftCode,
       iban,
-      country: country || 'US',
-      currency: currency || 'USD',
+      country: country || 'IN',
+      currency: currency || 'INR',
       isVerified: false, // Reset verification on update
       addedAt: user.bankDetails?.addedAt || new Date()
     };
@@ -226,6 +244,32 @@ export const getTransactionStats = async (req, res) => {
       },
       { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } }
     ]);
+
+    const creatorScripts = await Script.find({ creator: userId })
+      .select('_id price unlockedBy')
+      .lean();
+
+    const scriptIds = creatorScripts.map((script) => script._id);
+    const projectSalesEarnings = creatorScripts.reduce((sum, script) => {
+      const unlockCount = Array.isArray(script.unlockedBy) ? script.unlockedBy.length : 0;
+      const salePrice = Number(script.price || 0);
+      const creatorPayout = salePrice * 0.9;
+      return sum + unlockCount * creatorPayout;
+    }, 0);
+
+    const holdPayouts = scriptIds.length > 0
+      ? await ScriptOption.aggregate([
+          {
+            $match: {
+              script: { $in: scriptIds },
+              status: { $in: ['active', 'converted', 'expired'] },
+            }
+          },
+          { $group: { _id: null, total: { $sum: '$creatorPayout' } } }
+        ])
+      : [];
+
+    const holdEarnings = holdPayouts[0]?.total || 0;
     
     // Get pending transactions
     const pending = await Transaction.countDocuments({
@@ -241,8 +285,12 @@ export const getTransactionStats = async (req, res) => {
     res.json({
       totalEarnings: earnings[0]?.total || 0,
       totalSpending: spending[0]?.total || 0,
+      projectSalesEarnings,
+      holdEarnings,
+      totalProjectRevenue: projectSalesEarnings + holdEarnings,
       pendingTransactions: pending,
-      recentTransactions: recent
+      recentTransactions: recent.map(serializeTransaction),
+      currency: normalizedCurrency,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

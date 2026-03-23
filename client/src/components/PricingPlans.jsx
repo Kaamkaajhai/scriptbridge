@@ -5,7 +5,7 @@ const PricingPlans = () => {
   const plans = [
     {
       name: "Creator Free Tier",
-      price: "$0",
+      price: "₹0",
       description: "Start publishing your ideas",
       features: [
         "Upload unlimited scripts",
@@ -20,7 +20,7 @@ const PricingPlans = () => {
     },
     {
       name: "Creator Pro",
-      price: "$10",
+      price: "₹10",
       description: "Per script analysis",
       features: [
         "Everything in Free Tier",
@@ -36,7 +36,7 @@ const PricingPlans = () => {
     },
     {
       name: "Industry Standard",
-      price: "$200+",
+      price: "₹200+",
       description: "Per 30-day option",
       features: [
         "Hold scripts for 30 days",
@@ -57,29 +57,29 @@ const PricingPlans = () => {
       title: "Unlock Fees",
       description: "Producers pay to see full scripts",
       creator: "You earn 50%",
-      example: "$500 unlock = $250 for you",
-      icon: ""
+      example: "₹500 unlock = ₹250 for you",
+      icon: "🔓"
     },
     {
       title: "Pro Analysis",
       description: "Offer AI-powered script feedback",
       creator: "You earn 70%",
-      example: "$10 analysis = $7 for you",
-      icon: ""
+      example: "₹10 analysis = ₹7 for you",
+      icon: "📊"
     },
     {
       title: "Option Fees",
       description: "Producers hold scripts with fees",
       creator: "Platform takes 10%",
-      example: "$300 option = $270 for you",
-      icon: ""
+      example: "₹300 option = ₹270 for you",
+      icon: "⏳"
     },
     {
       title: "Domain Packages",
       description: "Bulk access to scripts by category",
       creator: "Revenue share included",
       example: "1000 buyers = Royalties",
-      icon: ""
+      icon: "📦"
     }
   ];
 
@@ -149,7 +149,7 @@ const PricingPlans = () => {
                   <p className="text-gray-400 text-sm mb-4">{plan.description}</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-4xl font-bold">{plan.price}</span>
-                    {plan.price !== "$0" && <span className="text-gray-400 text-sm">/usage</span>}
+                    {plan.price !== "₹0" && <span className="text-gray-400 text-sm">/usage</span>}
                   </div>
                 </div>
 
@@ -232,26 +232,26 @@ const PricingPlans = () => {
             className="mt-16 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-2xl p-8"
             variants={itemVariants}
           >
-            <h3 className="text-2xl font-bold text-green-400 mb-6"> Example Monthly Earnings (Creator)</h3>
+            <h3 className="text-2xl font-bold text-green-400 mb-6">📈 Example Monthly Earnings (Creator)</h3>
             <div className="grid md:grid-cols-4 gap-8">
               <div>
                 <p className="text-gray-400 text-sm mb-2">10 Script Unlocks</p>
-                <p className="text-2xl font-bold text-green-400">$2,500</p>
-                <p className="text-xs text-gray-500">@ 50% of $500 avg</p>
+                <p className="text-2xl font-bold text-green-400">₹2,500</p>
+                <p className="text-xs text-gray-500">@ 50% of ₹500 avg</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm mb-2">5 Pro Analyses</p>
-                <p className="text-2xl font-bold text-green-400">$350</p>
-                <p className="text-xs text-gray-500">@ 70% of $10 each</p>
+                <p className="text-2xl font-bold text-green-400">₹350</p>
+                <p className="text-xs text-gray-500">@ 70% of ₹10 each</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm mb-2">3 Option Fees</p>
-                <p className="text-2xl font-bold text-green-400">$810</p>
-                <p className="text-xs text-gray-500">@ 90% of $300 avg</p>
+                <p className="text-2xl font-bold text-green-400">₹810</p>
+                <p className="text-xs text-gray-500">@ 90% of ₹300 avg</p>
               </div>
               <div className="md:col-span-1 bg-slate-800 rounded-lg p-4 flex flex-col justify-center border-2 border-green-500/50">
                 <p className="text-gray-400 text-sm mb-2">Total Monthly</p>
-                <p className="text-3xl font-bold text-green-400">$3,660+</p>
+                <p className="text-3xl font-bold text-green-400">₹3,660+</p>
               </div>
             </div>
           </motion.div>

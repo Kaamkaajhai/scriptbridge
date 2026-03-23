@@ -21,16 +21,15 @@ const NewProject = lazy(() => import("./pages/NewProject"));
 const CreateProject = lazy(() => import("./pages/CreateProject"));
 const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
+const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
-const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Writers = lazy(() => import("./pages/Writers"));
 const InvestorHome = lazy(() => import("./pages/InvestorHome"));
 const ReaderHome = lazy(() => import("./pages/ReaderHome"));
 const ScriptReader = lazy(() => import("./pages/ScriptReader"));
 const ReaderProfile = lazy(() => import("./pages/ReaderProfile"));
-const Credits = lazy(() => import("./pages/Credits"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
@@ -134,13 +133,7 @@ function App() {
               />
               <Route
                 path="/credits"
-                element={
-                  <PrivateRoute>
-                    <MainLayout>
-                      <Credits />
-                    </MainLayout>
-                  </PrivateRoute>
-                }
+                element={<Navigate to="/dashboard" replace />}
               />
               <Route
                 path="/purchase-requests"
@@ -314,7 +307,7 @@ function App() {
               />
               <Route
                 path="/reader/featured"
-                element={<Navigate to="/featured" replace />}
+                element={<Navigate to="/top-list" replace />}
               />
               <Route
                 path="/admin"

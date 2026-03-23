@@ -17,7 +17,7 @@ const invoiceSchema = new mongoose.Schema(
     invoiceDate: { type: Date, required: true, default: Date.now },
     creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     creatorSid: { type: String, default: "" },
-    script: { type: mongoose.Schema.Types.ObjectId, ref: "Script", required: true, index: true },
+    script: { type: mongoose.Schema.Types.ObjectId, ref: "Script", required: true },
     scriptSid: { type: String, default: "" },
     accessType: { type: String, enum: ["free", "premium"], default: "free" },
     scriptPrice: { type: Number, default: 0 },

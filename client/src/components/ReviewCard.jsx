@@ -9,7 +9,7 @@ const ReviewCard = ({ review, currentUserId, onEdit, onDelete }) => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5002${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   const renderStars = (rating) => (
@@ -59,7 +59,7 @@ const ReviewCard = ({ review, currentUserId, onEdit, onDelete }) => {
               onError={(e) => { e.target.style.display = "none"; }}
             />
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#111111]/10 to-[#333333]/10 flex items-center justify-center text-sm font-bold text-[#111111] shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1e3a5f]/10 to-[#2d5a8e]/10 flex items-center justify-center text-sm font-bold text-[#1e3a5f] shrink-0">
               {review.user?.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
           )}
@@ -80,7 +80,7 @@ const ReviewCard = ({ review, currentUserId, onEdit, onDelete }) => {
             <div className="flex gap-0.5 shrink-0 -mt-0.5">
               <button
                 onClick={() => onEdit?.(review)}
-                className="p-2 text-gray-300 hover:text-[#111111] hover:bg-[#111111]/[0.05] rounded-lg transition-colors"
+                className="p-2 text-gray-300 hover:text-[#1e3a5f] hover:bg-[#1e3a5f]/5 rounded-lg transition-colors"
                 title="Edit"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

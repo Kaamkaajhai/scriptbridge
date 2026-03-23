@@ -1,7 +1,8 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
-import { sendOTPEmail, sendWelcomeEmail } from "../utils/emailService.js";
+import { sendOTPEmail, sendWelcomeEmail, sendSignupOTPToCompany } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 
 const generateToken = (id) => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "30d";
@@ -56,6 +57,35 @@ const sanitizeEmail = (email) => {
   return email.trim().toLowerCase();
 };
 
+const normalizeLocation = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .trim();
+
+const parseAddressForValidation = (address = "") => {
+  if (!address || typeof address !== "string") return null;
+
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length < 3) return null;
+
+  const zipSource = parts[parts.length - 1] || "";
+  const zipMatch = zipSource.match(/(\d{6})/);
+  if (!zipMatch) return null;
+
+  const zipCode = zipMatch[1];
+  const state = parts[parts.length - 2] || "";
+  const city = parts[parts.length - 3] || "";
+
+  if (!state || !city) return null;
+
+  return { city, state, zipCode };
+};
+
 // Password validation (min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)
 const isValidPassword = (password) => {
   if (password.length < 8) return { valid: false, message: "Password must be at least 8 characters" };
@@ -107,6 +137,14 @@ export const join = async (req, res) => {
               : "Failed to send verification email. Please check your email address and try again."
           });
         }
+
+        // Best-effort company copy (does not block user flow)
+        await sendSignupOTPToCompany({
+          userName: userExists.name || name,
+          userEmail: email,
+          userRole: userExists.role,
+          otp,
+        });
         
         return res.status(200).json({ 
           message: "User already exists but not verified. New OTP sent to email.",
@@ -120,34 +158,16 @@ export const join = async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
     
-    // Check if email verification should be skipped (dev mode)
-    const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
-    
     // Create user with OTP
     const user = await User.create({ 
       name, 
       email, 
       password, 
       role,
-      emailVerified: skipEmailVerification, // Auto-verify if skipping email
-      emailVerificationToken: skipEmailVerification ? undefined : otp,
-      emailVerificationExpires: skipEmailVerification ? undefined : generateOTPExpiry()
+      emailVerified: false,
+      emailVerificationToken: otp,
+      emailVerificationExpires: generateOTPExpiry()
     });
-    
-    // If skipping email verification, return token directly
-    if (skipEmailVerification) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
-      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
-      return res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token,
-        expiresAt,
-        message: "Account created successfully (email verification skipped in dev mode)"
-      });
-    }
     
     // Send OTP email
     const emailResult = await sendOTPEmail(email, name, otp);
@@ -161,6 +181,14 @@ export const join = async (req, res) => {
           : "Failed to send verification email. Please check your email address and try again."
       });
     }
+
+    // Best-effort company copy (does not block signup)
+    await sendSignupOTPToCompany({
+      userName: name,
+      userEmail: email,
+      userRole: role,
+      otp,
+    });
     
     console.log('User created successfully, OTP sent:', user._id);
     res.status(201).json({
@@ -183,8 +211,16 @@ export const login = async (req, res) => {
 
     email = sanitizeEmail(email);
 
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Please provide a valid email address" });
+    }
+
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      if (!user.sid) {
+        await user.save();
+      }
+
       // Check if email is verified
       if (!user.emailVerified) {
         return res.status(403).json({ 
@@ -213,13 +249,28 @@ export const login = async (req, res) => {
       const { token, expiresAt } = generateToken(user._id);
       res.json({
         _id: user._id,
+        sid: user.sid,
         name: user.name,
         email: user.email,
         role: user.role,
+        approvalStatus: user.approvalStatus,
+        approvalNote: user.approvalNote,
+        profileImage: user.profileImage || user.profilePicture || "",
         token,
         expiresAt,
       });
     } else {
+      // Provide clearer guidance when the entered email is pending verification.
+      const pendingUser = await User.findOne({ pendingEmail: email }).select("email pendingEmail");
+      if (pendingUser) {
+        return res.status(403).json({
+          message: `This email is pending verification. Please verify it first or login with your current email (${pendingUser.email}).`,
+          pendingEmail: pendingUser.pendingEmail,
+          currentEmail: pendingUser.email,
+          requiresVerification: true,
+        });
+      }
+
       res.status(401).json({ message: "Invalid email or password" });
     }
   } catch (error) {
@@ -277,6 +328,20 @@ export const verifyOTP = async (req, res) => {
     }
 
     await user.save();
+
+    if (user.role === "investor") {
+      await notifyAdminWorkflowEvent({
+        title: "Investor Profile Approval Request",
+        section: "pending-investors",
+        actorId: user._id,
+        message: `Investor profile request received from ${user.name} (${user.email}).`,
+        metadata: {
+          investorId: user._id,
+          investorEmail: user.email,
+          status: "pending",
+        },
+      });
+    }
 
     // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
@@ -358,6 +423,80 @@ export const resendOTP = async (req, res) => {
   }
 };
 
+export const validateSignupAddress = async (req, res) => {
+  try {
+    const { address } = req.body;
+    const parsed = parseAddressForValidation(address);
+
+    if (!parsed) {
+      return res.status(400).json({
+        valid: false,
+        message: "Enter address as: Street, City, State, ZIP (6-digit).",
+      });
+    }
+
+    const { city, state, zipCode } = parsed;
+
+    const response = await fetch(`https://api.postalpincode.in/pincode/${zipCode}`);
+    const data = await response.json();
+
+    const offices = Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+    if (!offices.length) {
+      return res.status(400).json({
+        valid: false,
+        message: "Invalid ZIP code. No matching postal records found.",
+      });
+    }
+
+    const normalizedInputState = normalizeLocation(state);
+    const normalizedInputCity = normalizeLocation(city);
+
+    const stateMatches = offices.some((office) => normalizeLocation(office.State) === normalizedInputState);
+
+    const cityMatches = offices.some((office) => {
+      const candidates = [office.District, office.Name, office.Block, office.Division]
+        .filter(Boolean)
+        .map((value) => normalizeLocation(value));
+
+      return candidates.some((candidate) =>
+        candidate === normalizedInputCity ||
+        candidate.includes(normalizedInputCity) ||
+        normalizedInputCity.includes(candidate)
+      );
+    });
+
+    if (!stateMatches) {
+      return res.status(400).json({
+        valid: false,
+        message: "State does not match the entered ZIP code.",
+      });
+    }
+
+    if (!cityMatches) {
+      return res.status(400).json({
+        valid: false,
+        message: "City does not match the entered ZIP code.",
+      });
+    }
+
+    return res.json({
+      valid: true,
+      message: "Address validated successfully.",
+      normalized: {
+        city,
+        state,
+        zipCode,
+      },
+    });
+  } catch (error) {
+    console.error("Address validation error:", error);
+    return res.status(500).json({
+      valid: false,
+      message: "Unable to validate address right now. Please try again.",
+    });
+  }
+};
+
 // Validate token & return current user data (used on page refresh)
 export const getMe = async (req, res) => {
   try {
@@ -373,6 +512,9 @@ export const getMe = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      approvalStatus: user.approvalStatus,
+      approvalNote: user.approvalNote,
+      profileImage: user.profileImage || user.profilePicture || "",
       profilePicture: user.profilePicture,
       bio: user.bio,
       expiresAt: decoded.exp * 1000,
