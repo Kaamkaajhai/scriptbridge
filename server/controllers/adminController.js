@@ -13,6 +13,11 @@ const buildChatId = (idA, idB) => {
     return `${sorted[0]}_${sorted[1]}`;
 };
 
+const maskAccountNumber = (accountNumber = "") => {
+    if (!accountNumber) return "";
+    return `****${String(accountNumber).slice(-4)}`;
+};
+
 // ─── Dashboard Stats ───
 export const getStats = async (req, res) => {
     try {
@@ -588,6 +593,174 @@ export const rejectInvestor = async (req, res) => {
     }
 };
 
+// ─── Bank Details Review ───
+export const getBankDetailReviews = async (req, res) => {
+    try {
+        const { status = "pending", page = 1, limit = 20, search = "" } = req.query;
+        const filter = {
+            role: { $in: ["writer", "creator"] },
+        };
+
+        if (status && status !== "all") {
+            filter.$or = [
+                {
+                    "bankDetailsReview.status": status,
+                    "bankDetailsReview.requestedDetails.accountNumber": { $exists: true, $ne: "" },
+                },
+                { "bankDetailsSecurity.isLocked": true },
+            ];
+        } else {
+            filter.$or = [
+                { "bankDetailsReview.requestedDetails.accountNumber": { $exists: true, $ne: "" } },
+                { "bankDetailsSecurity.invalidAttempts": { $gt: 0 } },
+                { "bankDetailsSecurity.isLocked": true },
+            ];
+        }
+
+        if (search) {
+            const searchFilter = [
+                { sid: { $regex: search, $options: "i" } },
+                { name: { $regex: search, $options: "i" } },
+                { email: { $regex: search, $options: "i" } },
+                { "bankDetailsReview.requestedDetails.bankName": { $regex: search, $options: "i" } },
+            ];
+            filter.$and = [{ $or: searchFilter }];
+        }
+
+        const total = await User.countDocuments(filter);
+        const users = await User.find(filter)
+            .select("sid name email role bankDetails bankDetailsReview bankDetailsSecurity")
+            .sort({ "bankDetailsReview.submittedAt": 1, createdAt: -1 })
+            .skip((Number(page) - 1) * Number(limit))
+            .limit(Number(limit))
+            .lean();
+
+        const reviews = users.map((user) => {
+            const requested = user?.bankDetailsReview?.requestedDetails || {};
+            const active = user?.bankDetails || {};
+            return {
+                _id: user._id,
+                sid: user.sid,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                status: user?.bankDetailsReview?.status || "not_submitted",
+                submittedAt: user?.bankDetailsReview?.submittedAt,
+                dueAt: user?.bankDetailsReview?.dueAt,
+                reviewedAt: user?.bankDetailsReview?.reviewedAt,
+                adminNote: user?.bankDetailsReview?.adminNote || "",
+                bankSecurity: {
+                    invalidAttempts: Number(user?.bankDetailsSecurity?.invalidAttempts || 0),
+                    isLocked: Boolean(user?.bankDetailsSecurity?.isLocked),
+                    lockedAt: user?.bankDetailsSecurity?.lockedAt,
+                    lastInvalidAttemptAt: user?.bankDetailsSecurity?.lastInvalidAttemptAt,
+                    lastInvalidReason: user?.bankDetailsSecurity?.lastInvalidReason || "",
+                },
+                requestedDetails: {
+                    ...requested,
+                    accountNumber: requested.accountNumber || "",
+                    maskedAccountNumber: maskAccountNumber(requested.accountNumber),
+                },
+                activeDetails: active?.accountNumber
+                    ? {
+                        ...active,
+                        accountNumber: active.accountNumber,
+                        maskedAccountNumber: maskAccountNumber(active.accountNumber),
+                    }
+                    : null,
+            };
+        });
+
+        res.json({ reviews, total, page: Number(page), totalPages: Math.max(1, Math.ceil(total / Number(limit))) });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const approveBankDetailReview = async (req, res) => {
+    try {
+        const { note } = req.body || {};
+        const user = await User.findOne({ _id: req.params.id, role: { $in: ["writer", "creator"] } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        const requested = user?.bankDetailsReview?.requestedDetails;
+        if (!requested?.accountNumber || user?.bankDetailsReview?.status !== "pending") {
+            return res.status(400).json({ message: "No pending bank details review found" });
+        }
+
+        user.bankDetails = {
+            accountHolderName: requested.accountHolderName,
+            bankName: requested.bankName,
+            accountNumber: requested.accountNumber,
+            routingNumber: requested.routingNumber,
+            accountType: requested.accountType || "checking",
+            swiftCode: requested.swiftCode,
+            iban: requested.iban,
+            country: requested.country || "IN",
+            currency: requested.country === "IN" ? "INR" : (requested.currency || "INR"),
+            isVerified: true,
+            verifiedAt: new Date(),
+            addedAt: user.bankDetails?.addedAt || user?.bankDetailsReview?.submittedAt || new Date(),
+        };
+
+        user.bankDetailsReview.status = "approved";
+        user.bankDetailsReview.reviewedAt = new Date();
+        user.bankDetailsReview.reviewedBy = req.user._id;
+        user.bankDetailsReview.adminNote = note ? String(note).trim() : "Approved";
+
+        await user.save();
+        res.json({ message: "Bank details approved and activated" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const rejectBankDetailReview = async (req, res) => {
+    try {
+        const { note } = req.body || {};
+        const user = await User.findOne({ _id: req.params.id, role: { $in: ["writer", "creator"] } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        if (user?.bankDetailsReview?.status !== "pending") {
+            return res.status(400).json({ message: "No pending bank details review found" });
+        }
+
+        user.bankDetailsReview.status = "rejected";
+        user.bankDetailsReview.reviewedAt = new Date();
+        user.bankDetailsReview.reviewedBy = req.user._id;
+        user.bankDetailsReview.adminNote = note ? String(note).trim() : "Rejected by admin";
+
+        await user.save();
+        res.json({ message: "Bank details request rejected" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const unblockBankDetailUpdates = async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.params.id, role: { $in: ["writer", "creator"] } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        if (!user.bankDetailsSecurity) {
+            user.bankDetailsSecurity = {};
+        }
+
+        user.bankDetailsSecurity.invalidAttempts = 0;
+        user.bankDetailsSecurity.isLocked = false;
+        user.bankDetailsSecurity.lockedAt = undefined;
+        user.bankDetailsSecurity.lastInvalidAttemptAt = undefined;
+        user.bankDetailsSecurity.lastInvalidReason = "";
+        user.bankDetailsSecurity.unlockedAt = new Date();
+        user.bankDetailsSecurity.unlockedBy = req.user._id;
+
+        await user.save();
+        res.json({ message: "Bank detail update lock removed. User can submit details again." });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ─── Admin Alerts Summary (for sidebar badges + popup polling) ───
 export const getAdminAlertSummary = async (req, res) => {
     try {
@@ -607,6 +780,8 @@ export const getAdminAlertSummary = async (req, res) => {
             approvals,
             trailers,
             pendingInvestors,
+            pendingBankReviews,
+            lockedBankUsers,
             queries,
         ] = await Promise.all([
             User.countDocuments({ role: "investor" }),
@@ -633,11 +808,15 @@ export const getAdminAlertSummary = async (req, res) => {
                 trailerStatus: { $in: ["requested", "generating"] },
             }),
             User.countDocuments({ role: "investor", approvalStatus: "pending" }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsReview.status": "pending" }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsSecurity.isLocked": true }),
             ContactSubmission.countDocuments(),
         ]);
 
+        const bankReviewAlerts = pendingBankReviews + lockedBankUsers;
+
         res.json({
-            overview: approvals + trailers + pendingInvestors + queries,
+            overview: approvals + trailers + pendingInvestors + bankReviewAlerts + queries,
             investors: totalInvestors,
             writers: totalWriters,
             readers: totalReaders,
@@ -651,6 +830,7 @@ export const getAdminAlertSummary = async (req, res) => {
             approvals,
             trailers,
             "pending-investors": pendingInvestors,
+            "bank-reviews": bankReviewAlerts,
             queries,
         });
     } catch (error) {

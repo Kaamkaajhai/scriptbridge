@@ -6,3 +6,5 @@ build/
 *.log
 backups/
 restored/
+.vercel
+.env*.local

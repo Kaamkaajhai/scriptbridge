@@ -124,6 +124,8 @@ const Credits = () => {
 
   const usagePercent = balance?.totalPurchased > 0
     ? Math.round((balance.totalSpent / balance.totalPurchased) * 100) : 0;
+  const isWriterRole = user?.role === "writer" || user?.role === "creator";
+  const canBuyCredits = !isWriterRole || balance?.canPurchaseCredits !== false;
 
   const getCredits = (key, fallback) => pricing?.[key]?.credits ?? fallback;
 
@@ -186,12 +188,19 @@ const Credits = () => {
           <motion.button
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
             onClick={() => setShowBuyModal(true)}
+            disabled={!canBuyCredits}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-shadow"
           >
             <Plus className="w-4 h-4" />
             Buy Credits
           </motion.button>
         </div>
+
+        {isWriterRole && !canBuyCredits && (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${dark ? "bg-amber-500/10 border-amber-500/20 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+            {balance?.bankPurchaseMessage || "Submit bank details for admin approval before buying credits."}
+          </div>
+        )}
 
         {/* ── Balance Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
