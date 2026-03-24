@@ -9,6 +9,24 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
   const containerRef = useRef(null);
   const uiInstanceRef = useRef(null);
   const lastSyncedStateRef = useRef("");
+
+  // Initialize PrivacySettingsUI instance on mount
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const instance = new PrivacySettingsUI(
+      containerRef.current,
+      dark,
+      userId,
+      api
+    );
+
+    uiInstanceRef.current = instance;
+
+    // Set initial state from parent if provided
+    if (privacySettings) {
+      instance.updateState(privacySettings);
+      lastSyncedStateRef.current = JSON.stringify(privacySettings);
     }
 
     return () => {
@@ -16,20 +34,36 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
     };
   }, [dark, userId, api]);
 
+  // Track incoming properties and update vanilla instance
   useEffect(() => {
     if (!uiInstanceRef.current || !privacySettings) return;
 
     const incoming = JSON.stringify(privacySettings);
     const current = JSON.stringify(uiInstanceRef.current.getState());
 
-    // Skip no-op updates to avoid constant DOM re-renders in the vanilla component.
+    // Skip no-op updates to avoid constant DOM re-renders
     if (incoming === current) {
       lastSyncedStateRef.current = incoming;
       return;
     }
 
     lastSyncedStateRef.current = incoming;
-      setPrivacySettings(currentState);
+    uiInstanceRef.current.updateState(privacySettings);
+  }, [privacySettings]);
+
+  // Sync state from vanilla component back to React parent (polling)
+  useEffect(() => {
+    if (!uiInstanceRef.current) return;
+
+    const syncInterval = setInterval(() => {
+      const currentState = uiInstanceRef.current.getState();
+      const stateJSON = JSON.stringify(currentState);
+
+      // Only update if state has actually changed
+      if (stateJSON !== lastSyncedStateRef.current) {
+        lastSyncedStateRef.current = stateJSON;
+        setPrivacySettings(currentState);
+      }
     }, 500);
 
     return () => clearInterval(syncInterval);

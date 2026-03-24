@@ -50,6 +50,10 @@ class PrivacySettingsUI {
   init() {
     if (!this.container) return;
     this.injectStyles();
+    this.render();
+    this.attachEventListeners();
+  }
+
   loadState() {
     const saved = localStorage.getItem(this.storageKey);
     if (!saved) return;
@@ -308,6 +312,19 @@ class PrivacySettingsUI {
           </button>
         </div>
 
+        <div class="flex items-center justify-end">
+          <button type="button" data-action="saveAccount" class="settings-action-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all ${theme.primaryButton}">Save Account</button>
+        </div>
+      </div>
+    `;
+  }
+
+  renderPrivacyPanel() {
+    const theme = this.getThemeClasses();
+
+    return `
+      <div class="space-y-3.5 animate-fade-in">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Profile Visibility</label>
             <select class="settings-select w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="profileVisibility">
@@ -316,7 +333,6 @@ class PrivacySettingsUI {
               <option value="only_me">Only Me</option>
             </select>
           </div>
-=======
 
           <div>
             <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Messaging</label>
@@ -380,6 +396,14 @@ class PrivacySettingsUI {
         </select>
       </div>
     `;
+  }
+
+  getPasswordToggleIcon(isVisible) {
+    if (isVisible) {
+      return `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>`;
+    } else {
+      return `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-4.753 4.753m4.753-4.753L3.596 3.596m16.807 16.807L9.404 9.404m0 0L3.596 3.596m16.807 16.807l-6.208-6.208"></path></svg>`;
+    }
   }
 
   renderToggleRow(field, label, desc) {
@@ -652,6 +676,25 @@ class PrivacySettingsUI {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;");
+  }
+
+  injectStyles() {
+    // Inject CSS for settings UI
+    if (document.id("settings-ui-styles")) return;
+    
+    const style = document.createElement("style");
+    style.id = "settings-ui-styles";
+    style.textContent = `
+      .settings-ui-root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      .settings-ui-dark { color-scheme: dark; }
+      .settings-ui-light { color-scheme: light; }
+      .settings-category-btn { cursor: pointer; }
+      .settings-password-wrap { position: relative; }
+      .settings-password-toggle { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; }
+      .animate-fade-in { animation: fadeIn 0.3s ease-in; }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    `;
+    document.head.appendChild(style);
   }
 }
 
