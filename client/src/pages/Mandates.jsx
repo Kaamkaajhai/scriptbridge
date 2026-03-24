@@ -20,10 +20,10 @@ const Mandates = () => {
 
   const formats = ["Feature Film", "TV Pilot", "Limited Series", "Short Film", "Web Series"];
   const budgetTiers = [
-    { value: "micro", label: "Micro (<$500K)" },
-    { value: "low", label: "Low ($500K–$5M)" },
-    { value: "medium", label: "Medium ($5M–$25M)" },
-    { value: "high", label: "High ($25M+)" },
+    { value: "micro", label: "Micro (<₹50L)" },
+    { value: "low", label: "Low (₹50L–₹5Cr)" },
+    { value: "medium", label: "Medium (₹5Cr–₹25Cr)" },
+    { value: "high", label: "High (₹25Cr+)" },
     { value: "any", label: "Any Budget" },
   ];
   const genres = [
@@ -67,8 +67,7 @@ const Mandates = () => {
 
     try {
       await api.put("/onboarding/mandates", { mandates });
-      setMessage("Mandates updated successfully!");
-      setTimeout(() => setMessage(""), 3000);
+      navigate("/home", { replace: true });
     } catch (error) {
       console.error("Error saving mandates:", error);
       setMessage("Error saving mandates. Please try again.");
@@ -291,12 +290,15 @@ const Mandates = () => {
           </form>
         </div>
 
+<<<<<<< HEAD
         <div className={`mt-6 border rounded-lg p-4 ${dark ? 'bg-white/[0.03] border-[#182840]' : 'bg-gray-50 border-gray-200'}`}>
           <p className={`text-sm ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
             <strong> How it works:</strong> Based on these mandates, our AI will automatically recommend scripts that match your criteria. 
             You'll receive notifications when new matching scripts are uploaded.
           </p>
         </div>
+=======
+>>>>>>> origin/master
       </div>
     </div>
   );

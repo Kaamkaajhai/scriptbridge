@@ -88,11 +88,11 @@ const IndustryOnboarding = () => {
   ];
 
   const budgetTierOptions = [
-    { value: "micro", label: "Micro (<$500K)", desc: "Executable indie scripts" },
-    { value: "low", label: "Low ($500K - $5M)", desc: "Independent features" },
-    { value: "medium", label: "Medium ($5M - $25M)", desc: "Mid-budget productions" },
-    { value: "high", label: "High ($25M - $75M)", desc: "Studio features" },
-    { value: "blockbuster", label: "Blockbuster (>$75M)", desc: "Big IP & franchises" }
+    { value: "micro", label: "Micro (<₹50L)", desc: "Executable indie scripts" },
+    { value: "low", label: "Low (₹50L - ₹5Cr)", desc: "Independent features" },
+    { value: "medium", label: "Medium (₹5Cr - ₹25Cr)", desc: "Mid-budget productions" },
+    { value: "high", label: "High (₹25Cr - ₹75Cr)", desc: "Studio features" },
+    { value: "blockbuster", label: "Blockbuster (>₹75Cr)", desc: "Big IP & franchises" }
   ];
 
   const genreOptions = [

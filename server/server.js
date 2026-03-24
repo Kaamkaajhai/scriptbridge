@@ -32,12 +32,22 @@ import contactRoutes from "./routes/contactRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
 import creditsRoutes from "./routes/creditsRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-
-connectDB();
+import scriptPitchRoutes from "./routes/scriptPitchRoutes.js";
+import invoiceRoutes from "./routes/invoiceRoutes.js";
+import {
+  applyGlobalSecurity,
+  apiLimiter,
+  authLimiter,
+  paymentLimiter,
+} from "./middleware/securityMiddleware.js";
+connectDB().catch((error) => {
+  console.error("Initial database connection failed:", error.message);
+});
 
 const app = express();
-const server = http.createServer(app);
+const isVercel = Boolean(process.env.VERCEL);
 
+<<<<<<< HEAD
 // Socket.io Configuration
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -62,46 +72,88 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+=======
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+>>>>>>> origin/master
 
-// Socket.io Connection
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+applyGlobalSecurity(app);
 
-  // Join chat room
-  socket.on('join-chat', (chatId) => {
-    socket.join(chatId);
-    console.log(`User ${socket.id} joined chat: ${chatId}`);
+const localOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:5176",
+];
+
+const envOrigins = [process.env.CLIENT_URL, process.env.CORS_ORIGINS]
+  .filter(Boolean)
+  .flatMap((value) => String(value).split(","))
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [...new Set([...localOrigins, ...envOrigins])];
+
+const corsOrigin = (origin, callback) => {
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error("Not allowed by CORS"));
+};
+
+const createRealtimeServer = () => {
+  const server = http.createServer(app);
+
+  const io = new Server(server, {
+    cors: {
+      origin: allowedOrigins,
+      credentials: true,
+    },
   });
 
-  // Join user's personal notification room
-  socket.on('join-notifications', (userId) => {
-    socket.join(`notifications-${userId}`);
-    console.log(`User ${socket.id} joined notifications for: ${userId}`);
+  io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    socket.on("join-chat", (chatId) => {
+      socket.join(chatId);
+      console.log(`User ${socket.id} joined chat: ${chatId}`);
+    });
+
+    socket.on("join-notifications", (userId) => {
+      socket.join(`notifications-${userId}`);
+      console.log(`User ${socket.id} joined notifications for: ${userId}`);
+    });
+
+    socket.on("send-message", (data) => {
+      io.to(data.chatId).emit("receive-message", data);
+    });
+
+    socket.on("typing", (data) => {
+      socket.to(data.chatId).emit("user-typing", data);
+    });
+
+    socket.on("smart-match-alert", (data) => {
+      io.to(`notifications-${data.userId}`).emit("new-match", data);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.id);
+    });
   });
 
-  // Send message
-  socket.on('send-message', (data) => {
-    io.to(data.chatId).emit('receive-message', data);
-  });
-
-  // Typing indicator
-  socket.on('typing', (data) => {
-    socket.to(data.chatId).emit('user-typing', data);
-  });
-
-  // Smart Match real-time notifications
-  socket.on('smart-match-alert', (data) => {
-    io.to(`notifications-${data.userId}`).emit('new-match', data);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
+  return server;
+};
 
 // CORS Configuration - MUST be before routes
 app.use(cors({
+<<<<<<< HEAD
   origin: ALLOWED_ORIGINS,
+=======
+  origin: corsOrigin,
+>>>>>>> origin/master
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -110,8 +162,11 @@ app.use(cors({
 }));
 
 // Body parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Baseline abuse protection (route-level limiters remain stricter for sensitive endpoints)
+app.use("/api", apiLimiter);
 
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -122,11 +177,11 @@ app.get('/api/test', (req, res) => {
 });
 
 // Routes
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/scripts", scriptRoutes);
-app.use("/api/payment", paymentRoutes);
+app.use("/api/payment", paymentLimiter, paymentRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/search", searchRoutes);
@@ -139,8 +194,15 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/transactions", transactionRoutes);
-app.use("/api/credits", creditsRoutes);
+app.use("/api/credits", paymentLimiter, creditsRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/script-pitches", scriptPitchRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
-const PORT = process.env.PORT || 5001;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+export default app;
+
+if (!isVercel) {
+  const server = createRealtimeServer();
+  const PORT = process.env.PORT || 5002;
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}

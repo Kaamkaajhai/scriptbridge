@@ -33,8 +33,8 @@ const BankDetails = ({ dark }) => {
     accountType: "checking",
     swiftCode: "",
     iban: "",
-    country: "US",
-    currency: "USD"
+    country: "IN",
+    currency: "INR"
   });
 
   useEffect(() => {
@@ -250,7 +250,7 @@ const BankDetails = ({ dark }) => {
                     ? "bg-white/[0.03] border-white/[0.06] text-white placeholder-white/30 focus:bg-white/[0.05] focus:border-white/20" 
                     : "bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 }`}
-                placeholder="e.g., Wells Fargo, Chase, Bank of America"
+                placeholder="e.g., HDFC Bank, ICICI Bank, SBI"
               />
             </div>
 
@@ -353,7 +353,7 @@ const BankDetails = ({ dark }) => {
                         ? "bg-white/[0.03] border-white/[0.06] text-white placeholder-white/30 focus:bg-white/[0.05] focus:border-white/20" 
                         : "bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                     }`}
-                    placeholder="US"
+                    placeholder="IN"
                   />
                 </div>
               </div>
@@ -374,7 +374,7 @@ const BankDetails = ({ dark }) => {
                       ? "bg-white/[0.03] border-white/[0.06] text-white placeholder-white/30 focus:bg-white/[0.05] focus:border-white/20" 
                       : "bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   }`}
-                  placeholder="USD"
+                  placeholder="INR"
                 />
               </div>
             </div>
@@ -505,7 +505,7 @@ const BankDetails = ({ dark }) => {
               />
               <InfoDisplay 
                 label="Country" 
-                value={bankDetails?.country || "US"}
+                value={bankDetails?.country || "IN"}
                 dark={dark}
               />
             </div>

@@ -18,7 +18,7 @@ const transactionSchema = new mongoose.Schema({
   },
   currency: {
     type: String,
-    default: "USD"
+    default: "INR"
   },
   status: {
     type: String,
@@ -86,9 +86,9 @@ transactionSchema.index({ type: 1, createdAt: -1 });
 
 // Virtual for formatted amount
 transactionSchema.virtual("formattedAmount").get(function() {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: this.currency || 'USD'
+    currency: this.currency || 'INR'
   }).format(this.amount);
 });
 

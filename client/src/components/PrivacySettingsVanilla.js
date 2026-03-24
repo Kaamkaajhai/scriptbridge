@@ -17,6 +17,7 @@ class PrivacySettingsUI {
     this.userId = userId;
     this.api = apiService;
     this.isSaving = false;
+<<<<<<< HEAD
     this.boundPanelClickHandler = null;
 
     this.state = this.getInitialState();
@@ -33,6 +34,13 @@ class PrivacySettingsUI {
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
+=======
+
+    this.state = {
+      accountEmail: "",
+      emailVerified: false,
+      requestVerification: false,
+>>>>>>> origin/master
       profileVisibility: "public",
       messagingPermissions: "everyone",
       showOnlineStatus: true,
@@ -42,18 +50,32 @@ class PrivacySettingsUI {
         bio: "public",
       },
       allowAnalytics: true,
+<<<<<<< HEAD
       enableTwoFactor: false,
       blockedUsers: [],
     };
+=======
+      personalizedAds: false,
+      enableTwoFactor: false,
+      blockedUsers: [],
+    };
+
+    this.loadState();
+    this.init();
+>>>>>>> origin/master
   }
 
   init() {
     if (!this.container) return;
+<<<<<<< HEAD
     this.injectStyles();
+=======
+>>>>>>> origin/master
     this.render();
     this.attachEventListeners();
   }
 
+<<<<<<< HEAD
   injectStyles() {
     const styleId = "privacy-settings-ui-styles";
     if (document.getElementById(styleId)) return;
@@ -146,6 +168,8 @@ class PrivacySettingsUI {
     document.head.appendChild(style);
   }
 
+=======
+>>>>>>> origin/master
   loadState() {
     const saved = localStorage.getItem(this.storageKey);
     if (!saved) return;
@@ -242,7 +266,11 @@ class PrivacySettingsUI {
       {
         id: "privacy",
         title: "Privacy Settings",
+<<<<<<< HEAD
         desc: "Visibility, online status and data",
+=======
+        desc: "Visibility, messaging, online status and data",
+>>>>>>> origin/master
       },
       {
         id: "security",
@@ -252,7 +280,11 @@ class PrivacySettingsUI {
     ];
 
     this.container.innerHTML = `
+<<<<<<< HEAD
       <div class="settings-ui-root ${this.darkMode ? "settings-ui-dark" : "settings-ui-light"} rounded-2xl border overflow-hidden transition-all ${theme.shell}">
+=======
+      <div class="rounded-2xl border overflow-hidden transition-all ${theme.shell}">
+>>>>>>> origin/master
         <div class="p-4 md:p-6">
           <div class="mb-4">
             <h2 class="text-lg font-bold ${theme.text}">Settings</h2>
@@ -286,7 +318,11 @@ class PrivacySettingsUI {
   renderSubPanel() {
     const theme = this.getThemeClasses();
     this.container.innerHTML = `
+<<<<<<< HEAD
       <div class="settings-ui-root ${this.darkMode ? "settings-ui-dark" : "settings-ui-light"} rounded-2xl border overflow-hidden transition-all ${theme.shell}">
+=======
+      <div class="rounded-2xl border overflow-hidden transition-all ${theme.shell}">
+>>>>>>> origin/master
         <div class="p-4 md:p-6">
           <div class="flex items-center gap-2 mb-4">
             <button
@@ -351,6 +387,7 @@ class PrivacySettingsUI {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
+<<<<<<< HEAD
             <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Current Password</label>
             <div class="settings-password-wrap">
               <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="currentPassword" type="password" placeholder="Enter current password" />
@@ -379,6 +416,14 @@ class PrivacySettingsUI {
                 ${this.getPasswordToggleIcon(false)}
               </button>
             </div>
+=======
+            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">New Password</label>
+            <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="newPassword" type="password" placeholder="Enter new password" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Confirm Password</label>
+            <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="confirmPassword" type="password" placeholder="Confirm password" />
+>>>>>>> origin/master
           </div>
         </div>
 
@@ -394,6 +439,7 @@ class PrivacySettingsUI {
           </button>
         </div>
 
+<<<<<<< HEAD
         <div class="rounded-xl border p-4 ${this.darkMode ? "border-red-500/30 bg-red-500/10" : "border-red-200 bg-red-50"}">
           <div class="mb-3">
             <p class="text-sm font-semibold ${this.darkMode ? "text-red-400" : "text-red-700"}">Danger Zone</p>
@@ -404,6 +450,8 @@ class PrivacySettingsUI {
           </button>
         </div>
 
+=======
+>>>>>>> origin/master
         <div class="flex items-center justify-end">
           <button type="button" data-action="saveAccount" class="settings-action-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all ${theme.primaryButton}">Save Account</button>
         </div>
@@ -416,7 +464,11 @@ class PrivacySettingsUI {
 
     return `
       <div class="space-y-3.5 animate-fade-in">
+<<<<<<< HEAD
         <div>
+=======
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+>>>>>>> origin/master
           <div>
             <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Profile Visibility</label>
             <select class="settings-select w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="profileVisibility">
@@ -425,6 +477,18 @@ class PrivacySettingsUI {
               <option value="only_me">Only Me</option>
             </select>
           </div>
+<<<<<<< HEAD
+=======
+
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Messaging</label>
+            <select class="settings-select w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="messagingPermissions">
+              <option value="everyone">Everyone</option>
+              <option value="followers_only">Followers Only</option>
+              <option value="no_one">No One</option>
+            </select>
+          </div>
+>>>>>>> origin/master
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -435,6 +499,34 @@ class PrivacySettingsUI {
 
         ${this.renderToggleRow("showOnlineStatus", "Show Online Status", "Let others see when you are active")}
         ${this.renderToggleRow("allowAnalytics", "Allow Analytics", "Share anonymous usage to improve experience")}
+<<<<<<< HEAD
+=======
+        ${this.renderToggleRow("personalizedAds", "Personalized Ads", "Allow personalized recommendations and ads")}
+
+        <div class="rounded-xl border p-3 ${this.darkMode ? "border-white/10 bg-white/5" : "border-gray-200 bg-gray-50"}">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-sm font-semibold ${theme.text}">Blocked Users</p>
+            <span class="text-xs ${theme.textSecondary}">${this.state.blockedUsers.length}</span>
+          </div>
+          <div class="space-y-1.5">
+            ${
+              this.state.blockedUsers.length
+                ? this.state.blockedUsers
+                    .slice(0, 4)
+                    .map(
+                      (user, idx) => `
+                  <div class="flex items-center justify-between px-2.5 py-2 rounded-lg ${this.darkMode ? "bg-white/5" : "bg-white"}">
+                    <p class="text-xs ${theme.textSecondary}">${this.escapeValue(user?.name || user?.username || `User ${idx + 1}`)}</p>
+                    <button type="button" class="settings-unblock-btn text-[11px] font-semibold ${this.darkMode ? "text-red-400" : "text-red-600"}" data-user-id="${this.escapeValue(user?._id || user?.id || String(idx))}">Unblock</button>
+                  </div>
+                `
+                    )
+                    .join("")
+                : `<p class="text-xs ${theme.textMuted}">No blocked users.</p>`
+            }
+          </div>
+        </div>
+>>>>>>> origin/master
 
         <div class="flex items-center justify-end">
           <button type="button" data-action="savePrivacy" class="settings-action-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all ${theme.primaryButton}">Save Privacy</button>
@@ -506,6 +598,7 @@ class PrivacySettingsUI {
   }
 
   attachPanelEventListeners() {
+<<<<<<< HEAD
     if (this.boundPanelClickHandler) {
       this.container.removeEventListener("click", this.boundPanelClickHandler);
     }
@@ -521,6 +614,8 @@ class PrivacySettingsUI {
 
     this.container.addEventListener("click", this.boundPanelClickHandler);
 
+=======
+>>>>>>> origin/master
     const selects = this.container.querySelectorAll(".settings-select");
     selects.forEach((select) => {
       const field = select.dataset.field;
@@ -578,6 +673,7 @@ class PrivacySettingsUI {
       });
     });
 
+<<<<<<< HEAD
     const passwordToggles = this.container.querySelectorAll(".settings-password-toggle");
     passwordToggles.forEach((toggleBtn) => {
       toggleBtn.addEventListener("click", () => {
@@ -613,12 +709,24 @@ class PrivacySettingsUI {
         <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
       </svg>
     `;
+=======
+    const actionBtns = this.container.querySelectorAll(".settings-action-btn");
+    actionBtns.forEach((btn) => {
+      btn.addEventListener("click", () => this.handleAction(btn.dataset.action));
+    });
+>>>>>>> origin/master
   }
 
   handleAction(action) {
     switch (action) {
       case "requestVerification": {
+<<<<<<< HEAD
         this.handleRequestVerification();
+=======
+        this.state.requestVerification = true;
+        this.saveState();
+        window.alert("Verification request captured in UI state.");
+>>>>>>> origin/master
         break;
       }
       case "changePassword": {
@@ -629,6 +737,7 @@ class PrivacySettingsUI {
         window.alert("Logout from all devices triggered (UI only).");
         break;
       }
+<<<<<<< HEAD
       case "deleteAccount": {
         this.handleDeleteAccount();
         break;
@@ -640,6 +749,11 @@ class PrivacySettingsUI {
       }
       case "savePrivacy": {
         this.handleSavePrivacy();
+=======
+      case "saveAccount":
+      case "savePrivacy": {
+        this.saveState();
+>>>>>>> origin/master
         break;
       }
       default:
@@ -647,6 +761,7 @@ class PrivacySettingsUI {
     }
   }
 
+<<<<<<< HEAD
   async handleSavePrivacy() {
     try {
       this.saveState();
@@ -801,6 +916,8 @@ class PrivacySettingsUI {
     }
   }
 
+=======
+>>>>>>> origin/master
   goToPanel(panelId) {
     this.currentPanel = panelId;
     this.render();

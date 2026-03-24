@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link, useSearchParams } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
+import ProjectCard from "../components/ProjectCard";
 
 /*  Filter Constants  */
 const GENRES = [
@@ -430,12 +431,20 @@ const Search = () => {
 
   const getProfileImage = (user) => {
     if (!user.profileImage) return null;
+<<<<<<< HEAD
     return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5002${user.profileImage}`;
+=======
+    return user.profileImage.startsWith("http") ? user.profileImage : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${user.profileImage}`;
+>>>>>>> origin/master
   };
 
   const getCoverImage = (script) => {
     if (!script.coverImage) return null;
+<<<<<<< HEAD
     return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`;
+=======
+    return script.coverImage.startsWith("http") ? script.coverImage : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${script.coverImage}`;
+>>>>>>> origin/master
   };
 
   const ease = [0.25, 0.46, 0.45, 0.94];
@@ -926,6 +935,9 @@ const Search = () => {
                           {user.bio && (
                             <p className={`text-[12px] line-clamp-1 mt-0.5 ${t.personBio}`}>{user.bio}</p>
                           )}
+                          {user.sid && (
+                            <p className={`text-[10px] font-semibold mt-0.5 ${t.personFollowers}`}>SID: {user.sid}</p>
+                          )}
                         </div>
 
                         {/* Right side — meta */}
@@ -964,6 +976,7 @@ const Search = () => {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+<<<<<<< HEAD
                 {results.scripts.map((script, i) => {
                   const cover = getCoverImage(script);
 
@@ -1091,6 +1104,18 @@ const Search = () => {
                     </motion.div>
                   );
                 })}
+=======
+                {results.scripts.map((script, i) => (
+                  <motion.div
+                    key={script._id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04, duration: 0.3, ease }}
+                  >
+                    <ProjectCard project={script} userName={script.creator?.name || "Unknown"} />
+                  </motion.div>
+                ))}
+>>>>>>> origin/master
               </div>
             </section>
           )}

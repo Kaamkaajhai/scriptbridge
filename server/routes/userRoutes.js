@@ -1,6 +1,10 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
+<<<<<<< HEAD
 import { getWriters, getCurrentUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, updateSettings, changePassword, changeEmail, deleteAccount } from "../controllers/userController.js";
+=======
+import { getWriters, getCurrentUser, getUserProfile, updateUserProfile, followUser, unfollowUser, blockUser, unblockUser, getBlockedUsers, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, updateSettings, changePassword, changeEmail, sendEmailVerificationCode, verifyEmailVerificationCode } from "../controllers/userController.js";
+>>>>>>> origin/master
 
 const router = express.Router();
 
@@ -14,12 +18,18 @@ router.get("/me", protect, getCurrentUser);
 router.get("/watchlist", protect, getWatchlist);
 router.post("/watchlist/add", protect, addToWatchlist);
 router.post("/watchlist/remove", protect, removeFromWatchlist);
+router.get("/blocked-users", protect, getBlockedUsers);
 
 // Settings routes (must come before /:id)
 router.put("/settings", protect, updateSettings);
 router.put("/change-password", protect, changePassword);
 router.put("/change-email", protect, changeEmail);
+<<<<<<< HEAD
 router.delete("/account", protect, deleteAccount);
+=======
+router.post("/email-verification/send", protect, sendEmailVerificationCode);
+router.post("/email-verification/verify", protect, verifyEmailVerificationCode);
+>>>>>>> origin/master
 
 // User profile routes
 router.get("/:id", protect, getUserProfile);
@@ -27,6 +37,8 @@ router.put("/update", protect, updateUserProfile);
 router.post("/upload-image", protect, upload.single("profileImage"), uploadProfileImage);
 router.post("/follow", protect, followUser);
 router.post("/unfollow", protect, unfollowUser);
+router.post("/block", protect, blockUser);
+router.post("/unblock", protect, unblockUser);
 
 export default router;
 

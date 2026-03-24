@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
+import ProjectCard from "../components/ProjectCard";
 
-/* ── Constants ─────────────────────────────────────── */
+/* ── Constants ─────────────────────────────────────── */ 
 const GENRES = [
   "Thriller","Drama","Comedy","Sci-Fi","Horror","Romance",
   "Action","Mystery","Fantasy","Animation","Crime","Adventure",
@@ -20,11 +21,19 @@ const CONTENT_TYPES = [
   { key: "startup",     label: "Startup"     },
 ];
 const BUDGETS = [
+<<<<<<< HEAD
   { key: "micro",       label: "Micro"       },
   { key: "low",         label: "Low"         },
   { key: "mid",         label: "Mid"         },
   { key: "high",        label: "High"        },
   { key: "blockbuster", label: "Blockbuster" },
+=======
+  { key: "micro", label: "Micro (<?10L)" },
+  { key: "low", label: "Low (?10L-?1Cr)" },
+  { key: "mid", label: "Mid (?1Cr-?10Cr)" },
+  { key: "high", label: "High (?10Cr-?100Cr)" },
+  { key: "blockbuster", label: "Blockbuster (>?100Cr)" },
+>>>>>>> origin/master
 ];
 const PREMIUM_OPTIONS = [
   { key: "all",     label: "All"     },
@@ -159,9 +168,9 @@ const TopList = () => {
     header:      dark ? "text-gray-100" : "text-gray-900",
     sub:         dark ? "text-gray-400" : "text-gray-400",
     divider:     dark ? "border-[#1a2e47]" : "border-gray-100",
-    stat:        dark ? "bg-white/[0.04] border-[#1a2e47]" : "bg-[#1e3a5f]/[0.05] border-transparent",
-    statLabel:   dark ? "text-gray-400" : "text-gray-400",
-    statValue:   dark ? "text-cyan-300" : "text-[#1e3a5f]",
+    stat:        dark ? "bg-white/[0.04] border-[#1a2e47]" : "bg-gray-50 border-gray-200",
+    statLabel:   dark ? "text-[#8896a7]" : "text-gray-500",
+    statValue:   dark ? "text-white" : "text-gray-800",
     filterPanel: dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100",
     sortActive:  "bg-[#1e3a5f] text-white shadow-lg shadow-[#1e3a5f]/30",
     sortIdle:    dark ? "bg-white/[0.04] text-gray-300 border-[#1d3454] hover:bg-white/[0.08] hover:text-gray-200" : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm",
@@ -237,7 +246,12 @@ const TopList = () => {
 
   const resolveImage = (url) => {
     if (!url) return "";
+<<<<<<< HEAD
     return url.startsWith("http") || url.startsWith("data:") ? url : `http://localhost:5002${url}`;
+=======
+    if (url.startsWith("http") || url.startsWith("data:")) return url;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
+>>>>>>> origin/master
   };
 
   const numericMetrics = scripts.map(s => {
@@ -443,6 +457,7 @@ const TopList = () => {
           )}
         </motion.div>
       ) : (
+<<<<<<< HEAD
         <AnimatePresence mode="wait">
           <motion.div
             key={sortBy}
@@ -614,6 +629,23 @@ const TopList = () => {
             })}
           </motion.div>
         </AnimatePresence>
+=======
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {scripts.map((script, index) => {
+            const rank = index + 1;
+            return (
+              <motion.div
+                key={script._id || index}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04, duration: 0.32, ease }}
+              >
+                <ProjectCard project={script} userName={script.creator?.name || "Unknown"} />
+              </motion.div>
+            );
+          })}
+        </div>
+>>>>>>> origin/master
       )}
     </div>
   );

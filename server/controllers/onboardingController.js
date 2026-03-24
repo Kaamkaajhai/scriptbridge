@@ -170,8 +170,8 @@ export const completeOnboarding = async (req, res) => {
     // Create subscription record if paid plan
     let subscription = null;
     if (plan === "paid") {
-      const baseAmount = 3000; // $30.00 in cents (hosting)
-      const evaluationFee = 10000; // $100.00 in cents
+      const baseAmount = 3000; // ₹30.00 in paise (hosting)
+      const evaluationFee = 10000; // ₹100.00 in paise
       const totalAmount = baseAmount + evaluationFee;
       
       subscription = await Subscription.create({

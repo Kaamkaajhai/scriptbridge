@@ -127,6 +127,19 @@ export const generateTrailer = async (req, res) => {
         createdAt: new Date()
       });
       await user.save();
+
+      const currentBilling = script.billing || {};
+      script.billing = {
+        ...currentBilling,
+        evaluationCreditsCharged: Number(currentBilling.evaluationCreditsCharged || 0),
+        aiTrailerCreditsCharged: Number(currentBilling.aiTrailerCreditsCharged || 0) + requiredCredits,
+        evaluationCreditsRefunded: Number(currentBilling.evaluationCreditsRefunded || 0),
+        aiTrailerCreditsRefunded: Number(currentBilling.aiTrailerCreditsRefunded || 0),
+        spotlightCreditsSpent: Number(currentBilling.spotlightCreditsSpent || 0),
+        lastSpotlightRefundCredits: Number(currentBilling.lastSpotlightRefundCredits || 0),
+        lastSpotlightActivatedAt: currentBilling.lastSpotlightActivatedAt,
+      };
+      script.markModified("billing");
     }
 
     // Mark as generating
@@ -288,7 +301,22 @@ export const generateScriptScore = async (req, res) => {
         createdAt: new Date()
       });
       await user.save();
+
+      const currentBilling = script.billing || {};
+      script.billing = {
+        ...currentBilling,
+        evaluationCreditsCharged: Number(currentBilling.evaluationCreditsCharged || 0) + requiredCredits,
+        aiTrailerCreditsCharged: Number(currentBilling.aiTrailerCreditsCharged || 0),
+        evaluationCreditsRefunded: Number(currentBilling.evaluationCreditsRefunded || 0),
+        aiTrailerCreditsRefunded: Number(currentBilling.aiTrailerCreditsRefunded || 0),
+        spotlightCreditsSpent: Number(currentBilling.spotlightCreditsSpent || 0),
+        lastSpotlightRefundCredits: Number(currentBilling.lastSpotlightRefundCredits || 0),
+        lastSpotlightActivatedAt: currentBilling.lastSpotlightActivatedAt,
+      };
+      script.markModified("billing");
     }
+
+    script.evaluationStatus = "requested";
 
     const scriptText = safeSlice(
       script.textContent || script.fullContent || script.synopsis || script.description,
@@ -380,6 +408,7 @@ Analyze deeply. Be specific. Be honest. Be professional.`;
       evaluation: true,
       aiTrailer: script.services?.aiTrailer ?? false,
     };
+    script.evaluationStatus = "completed";
     script.markModified("services");
     await script.save();
 

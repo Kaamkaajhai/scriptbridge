@@ -7,9 +7,11 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import {
   MessageCircle, ChevronLeft, Send, Lock, Info, Search, X,
-  Check, CheckCheck, Smile, Trash2, MoreVertical, Image,
+  Check, CheckCheck, Smile, Trash2, Video, FileText, Paperclip, Loader2, Download,
   ShieldCheck, ArrowRight,
 } from "lucide-react";
+
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 /* ── helpers ──────────────────────────────────────────────────── */
 const buildChatId = (a, b) => {
@@ -32,6 +34,31 @@ const formatDay = (date) => {
 
 const isSameDay = (a, b) =>
   new Date(a).toDateString() === new Date(b).toDateString();
+
+const getMessagePreview = (msg) =>
+  msg?.text ||
+  (msg?.fileType === "video"
+    ? "🎬 Trailer Video"
+    : msg?.fileType === "image"
+      ? "📷 Image"
+      : msg?.fileUrl
+        ? "📎 File"
+        : "");
+
+const resolveMediaUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${API_ORIGIN}${url}`;
+};
+
+const formatFileSize = (bytes = 0) => {
+  const size = Number(bytes || 0);
+  if (!size) return "0 B";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -59,17 +86,25 @@ const Messages = () => {
   const [emojiPicker, setEmojiPicker] = useState(null); // messageId
   const [hoveredMsg, setHoveredMsg] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // messageId
+  const [trailerActionLoading, setTrailerActionLoading] = useState("");
+  const [attachment, setAttachment] = useState(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const isWriter = user && ["writer", "creator"].includes(user.role);
   const isInvestor = user && user.role === "investor";
 
   /* ── Socket setup ────────────────────────────────────────── */
   useEffect(() => {
+<<<<<<< HEAD
     const sock = io("http://localhost:5002");
+=======
+    const sock = io(API_ORIGIN);
+>>>>>>> origin/master
     setSocket(sock);
 
     sock.on("receive-message", (msg) => {
@@ -81,7 +116,7 @@ const Messages = () => {
       setConversations((prev) =>
         prev.map((c) =>
           c.chatId === msg.chatId
-            ? { ...c, lastMessage: msg.text || "📷", timestamp: msg.createdAt || new Date() }
+            ? { ...c, lastMessage: getMessagePreview(msg), timestamp: msg.createdAt || new Date() }
             : c
         )
       );
@@ -203,14 +238,14 @@ const Messages = () => {
   }, []);
 
   /* ── Send message ───────────────────────────────────────── */
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
+  const sendTextMessage = async (textToSend, extraPayload = {}) => {
     setSendError("");
-    if (!newMessage.trim() || !activeChat) return;
+    const hasAttachment = Boolean(extraPayload?.fileUrl);
+    if ((!textToSend?.trim() && !hasAttachment) || !activeChat) return false;
 
     if (isWriter && !messagesLoading && messages.length === 0) {
       setSendError("You cannot initiate a conversation. Only investors can message first.");
-      return;
+      return false;
     }
 
     const tempId = `temp_${Date.now()}`;
@@ -219,19 +254,23 @@ const Messages = () => {
       chatId: activeChat.chatId,
       sender: { _id: user._id, name: user.name, profileImage: user.profileImage, role: user.role },
       receiver: activeChat.user._id,
-      text: newMessage,
+      text: textToSend || "",
+      fileUrl: extraPayload.fileUrl,
+      fileType: extraPayload.fileType,
+      fileName: extraPayload.fileName,
+      fileSize: extraPayload.fileSize,
       createdAt: new Date().toISOString(),
       read: false,
     };
 
     setMessages((prev) => [...prev, optimistic]);
-    const sentText = newMessage;
-    setNewMessage("");
+    const sentText = textToSend;
 
     try {
       const { data: saved } = await api.post("/messages/send", {
         receiverId: activeChat.user._id,
-        text: sentText,
+        text: sentText || "",
+        ...extraPayload,
       });
 
       // Replace optimistic with saved
@@ -240,7 +279,7 @@ const Messages = () => {
       socket?.emit("send-message", { ...saved, chatId: activeChat.chatId });
 
       if (activeChat.isPending) {
-        const promoted = { ...activeChat, lastMessage: sentText, isPending: false };
+        const promoted = { ...activeChat, lastMessage: getMessagePreview(saved), isPending: false };
         setConversations((prev) => [promoted, ...prev]);
         setFilteredConvs((prev) => [promoted, ...prev]);
         setActiveChat(promoted);
@@ -248,11 +287,12 @@ const Messages = () => {
         setConversations((prev) =>
           prev.map((c) =>
             c.chatId === activeChat.chatId
-              ? { ...c, lastMessage: sentText, timestamp: new Date().toISOString() }
+              ? { ...c, lastMessage: getMessagePreview(saved), timestamp: new Date().toISOString() }
               : c
           )
         );
       }
+      return true;
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
       const code = err.response?.data?.code;
@@ -261,7 +301,85 @@ const Messages = () => {
           ? "Purchase a project from this writer first to unlock messaging."
           : err.response?.data?.message || "Failed to send message."
       );
+      return false;
     }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    const text = newMessage.trim();
+    if (!text && !attachment) return;
+
+    const attachmentPayload = attachment
+      ? {
+          fileUrl: attachment.fileUrl,
+          fileType: attachment.fileType,
+          fileName: attachment.fileName,
+          fileSize: attachment.fileSize,
+        }
+      : {};
+
+    setNewMessage("");
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    const sent = await sendTextMessage(text, attachmentPayload);
+    if (!sent && attachmentPayload.fileUrl) {
+      setAttachment(attachment);
+    }
+  };
+
+  const handlePickAttachment = () => {
+    if (!activeChat || uploadingAttachment) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSendError("");
+    setUploadingAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/messages/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setAttachment(data);
+    } catch (err) {
+      setSendError(err.response?.data?.message || "Failed to upload attachment.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleTrailerFeedback = async (msg, action) => {
+    if (!msg || !["approved", "revision_requested"].includes(action)) return;
+
+    const scriptId = msg.script?._id || msg.script;
+    const feedbackText =
+      action === "approved"
+        ? `Looks good. I approve this AI trailer: ${msg.fileUrl}`
+        : "Please provide a better AI trailer version with improved quality/story impact.";
+
+    if (scriptId) {
+      setTrailerActionLoading(msg._id);
+      try {
+        await api.post(`/scripts/${scriptId}/trailer-feedback`, {
+          action,
+          note: action === "revision_requested" ? "Writer requested a better trailer version" : "",
+        });
+      } catch (err) {
+        setSendError(err.response?.data?.message || "Failed to update trailer status.");
+        setTrailerActionLoading("");
+        return;
+      }
+      setTrailerActionLoading("");
+    }
+
+    await sendTextMessage(feedbackText.trim(), scriptId ? { scriptId } : {});
   };
 
   /* ── Typing indicator emit ──────────────────────────────── */
@@ -298,37 +416,41 @@ const Messages = () => {
   /* ── Avatar URL helper ──────────────────────────────────── */
   const avatar = (u) =>
     u?.profileImage
+<<<<<<< HEAD
       ? u.profileImage.startsWith("http") ? u.profileImage : `http://localhost:5002${u.profileImage}`
+=======
+      ? u.profileImage.startsWith("http") ? u.profileImage : `${API_ORIGIN}${u.profileImage}`
+>>>>>>> origin/master
       : `https://placehold.co/48x48/1e3a5f/ffffff?text=${encodeURIComponent(u?.name?.charAt(0) || "U")}`;
 
   /* ── Theme shorthand ────────────────────────────────────── */
   const t = {
-    page: dark ? "bg-[#0c1a2e] border-[#152035]" : "bg-white border-gray-100",
-    sidebar: dark ? "bg-[#0a1628] border-[#152035]" : "bg-white border-gray-100",
-    chat: dark ? "bg-[#111927]" : "bg-gray-50/40",
-    header: dark ? "bg-[#0a1628] border-[#152035]" : "bg-white border-gray-100",
-    conv: dark ? "hover:bg-white/[0.04] border-[#152035]" : "hover:bg-gray-50 border-gray-50",
-    convActive: dark ? "bg-white/[0.06]" : "bg-blue-50/60",
-    input: dark ? "bg-[#1a2d45] border-[#1e3350] text-gray-100 placeholder-gray-600" : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400",
-    title: dark ? "text-gray-100" : "text-gray-900",
-    sub: dark ? "text-gray-400" : "text-gray-500",
-    muted: dark ? "text-gray-600" : "text-gray-400",
+    page: dark ? "bg-[#080e18] border-[#1c2a3a]" : "bg-white border-gray-100",
+    sidebar: dark ? "bg-[#080e18] border-[#151f2e]" : "bg-white border-gray-100",
+    chat: dark ? "bg-[#080e18]" : "bg-gray-50/40",
+    header: dark ? "bg-[#080e18] border-[#151f2e]" : "bg-white border-gray-100",
+    conv: dark ? "hover:bg-white/[0.03] border-[#151f2e]" : "hover:bg-gray-50 border-gray-50",
+    convActive: dark ? "bg-[#0d1520]" : "bg-blue-50/60",
+    input: dark ? "bg-[#0d1520] border-[#1c2a3a] text-white placeholder-[#2a3a4e]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400",
+    title: dark ? "text-white" : "text-gray-900",
+    sub: dark ? "text-[#8896a7]" : "text-gray-500",
+    muted: dark ? "text-[#4a5a6e]" : "text-gray-400",
     bubble: {
       mine: "bg-[#1e3a5f] text-white rounded-br-sm",
-      theirs: dark ? "bg-[#1a2d45] text-gray-100 border border-[#1e3350] rounded-bl-sm" : "bg-white text-gray-800 border border-gray-100 rounded-bl-sm",
+      theirs: dark ? "bg-[#0d1520] text-[#8896a7] border border-[#1c2a3a] rounded-bl-sm" : "bg-white text-gray-800 border border-gray-100 rounded-bl-sm",
     },
   };
 
   if (loading) return (
     <div className="flex justify-center items-center h-[70vh]">
-      <div className={`w-10 h-10 border-[3px] rounded-full animate-spin ${dark ? "border-[#1a2d45] border-t-blue-400" : "border-gray-200 border-t-[#1e3a5f]"}`} />
+      <div className={`w-10 h-10 border-[3px] rounded-full animate-spin ${dark ? "border-[#0d1520] border-t-[#8896a7]" : "border-gray-200 border-t-[#1e3a5f]"}`} />
     </div>
   );
 
   const showList = !activeChat;
 
   return (
-    <div className={`flex h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] rounded-2xl shadow-sm border overflow-hidden ${t.page}`}>
+    <div className={`flex h-[500px] rounded-2xl shadow-sm border overflow-hidden ${t.page}`}>
 
       {/* ════════════════════════════════════════
           LEFT — Conversation Sidebar
@@ -336,16 +458,16 @@ const Messages = () => {
       <div className={[
         "w-full md:w-80 lg:w-96 flex-col border-r",
         t.sidebar,
-        dark ? "border-[#152035]" : "border-gray-100",
+        dark ? "border-[#151f2e]" : "border-gray-100",
         showList ? "flex" : "hidden md:flex",
       ].join(" ")}>
 
         {/* Sidebar Header */}
-        <div className={`px-4 py-4 border-b ${dark ? "border-[#152035]" : "border-gray-100"}`}>
+        <div className={`px-4 py-4 border-b ${dark ? "border-[#151f2e]" : "border-gray-100"}`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className={`text-lg font-extrabold tracking-tight ${t.title}`}>Messages</h2>
             {isWriter && (
-              <span className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.05] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+              <span className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.04] text-[#8896a7]" : "bg-gray-100 text-gray-500"}`}>
                 <Lock size={10} /> Reply only
               </span>
             )}
@@ -369,7 +491,7 @@ const Messages = () => {
         </div>
 
         {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {filteredConvs.length === 0 ? (
             <div className="p-8 text-center">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
@@ -399,7 +521,7 @@ const Messages = () => {
                   onClick={() => handleSelectChat(conv)}
                   className={[
                     "px-3.5 py-3 cursor-pointer border-b transition-all duration-150",
-                    dark ? "border-[#152035]" : "border-gray-50",
+                    dark ? "border-[#151f2e]" : "border-gray-50",
                     isSelected ? t.convActive : t.conv,
                   ].join(" ")}
                 >
@@ -409,7 +531,7 @@ const Messages = () => {
                       <img
                         src={avatar(conv.user)}
                         alt={conv.user?.name}
-                        className={`w-11 h-11 rounded-xl object-cover ring-2 ${dark ? "ring-[#152035]" : "ring-white"}`}
+                        className={`w-11 h-11 rounded-xl object-cover ring-2 ${dark ? "ring-[#151f2e]" : "ring-white"}`}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -453,7 +575,7 @@ const Messages = () => {
         {!activeChat ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
             <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-5 ${dark ? "bg-white/[0.04]" : "bg-gradient-to-br from-[#edf2fa] to-[#dce8f5]"}`}>
-              <MessageCircle size={38} className={dark ? "text-gray-600" : "text-[#1e3a5f]"} strokeWidth={1.5} />
+                  <MessageCircle size={38} className={dark ? "text-[#2a3a4e]" : "text-[#1e3a5f]"} strokeWidth={1.5} />
             </div>
             <h3 className={`text-base font-bold mb-1.5 ${t.title}`}>Your Messages</h3>
             <p className={`text-sm max-w-xs leading-relaxed ${t.sub}`}>
@@ -475,11 +597,11 @@ const Messages = () => {
         ) : (
           <>
             {/* ── Chat Header ── */}
-            <div className={`px-4 py-3 border-b flex items-center gap-3 flex-shrink-0 ${t.header} ${dark ? "border-[#152035]" : "border-gray-100"}`}>
+            <div className={`px-4 py-3 border-b flex items-center gap-3 flex-shrink-0 ${t.header} ${dark ? "border-[#151f2e]" : "border-gray-100"}`}>
               <button onClick={() => setActiveChat(null)} className={`md:hidden p-1.5 rounded-lg transition ${dark ? "hover:bg-white/[0.06]" : "hover:bg-gray-100"}`}>
                 <ChevronLeft size={20} className={t.sub} />
               </button>
-              <img src={avatar(activeChat.user)} alt={activeChat.user?.name} className={`w-10 h-10 rounded-xl object-cover ring-2 ${dark ? "ring-[#152035]" : "ring-gray-100"}`} />
+                <img src={avatar(activeChat.user)} alt={activeChat.user?.name} className={`w-10 h-10 rounded-xl object-cover ring-2 ${dark ? "ring-[#151f2e]" : "ring-gray-100"}`} />
               <div className="flex-1 min-w-0">
                 <h3 className={`text-sm font-extrabold truncate ${t.title}`}>{activeChat.user?.name}</h3>
                 <p className={`text-[11px] capitalize font-medium ${t.muted}`}>
@@ -494,10 +616,10 @@ const Messages = () => {
             </div>
 
             {/* ── Messages List ── */}
-            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-1">
+            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 sm:px-6 py-4 space-y-1">
               {messagesLoading ? (
                 <div className="flex justify-center items-center h-32">
-                  <div className={`w-7 h-7 border-[3px] rounded-full animate-spin ${dark ? "border-[#1a2d45] border-t-blue-400" : "border-gray-200 border-t-[#1e3a5f]"}`} />
+                  <div className={`w-7 h-7 border-[3px] rounded-full animate-spin ${dark ? "border-[#0d1520] border-t-[#8896a7]" : "border-gray-200 border-t-[#1e3a5f]"}`} />
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 gap-2">
@@ -554,9 +676,56 @@ const Messages = () => {
                             {isDeleted ? (
                               <span className="text-xs">This message was deleted</span>
                             ) : msg.fileUrl && msg.fileType === "image" ? (
-                              <img src={msg.fileUrl} alt="attachment" className="max-w-full rounded-xl" />
+                              <div className="space-y-2">
+                                <img src={resolveMediaUrl(msg.fileUrl)} alt="attachment" className="max-w-full rounded-xl" />
+                                {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
+                              </div>
+                            ) : msg.fileUrl && msg.fileType === "video" ? (
+                              <div className="space-y-2.5">
+                                <div className={`rounded-xl overflow-hidden ${isMine ? "bg-black/20" : dark ? "bg-black/30" : "bg-black/10"}`}>
+                                  <video src={resolveMediaUrl(msg.fileUrl)} controls preload="metadata" className="w-full max-h-64" />
+                                </div>
+                                <a
+                                  href={resolveMediaUrl(msg.fileUrl)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`inline-flex items-center gap-1.5 text-[11px] font-semibold underline ${isMine ? "text-blue-100" : dark ? "text-blue-300" : "text-blue-600"}`}
+                                >
+                                  <Video size={12} /> Open trailer in new tab
+                                </a>
+                                {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
+                              </div>
+                            ) : msg.fileUrl ? (
+                              <div className="space-y-2.5">
+                                <div className={`rounded-xl px-3 py-2.5 ${isMine ? "bg-black/15" : dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold truncate flex items-center gap-1.5">
+                                        <FileText size={13} /> {msg.fileName || "Attachment"}
+                                      </p>
+                                      <p className={`text-[10px] mt-0.5 ${isMine ? "text-blue-100/80" : t.muted}`}>
+                                        {formatFileSize(msg.fileSize)}
+                                      </p>
+                                    </div>
+                                    <a
+                                      href={resolveMediaUrl(msg.fileUrl)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold ${isMine ? "bg-white/20 text-white hover:bg-white/25" : dark ? "bg-[#1c2a3a] text-gray-200 hover:bg-[#243447]" : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"}`}
+                                    >
+                                      <Download size={11} /> Open
+                                    </a>
+                                  </div>
+                                </div>
+                                {msg.text ? <p className="break-words leading-relaxed">{msg.text}</p> : null}
+                              </div>
                             ) : (
                               <p className="break-words leading-relaxed">{msg.text}</p>
+                            )}
+                            {!isMine && msg.sender?.role === "admin" && (
+                              <div className={`text-[10px] font-semibold mb-1 ${dark ? "text-amber-300" : "text-amber-700"}`}>
+                                Platform Admin
+                              </div>
                             )}
                             <div className={`flex items-center justify-end gap-1 mt-1 ${isMine ? "text-[#c3d5e8]" : t.muted} text-[10px]`}>
                               <span>{formatTime(msg.createdAt)}</span>
@@ -588,6 +757,25 @@ const Messages = () => {
                             </div>
                           )}
 
+                          {!isMine && isWriter && msg.sender?.role === "admin" && msg.fileType === "video" && msg.fileUrl && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <button
+                                onClick={() => handleTrailerFeedback(msg, "approved")}
+                                disabled={trailerActionLoading === msg._id}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition ${dark ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+                              >
+                                {trailerActionLoading === msg._id ? "Saving..." : "Use This Trailer"}
+                              </button>
+                              <button
+                                onClick={() => handleTrailerFeedback(msg, "revision_requested")}
+                                disabled={trailerActionLoading === msg._id}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition ${dark ? "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                              >
+                                {trailerActionLoading === msg._id ? "Saving..." : "Request Better Version"}
+                              </button>
+                            </div>
+                          )}
+
                           {/* Hover actions */}
                           {!isDeleted && hoveredMsg === msg._id && (
                             <div className={`absolute ${isMine ? "right-full mr-2" : "left-full ml-2"} top-0 flex items-center gap-1`}>
@@ -595,7 +783,7 @@ const Messages = () => {
                               <div className="relative">
                                 <button
                                   onClick={() => setEmojiPicker(emojiPicker === msg._id ? null : msg._id)}
-                                  className={`p-1.5 rounded-lg transition ${dark ? "bg-[#1a2d45] hover:bg-[#1e3350] text-gray-400" : "bg-white hover:bg-gray-100 border border-gray-200 text-gray-500"} shadow-sm`}
+                                  className={`p-1.5 rounded-lg transition ${dark ? "bg-[#0d1520] hover:bg-[#1c2a3a] text-[#8896a7]" : "bg-white hover:bg-gray-100 border border-gray-200 text-gray-500"} shadow-sm`}
                                 >
                                   <Smile size={14} />
                                 </button>
@@ -605,7 +793,7 @@ const Messages = () => {
                                       initial={{ opacity: 0, scale: 0.9, y: 4 }}
                                       animate={{ opacity: 1, scale: 1, y: 0 }}
                                       exit={{ opacity: 0, scale: 0.9 }}
-                                      className={`absolute bottom-full mb-1.5 ${isMine ? "right-0" : "left-0"} flex gap-1.5 p-2 rounded-2xl shadow-xl border z-50 ${dark ? "bg-[#0a1628] border-[#152035]" : "bg-white border-gray-100"}`}
+                                      className={`absolute bottom-full mb-1.5 ${isMine ? "right-0" : "left-0"} flex gap-1.5 p-2 rounded-2xl shadow-xl border z-50 ${dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-100"}`}
                                     >
                                       {QUICK_EMOJIS.map((em) => (
                                         <button
@@ -624,7 +812,7 @@ const Messages = () => {
                               {isMine && (
                                 <button
                                   onClick={() => setDeleteModal(msg._id)}
-                                  className={`p-1.5 rounded-lg transition ${dark ? "bg-[#1a2d45] hover:bg-red-900/30 text-gray-400 hover:text-red-400" : "bg-white hover:bg-red-50 border border-gray-200 text-gray-400 hover:text-red-500"} shadow-sm`}
+                                  className={`p-1.5 rounded-lg transition ${dark ? "bg-[#0d1520] hover:bg-red-900/30 text-[#8896a7] hover:text-red-400" : "bg-white hover:bg-red-50 border border-gray-200 text-gray-400 hover:text-red-500"} shadow-sm`}
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -644,7 +832,7 @@ const Messages = () => {
                   <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     className="flex items-end gap-2">
                     <img src={avatar(activeChat.user)} alt="" className="w-7 h-7 rounded-lg object-cover" />
-                    <div className={`px-4 py-3 rounded-2xl rounded-bl-sm ${dark ? "bg-[#1a2d45] border border-[#1e3350]" : "bg-white border border-gray-100"} shadow-sm`}>
+                    <div className={`px-4 py-3 rounded-2xl rounded-bl-sm ${dark ? "bg-[#0d1520] border border-[#1c2a3a]" : "bg-white border border-gray-100"} shadow-sm`}>
                       <div className="flex gap-1 items-center h-3">
                         {[0, 1, 2].map((i) => (
                           <span key={i} className={`w-1.5 h-1.5 rounded-full animate-bounce ${dark ? "bg-gray-500" : "bg-gray-400"}`}
@@ -660,36 +848,64 @@ const Messages = () => {
 
             {/* ── Input Area ── */}
             {isWriter && !messagesLoading && messages.length === 0 ? (
-              <div className={`px-4 py-4 border-t text-center ${t.header} ${dark ? "border-[#152035]" : "border-gray-100"}`}>
+              <div className={`px-4 py-4 border-t text-center ${t.header} ${dark ? "border-[#151f2e]" : "border-gray-100"}`}>
                 <p className={`text-xs flex items-center justify-center gap-2 ${t.muted}`}>
                   <Lock size={12} /> Waiting for the investor to send the first message.
                 </p>
               </div>
             ) : (
-              <div className={`px-4 py-3 border-t flex-shrink-0 ${t.header} ${dark ? "border-[#152035]" : "border-gray-100"}`}>
+              <div className={`px-4 py-3 border-t flex-shrink-0 ${t.header} ${dark ? "border-[#151f2e]" : "border-gray-100"}`}>
                 {sendError && (
                   <div className={`flex items-center gap-2 text-xs mb-2 px-3 py-2 rounded-xl ${dark ? "bg-red-900/20 text-red-400" : "bg-red-50 text-red-600"}`}>
                     <Lock size={12} className="flex-shrink-0" /> {sendError}
                   </div>
                 )}
-                {isWriter && (
-                  <div className={`flex items-center gap-1.5 text-[11px] mb-2 ${t.muted}`}>
-                    <Info size={11} /> Replying to investor message
+                {attachment && (
+                  <div className={`mb-2 rounded-xl px-3 py-2 border flex items-center justify-between gap-2 ${dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-semibold truncate ${t.title}`}>{attachment.fileName || "Attachment"}</p>
+                      <p className={`text-[10px] ${t.muted}`}>{attachment.fileType} · {formatFileSize(attachment.fileSize)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachment(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className={`p-1.5 rounded-lg ${dark ? "hover:bg-white/[0.05]" : "hover:bg-gray-200"}`}
+                    >
+                      <X size={14} className={t.sub} />
+                    </button>
                   </div>
                 )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleAttachmentChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePickAttachment}
+                    disabled={uploadingAttachment}
+                    className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center border transition-all ${dark ? "bg-[#0d1520] border-[#1c2a3a] text-gray-300 hover:bg-[#152235]" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                    title="Attach file"
+                  >
+                    {uploadingAttachment ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                  </button>
                   <input
                     ref={inputRef}
                     type="text"
                     value={newMessage}
                     onChange={handleInputChange}
-                    placeholder={isWriter ? "Reply to investor…" : "Type a message…"}
+                    placeholder={isWriter ? "Reply with text or attach file..." : "Type a message or attach file..."}
                     className={`flex-1 px-4 py-2.5 rounded-xl text-sm border focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/15 focus:border-[#1e3a5f] transition-all ${t.input}`}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSendMessage(e); }}
                   />
                   <button
                     type="submit"
-                    disabled={!newMessage.trim()}
+                    disabled={uploadingAttachment || (!newMessage.trim() && !attachment)}
                     className="w-10 h-10 flex-shrink-0 bg-[#1e3a5f] hover:bg-[#162d4a] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all hover:shadow-md hover:shadow-[#1e3a5f]/20"
                   >
                     <Send size={17} />
@@ -714,7 +930,7 @@ const Messages = () => {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-sm rounded-2xl p-6 shadow-2xl border ${dark ? "bg-[#0a1628] border-[#152035]" : "bg-white border-gray-100"}`}
+              className={`w-full max-w-sm rounded-2xl p-6 shadow-2xl border ${dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-100"}`}
             >
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 ${dark ? "bg-red-900/20" : "bg-red-50"}`}>
                 <Trash2 size={22} className="text-red-500" />
@@ -723,7 +939,7 @@ const Messages = () => {
               <p className={`text-sm text-center mb-6 ${t.sub}`}>This action cannot be undone.</p>
               <div className="flex gap-3">
                 <button onClick={() => setDeleteModal(null)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${dark ? "border-[#152035] text-gray-300 hover:bg-white/[0.04]" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${dark ? "border-[#1c2a3a] text-[#8896a7] hover:bg-white/[0.04]" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
                   Cancel
                 </button>
                 <button onClick={() => handleDelete(deleteModal)}

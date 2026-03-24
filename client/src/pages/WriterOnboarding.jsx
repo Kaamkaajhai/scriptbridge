@@ -63,6 +63,7 @@ const WriterOnboarding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [addressError, setAddressError] = useState("");
   const [dobError, setDobError] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [openRepSections, setOpenRepSections] = useState({ filmTv: false, theater: false, literary: false });
@@ -81,6 +82,12 @@ const WriterOnboarding = () => {
     address: "",
     phone: "",
     role: "creator"
+  });
+  const [addressFields, setAddressFields] = useState({
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
   });
   
   // Email Verification (keeping for compatibility, but using OTP now)
@@ -140,6 +147,7 @@ const WriterOnboarding = () => {
     e.preventDefault();
     setError("");
     setPhoneError("");
+    setAddressError("");
     setDobError("");
     setEmailError("");
 
@@ -152,6 +160,29 @@ const WriterOnboarding = () => {
       setPhoneError("Phone number is required");
       return;
     }
+
+    const street = addressFields.street.trim();
+    const city = addressFields.city.trim();
+    const state = addressFields.state.trim();
+    const zipCode = addressFields.zipCode.trim();
+
+    if (!street || !city || !state || !zipCode) {
+      setAddressError("Street, city, state, and ZIP code are required");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(zipCode)) {
+      setAddressError("ZIP code must be exactly 6 digits");
+      return;
+    }
+
+    const cityStatePattern = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
+    if (!cityStatePattern.test(city) || !cityStatePattern.test(state)) {
+      setAddressError("Enter a valid city and state name");
+      return;
+    }
+
+    const formattedAddress = `${street}, ${city}, ${state}, ${zipCode}`;
     const phoneRegex = /^[+]?[\d\s\-().]{7,15}$/;
     if (!phoneRegex.test(accountData.phone)) {
       setPhoneError("Please enter a valid phone number (e.g. +91 00000 00000)");
@@ -182,6 +213,11 @@ const WriterOnboarding = () => {
     
     setLoading(true);
     try {
+      // Validate ZIP, state and city consistency.
+      await api.post("/auth/validate-address", {
+        address: formattedAddress,
+      });
+
       // Create account using AuthContext join function
       const response = await join({
         name: accountData.name,
@@ -201,7 +237,12 @@ const WriterOnboarding = () => {
       
       setError("");
     } catch (err) {
-      setError(err.response?.data?.message || "Join failed");
+      const msg = err.response?.data?.message || "Join failed";
+      if (/zip|city|state|address/i.test(msg)) {
+        setAddressError(msg);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -429,21 +470,84 @@ const WriterOnboarding = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Address
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <div className="rounded-xl border border-gray-200 bg-white/80 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <MapPin className="text-gray-500" size={16} />
+                  <label className="text-sm font-semibold text-gray-800">Address Details</label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Street Address</label>
                   <input
                     type="text"
-                    value={accountData.address}
-                    onChange={(e) => setAccountData({...accountData, address: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="123 Main St, City, State, ZIP"
+                    value={addressFields.street}
+                    onChange={(e) => {
+                      setAddressFields({ ...addressFields, street: e.target.value });
+                      setAddressError("");
+                    }}
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                    placeholder="House/Flat, Street, Area"
                     required
                   />
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
+                    <input
+                      type="text"
+                      value={addressFields.city}
+                      onChange={(e) => {
+                        setAddressFields({ ...addressFields, city: e.target.value });
+                        setAddressError("");
+                      }}
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                      placeholder="Mumbai"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
+                    <input
+                      type="text"
+                      value={addressFields.state}
+                      onChange={(e) => {
+                        setAddressFields({ ...addressFields, state: e.target.value });
+                        setAddressError("");
+                      }}
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                      placeholder="Maharashtra"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={addressFields.zipCode}
+                      onChange={(e) => {
+                        const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setAddressFields({ ...addressFields, zipCode: zipOnly });
+                        setAddressError("");
+                      }}
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                      placeholder="400001"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-gray-500">We verify city and state against the ZIP code for accuracy.</p>
+
+                {addressError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertCircle size={12} /> {addressError}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -955,7 +1059,7 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="px-6 py-2.5 border border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center gap-2"
+                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
                 <ArrowLeft size={20} />
                 Back
@@ -1065,7 +1169,7 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="px-6 py-2.5 border border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center gap-2"
+                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
                 <ArrowLeft size={20} />
                 Back
@@ -1111,7 +1215,7 @@ const WriterOnboarding = () => {
                     )}
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-4">$0</div>
+                <div className="text-3xl font-bold text-gray-900 mb-4">₹0</div>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <CheckCircle size={16} className="text-[#111111] flex-shrink-0 mt-0.5" />
@@ -1148,7 +1252,7 @@ const WriterOnboarding = () => {
                     )}
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-4">$130<span className="text-base text-gray-500">/mo</span></div>
+                <div className="text-3xl font-bold text-gray-900 mb-4">₹130<span className="text-base text-gray-500">/mo</span></div>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <CheckCircle size={16} className="text-[#111111] flex-shrink-0 mt-0.5" />
@@ -1177,15 +1281,15 @@ const WriterOnboarding = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Script Hosting (Monthly)</span>
-                    <span className="font-semibold text-gray-900">$30.00</span>
+                    <span className="font-semibold text-gray-900">₹30.00</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Professional Evaluation</span>
-                    <span className="font-semibold text-gray-900">$100.00</span>
+                    <span className="font-semibold text-gray-900">₹100.00</span>
                   </div>
                   <div className="border-t-2 border-gray-200 pt-3 mt-3 flex justify-between">
                     <span className="font-bold text-gray-900">Total</span>
-                    <span className="font-bold text-xl text-[#0f2544]">$130.00</span>
+                    <span className="font-bold text-xl text-[#0f2544]">₹130.00</span>
                   </div>
                 </div>
               </div>
@@ -1259,7 +1363,7 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
-                className="px-6 py-2.5 border border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center gap-2"
+                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
                 <ArrowLeft size={20} />
                 Back

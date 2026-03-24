@@ -5,6 +5,7 @@ import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import TrendingProjects from "../components/TrendingProjects";
+<<<<<<< HEAD
 import ScriptCard from "../components/ScriptCard";
 import {
   Drama,
@@ -222,6 +223,9 @@ const matchScore = (script, prefGenres, prefTypes) => {
   if (prefTypes.some((t) => t.toLowerCase() === st)) score += 1;
   return score;
 };
+=======
+import ProjectCard from "../components/ProjectCard";
+>>>>>>> origin/master
 
 const ReaderHome = () => {
   const { isDarkMode: dark } = useDarkMode();
@@ -509,10 +513,19 @@ const ReaderHome = () => {
 
           {/* Scripts grid */}
           {loading ? (
+<<<<<<< HEAD
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className={`h-64 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-50"}`} />
               ))}
+=======
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {[...Array(10)].map((_, i) => <div key={i} className={`h-64 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-50"}`} />)}
+            </div>
+          ) : filteredLatest.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredLatest.map((s, i) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
+>>>>>>> origin/master
             </div>
           ) : displayScripts.length > 0 ? (
             <motion.div

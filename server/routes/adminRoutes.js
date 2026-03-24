@@ -8,6 +8,7 @@ import {
     getAIUsageScripts,
     getEvaluationPurchases,
     getInvestorPurchases,
+    getInvoices,
     getPayments,
     getAIScores,
     getPlatformScores,
@@ -23,7 +24,9 @@ import {
     getPendingInvestors,
     approveInvestor,
     rejectInvestor,
+    getAdminAlertSummary,
 } from "../controllers/adminController.js";
+import { getContactSubmissions } from "../controllers/contactController.js";
 
 const router = express.Router();
 
@@ -32,6 +35,7 @@ router.use(protect, adminOnly);
 
 // Dashboard
 router.get("/stats", getStats);
+router.get("/alerts/summary", getAdminAlertSummary);
 
 // Users
 router.get("/users", getUsers);
@@ -51,6 +55,7 @@ router.put("/scripts/:id/trailer-approve", approveTrailer);
 
 // Payments
 router.get("/payments", getPayments);
+router.get("/invoices", getInvoices);
 
 // Scores
 router.get("/scores/ai", getAIScores);
@@ -64,5 +69,8 @@ router.post("/login-as/:userId", loginAsUser);
 router.get("/investors/pending", getPendingInvestors);
 router.put("/investors/:id/approve", approveInvestor);
 router.put("/investors/:id/reject", rejectInvestor);
+
+// Contact Queries
+router.get("/queries", getContactSubmissions);
 
 export default router;

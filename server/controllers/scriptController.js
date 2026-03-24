@@ -1,14 +1,18 @@
 import Script from "../models/Script.js";
+import mongoose from "mongoose";
 import ScriptOption from "../models/ScriptOption.js";
 import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
+import Invoice from "../models/Invoice.js";
 import {
   sendPurchaseRequestEmail,
   sendPurchaseApprovedEmail,
   sendPurchaseRejectedEmail,
 } from "../utils/emailService.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
+import { generateAndSaveInvoicePdf } from "../utils/invoicePdf.js";
 import { CREDIT_PRICES } from "./creditsController.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
@@ -16,6 +20,11 @@ import crypto from "crypto";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
+import { uploadToCloudinary } from "../config/cloudinary.js";
+import {
+  buildInvestorFeed,
+  trackInvestorInteraction,
+} from "../services/recommendationService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +43,31 @@ const getRazorpay = () => {
     });
   }
   return razorpayInstance;
+};
+
+const PUBLIC_SCRIPT_FILTER = {
+  status: "published",
+  isSold: { $ne: true },
+  purchaseRequestLocked: { $ne: true },
+};
+
+const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
+const PROJECT_SPOTLIGHT_EXTENSION_CREDITS = 150;
+const PROJECT_SPOTLIGHT_DURATION_DAYS = 30;
+
+const isSpotlightActive = (script, now = new Date()) => {
+  const endAt = script?.promotion?.spotlightEndAt;
+  return Boolean(endAt && new Date(endAt) >= now);
+};
+
+const getBlockedUserIdsForViewer = async (viewerId) => {
+  if (!viewerId) return [];
+  const currentUser = await User.findById(viewerId).select("blockedUsers").lean();
+  const usersWhoBlockedCurrent = await User.find({ blockedUsers: viewerId }).select("_id").lean();
+  return [
+    ...(currentUser?.blockedUsers || []),
+    ...usersWhoBlockedCurrent.map((u) => u._id),
+  ];
 };
 
 export const extractPdfText = async (req, res) => {
@@ -73,7 +107,26 @@ export const saveDraft = async (req, res) => {
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
-      // Allow updating other work-in-progress metadata here if needed
+      if (otherData.logline !== undefined) script.logline = otherData.logline;
+      if (otherData.synopsis !== undefined) {
+        script.synopsis = otherData.synopsis;
+        script.description = otherData.synopsis;
+      }
+      if (otherData.format !== undefined) script.format = otherData.format;
+      if (otherData.pageCount !== undefined) script.pageCount = Number(otherData.pageCount) || 0;
+      if (otherData.primaryGenre !== undefined) script.primaryGenre = otherData.primaryGenre;
+      if (otherData.tags !== undefined) script.tags = Array.isArray(otherData.tags) ? otherData.tags : [];
+      if (otherData.roles !== undefined) script.roles = Array.isArray(otherData.roles) ? otherData.roles : [];
+      if (otherData.classification !== undefined) {
+        script.classification = {
+          primaryGenre: otherData.classification?.primaryGenre ?? script.classification?.primaryGenre,
+          secondaryGenre: otherData.classification?.secondaryGenre ?? script.classification?.secondaryGenre,
+          tones: otherData.classification?.tones ?? script.classification?.tones ?? [],
+          themes: otherData.classification?.themes ?? script.classification?.themes ?? [],
+          settings: otherData.classification?.settings ?? script.classification?.settings ?? [],
+        };
+        script.markModified("classification");
+      }
 
       await script.save();
       return res.json(script);
@@ -146,6 +199,10 @@ export const updateScript = async (req, res) => {
       coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
 
+    if (logline !== undefined && String(logline).trim().length > 50) {
+      return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
+
     if (title) script.title = title;
     if (logline !== undefined) script.logline = logline;
     if (format) script.format = format;
@@ -196,8 +253,42 @@ export const updateScript = async (req, res) => {
       };
     }
 
+    const wasPendingApproval = script.status === "pending_approval";
     script.status = "pending_approval";
     await script.save();
+
+    if (!wasPendingApproval) {
+      await notifyAdminWorkflowEvent({
+        title: "Writer Project Submitted For Approval",
+        section: "approvals",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          writerEmail: req.user.email || "",
+          source: "update-script",
+        },
+      });
+    }
+
+    if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
+      await notifyAdminWorkflowEvent({
+        title: "AI Trailer Approval Request",
+        section: "trailers",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          trailerStatus: script.trailerStatus,
+          source: "update-script",
+        },
+      });
+    }
+
     res.json(script);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -237,19 +328,38 @@ export const uploadScript = async (req, res) => {
     if (!title) {
       return res.status(400).json({ message: "Title is required" });
     }
+    if (logline !== undefined && String(logline).trim().length > 50) {
+      return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
+    if (!synopsis || String(synopsis).trim().length === 0) {
+      return res.status(400).json({ message: "Synopsis is required" });
+    }
     if (!scriptUrl && !fileUrl && !textContent) {
       return res.status(400).json({ message: "Script file or text content is required" });
     }
+
+    const invoiceDate = new Date();
+    const invoiceNumber = `INV-${invoiceDate.toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-4)}`;
+    const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
+    const effectivePrice = isPremiumAccess ? Number(price || 0) : 0;
+    const platformFeeRate = 0.2;
+    const writerEarnsPerSale = Math.round(effectivePrice * (1 - platformFeeRate) * 100) / 100;
 
     // Calculate credits needed for selected services
     let creditsRequired = 0;
     if (services?.evaluation) creditsRequired += CREDIT_PRICES.AI_EVALUATION;
     if (services?.aiTrailer) creditsRequired += CREDIT_PRICES.AI_TRAILER;
 
+    const creator = await User.findById(req.user._id);
+    if (!creator) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const creditsBalanceBefore = creator.credits?.balance || 0;
+    let creditsBalanceAfter = creditsBalanceBefore;
+
     // Check and deduct credits if services are selected
     if (creditsRequired > 0) {
-      const user = await User.findById(req.user._id);
-      const userBalance = user.credits?.balance || 0;
+      const userBalance = creator.credits?.balance || 0;
 
       if (userBalance < creditsRequired) {
         return res.status(402).json({
@@ -262,12 +372,12 @@ export const uploadScript = async (req, res) => {
       }
 
       // Deduct credits
-      user.credits.balance -= creditsRequired;
-      user.credits.totalSpent += creditsRequired;
+      creator.credits.balance -= creditsRequired;
+      creator.credits.totalSpent += creditsRequired;
 
       // Add transaction record for each service
       if (services?.evaluation) {
-        user.credits.transactions.push({
+        creator.credits.transactions.push({
           type: "spent",
           amount: -CREDIT_PRICES.AI_EVALUATION,
           description: `AI Evaluation for "${title}"`,
@@ -277,7 +387,7 @@ export const uploadScript = async (req, res) => {
       }
 
       if (services?.aiTrailer) {
-        user.credits.transactions.push({
+        creator.credits.transactions.push({
           type: "spent",
           amount: -CREDIT_PRICES.AI_TRAILER,
           description: `AI Trailer for "${title}"`,
@@ -286,16 +396,17 @@ export const uploadScript = async (req, res) => {
         });
       }
 
-      await user.save();
+      await creator.save();
+      creditsBalanceAfter = creator.credits?.balance || 0;
     }
 
     // Build the script document
     const scriptData = {
       creator: req.user._id,
       title,
-      logline: logline || description?.substring(0, 300),
-      description: description || synopsis || logline,
-      synopsis: synopsis || description,
+      logline: logline ? String(logline).trim() : "",
+      description: synopsis,
+      synopsis: synopsis,
       fullContent,
       textContent,
       fileUrl: scriptUrl || fileUrl,
@@ -327,6 +438,17 @@ export const uploadScript = async (req, res) => {
         evaluation: services.evaluation || false,
         aiTrailer: services.aiTrailer || false
       } : { hosting: true, evaluation: false, aiTrailer: false },
+      billing: {
+        evaluationCreditsCharged: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
+        aiTrailerCreditsCharged: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        evaluationCreditsChargedAtUpload: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
+        aiTrailerCreditsChargedAtUpload: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        evaluationCreditsRefunded: 0,
+        aiTrailerCreditsRefunded: 0,
+        spotlightCreditsSpent: 0,
+        lastSpotlightRefundCredits: 0,
+      },
+      evaluationStatus: services?.evaluation ? "requested" : "none",
 
       // Legal compliance
       legal: legal ? {
@@ -344,6 +466,94 @@ export const uploadScript = async (req, res) => {
     // If updating from a draft (if we pass draftId in the future), we could update instead of create.
     // For now, assume it's a new or finalized creation.
     const script = await Script.create(scriptData);
+
+    await notifyAdminWorkflowEvent({
+      title: "Writer Project Submitted For Approval",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
+      metadata: {
+        scriptId: script._id,
+        writerId: req.user._id,
+        writerEmail: creator.email || "",
+        aiTrailerRequested: Boolean(services?.aiTrailer),
+        source: "upload-script",
+      },
+    });
+
+    if (services?.aiTrailer) {
+      await notifyAdminWorkflowEvent({
+        title: "AI Trailer Approval Request",
+        section: "trailers",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          trailerStatus: script.trailerStatus,
+          source: "upload-script",
+        },
+      });
+    }
+
+    const invoice = await Invoice.create({
+      invoiceNumber,
+      invoiceDate,
+      creator: req.user._id,
+      creatorSid: creator?.sid || "",
+      script: script._id,
+      scriptSid: script?.sid || "",
+      accessType: isPremiumAccess ? "premium" : "free",
+      scriptPrice: effectivePrice,
+      platformFeeRate,
+      writerEarnsPerSale,
+      services: {
+        hosting: services?.hosting !== undefined ? services.hosting : true,
+        evaluation: Boolean(services?.evaluation),
+        aiTrailer: Boolean(services?.aiTrailer),
+        trailerUpload: !services?.aiTrailer,
+      },
+      totalCreditsRequired: creditsRequired,
+      creditsBalanceBefore,
+      creditsBalanceAfter,
+      rows: [
+        {
+          item: "Script Access Model",
+          type: "Configuration",
+          detail: isPremiumAccess ? `Premium access at ₹${effectivePrice}` : "Free public access",
+          amountLabel: "₹0",
+          amountValue: 0,
+        },
+        {
+          item: "Publish Services",
+          type: "Credit Charge",
+          detail: creditsRequired > 0 ? "Paid add-ons selected" : "No paid add-ons selected",
+          amountLabel: `${creditsRequired} cr`,
+          amountValue: creditsRequired,
+        },
+        {
+          item: "Writer Earnings Per Premium Sale",
+          type: "Future Earnings",
+          detail: isPremiumAccess ? `Buyer pays ₹${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
+          amountLabel: isPremiumAccess ? `₹${writerEarnsPerSale}` : "₹0",
+          amountValue: writerEarnsPerSale,
+        },
+      ],
+    });
+
+    const generatedInvoicePdf = await generateAndSaveInvoicePdf({
+      invoice,
+      creatorName: creator.name,
+      creatorEmail: creator.email,
+      creatorSid: creator?.sid,
+      scriptTitle: script.title,
+      scriptSid: script?.sid,
+    });
+    invoice.pdfPath = generatedInvoicePdf.relativePath;
+    invoice.pdfGeneratedAt = new Date();
+    await invoice.save();
 
     // --- Async Service Processing ---
     // TODO: Implement these async workflows:
@@ -381,8 +591,15 @@ export const uploadScript = async (req, res) => {
       // });
     }
 
-    // Return the created script
-    res.status(201).json(script);
+    // Return the created script with invoice metadata
+    res.status(201).json({
+      ...script.toObject(),
+      invoice: {
+        _id: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        pdfPath: invoice.pdfPath,
+      },
+    });
   } catch (error) {
     console.error("Script upload error:", error);
     res.status(500).json({ message: error.message });
@@ -392,7 +609,7 @@ export const uploadScript = async (req, res) => {
 export const getScripts = async (req, res) => {
   try {
     const { genre, contentType, budget, sort, search, premium, minPrice, maxPrice } = req.query;
-    const query = { status: "published", isSold: { $ne: true } };
+    const query = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) query.genre = genre;
     if (contentType) query.contentType = contentType;
     if (budget) query.budget = budget;
@@ -404,10 +621,12 @@ export const getScripts = async (req, res) => {
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
     if (search) {
+      const searchRegex = new RegExp(escapeRegExp(search), "i");
       query.$or = [
-        { title: new RegExp(search, "i") },
-        { description: new RegExp(search, "i") },
-        { tags: new RegExp(search, "i") },
+        { sid: searchRegex },
+        { title: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex },
       ];
     }
 
@@ -488,6 +707,15 @@ export const getScripts = async (req, res) => {
     const scripts = await Script.find(query)
       .populate("creator", "name profileImage role")
       .sort(sortObj);
+
+    await Promise.all(
+      scripts.map(async (doc) => {
+        if (!doc.sid) {
+          await doc.save();
+        }
+      })
+    );
+
     // Strip full synopsis and fullContent from list view
     const sanitized = scripts.map(s => {
       const obj = s.toObject();
@@ -523,6 +751,28 @@ export const getScriptById = async (req, res) => {
       return res.status(403).json({ message: "This script has been purchased and is no longer publicly available" });
     }
 
+    // Block access while an investor purchase request is pending.
+    // Allow creator, admin, current buyer, or the investor who owns the pending request.
+    if (script.purchaseRequestLocked) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      const isLockOwner = lockOwnerId && lockOwnerId === req.user._id.toString();
+      let hasMyPendingRequest = false;
+
+      if (!isLockOwner && !isOwner && !isAdmin && !isBuyer) {
+        hasMyPendingRequest = Boolean(
+          await ScriptPurchaseRequest.findOne({
+            script: script._id,
+            investor: req.user._id,
+            status: "pending",
+          }).select("_id").lean()
+        );
+      }
+
+      if (!isOwner && !isAdmin && !isBuyer && !isLockOwner && !hasMyPendingRequest) {
+        return res.status(403).json({ message: "This script is temporarily unavailable while a purchase request is under review." });
+      }
+    }
+
     // Track view — only count views from users who are NOT the script creator
     if (!isOwner) {
       script.views += 1;
@@ -543,6 +793,14 @@ export const getScriptById = async (req, res) => {
           },
         },
       });
+
+      // Track recommendation interaction signals for personalized investor feed.
+      trackInvestorInteraction({
+        userId: req.user._id,
+        scriptId: script._id,
+        type: "view",
+        source: "script_detail",
+      }).catch(() => null);
     }
 
     // Check if user has unlocked this script
@@ -633,7 +891,7 @@ export const unlockScript = async (req, res) => {
         type: "unlock",
         from: req.user._id,
         script: script._id,
-        message: `${user.name} unlocked your script "${script.title}" for $${script.price}`,
+        message: `${user.name} unlocked your script "${script.title}" for ₹${script.price}`,
       });
     }
     res.json({ message: "Script unlocked", script });
@@ -665,6 +923,13 @@ export const requestScriptPurchase = async (req, res) => {
       return res.status(400).json({ message: "You already have access to this script." });
     }
 
+    if (script.purchaseRequestLocked) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
+        return res.status(409).json({ message: "This script is currently unavailable because a purchase request is already in progress." });
+      }
+    }
+
     // Check for existing pending request
     const existing = await ScriptPurchaseRequest.findOne({
       script: scriptId,
@@ -672,20 +937,85 @@ export const requestScriptPurchase = async (req, res) => {
       status: "pending",
     });
     if (existing) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      if (!script.purchaseRequestLocked || lockOwnerId !== req.user._id.toString()) {
+        script.purchaseRequestLocked = true;
+        script.purchaseRequestLockedBy = req.user._id;
+        script.purchaseRequestLockedAt = script.purchaseRequestLockedAt || existing.createdAt || new Date();
+        await script.save();
+      }
       return res.status(400).json({ message: "You already have a pending purchase request for this script." });
     }
 
     const investor = await User.findById(req.user._id);
-    const amount = script.price || 0;
+    const amount = Number(script.price || 0);
+
+    let frozenAmount = 0;
+    let balanceBefore = 0;
+    let balanceAfter = 0;
+
+    if (amount > 0) {
+      if (!investor.wallet) {
+        investor.wallet = {
+          balance: 0,
+          currency: "INR",
+          pendingBalance: 0,
+          totalEarnings: 0,
+          totalWithdrawals: 0,
+        };
+      }
+
+      if ((investor.wallet.balance || 0) < amount) {
+        return res.status(400).json({
+          message: `Insufficient wallet balance. Add ₹${amount.toLocaleString("en-IN")} to proceed with this purchase request.`,
+        });
+      }
+
+      balanceBefore = investor.wallet.balance || 0;
+      investor.wallet.balance = balanceBefore - amount;
+      investor.wallet.pendingBalance = (investor.wallet.pendingBalance || 0) + amount;
+      balanceAfter = investor.wallet.balance;
+      frozenAmount = amount;
+      await investor.save();
+    }
 
     const purchaseRequest = await ScriptPurchaseRequest.create({
       script: scriptId,
       investor: req.user._id,
       writer: script.creator._id,
       amount,
-      frozenAmount: 0,
+      frozenAmount,
+      paymentMethod: "wallet",
+      paymentStatus: amount > 0 ? "escrow_held" : "pending",
       note: note || "",
     });
+
+    if (frozenAmount > 0) {
+      await Transaction.create({
+        user: req.user._id,
+        type: "payment",
+        amount: -frozenAmount,
+        currency: "INR",
+        status: "pending",
+        description: `Escrow hold for purchase request: "${script.title}"`,
+        reference: `PRH-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+        paymentMethod: "wallet",
+        relatedScript: script._id,
+        balanceBefore,
+        balanceAfter,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          stage: "escrow_hold",
+          writerId: script.creator._id.toString(),
+          scriptId: script._id.toString(),
+        },
+      });
+    }
+
+    script.purchaseRequestLocked = true;
+    script.purchaseRequestLockedBy = req.user._id;
+    script.purchaseRequestLockedAt = new Date();
+    await script.save();
 
     // Notify writer in-app
     await Notification.create({
@@ -693,7 +1023,7 @@ export const requestScriptPurchase = async (req, res) => {
       type: "purchase_request",
       from: req.user._id,
       script: script._id,
-      message: `${investor.name} wants to purchase your script "${script.title}"${amount > 0 ? ` for $${amount}` : ""}.`,
+      message: `${investor.name} submitted a purchase request for "${script.title}"${amount > 0 ? ` and escrowed ₹${amount}` : ""}.`,
     });
 
     // Email writer
@@ -705,7 +1035,12 @@ export const requestScriptPurchase = async (req, res) => {
       amount
     ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
 
-    res.status(201).json({ message: "Purchase request submitted successfully.", purchaseRequest });
+    res.status(201).json({
+      message: amount > 0
+        ? "Purchase request submitted and payment held in escrow."
+        : "Purchase request submitted successfully.",
+      purchaseRequest,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -729,14 +1064,108 @@ export const approveScriptPurchase = async (req, res) => {
     const script = purchaseRequest.script;
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
+    const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const paymentMethod = purchaseRequest.paymentMethod || "wallet";
+
+    const investorDoc = await User.findById(investor._id);
+    if (!investorDoc) {
+      return res.status(404).json({ message: "Investor account not found." });
+    }
+
+    if (!investorDoc.wallet) {
+      investorDoc.wallet = {
+        balance: 0,
+        currency: "INR",
+        pendingBalance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      };
+    }
+
+    if (!writer.wallet) {
+      writer.wallet = {
+        balance: 0,
+        currency: "INR",
+        pendingBalance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      };
+    }
+
+    if (amountToRelease > 0) {
+      if (paymentMethod === "wallet") {
+        if ((investorDoc.wallet.pendingBalance || 0) < amountToRelease) {
+          return res.status(409).json({
+            message: "Escrow amount is unavailable. Please contact support.",
+          });
+        }
+        investorDoc.wallet.pendingBalance -= amountToRelease;
+      }
+
+      const writerBalanceBefore = writer.wallet.balance || 0;
+      writer.wallet.balance = writerBalanceBefore + amountToRelease;
+      writer.wallet.totalEarnings = (writer.wallet.totalEarnings || 0) + amountToRelease;
+
+      await investorDoc.save();
+      await writer.save();
+
+      const pendingEscrowTx = await Transaction.findOne({
+        user: investor._id,
+        relatedScript: script._id,
+        status: "pending",
+        "metadata.purchaseRequestId": purchaseRequest._id.toString(),
+      }).sort({ createdAt: -1 });
+
+      if (pendingEscrowTx) {
+        const existingMetadata = pendingEscrowTx.metadata instanceof Map
+          ? Object.fromEntries(pendingEscrowTx.metadata)
+          : (pendingEscrowTx.metadata || {});
+        pendingEscrowTx.status = "completed";
+        pendingEscrowTx.description = `Purchased script: "${script.title}"`;
+        pendingEscrowTx.metadata = {
+          ...existingMetadata,
+          stage: "settled_to_writer",
+          settledAt: new Date().toISOString(),
+          settlementMethod: paymentMethod,
+          writerId: writer._id.toString(),
+        };
+        await pendingEscrowTx.save();
+      }
+
+      await Transaction.create({
+        user: writer._id,
+        type: "credit",
+        amount: amountToRelease,
+        currency: "INR",
+        status: "completed",
+        description: `Script purchase payout: "${script.title}"`,
+        reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+        paymentMethod: paymentMethod === "razorpay" ? "razorpay" : "wallet",
+        relatedScript: script._id,
+        balanceBefore: writerBalanceBefore,
+        balanceAfter: writer.wallet.balance,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          investorId: investor._id.toString(),
+          scriptId: script._id.toString(),
+        },
+      });
+    }
 
     // Grant access to the script
     if (!script.unlockedBy.some((uid) => uid.toString() === investor._id.toString())) {
       script.unlockedBy.push(investor._id);
-      await script.save();
     }
 
+    script.isSold = true;
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
+    await script.save();
+
     purchaseRequest.status = "approved";
+    purchaseRequest.paymentStatus = amountToRelease > 0 ? "released" : purchaseRequest.paymentStatus;
+    purchaseRequest.settledAt = new Date();
     await purchaseRequest.save();
 
     // Notify investor in-app
@@ -745,7 +1174,7 @@ export const approveScriptPurchase = async (req, res) => {
       type: "purchase_approved",
       from: req.user._id,
       script: script._id,
-      message: `${writer.name} approved your purchase request for "${script.title}". You now have full access!`,
+      message: `${writer.name} approved your purchase request for "${script.title}". You now have full access${amountToRelease > 0 ? " and escrow was released to the writer" : ""}!`,
     });
 
     // Email investor
@@ -753,10 +1182,14 @@ export const approveScriptPurchase = async (req, res) => {
       investor.email,
       investor.name,
       writer.name,
-      script.title
+      script.title,
+      script._id.toString()
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
-    res.json({ message: "Purchase request approved. Investor now has access to the script.", purchaseRequest });
+    res.json({
+      message: "Purchase request approved. Investor now has full script access and funds were transferred to the writer.",
+      purchaseRequest,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -782,10 +1215,134 @@ export const rejectScriptPurchase = async (req, res) => {
     const script = purchaseRequest.script;
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
+    const amountToRefund = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const paymentMethod = purchaseRequest.paymentMethod || "wallet";
+    let gatewayRefundId = "";
+
+    if (amountToRefund > 0) {
+      if (paymentMethod === "wallet") {
+        const investorDoc = await User.findById(investor._id);
+        if (!investorDoc) {
+          return res.status(404).json({ message: "Investor account not found." });
+        }
+
+        if (!investorDoc.wallet) {
+          investorDoc.wallet = {
+            balance: 0,
+            currency: "INR",
+            pendingBalance: 0,
+            totalEarnings: 0,
+            totalWithdrawals: 0,
+          };
+        }
+
+        const pendingBefore = investorDoc.wallet.pendingBalance || 0;
+        const balanceBefore = investorDoc.wallet.balance || 0;
+
+        investorDoc.wallet.pendingBalance = Math.max(0, pendingBefore - amountToRefund);
+        investorDoc.wallet.balance = balanceBefore + amountToRefund;
+        const balanceAfter = investorDoc.wallet.balance;
+        await investorDoc.save();
+
+        await Transaction.create({
+          user: investor._id,
+          type: "refund",
+          amount: amountToRefund,
+          currency: "INR",
+          status: "completed",
+          description: `Refund for rejected purchase request: "${script.title}"`,
+          reference: `PRR-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+          paymentMethod: "wallet",
+          relatedScript: script._id,
+          balanceBefore,
+          balanceAfter,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            writerId: writer._id.toString(),
+            scriptId: script._id.toString(),
+            rejectionNote: note || "",
+          },
+        });
+      } else if (paymentMethod === "razorpay") {
+        if (!purchaseRequest.paymentGatewayPaymentId) {
+          return res.status(409).json({ message: "Payment reference missing for refund. Please contact support." });
+        }
+
+        const razorpay = getRazorpay();
+        const refund = await razorpay.payments.refund(purchaseRequest.paymentGatewayPaymentId, {
+          amount: Math.round(amountToRefund * 100),
+          notes: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            scriptId: script._id.toString(),
+            writerId: writer._id.toString(),
+          },
+        });
+        gatewayRefundId = refund?.id || "";
+
+        await Transaction.create({
+          user: investor._id,
+          type: "refund",
+          amount: amountToRefund,
+          currency: "INR",
+          status: "completed",
+          description: `Refund to original payment method for rejected request: "${script.title}"`,
+          reference: `PRR-RZP-${purchaseRequest.paymentGatewayPaymentId}`,
+          paymentMethod: "razorpay",
+          relatedScript: script._id,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            writerId: writer._id.toString(),
+            scriptId: script._id.toString(),
+            gatewayPaymentId: purchaseRequest.paymentGatewayPaymentId,
+            gatewayOrderId: purchaseRequest.paymentGatewayOrderId || "",
+            gatewayRefundId,
+            rejectionNote: note || "",
+          },
+        });
+      }
+
+      const pendingEscrowTx = await Transaction.findOne({
+        user: investor._id,
+        relatedScript: script._id,
+        status: "pending",
+        "metadata.purchaseRequestId": purchaseRequest._id.toString(),
+      }).sort({ createdAt: -1 });
+
+      if (pendingEscrowTx) {
+        const existingMetadata = pendingEscrowTx.metadata instanceof Map
+          ? Object.fromEntries(pendingEscrowTx.metadata)
+          : (pendingEscrowTx.metadata || {});
+        pendingEscrowTx.status = "cancelled";
+        pendingEscrowTx.description = `Escrow released back to wallet: "${script.title}"`;
+        pendingEscrowTx.metadata = {
+          ...existingMetadata,
+          stage: "refunded_to_investor",
+          refundedAt: new Date().toISOString(),
+          refundMethod: paymentMethod,
+          gatewayRefundId,
+          rejectionNote: note || "",
+        };
+        await pendingEscrowTx.save();
+      }
+    }
 
     purchaseRequest.status = "rejected";
+    purchaseRequest.paymentStatus = amountToRefund > 0 ? "refunded" : purchaseRequest.paymentStatus;
+    purchaseRequest.settledAt = new Date();
     if (note) purchaseRequest.note = note;
     await purchaseRequest.save();
+
+    const hasPendingRequests = await ScriptPurchaseRequest.exists({
+      script: script._id,
+      status: "pending",
+    });
+
+    if (!hasPendingRequests) {
+      script.purchaseRequestLocked = false;
+      script.purchaseRequestLockedBy = null;
+      script.purchaseRequestLockedAt = null;
+      await script.save();
+    }
 
     // Notify investor in-app
     await Notification.create({
@@ -793,7 +1350,7 @@ export const rejectScriptPurchase = async (req, res) => {
       type: "purchase_rejected",
       from: req.user._id,
       script: script._id,
-      message: `${writer.name} declined your purchase request for "${script.title}".`,
+      message: `${writer.name} declined your purchase request for "${script.title}"${amountToRefund > 0 ? ` and ₹${amountToRefund} was refunded to your wallet` : ""}.`,
     });
 
     // Email investor
@@ -805,7 +1362,12 @@ export const rejectScriptPurchase = async (req, res) => {
       note || ""
     ).catch((err) => console.error("[Purchase] Failed to send rejection email:", err.message));
 
-    res.json({ message: "Purchase request rejected. Funds returned to investor.", purchaseRequest });
+    res.json({
+      message: amountToRefund > 0
+        ? "Purchase request rejected. Payment was refunded to the investor."
+        : "Purchase request rejected.",
+      purchaseRequest,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -842,7 +1404,7 @@ export const getMyPurchaseRequests = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Hold/Option a script (for producers - $200 default, 30 days)
+// Hold/Option a script (for producers - ₹200 default, 30 days)
 export const holdScript = async (req, res) => {
   try {
     const { scriptId } = req.body;
@@ -890,7 +1452,7 @@ export const holdScript = async (req, res) => {
       type: "hold",
       from: req.user._id,
       script: script._id,
-      message: `${user.name} has placed a hold on "${script.title}" for $${fee} (30 days). You earn $${creatorPayout}!`,
+      message: `${user.name} has placed a hold on "${script.title}" for ₹${fee} (30 days). You earn ₹${creatorPayout}!`,
     });
 
     res.json({
@@ -978,11 +1540,33 @@ export const addRoles = async (req, res) => {
 
 export const getFeaturedScripts = async (req, res) => {
   try {
+    const now = new Date();
     // Step 1: rank published scripts by trendScore via aggregation
     const ranked = await Script.aggregate([
-      { $match: { status: "published", isSold: { $ne: true } } },
+      { $match: { ...PUBLIC_SCRIPT_FILTER } },
       {
         $addFields: {
+          verifiedPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$verifiedBadge", false] }, true] }, 1, 0],
+          },
+          aiTrailerPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.aiTrailer", false] }, true] }, 1, 0],
+          },
+          evaluationPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.evaluation", false] }, true] }, 1, 0],
+          },
+          spotlightPriority: {
+            $cond: [
+              {
+                $and: [
+                  { $ifNull: ["$promotion.spotlightActive", false] },
+                  { $gte: ["$promotion.spotlightEndAt", now] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
           trendScore: {
             $add: [
               { $multiply: [{ $ifNull: ["$reviewCount", 0] }, 3] },
@@ -992,7 +1576,7 @@ export const getFeaturedScripts = async (req, res) => {
           },
         },
       },
-      { $sort: { trendScore: -1, rating: -1, createdAt: -1 } },
+      { $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, trendScore: -1, rating: -1, createdAt: -1 } },
       { $limit: 12 },
       { $project: { _id: 1 } },
     ]);
@@ -1002,7 +1586,7 @@ export const getFeaturedScripts = async (req, res) => {
     const ids = ranked.map((s) => s._id);
 
     // Step 2: fetch full documents with populated creator (preserving sort order)
-    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true } }).populate(
+    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } }).populate(
       "creator",
       "name profileImage role"
     );
@@ -1020,15 +1604,41 @@ export const getFeaturedScripts = async (req, res) => {
 
 export const getTopScripts = async (req, res) => {
   try {
+    const now = new Date();
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
     const sortBy = req.query.sort || "rating";
     let sortObj = { rating: -1 };
     if (sortBy === "reads") sortObj = { readsCount: -1 };
     if (sortBy === "purchases") sortObj = { "unlockedBy": -1 };
-    const scripts = await Script.find({ status: "published", isSold: { $ne: true } })
+    const query = { ...PUBLIC_SCRIPT_FILTER };
+    if (blockedUserIds.length > 0) {
+      query.creator = { $nin: blockedUserIds };
+    }
+    const scripts = await Script.find(query)
       .populate("creator", "name profileImage role")
       .sort(sortObj)
       .limit(20);
-    res.json(scripts);
+
+    const boostedFirst = [...scripts].sort((a, b) => {
+      const aVerified = a?.verifiedBadge ? 1 : 0;
+      const bVerified = b?.verifiedBadge ? 1 : 0;
+      if (aVerified !== bVerified) return bVerified - aVerified;
+
+      const aTrailer = a?.services?.aiTrailer ? 1 : 0;
+      const bTrailer = b?.services?.aiTrailer ? 1 : 0;
+      if (aTrailer !== bTrailer) return bTrailer - aTrailer;
+
+      const aEvaluation = a?.services?.evaluation ? 1 : 0;
+      const bEvaluation = b?.services?.evaluation ? 1 : 0;
+      if (aEvaluation !== bEvaluation) return bEvaluation - aEvaluation;
+
+      const aBoost = isSpotlightActive(a, now) ? 1 : 0;
+      const bBoost = isSpotlightActive(b, now) ? 1 : 0;
+      if (aBoost !== bBoost) return bBoost - aBoost;
+      return 0;
+    });
+
+    res.json(boostedFirst);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1037,10 +1647,14 @@ export const getTopScripts = async (req, res) => {
 export const searchScriptsReader = async (req, res) => {
   try {
     const { q, category, genre, page = 1, limit = 20 } = req.query;
-    const query = { status: "published", isSold: { $ne: true } };
+    const query = { ...PUBLIC_SCRIPT_FILTER };
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
+    if (blockedUserIds.length > 0) {
+      query.creator = { $nin: blockedUserIds };
+    }
     if (q) {
-      const regex = new RegExp(q, "i");
-      query.$or = [{ title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
+      const regex = new RegExp(escapeRegExp(q), "i");
+      query.$or = [{ sid: regex }, { title: regex }, { description: regex }, { logline: regex }, { tags: regex }];
     }
     if (category) query.contentType = category;
     if (genre) query.genre = genre;
@@ -1050,6 +1664,15 @@ export const searchScriptsReader = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+
+    await Promise.all(
+      scripts.map(async (doc) => {
+        if (!doc.sid) {
+          await doc.save();
+        }
+      })
+    );
+
     res.json({ scripts, totalPages: Math.ceil(total / limit), page: parseInt(page), total });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1058,7 +1681,7 @@ export const searchScriptsReader = async (req, res) => {
 
 export const getLatestScripts = async (req, res) => {
   try {
-    const scripts = await Script.find({ status: "published", isSold: { $ne: true } })
+    const scripts = await Script.find({ ...PUBLIC_SCRIPT_FILTER })
       .populate("creator", "name profileImage role")
       .sort({ createdAt: -1 })
       .limit(18);
@@ -1075,6 +1698,14 @@ export const recordRead = async (req, res) => {
     script.readsCount = (script.readsCount || 0) + 1;
     await script.save();
     await User.findByIdAndUpdate(req.user._id, { $addToSet: { scriptsRead: script._id } });
+
+    trackInvestorInteraction({
+      userId: req.user._id,
+      scriptId: script._id,
+      type: "read",
+      source: "script_reader",
+    }).catch(() => null);
+
     res.json({ message: "Read recorded" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1092,6 +1723,14 @@ export const toggleFavorite = async (req, res) => {
     } else {
       user.favoriteScripts.push(req.params.id);
       await user.save();
+
+      trackInvestorInteraction({
+        userId: req.user._id,
+        scriptId: req.params.id,
+        type: "save",
+        source: "favorite_toggle",
+      }).catch(() => null);
+
       res.json({ favorited: true });
     }
   } catch (error) {
@@ -1099,14 +1738,225 @@ export const toggleFavorite = async (req, res) => {
   }
 };
 
+export const trackScriptInteraction = async (req, res) => {
+  try {
+    const { type, timeSpentMs, source, metadata } = req.body || {};
+    const allowedTypes = new Set(["view", "like", "save", "click", "time_spent", "read"]);
+    if (!allowedTypes.has(type)) {
+      return res.status(400).json({ message: "Invalid interaction type" });
+    }
+
+    const script = await Script.findById(req.params.id).select("_id status");
+    if (!script || script.status !== "published") {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    await trackInvestorInteraction({
+      userId: req.user._id,
+      scriptId: req.params.id,
+      type,
+      timeSpentMs: Number(timeSpentMs) > 0 ? Number(timeSpentMs) : 0,
+      source: source || "client",
+      metadata: metadata || {},
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const getCategories = async (req, res) => {
   try {
-    const contentTypes = await Script.distinct("contentType", { status: "published", isSold: { $ne: true } });
-    const genres = await Script.distinct("genre", { status: "published", isSold: { $ne: true } });
+    const contentTypes = await Script.distinct("contentType", { ...PUBLIC_SCRIPT_FILTER });
+    const genres = await Script.distinct("genre", { ...PUBLIC_SCRIPT_FILTER });
     res.json({ contentTypes: contentTypes.filter(Boolean), genres: genres.filter(Boolean) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+const escapeRegExp = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizeGenre = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+  const compact = raw.replace(/[\s_]+/g, "-");
+  const aliases = {
+    "science-fiction": "sci-fi",
+    scifi: "sci-fi",
+    "sci fi": "sci-fi",
+    thriller: "thriller",
+    drama: "drama",
+    horror: "horror",
+    comedy: "comedy",
+    romance: "romance",
+    action: "action",
+    mystery: "mystery",
+    fantasy: "fantasy",
+    documentary: "documentary",
+    crime: "crime",
+    animation: "animation",
+    adventure: "adventure",
+    historical: "historical",
+    musical: "musical",
+  };
+  return aliases[compact] || compact;
+};
+
+const normalizeFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+  if (raw.includes("feature")) return "feature";
+  if (raw.includes("short")) return "short";
+  if (raw.includes("limited")) return "limited-series";
+  if (raw.includes("web")) return "web-series";
+  if (raw.includes("documentary")) return "documentary";
+  if (raw.includes("animation")) return "animation";
+  if (raw.includes("tv")) return "tv-series";
+  return raw.replace(/[\s_]+/g, "-");
+};
+
+const normalizeBudgetTier = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+  if (raw.includes("micro")) return "micro";
+  if (raw.includes("low")) return "low";
+  if (raw.includes("mid") || raw.includes("medium")) return "medium";
+  if (raw.includes("high")) return "high";
+  if (raw.includes("tentpole") || raw.includes("blockbuster")) return "blockbuster";
+  return raw;
+};
+
+const formatMatches = (script = {}, preferred = []) => {
+  if (!preferred.length) return false;
+  const scriptFormats = [script?.format, script?.contentType]
+    .map(normalizeFormat)
+    .filter(Boolean);
+  return preferred.some((f) => scriptFormats.includes(f));
+};
+
+const budgetMatches = (script = {}, preferred = []) => {
+  if (!preferred.length) return false;
+  const sb = normalizeBudgetTier(script?.budget || "");
+  if (!sb) return false;
+  return preferred.includes(sb);
+};
+
+const inferGenresFromProfileText = (text = "") => {
+  const source = String(text || "").toLowerCase();
+  if (!source) return [];
+
+  const keywordMap = {
+    horror: ["horror", "slasher", "supernatural", "haunted"],
+    drama: ["drama", "dramatic", "family drama", "emotional"],
+    thriller: ["thriller", "suspense", "psychological thriller", "crime thriller"],
+    comedy: ["comedy", "comic", "satire", "humor"],
+    romance: ["romance", "romantic", "love story"],
+    action: ["action", "adventure action", "high-octane"],
+    mystery: ["mystery", "detective", "whodunit"],
+    "sci-fi": ["sci-fi", "science fiction", "scifi", "futuristic"],
+    fantasy: ["fantasy", "mythic", "magic"],
+    documentary: ["documentary", "docu"],
+  };
+
+  const inferred = [];
+  for (const [genre, keywords] of Object.entries(keywordMap)) {
+    if (keywords.some((k) => source.includes(k))) inferred.push(genre);
+  }
+  return inferred;
+};
+
+const inferFormatsFromProfileText = (text = "") => {
+  const source = String(text || "").toLowerCase();
+  if (!source) return [];
+
+  const inferred = [];
+  if (source.includes("feature")) inferred.push("feature");
+  if (source.includes("short")) inferred.push("short");
+  if (source.includes("web series") || source.includes("web-series")) inferred.push("web-series");
+  if (source.includes("limited series") || source.includes("limited-series")) inferred.push("limited-series");
+  if (source.includes("tv") || source.includes("series")) inferred.push("tv-series");
+  if (source.includes("documentary")) inferred.push("documentary");
+  if (source.includes("animation") || source.includes("animated")) inferred.push("animation");
+  return [...new Set(inferred)];
+};
+
+const inferBudgetsFromInvestmentRange = (range = "") => {
+  const r = String(range || "").toLowerCase();
+  if (!r) return [];
+  if (r.includes("under_50k")) return ["micro", "low"];
+  if (r.includes("50k_250k")) return ["low", "medium"];
+  if (r.includes("250k_1m")) return ["medium", "high"];
+  if (r.includes("1m_5m")) return ["high", "blockbuster"];
+  if (r.includes("over_5m")) return ["blockbuster", "high"];
+  return [];
+};
+
+const scoreScriptByInvestorProfile = (
+  script,
+  { preferredGenres = [], preferredFormats = [], preferredBudgets = [] } = {}
+) => {
+  const ordered = preferredGenres.map(normalizeGenre).filter(Boolean);
+  const orderIndex = new Map(ordered.map((g, idx) => [g, idx]));
+
+  const primary = normalizeGenre(
+    script?.genre || script?.primaryGenre || script?.classification?.primaryGenre || ""
+  );
+
+  const secondary = [
+    script?.classification?.secondaryGenre,
+    ...(script?.subGenres || []),
+    ...(script?.classification?.themes || []),
+    ...(script?.classification?.tones || []),
+  ]
+    .map(normalizeGenre)
+    .filter(Boolean);
+
+  let score = 0;
+  if (orderIndex.has(primary)) {
+    score += 1000 - orderIndex.get(primary) * 40;
+  }
+
+  const bestSecondaryBoost = secondary.reduce((acc, g) => {
+    if (!orderIndex.has(g)) return acc;
+    const boost = 240 - orderIndex.get(g) * 20;
+    return Math.max(acc, boost);
+  }, 0);
+  score += bestSecondaryBoost;
+
+  score += (script?.rating || 0) * 10;
+  score += Math.min(80, (script?.readsCount || 0) * 0.2);
+  score += Math.min(80, (script?.views || 0) * 0.05);
+
+  if (formatMatches(script, preferredFormats)) score += 180;
+  if (budgetMatches(script, preferredBudgets)) score += 160;
+
+  return score;
+};
+
+const rankScriptsForInvestor = (
+  scripts = [],
+  profileSignals = { preferredGenres: [], preferredFormats: [], preferredBudgets: [] }
+) => {
+  if (!Array.isArray(scripts) || scripts.length === 0) return [];
+  const hasSignals =
+    profileSignals?.preferredGenres?.length ||
+    profileSignals?.preferredFormats?.length ||
+    profileSignals?.preferredBudgets?.length;
+  if (!hasSignals) return scripts;
+
+  return scripts
+    .map((script, idx) => ({
+      script,
+      idx,
+      score: scoreScriptByInvestorProfile(script, profileSignals),
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.idx - b.idx;
+    })
+    .map((item) => item.script);
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1114,111 +1964,8 @@ export const getCategories = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getInvestorHomeFeed = async (req, res) => {
   try {
-    const investor = await User.findById(req.user._id).select(
-      "industryProfile.mandates preferences"
-    );
-
-    // Gather preferred genres from mandates + general preferences
-    const mandateGenres = (investor?.industryProfile?.mandates?.genres || [])
-      .map((g) => g.toLowerCase().trim());
-    const prefGenres = (investor?.preferences?.genres || [])
-      .map((g) => g.toLowerCase().trim());
-    const excludeGenres = (investor?.industryProfile?.mandates?.excludeGenres || [])
-      .map((g) => g.toLowerCase().trim());
-
-    // Deduplicated preferred genres, minus excluded ones
-    const preferredGenres = [...new Set([...mandateGenres, ...prefGenres])].filter(
-      (g) => g && !excludeGenres.includes(g)
-    );
-
-    const usedIds = new Set();
-
-    // ── Genre sections (up to 4 preferred genres, 12 scripts each) ──
-    const genreSections = [];
-    for (const genre of preferredGenres.slice(0, 4)) {
-      const scripts = await Script.find({
-        status: "published",
-        isSold: { $ne: true },
-        genre: { $regex: new RegExp(`^${genre}$`, "i") },
-      })
-        .populate("creator", "name profileImage role")
-        .sort({ rating: -1, readsCount: -1, createdAt: -1 })
-        .limit(12);
-
-      if (scripts.length > 0) {
-        scripts.forEach((s) => usedIds.add(s._id.toString()));
-        genreSections.push({
-          genre: genre.charAt(0).toUpperCase() + genre.slice(1),
-          scripts,
-        });
-      }
-    }
-
-    // ── Trending (by trendScore, not already shown) ──
-    const trendingAgg = await Script.aggregate([
-      { $match: { status: "published", isSold: { $ne: true } } },
-      {
-        $addFields: {
-          trendScore: {
-            $add: [
-              { $multiply: [{ $ifNull: ["$reviewCount", 0] }, 3] },
-              { $multiply: [{ $ifNull: ["$readsCount", 0] }, 2] },
-              { $ifNull: ["$views", 0] },
-            ],
-          },
-        },
-      },
-      { $sort: { trendScore: -1 } },
-      { $limit: 30 },
-      { $project: { _id: 1 } },
-    ]);
-
-    const trendIds = trendingAgg
-      .map((s) => s._id)
-      .filter((id) => !usedIds.has(id.toString()))
-      .slice(0, 12);
-
-    let trending = [];
-    if (trendIds.length > 0) {
-      const tDocs = await Script.find({ _id: { $in: trendIds } }).populate(
-        "creator", "name profileImage role"
-      );
-      const tMap = Object.fromEntries(tDocs.map((d) => [d._id.toString(), d]));
-      trending = trendIds.map((id) => tMap[id.toString()]).filter(Boolean);
-      trending.forEach((s) => usedIds.add(s._id.toString()));
-    }
-
-    // ── New Releases (last 30 days, not already shown) ──
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const notUsedArray = [...usedIds];
-    const newReleases = await Script.find({
-      status: "published",
-      isSold: { $ne: true },
-      createdAt: { $gte: thirtyDaysAgo },
-      _id: { $nin: notUsedArray },
-    })
-      .populate("creator", "name profileImage role")
-      .sort({ createdAt: -1 })
-      .limit(12);
-    newReleases.forEach((s) => usedIds.add(s._id.toString()));
-
-    // ── Explore (top rated, outside investor's interests) ──
-    const explore = await Script.find({
-      status: "published",
-      isSold: { $ne: true },
-      _id: { $nin: [...usedIds] },
-    })
-      .populate("creator", "name profileImage role")
-      .sort({ rating: -1, createdAt: -1 })
-      .limit(12);
-
-    res.json({
-      detectedGenres: preferredGenres,
-      genreSections,
-      trending,
-      newReleases,
-      explore,
-    });
+    const feed = await buildInvestorFeed(req.user._id);
+    res.json(feed);
   } catch (error) {
     console.error("getInvestorHomeFeed error:", error);
     res.status(500).json({ message: error.message });
@@ -1230,19 +1977,50 @@ export const getInvestorHomeFeed = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getTopList = async (req, res) => {
   try {
+<<<<<<< HEAD
     const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
     const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
     const match = { status: "published", isSold: { $ne: true } };
+=======
+    const now = new Date();
+    const { genre, contentType, budget, sort = "platform", premium } = req.query;
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
+    const match = { ...PUBLIC_SCRIPT_FILTER };
+>>>>>>> origin/master
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;
     if (premium === "true") match.premium = true;
     else if (premium === "false") match.premium = { $ne: true };
+    if (blockedUserIds.length > 0) {
+      match.creator = { $nin: blockedUserIds };
+    }
 
     const pipeline = [
       { $match: match },
       {
         $addFields: {
+          verifiedPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$verifiedBadge", false] }, true] }, 1, 0],
+          },
+          aiTrailerPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.aiTrailer", false] }, true] }, 1, 0],
+          },
+          evaluationPriority: {
+            $cond: [{ $eq: [{ $ifNull: ["$services.evaluation", false] }, true] }, 1, 0],
+          },
+          spotlightPriority: {
+            $cond: [
+              {
+                $and: [
+                  { $ifNull: ["$promotion.spotlightActive", false] },
+                  { $gte: ["$promotion.spotlightEndAt", now] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
           unlockCount: { $size: { $ifNull: ["$unlockedBy", []] } },
           trendScore: {
             $add: [
@@ -1284,11 +2062,11 @@ export const getTopList = async (req, res) => {
     ];
 
     // Sort based on tab
-    if (sort === "trending") pipeline.push({ $sort: { trendScore: -1 } });
-    else if (sort === "featured") pipeline.push({ $sort: { engagementScore: -1, trendScore: -1 } });
-    else if (sort === "score") pipeline.push({ $sort: { "scriptScore.overall": -1 } });
-    else if (sort === "views") pipeline.push({ $sort: { views: -1 } });
-    else pipeline.push({ $sort: { platformScore: -1 } }); // default: platform
+    if (sort === "trending") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, trendScore: -1 } });
+    else if (sort === "featured") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, engagementScore: -1, trendScore: -1 } });
+    else if (sort === "score") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, "scriptScore.overall": -1 } });
+    else if (sort === "views") pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, views: -1 } });
+    else pipeline.push({ $sort: { verifiedPriority: -1, aiTrailerPriority: -1, evaluationPriority: -1, spotlightPriority: -1, platformScore: -1 } }); // default: platform
 
     // Populate creator
     pipeline.push({
@@ -1327,29 +2105,50 @@ export const createScriptPurchaseOrder = async (req, res) => {
   try {
     // Check if Razorpay is configured
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         message: "Payment system not configured. Please contact support.",
         error: "Razorpay credentials missing"
       });
     }
-    
+
     const { scriptId } = req.body;
-    
+
     const script = await Script.findById(scriptId).populate("creator", "name");
     if (!script) {
       return res.status(404).json({ message: "Script not found" });
     }
-    
+
     // Check if already purchased
     if (script.unlockedBy.includes(req.user._id)) {
       return res.status(400).json({ message: "You have already purchased this script" });
     }
-    
+
+    if (script.purchaseRequestLocked) {
+      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
+        return res.status(409).json({
+          message: "This script is currently locked by another investor request.",
+        });
+      }
+    }
+
+    const existingPendingRequest = await ScriptPurchaseRequest.findOne({
+      script: scriptId,
+      investor: req.user._id,
+      status: "pending",
+    }).select("_id");
+
+    if (existingPendingRequest) {
+      return res.status(400).json({
+        message: "You already have a pending purchase request for this script.",
+      });
+    }
+
     // Check if trying to buy own script
     if (script.creator._id.toString() === req.user._id.toString()) {
       return res.status(400).json({ message: "You cannot purchase your own script" });
     }
-    
+
     // Create Razorpay order
     const options = {
       amount: Math.round(script.price * 100), // Amount in paise (INR) or cents
@@ -1363,10 +2162,10 @@ export const createScriptPurchaseOrder = async (req, res) => {
         type: "script_purchase"
       }
     };
-    
+
     const razorpay = getRazorpay();
     const order = await razorpay.orders.create(options);
-    
+
     res.json({
       orderId: order.id,
       amount: order.amount,
@@ -1385,157 +2184,455 @@ export const createScriptPurchaseOrder = async (req, res) => {
   }
 };
 
+// @desc    Activate project spotlight package for a script
+// @route   POST /api/scripts/:id/activate-spotlight
+// @access  Private (script owner)
+export const activateProjectSpotlight = async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    let script;
+    let user;
+    let endAt;
+    let isExtensionPurchase = false;
+    let spotlightCreditsCharged = PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+    let refundCredits = 0;
+    let refundBreakdown = { evaluation: 0, aiTrailer: 0 };
+    const scriptId = req.params?.id || req.body?.scriptId || req.query?.scriptId;
+
+    if (!scriptId) {
+      return res.status(400).json({ message: "Script ID is required" });
+    }
+
+    await session.withTransaction(async () => {
+      script = await Script.findById(scriptId).session(session);
+      if (!script) {
+        const error = new Error("Script not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (script.creator.toString() !== req.user._id.toString()) {
+        const error = new Error("Only the script creator can activate spotlight");
+        error.statusCode = 403;
+        throw error;
+      }
+
+      if (script.status !== "published") {
+        const error = new Error("Publish the project before activating spotlight");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      user = await User.findById(req.user._id).session(session);
+      if (!user) {
+        const error = new Error("User not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (!user.credits) {
+        user.credits = { balance: 0, totalPurchased: 0, totalSpent: 0, transactions: [] };
+      }
+
+      const now = new Date();
+
+      const spotlightCurrentlyActive = isSpotlightActive(script, now);
+      const spotlightCreditsRequired = spotlightCurrentlyActive
+        ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
+        : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+      isExtensionPurchase = spotlightCurrentlyActive;
+      spotlightCreditsCharged = spotlightCreditsRequired;
+
+      // Prefer billing-tracked service charges, then backfill from upload invoice for older scripts.
+      const currentBilling = script.billing || {};
+      let evaluationCharged = Number(currentBilling.evaluationCreditsCharged || 0);
+      let aiTrailerCharged = Number(currentBilling.aiTrailerCreditsCharged || 0);
+      let evaluationChargedAtUpload = Number(currentBilling.evaluationCreditsChargedAtUpload || 0);
+      let aiTrailerChargedAtUpload = Number(currentBilling.aiTrailerCreditsChargedAtUpload || 0);
+      let evaluationRefunded = Number(currentBilling.evaluationCreditsRefunded || 0);
+      let aiTrailerRefunded = Number(currentBilling.aiTrailerCreditsRefunded || 0);
+
+      const needsUploadBackfill =
+        (evaluationCharged > 0 && evaluationChargedAtUpload === 0) ||
+        (aiTrailerCharged > 0 && aiTrailerChargedAtUpload === 0);
+
+      // Backfill upload-time charge markers for legacy or partially-migrated scripts.
+      if (needsUploadBackfill) {
+        const uploadInvoice = await Invoice.findOne({ script: script._id, creator: req.user._id })
+          .sort({ createdAt: -1 })
+          .session(session)
+          .lean();
+
+        if (uploadInvoice?.services?.evaluation) {
+          evaluationCharged = Math.max(evaluationCharged, CREDIT_PRICES.AI_EVALUATION);
+          evaluationChargedAtUpload = CREDIT_PRICES.AI_EVALUATION;
+        }
+        if (uploadInvoice?.services?.aiTrailer) {
+          aiTrailerCharged = Math.max(aiTrailerCharged, CREDIT_PRICES.AI_TRAILER);
+          aiTrailerChargedAtUpload = CREDIT_PRICES.AI_TRAILER;
+        }
+      }
+
+      const hasPaidEvaluation = evaluationCharged > 0;
+      const refundableEvaluation = 0;
+      const nonUploadTrailerCharged = Math.max(0, aiTrailerCharged - aiTrailerChargedAtUpload);
+      const refundableTrailer = hasPaidEvaluation ? Math.max(0, nonUploadTrailerCharged - aiTrailerRefunded) : 0;
+      const refundableCredits = refundableEvaluation + refundableTrailer;
+
+      const balance = user.credits.balance || 0;
+      const effectiveBalance = balance + refundableCredits;
+      if (effectiveBalance < spotlightCreditsRequired) {
+        const actionLabel = spotlightCurrentlyActive ? "Spotlight extension" : "Project Spotlight activation";
+        const error = new Error(`Insufficient credits. ${actionLabel} requires ${spotlightCreditsRequired} credits.`);
+        error.statusCode = 402;
+        error.payload = {
+          requiresCredits: true,
+          required: spotlightCreditsRequired,
+          balance: effectiveBalance,
+          shortfall: spotlightCreditsRequired - effectiveBalance,
+        };
+        throw error;
+      }
+
+      if (refundableCredits > 0) {
+        const balanceBeforeRefund = user.credits.balance || 0;
+        user.credits.balance = balanceBeforeRefund + refundableCredits;
+        user.credits.totalSpent = Math.max(0, (user.credits.totalSpent || 0) - refundableCredits);
+        user.credits.transactions.push({
+          type: "refund",
+          amount: refundableCredits,
+          description: `Spotlight package credit adjustment for "${script.title}"`,
+          reference: `SPRF-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: now,
+        });
+
+        await Transaction.create([
+          {
+            user: req.user._id,
+            type: "refund",
+            amount: refundableCredits,
+            currency: "INR",
+            status: "completed",
+            description: `Credit refund for previously paid services on "${script.title}"`,
+            reference: `SPRF-TX-${Date.now().toString(36).toUpperCase()}`,
+            paymentMethod: "wallet",
+            relatedScript: script._id,
+            balanceBefore: balanceBeforeRefund,
+            balanceAfter: user.credits.balance,
+            metadata: {
+              package: "project_spotlight_refund",
+              refundedEvaluationCredits: refundableEvaluation,
+              refundedAiTrailerCredits: refundableTrailer,
+            },
+          },
+        ], { session });
+
+        refundCredits = refundableCredits;
+        refundBreakdown = {
+          evaluation: refundableEvaluation,
+          aiTrailer: refundableTrailer,
+        };
+
+        evaluationRefunded += refundableEvaluation;
+        aiTrailerRefunded += refundableTrailer;
+      }
+
+      const currentEnd = script.promotion?.spotlightEndAt ? new Date(script.promotion.spotlightEndAt) : null;
+      const extensionStart = currentEnd && currentEnd > now ? currentEnd : now;
+      endAt = new Date(extensionStart.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+      user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
+      user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
+      user.credits.transactions.push({
+        type: "spent",
+        amount: -spotlightCreditsRequired,
+        description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
+        reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
+        createdAt: now,
+      });
+      await user.save({ session });
+
+      script.premium = true;
+      script.isFeatured = true;
+      script.verifiedBadge = true;
+      script.services = {
+        hosting: true,
+        evaluation: true,
+        aiTrailer: true,
+      };
+      script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+
+      if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+        script.trailerStatus = "requested";
+      }
+
+      const previousSpent = script.promotion?.totalSpotlightCreditsSpent || 0;
+      script.promotion = {
+        spotlightActive: true,
+        spotlightStartAt: now,
+        spotlightEndAt: endAt,
+        lastSpotlightPurchaseAt: now,
+        totalSpotlightCreditsSpent: previousSpent + spotlightCreditsRequired,
+      };
+      script.billing = {
+        evaluationCreditsCharged: evaluationCharged,
+        aiTrailerCreditsCharged: aiTrailerCharged,
+        evaluationCreditsChargedAtUpload: evaluationChargedAtUpload,
+        aiTrailerCreditsChargedAtUpload: aiTrailerChargedAtUpload,
+        evaluationCreditsRefunded: evaluationRefunded,
+        aiTrailerCreditsRefunded: aiTrailerRefunded,
+        spotlightCreditsSpent: Number(currentBilling.spotlightCreditsSpent || 0) + spotlightCreditsRequired,
+        lastSpotlightRefundCredits: refundableCredits,
+        lastSpotlightActivatedAt: now,
+      };
+      script.markModified("services");
+      script.markModified("promotion");
+      script.markModified("billing");
+      await script.save({ session });
+
+      await Transaction.create([
+        {
+          user: req.user._id,
+          type: "debit",
+          amount: -spotlightCreditsRequired,
+          currency: "INR",
+          status: "completed",
+          description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
+          reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
+          paymentMethod: "wallet",
+          relatedScript: script._id,
+          metadata: {
+            package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
+            isExtension: spotlightCurrentlyActive,
+            includesVerifiedBadge: true,
+            includesFreeEvaluation: true,
+            includesFreeAITrailer: true,
+            featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
+            spotlightEndAt: endAt.toISOString(),
+          },
+        },
+      ], { session });
+    });
+
+    await notifyAdminWorkflowEvent({
+      title: isExtensionPurchase ? "Project Spotlight Extended" : "Project Spotlight Activated",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project Spotlight ${isExtensionPurchase ? "extended" : "activated"} for "${script.title}". Featured placement is active for 1 month and verified badge remains permanent once unlocked.`,
+      metadata: {
+        scriptId: script._id,
+        writerId: req.user._id,
+        spotlightEndAt: endAt.toISOString(),
+      },
+    });
+
+    res.json({
+      message: isExtensionPurchase
+        ? "Project Spotlight extended successfully"
+        : "Project Spotlight activated successfully",
+      package: {
+        name: "Project Spotlight",
+        isExtension: isExtensionPurchase,
+        creditsCharged: spotlightCreditsCharged,
+        creditsRefunded: refundCredits,
+        refundBreakdown,
+        spotlightEndAt: endAt,
+        benefits: [
+          "Verified project badge (permanent once unlocked)",
+          "Free script evaluation",
+          "Free AI trailer",
+          "Featured and top placement for 1 month",
+        ],
+      },
+      credits: {
+        balance: user.credits.balance,
+        spent: spotlightCreditsCharged,
+        refunded: refundCredits,
+      },
+      script,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      message: error.message,
+      ...(error.payload || {}),
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
 // @desc    Verify Razorpay payment and unlock script
 // @route   POST /api/scripts/purchase/verify-payment
 // @access  Private
 export const verifyScriptPurchase = async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
       razorpay_signature,
-      scriptId 
+      scriptId
     } = req.body;
-    
+
     console.log("Script purchase verification:", { razorpay_order_id, razorpay_payment_id, scriptId });
-    
+
     // Check if Razorpay key secret is available
     if (!process.env.RAZORPAY_KEY_SECRET) {
       console.error("RAZORPAY_KEY_SECRET not found in environment");
-      return res.status(500).json({ 
+      return res.status(500).json({
         message: "Payment system not configured",
-        success: false 
+        success: false
       });
     }
-    
+
     // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest("hex");
-    
+
     const isAuthentic = expectedSignature === razorpay_signature;
-    
+
     if (!isAuthentic) {
       console.error("Signature verification failed");
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Payment verification failed - Invalid signature",
-        success: false 
+        success: false
       });
     }
-    
-    // Payment verified successfully, unlock the script
+
+    // Payment verified successfully, create escrowed purchase request for writer approval
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) {
       console.error("Script not found:", scriptId);
-      return res.status(404).json({ 
+      return res.status(404).json({
         message: "Script not found",
-        success: false 
+        success: false
       });
     }
-    
+
     // Check if already unlocked
     if (script.unlockedBy.includes(req.user._id)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Script already purchased",
-        success: false 
+        success: false
       });
     }
-    
-    // Unlock the script for the buyer and mark as sold
-    script.unlockedBy.push(req.user._id);
-    script.isSold = true; // hide from all public listings once purchased
-    await script.save();
-    
-    const reference = `SCRIPT-PURCHASE-${razorpay_payment_id}`;
-    
-    // Calculate platform fee and creator payout
-    const platformFee = script.price * 0.10; // 10% platform fee
-    const creatorPayout = script.price - platformFee;
-    
-    // Create transaction record for buyer
-    await Transaction.create({
-      user: req.user._id,
-      type: "payment",
-      amount: -script.price,
-      currency: "INR",
-      status: "completed",
-      description: `Purchased script: "${script.title}"`,
-      reference,
-      paymentMethod: "razorpay",
-      relatedScript: script._id,
-      metadata: {
-        razorpay_order_id,
-        razorpay_payment_id,
-        platformFee,
-        creatorPayout
-      }
-    });
-    
-    // Credit the creator
-    const creator = await User.findById(script.creator._id);
-    if (!creator.wallet) {
-      creator.wallet = { balance: 0, totalEarnings: 0 };
+
+    const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
+    if (script.purchaseRequestLocked && lockOwnerId !== req.user._id.toString()) {
+      return res.status(409).json({
+        message: "This script is currently locked by another investor request.",
+        success: false,
+      });
     }
-    creator.wallet.balance += creatorPayout;
-    creator.wallet.totalEarnings += creatorPayout;
-    await creator.save();
-    
-    // Create transaction record for creator (earnings)
-    await Transaction.create({
-      user: creator._id,
-      type: "credit",
-      amount: creatorPayout,
-      currency: "INR",
-      status: "completed",
-      description: `Earned from script sale: "${script.title}"`,
-      reference: `SCRIPT-EARNING-${razorpay_payment_id}`,
-      paymentMethod: "razorpay",
-      relatedScript: script._id,
-      metadata: {
-        buyerId: req.user._id.toString(),
-        platformFee,
-        originalAmount: script.price
-      }
+
+    let purchaseRequest = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      investor: req.user._id,
+      status: "pending",
     });
-    
-    // Notify the creator
-    try {
-      await Notification.create({
-        user: script.creator._id,
-        type: "purchase",
-        from: req.user._id,
+
+    if (purchaseRequest && purchaseRequest.paymentStatus === "escrow_held") {
+      return res.json({
+        success: true,
+        message: "Payment already verified. Waiting for writer approval.",
+        purchaseRequestId: purchaseRequest._id,
+      });
+    }
+
+    const amount = Number(script.price || 0);
+
+    if (!purchaseRequest) {
+      purchaseRequest = await ScriptPurchaseRequest.create({
         script: script._id,
-        message: `Your script "${script.title}" was purchased! You earned ₹${creatorPayout.toFixed(2)}`
+        investor: req.user._id,
+        writer: script.creator._id,
+        amount,
+        frozenAmount: amount,
+        paymentMethod: "razorpay",
+        paymentStatus: amount > 0 ? "escrow_held" : "pending",
+        paymentGatewayOrderId: razorpay_order_id,
+        paymentGatewayPaymentId: razorpay_payment_id,
+        paymentGatewaySignature: razorpay_signature,
       });
-    } catch (notifErr) {
-      console.error("Notification creation failed (non-fatal):", notifErr.message);
+    } else {
+      purchaseRequest.amount = amount;
+      purchaseRequest.frozenAmount = amount;
+      purchaseRequest.paymentMethod = "razorpay";
+      purchaseRequest.paymentStatus = amount > 0 ? "escrow_held" : "pending";
+      purchaseRequest.paymentGatewayOrderId = razorpay_order_id;
+      purchaseRequest.paymentGatewayPaymentId = razorpay_payment_id;
+      purchaseRequest.paymentGatewaySignature = razorpay_signature;
+      await purchaseRequest.save();
     }
+
+    const holdReference = `PRH-RZP-${razorpay_payment_id}`;
+    const existingHoldTx = await Transaction.findOne({ reference: holdReference });
+    if (!existingHoldTx && amount > 0) {
+      await Transaction.create({
+        user: req.user._id,
+        type: "payment",
+        amount: -amount,
+        currency: "INR",
+        status: "pending",
+        description: `Escrow hold for purchase request: "${script.title}"`,
+        reference: holdReference,
+        paymentMethod: "razorpay",
+        relatedScript: script._id,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          stage: "escrow_hold",
+          writerId: script.creator._id.toString(),
+          scriptId: script._id.toString(),
+          razorpay_order_id,
+          razorpay_payment_id,
+        },
+      });
+    }
+
+    script.purchaseRequestLocked = true;
+    script.purchaseRequestLockedBy = req.user._id;
+    script.purchaseRequestLockedAt = new Date();
+    await script.save();
+
+    const investor = await User.findById(req.user._id).select("name email");
+
+    await Notification.create({
+      user: script.creator._id,
+      type: "purchase_request",
+      from: req.user._id,
+      script: script._id,
+      message: `${investor?.name || "An investor"} submitted a paid purchase request for "${script.title}". ₹${amount.toLocaleString("en-IN")} is held in escrow pending your approval.`,
+    });
+
+    sendPurchaseRequestEmail(
+      script.creator.email,
+      script.creator.name,
+      investor?.name || "Investor",
+      script.title,
+      amount
+    ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
     
-    console.log("Script purchase completed:", { scriptId, buyerId: req.user._id, amount: script.price });
-    
+    console.log("Script purchase payment escrowed:", { scriptId, buyerId: req.user._id, amount });
+
     res.json({
       success: true,
-      message: "Script purchased successfully!",
-      script: {
-        id: script._id,
-        title: script.title,
-        purchased: true
+      message: "Payment received and held in escrow. Request sent to writer for approval.",
+      purchaseRequest: {
+        id: purchaseRequest._id,
+        status: purchaseRequest.status,
+        paymentStatus: purchaseRequest.paymentStatus,
       },
-      transaction: {
-        reference,
-        amount: script.price,
-        platformFee,
-        creatorPayout
-      }
     });
   } catch (error) {
     console.error("Script purchase verification error:", error);
-    res.status(500).json({ 
-      message: "Failed to verify payment", 
+    res.status(500).json({
+      message: "Failed to verify payment",
       error: error.message,
-      success: false 
+      success: false
     });
   }
 };
@@ -1547,19 +2644,19 @@ export const createScriptHoldOrder = async (req, res) => {
   try {
     // Check if Razorpay is configured
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      return res.status(500).json({ 
+      return res.status(500).json({
         message: "Payment system not configured. Please contact support.",
         error: "Razorpay credentials missing"
       });
     }
-    
+
     const { scriptId } = req.body;
-    
+
     const script = await Script.findById(scriptId).populate("creator", "name");
     if (!script) {
       return res.status(404).json({ message: "Script not found" });
     }
-    
+
     // Check if already held
     if (script.holdStatus === "held") {
       return res.status(400).json({ message: "This script is already on hold by another party" });
@@ -1567,14 +2664,14 @@ export const createScriptHoldOrder = async (req, res) => {
     if (script.holdStatus === "sold") {
       return res.status(400).json({ message: "This script has been sold" });
     }
-    
+
     const user = await User.findById(req.user._id);
     if (!["investor", "producer", "director"].includes(user.role)) {
       return res.status(403).json({ message: "Only industry professionals can hold scripts" });
     }
-    
+
     const holdFee = script.holdFee || 200;
-    
+
     // Create Razorpay order
     const options = {
       amount: Math.round(holdFee * 100), // Amount in paise (INR) or cents
@@ -1589,10 +2686,10 @@ export const createScriptHoldOrder = async (req, res) => {
         type: "script_hold"
       }
     };
-    
+
     const razorpay = getRazorpay();
     const order = await razorpay.orders.create(options);
-    
+
     res.json({
       orderId: order.id,
       amount: order.amount,
@@ -1616,59 +2713,59 @@ export const createScriptHoldOrder = async (req, res) => {
 // @access  Private
 export const verifyScriptHold = async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
       razorpay_signature,
-      scriptId 
+      scriptId
     } = req.body;
-    
+
     console.log("Script hold verification:", { razorpay_order_id, razorpay_payment_id, scriptId });
-    
+
     // Check if Razorpay key secret is available
     if (!process.env.RAZORPAY_KEY_SECRET) {
       console.error("RAZORPAY_KEY_SECRET not found in environment");
-      return res.status(500).json({ 
+      return res.status(500).json({
         message: "Payment system not configured",
-        success: false 
+        success: false
       });
     }
-    
+
     // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest("hex");
-    
+
     const isAuthentic = expectedSignature === razorpay_signature;
-    
+
     if (!isAuthentic) {
       console.error("Signature verification failed");
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Payment verification failed - Invalid signature",
-        success: false 
+        success: false
       });
     }
-    
+
     // Payment verified successfully, place hold on script
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) {
       console.error("Script not found:", scriptId);
-      return res.status(404).json({ 
+      return res.status(404).json({
         message: "Script not found",
-        success: false 
+        success: false
       });
     }
-    
+
     // Double-check hold status
     if (script.holdStatus === "held") {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Script is already held",
-        success: false 
+        success: false
       });
     }
-    
+
     const user = await User.findById(req.user._id);
     const fee = script.holdFee || 200;
     const platformCut = fee * 0.10; // 10% platform fee
@@ -1696,7 +2793,7 @@ export const verifyScriptHold = async (req, res) => {
     await script.save();
 
     const reference = `SCRIPT-HOLD-${razorpay_payment_id}`;
-    
+
     // Create transaction record for holder (payment)
     await Transaction.create({
       user: req.user._id,
@@ -1716,7 +2813,7 @@ export const verifyScriptHold = async (req, res) => {
         creatorPayout
       }
     });
-    
+
     // Credit the creator
     const creator = await User.findById(script.creator._id);
     if (!creator.wallet) {
@@ -1725,7 +2822,7 @@ export const verifyScriptHold = async (req, res) => {
     creator.wallet.balance += creatorPayout;
     creator.wallet.totalEarnings += creatorPayout;
     await creator.save();
-    
+
     // Create transaction record for creator (earnings)
     await Transaction.create({
       user: creator._id,
@@ -1773,37 +2870,15 @@ export const verifyScriptHold = async (req, res) => {
     });
   } catch (error) {
     console.error("Script hold verification error:", error);
-    res.status(500).json({ 
-      message: "Failed to verify payment", 
+    res.status(500).json({
+      message: "Failed to verify payment",
       error: error.message,
-      success: false 
+      success: false
     });
   }
 };
 
-// ── Multer Configuration for Thumbnail & Trailer Uploads ──
-
-// Storage configuration for thumbnails
-const thumbnailStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "..", "uploads", "thumbnails"));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `thumb-${req.params.id || Date.now()}-${Date.now()}${ext}`);
-  },
-});
-
-// Storage configuration for trailers
-const trailerStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "..", "uploads", "trailers"));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `trailer-${req.params.id || Date.now()}-${Date.now()}${ext}`);
-  },
-});
+// ── Multer Configuration for Thumbnail & Trailer Uploads (Memory Storage → Cloudinary) ──
 
 // File filters
 const imageFileFilter = (req, file, cb) => {
@@ -1816,28 +2891,28 @@ const imageFileFilter = (req, file, cb) => {
 };
 
 const videoFileFilter = (req, file, cb) => {
-  const allowed = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm"];
+  const allowed = ["video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-m4v"];
   if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Only MP4, MPEG, MOV and WebM videos are allowed"), false);
+    cb(new Error("Only MP4, MPEG, MOV, M4V and WebM videos are allowed"), false);
   }
 };
 
-// Export multer upload instances
-export const uploadThumbnail = multer({ 
-  storage: thumbnailStorage, 
-  fileFilter: imageFileFilter, 
+// Export multer upload instances (memory storage for Cloudinary)
+export const uploadThumbnail = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: imageFileFilter,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-export const uploadTrailer = multer({ 
-  storage: trailerStorage, 
-  fileFilter: videoFileFilter, 
+export const uploadTrailer = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: videoFileFilter,
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
 });
 
-// ── Upload Thumbnail Controller ──
+// ── Upload Thumbnail Controller (Cloudinary) ──
 export const uploadScriptThumbnail = async (req, res) => {
   try {
     if (!req.file) {
@@ -1855,15 +2930,21 @@ export const uploadScriptThumbnail = async (req, res) => {
       return res.status(403).json({ message: "Only the script creator can upload a thumbnail" });
     }
 
-    // Save the thumbnail path
-    const thumbnailUrl = `/uploads/thumbnails/${req.file.filename}`;
+    // Upload to Cloudinary
+    const result = await uploadToCloudinary(req.file.buffer, {
+      folder: "scriptbridge/thumbnails",
+      resource_type: "image",
+      public_id: `thumb-${scriptId}-${Date.now()}`,
+    });
+
+    const thumbnailUrl = result.secure_url;
     script.coverImage = thumbnailUrl;
     await script.save();
 
-    res.json({ 
-      message: "Thumbnail uploaded successfully", 
+    res.json({
+      message: "Thumbnail uploaded successfully",
       thumbnailUrl,
-      script 
+      script
     });
   } catch (error) {
     console.error("Thumbnail upload error:", error);
@@ -1871,7 +2952,7 @@ export const uploadScriptThumbnail = async (req, res) => {
   }
 };
 
-// ── Upload Trailer Controller ──
+// ── Upload Trailer Controller (Cloudinary) ──
 export const uploadScriptTrailer = async (req, res) => {
   try {
     if (!req.file) {
@@ -1889,21 +2970,150 @@ export const uploadScriptTrailer = async (req, res) => {
       return res.status(403).json({ message: "Only the script creator can upload a trailer" });
     }
 
-    // Save the uploaded trailer path (free, no credits required)
-    const trailerUrl = `/uploads/trailers/${req.file.filename}`;
+    // Upload to Cloudinary
+    const result = await uploadToCloudinary(req.file.buffer, {
+      folder: "scriptbridge/trailers",
+      resource_type: "video",
+      public_id: `trailer-${scriptId}-${Date.now()}`,
+    });
+
+    const trailerUrl = result.secure_url;
     script.uploadedTrailerUrl = trailerUrl;
     script.trailerSource = "uploaded";
     script.trailerStatus = "ready";
+    script.trailerWriterFeedback = {
+      status: "approved",
+      note: "",
+      updatedAt: new Date(),
+    };
     await script.save();
 
-    res.json({ 
-      message: "Trailer uploaded successfully (free)", 
+    res.json({
+      message: "Trailer uploaded successfully (free)",
       trailerUrl,
       trailerSource: "uploaded",
-      script 
+      script
     });
   } catch (error) {
     console.error("Trailer upload error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Writer Requests AI Trailer from Platform ──
+export const requestScriptAITrailer = async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const { note } = req.body || {};
+
+    const script = await Script.findById(scriptId);
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the script creator can request an AI trailer" });
+    }
+
+    if (script.trailerStatus === "ready" && script.trailerUrl) {
+      return res.status(400).json({ message: "AI trailer is already ready for this script" });
+    }
+
+    script.services = {
+      hosting: script.services?.hosting ?? true,
+      evaluation: script.services?.evaluation ?? false,
+      aiTrailer: true,
+    };
+    script.trailerStatus = "requested";
+    script.trailerWriterFeedback = {
+      status: "pending",
+      note: note?.trim() || "",
+      updatedAt: new Date(),
+    };
+    await script.save();
+
+    await notifyAdminWorkflowEvent({
+      title: "AI Trailer Approval Request",
+      section: "trailers",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `AI trailer requested by writer for "${script.title}"${note ? `. Note: ${note}` : ""}`,
+      metadata: {
+        scriptId: script._id,
+        writerId: req.user._id,
+        writerNote: note?.trim() || "",
+      },
+    });
+
+    res.json({
+      message: "AI trailer request submitted to platform",
+      script,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Writer Feedback for Platform AI Trailer ──
+export const submitTrailerFeedback = async (req, res) => {
+  try {
+    const scriptId = req.params.id;
+    const { action, note } = req.body || {};
+
+    if (!["approved", "revision_requested"].includes(action)) {
+      return res.status(400).json({ message: "action must be approved or revision_requested" });
+    }
+
+    const script = await Script.findById(scriptId);
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (script.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the script creator can submit trailer feedback" });
+    }
+
+    if (!script.trailerUrl) {
+      return res.status(400).json({ message: "No AI trailer available for feedback" });
+    }
+
+    script.trailerWriterFeedback = {
+      status: action,
+      note: note?.trim() || "",
+      updatedAt: new Date(),
+    };
+
+    if (action === "revision_requested") {
+      script.trailerStatus = "requested";
+    } else {
+      script.trailerStatus = "ready";
+    }
+
+    await script.save();
+
+    if (action === "revision_requested") {
+      await notifyAdminWorkflowEvent({
+        title: "AI Trailer Revision Requested",
+        section: "trailers",
+        actorId: req.user._id,
+        scriptId: script._id,
+        message: `Writer requested a better AI trailer version for "${script.title}"${note?.trim() ? `. Note: ${note.trim()}` : ""}`,
+        metadata: {
+          scriptId: script._id,
+          writerId: req.user._id,
+          writerNote: note?.trim() || "",
+        },
+      });
+    }
+
+    res.json({
+      message:
+        action === "approved"
+          ? "Trailer marked as approved"
+          : "Trailer revision request submitted",
+      script,
+    });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };

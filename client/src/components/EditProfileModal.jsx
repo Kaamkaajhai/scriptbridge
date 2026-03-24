@@ -1,7 +1,7 @@
 import { useState, useRef, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
-import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, Bell, User, CreditCard, Briefcase, Globe, Target, Heart } from "lucide-react";
+import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, User, CreditCard, Briefcase, Globe, Target, Heart, BadgeCheck, Sparkles, Clapperboard, Link as LinkIcon } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 
@@ -105,19 +105,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   // Investor-specific state
   const [investorData, setInvestorData] = useState({
+    subRole: ip.subRole || "producer",
+    jobTitle: ip.jobTitle || "",
     company: ip.company || "",
+    imdbUrl: ip.imdbUrl || "",
     linkedInUrl: ip.linkedInUrl || "",
-    investmentRange: "",
+    otherUrl: ip.otherUrl || "",
+    previousCredits: ip.previousCredits || "",
+    investmentRange: ip.investmentRange || "",
   });
   const [investorGenres, setInvestorGenres] = useState(mandates.genres || profile.preferences?.genres || []);
   const [investorBudgets, setInvestorBudgets] = useState(mandates.budgetTiers || []);
   const [investorFormats, setInvestorFormats] = useState(mandates.formats || []);
-  const [notifPrefs, setNotifPrefs] = useState({
-    smartMatchAlerts: profile.notificationPrefs?.smartMatchAlerts ?? true,
-    auditionAlerts: profile.notificationPrefs?.auditionAlerts ?? true,
-    holdAlerts: profile.notificationPrefs?.holdAlerts ?? true,
-    viewAlerts: profile.notificationPrefs?.viewAlerts ?? true,
-  });
 
   // Writer-specific state
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
@@ -130,7 +129,13 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     ethnicity: wp.diversity?.ethnicity || "",
   });
   const [showTagError, setShowTagError] = useState(false);
+  const maskedAccountNumber =
+    typeof profile.bankDetails?.accountNumber === "string" &&
+      profile.bankDetails.accountNumber.startsWith("****")
+      ? profile.bankDetails.accountNumber
+      : "";
 
+<<<<<<< HEAD
   // Reader preferences state
   const isReader = profile.role === "reader";
   const [readerGenres, setReaderGenres] = useState(profile.preferences?.genres || []);
@@ -144,6 +149,20 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   };
 
 
+=======
+  // Bank details state
+  const [bankDetails, setBankDetails] = useState({
+    accountHolderName: profile.bankDetails?.accountHolderName || "",
+    bankName: profile.bankDetails?.bankName || "",
+    accountNumber: "",
+    routingNumber: profile.bankDetails?.routingNumber || "",
+    accountType: profile.bankDetails?.accountType || "checking",
+    swiftCode: profile.bankDetails?.swiftCode || "",
+    iban: profile.bankDetails?.iban || "",
+    country: profile.bankDetails?.country || "IN",
+    currency: profile.bankDetails?.currency || "INR"
+  });
+>>>>>>> origin/master
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -168,9 +187,13 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     : isInvestor
       ? [
         { key: "basic", label: "Basic", icon: <User size={13} /> },
-        { key: "investor", label: "Investor", icon: <TrendingUp size={13} /> },
+        { key: "investor", label: "Professional", icon: <BadgeCheck size={13} /> },
         { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
+<<<<<<< HEAD
         { key: "notifications", label: "Alerts", icon: <Bell size={13} /> },
+=======
+        { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
+>>>>>>> origin/master
       ]
       : isReader
         ? [
@@ -227,7 +250,11 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setFormData({ ...formData, profileImage: data.profileImage });
+<<<<<<< HEAD
       setImagePreview(`http://localhost:5002${data.profileImage}`);
+=======
+      setImagePreview(`${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${data.profileImage}`);
+>>>>>>> origin/master
     } catch (err) {
       setError(err.response?.data?.message || "Failed to upload image");
       setImagePreview(profile.profileImage || "");
@@ -295,6 +322,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         .map((s) => s.trim())
         .filter((s) => s);
 
+      if (isWriter && ["agent", "manager", "manager_and_agent"].includes(representationStatus) && !agencyName.trim()) {
+        setError("Agency name is required when representation is selected.");
+        setLoading(false);
+        return;
+      }
+
+      if (isWriter && specializedTags.length > 5) {
+        setError("Please keep specialized tags to 5 or fewer.");
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         ...formData,
         skills: skillsArray,
@@ -312,21 +351,67 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       }
 
       if (isInvestor) {
+        payload.subRole = investorData.subRole;
+        payload.jobTitle = investorData.jobTitle;
         payload.company = investorData.company;
+        payload.imdbUrl = investorData.imdbUrl;
         payload.linkedInUrl = investorData.linkedInUrl;
+        payload.otherUrl = investorData.otherUrl;
+        payload.previousCredits = investorData.previousCredits;
         payload.investmentRange = investorData.investmentRange;
         payload.preferredGenres = investorGenres;
         payload.preferredBudgets = investorBudgets;
         payload.preferredFormats = investorFormats;
-        payload.notificationPrefs = notifPrefs;
       }
 
+<<<<<<< HEAD
       // Reader preferences
       if (isReader) {
         payload.preferences = {
           genres: readerGenres,
           contentTypes: readerContentTypes,
         };
+=======
+      const normalizedBankDetails = {
+        accountHolderName: bankDetails.accountHolderName.trim(),
+        bankName: bankDetails.bankName.trim(),
+        accountNumber: bankDetails.accountNumber.replace(/\s+/g, ""),
+        routingNumber: bankDetails.routingNumber.replace(/\s+/g, ""),
+        accountType: bankDetails.accountType || "checking",
+        swiftCode: bankDetails.swiftCode.trim().toUpperCase(),
+        iban: bankDetails.iban.trim().toUpperCase(),
+        country: (bankDetails.country || "IN").trim().toUpperCase(),
+        currency: (bankDetails.currency || "INR").trim().toUpperCase(),
+      };
+
+      const hasEditableBankValues =
+        normalizedBankDetails.accountHolderName ||
+        normalizedBankDetails.bankName ||
+        normalizedBankDetails.accountNumber ||
+        normalizedBankDetails.routingNumber ||
+        normalizedBankDetails.swiftCode ||
+        normalizedBankDetails.iban;
+
+      if (hasEditableBankValues) {
+        if (!normalizedBankDetails.accountHolderName || !normalizedBankDetails.bankName) {
+          setError("Account holder name and bank name are required for bank details.");
+          setLoading(false);
+          return;
+        }
+
+        if (!normalizedBankDetails.accountNumber && !maskedAccountNumber) {
+          setError("Account number is required for bank details.");
+          setLoading(false);
+          return;
+        }
+
+        // Keep existing account number if the user did not provide a new one.
+        if (!normalizedBankDetails.accountNumber && maskedAccountNumber) {
+          delete normalizedBankDetails.accountNumber;
+        }
+
+        payload.bankDetails = normalizedBankDetails;
+>>>>>>> origin/master
       }
 
 
@@ -345,6 +430,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const displayImage = imagePreview
     ? imagePreview.startsWith("data:") || imagePreview.startsWith("http")
       ? imagePreview
+<<<<<<< HEAD
       : `http://localhost:5002${imagePreview}`
     : "";
 
@@ -352,6 +438,9 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     ? coverImagePreview.startsWith("data:") || coverImagePreview.startsWith("http")
       ? coverImagePreview
       : `http://localhost:5002${coverImagePreview}`
+=======
+      : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${imagePreview}`
+>>>>>>> origin/master
     : "";
 
   const inputClass = dark
@@ -726,8 +815,39 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           {activeSection === "investor" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Investor Profile</h3>
-                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Business details visible to creators and writers</p>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Investor Professional Profile</h3>
+                <p className={`text-xs mb-4 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>These details help writers and readers understand your domain, credibility, and investment fit.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><Briefcase size={12} /> Investor Role</span>
+                  </label>
+                  <select
+                    value={investorData.subRole}
+                    onChange={(e) => setInvestorData({ ...investorData, subRole: e.target.value })}
+                    className={inputClass}
+                  >
+                    <option value="producer">Producer</option>
+                    <option value="agent">Agent</option>
+                    <option value="director">Director</option>
+                    <option value="actor">Actor</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><BadgeCheck size={12} /> Job Title</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={investorData.jobTitle}
+                    onChange={(e) => setInvestorData({ ...investorData, jobTitle: e.target.value })}
+                    className={inputClass}
+                    placeholder="e.g., Creative Producer"
+                  />
+                </div>
               </div>
 
               <div>
@@ -745,15 +865,58 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
               <div>
                 <label className={labelClass}>
-                  <span className="flex items-center gap-1.5"><Linkedin size={12} /> LinkedIn URL</span>
+                  <span className="flex items-center gap-1.5"><Clapperboard size={12} /> Previous Credits</span>
                 </label>
-                <input
-                  type="url"
-                  value={investorData.linkedInUrl}
-                  onChange={(e) => setInvestorData({ ...investorData, linkedInUrl: e.target.value })}
-                  className={inputClass}
-                  placeholder="https://linkedin.com/in/yourprofile"
+                <textarea
+                  value={investorData.previousCredits}
+                  onChange={(e) => setInvestorData({ ...investorData, previousCredits: e.target.value })}
+                  className={`${inputClass} resize-none`}
+                  rows="3"
+                  maxLength={400}
+                  placeholder="Mention films, series, campaigns, funded projects, festivals, or distribution credits"
                 />
+                <p className="text-[10px] text-gray-400 mt-1">{investorData.previousCredits.length}/400</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><LinkIcon size={12} /> IMDb URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={investorData.imdbUrl}
+                    onChange={(e) => setInvestorData({ ...investorData, imdbUrl: e.target.value })}
+                    className={inputClass}
+                    placeholder="https://www.imdb.com/name/..."
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><Linkedin size={12} /> LinkedIn URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={investorData.linkedInUrl}
+                    onChange={(e) => setInvestorData({ ...investorData, linkedInUrl: e.target.value })}
+                    className={inputClass}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>
+                    <span className="flex items-center gap-1.5"><Globe size={12} /> Other URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={investorData.otherUrl}
+                    onChange={(e) => setInvestorData({ ...investorData, otherUrl: e.target.value })}
+                    className={inputClass}
+                    placeholder="https://your-website.com or any relevant profile link"
+                  />
+                </div>
               </div>
 
               <div>
@@ -774,18 +937,30 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </select>
               </div>
 
-              <div className={`flex items-start gap-2.5 p-3 rounded-lg ${dark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
-                <TrendingUp size={16} className={`mt-0.5 shrink-0 ${dark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                <p className={`text-xs ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  Complete your investor profile to get better script recommendations and connect with relevant creators.
+              <div className={`rounded-xl border p-3.5 ${dark ? 'bg-[#0f2544]/18 border-[#1e3a5f]/35' : 'bg-[#f3f8ff] border-[#d7e6f8]'}`}>
+                <p className={`text-[11px] font-semibold mb-1.5 ${dark ? 'text-blue-300' : 'text-[#1e3a5f]'}`}>
+                  Profile tip for better inbound pitches
+                </p>
+                <p className={`text-[11px] leading-relaxed ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  Add your role, recent credits, and links. Writers and readers can quickly evaluate fit and send higher-quality, relevant pitches.
                 </p>
               </div>
+
             </motion.div>
           )}
 
           {/* === INVESTOR PREFERENCES SECTION === */}
           {activeSection === "preferences" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+              <div className={`rounded-xl border p-3.5 ${dark ? 'bg-white/[0.03] border-[#333]' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-start gap-2.5">
+                  <Sparkles size={15} className={`mt-0.5 ${dark ? 'text-blue-300' : 'text-[#1e3a5f]'}`} />
+                  <p className={`text-[11px] leading-relaxed ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Keep your mandates specific. Clear genre, format, and budget preferences improve your recommendation quality and reduce irrelevant requests.
+                  </p>
+                </div>
+              </div>
+
               {/* Preferred Genres */}
               <div>
                 <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Preferred Genres</h3>
@@ -857,6 +1032,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
             </motion.div>
           )}
 
+<<<<<<< HEAD
           {/* === NOTIFICATION PREFERENCES SECTION === */}
           {activeSection === "notifications" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -913,6 +1089,50 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       {readerGenres.length} selected
                     </span>
                   )}
+=======
+          {/* === BANK DETAILS SECTION === */}
+          {activeSection === "bank" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+              <div>
+                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Bank Account Details</h3>
+                <p className="text-xs text-gray-400 mb-4">
+                  Secure payment information for receiving funds
+                </p>
+              </div>
+
+              <div>
+                <label className={labelClass}>Account Holder Name</label>
+                <input
+                  type="text"
+                  value={bankDetails.accountHolderName}
+                  onChange={(e) => setBankDetails({ ...bankDetails, accountHolderName: e.target.value })}
+                  className={inputClass}
+                  placeholder="Full name as it appears on your account"
+                />
+              </div>
+
+              <div>
+                <label className={labelClass}>Bank Name</label>
+                <input
+                  type="text"
+                  value={bankDetails.bankName}
+                  onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
+                  className={inputClass}
+                  placeholder="e.g., HDFC Bank, ICICI Bank, SBI"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Account Number</label>
+                  <input
+                    type="text"
+                    value={bankDetails.accountNumber}
+                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
+                    className={inputClass}
+                    placeholder={maskedAccountNumber ? `Current: ${maskedAccountNumber}` : "Account number"}
+                  />
+>>>>>>> origin/master
                 </div>
                 <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Tap to select genres you love — we'll show those scripts first</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -946,9 +1166,37 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     onClick={() => setReaderGenres([])}
                     className={`mt-2 text-[11px] font-semibold hover:underline ${dark ? 'text-white/30 hover:text-white/50' : 'text-gray-400 hover:text-gray-600'}`}
                   >
+<<<<<<< HEAD
                     Clear all
                   </button>
                 )}
+=======
+                    <option value="checking">Checking</option>
+                    <option value="savings">Savings</option>
+                    <option value="business">Business</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Country</label>
+                  <input
+                    type="text"
+                    value={bankDetails.country}
+                    onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
+                    className={inputClass}
+                    placeholder="IN"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Currency</label>
+                  <input
+                    type="text"
+                    value={bankDetails.currency}
+                    onChange={(e) => setBankDetails({ ...bankDetails, currency: e.target.value })}
+                    className={inputClass}
+                    placeholder="INR"
+                  />
+                </div>
+>>>>>>> origin/master
               </div>
 
               {/* Content Types */}

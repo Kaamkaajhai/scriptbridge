@@ -3,12 +3,22 @@ import axios from "axios";
 
 export const AuthContext = createContext();
 
+<<<<<<< HEAD
 const API_URL = "http://localhost:5002/api";
+=======
+const API_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
+>>>>>>> origin/master
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const logoutTimerRef = useRef(null);
+
+  const redirectInvestorReview = useCallback((status) => {
+    if (typeof window === "undefined") return;
+    const reason = status === "rejected" ? "rejected" : "pending";
+    window.location.href = `/?investorReview=${reason}`;
+  }, []);
 
   // Clear any existing auto-logout timer
   const clearLogoutTimer = useCallback(() => {
@@ -56,8 +66,11 @@ export const AuthProvider = ({ children }) => {
     const restoreSession = async () => {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
+        let sessionUser = null;
+        let sessionExpiry = null;
         try {
           const parsed = JSON.parse(storedUser);
+          sessionUser = parsed;
           if (!parsed?.token) {
             localStorage.removeItem("user");
             setLoading(false);
@@ -65,6 +78,7 @@ export const AuthProvider = ({ children }) => {
           }
 
           const effectiveExpiry = parsed?.expiresAt || getTokenExpiryFromJwt(parsed.token);
+          sessionExpiry = effectiveExpiry;
 
           // Quick client-side expiry check before hitting the server
           if (!effectiveExpiry || isTokenExpired(effectiveExpiry)) {
@@ -83,13 +97,36 @@ export const AuthProvider = ({ children }) => {
             token: parsed.token,
             expiresAt: data.expiresAt || effectiveExpiry,
           };
+
+          if (refreshedUser?.role === "investor" && ["pending", "rejected"].includes(refreshedUser?.approvalStatus)) {
+            localStorage.removeItem("user");
+            setUser(null);
+            redirectInvestorReview(refreshedUser.approvalStatus);
+            setLoading(false);
+            return;
+          }
+
           setUser(refreshedUser);
           localStorage.setItem("user", JSON.stringify(refreshedUser));
           scheduleAutoLogout(refreshedUser.expiresAt);
-        } catch {
-          // Token expired or invalid — clear session
-          localStorage.removeItem("user");
-          setUser(null);
+        } catch (error) {
+          const status = error?.response?.status;
+          const isUnauthorized = status === 401 || status === 403;
+
+          if (isUnauthorized) {
+            // Token is invalid/expired on server.
+            localStorage.removeItem("user");
+            setUser(null);
+          } else {
+            // Keep session on transient failures (network/server hiccups).
+            if (sessionUser && sessionExpiry && !isTokenExpired(sessionExpiry)) {
+              setUser(sessionUser);
+              scheduleAutoLogout(sessionExpiry);
+            } else {
+              localStorage.removeItem("user");
+              setUser(null);
+            }
+          }
         }
       }
       setLoading(false);
@@ -99,7 +136,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const { data } = await axios.post(`${API_URL}/auth/login`, { email, password });
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const { data } = await axios.post(`${API_URL}/auth/login`, { email: normalizedEmail, password });
     
     // If OTP verification is required, don't set user yet
     if (data.requiresVerification) {

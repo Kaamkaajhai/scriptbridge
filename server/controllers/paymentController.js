@@ -17,7 +17,7 @@ export const createCheckout = async (req, res) => {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: "inr",
             product_data: { name: "Script Unlock" },
             unit_amount: amount * 100,
           },
