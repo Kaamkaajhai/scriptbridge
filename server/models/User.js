@@ -164,6 +164,42 @@ const userSchema = new mongoose.Schema({
     verifiedAt: { type: Date },
     addedAt: { type: Date }
   },
+  bankDetailsReview: {
+    status: {
+      type: String,
+      enum: ["not_submitted", "pending", "approved", "rejected"],
+      default: "not_submitted",
+    },
+    requestedDetails: {
+      accountHolderName: { type: String },
+      bankName: { type: String },
+      accountNumber: { type: String },
+      routingNumber: { type: String },
+      accountType: {
+        type: String,
+        enum: ["checking", "savings", "business"],
+        default: "checking",
+      },
+      swiftCode: { type: String },
+      iban: { type: String },
+      country: { type: String, default: "IN" },
+      currency: { type: String, default: "INR" },
+    },
+    submittedAt: { type: Date },
+    dueAt: { type: Date },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    adminNote: { type: String },
+  },
+  bankDetailsSecurity: {
+    invalidAttempts: { type: Number, default: 0 },
+    isLocked: { type: Boolean, default: false },
+    lockedAt: { type: Date },
+    lastInvalidAttemptAt: { type: Date },
+    lastInvalidReason: { type: String },
+    unlockedAt: { type: Date },
+    unlockedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
   wallet: {
     balance: { type: Number, default: 0 },
     currency: { type: String, default: "INR" },

@@ -16,8 +16,14 @@ import {
 } from "lucide-react";
 import api from "../services/api";
 
+const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+
 const BankDetails = ({ dark }) => {
   const [bankDetails, setBankDetails] = useState(null);
+  const [bankDetailsReview, setBankDetailsReview] = useState({ status: "not_submitted" });
+  const [bankDetailsSecurity, setBankDetailsSecurity] = useState({ invalidAttempts: 0, isLocked: false });
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +43,21 @@ const BankDetails = ({ dark }) => {
     currency: "INR"
   });
 
+  const applyBankDetailsToForm = (details = {}) => {
+    setFormData((prev) => ({
+      ...prev,
+      accountHolderName: details.accountHolderName || "",
+      bankName: details.bankName || "",
+      accountNumber: "",
+      routingNumber: details.routingNumber || "",
+      accountType: details.accountType || "checking",
+      swiftCode: details.swiftCode || "",
+      iban: details.iban || "",
+      country: details.country || "IN",
+      currency: details.currency || "INR",
+    }));
+  };
+
   useEffect(() => {
     fetchBankDetails();
   }, []);
@@ -44,15 +65,26 @@ const BankDetails = ({ dark }) => {
   const fetchBankDetails = async () => {
     try {
       setLoading(true);
+      setError("");
       const { data } = await api.get("/transactions/bank-details");
+      const review = data.bankDetailsReview || { status: "not_submitted" };
+      setBankDetailsReview(review);
+      setBankDetailsSecurity(data.bankDetailsSecurity || { invalidAttempts: 0, isLocked: false });
       if (data.bankDetails) {
         setBankDetails(data.bankDetails);
-        setFormData(prev => ({ ...prev, ...data.bankDetails }));
-      } else {
+        applyBankDetailsToForm(data.bankDetails);
+      } else if (review?.requestedDetails) {
+        applyBankDetailsToForm(review.requestedDetails);
+      }
+
+      if (!data.bankDetails && review?.status === "not_submitted") {
         setIsEditing(true);
+      } else {
+        setIsEditing(false);
       }
     } catch (err) {
-      setError("Failed to load bank details");
+      setError(err.response?.data?.message || "Failed to load bank details");
+      setIsEditing(true);
     } finally {
       setLoading(false);
     }
@@ -64,10 +96,48 @@ const BankDetails = ({ dark }) => {
     setSuccess("");
     setSaving(true);
 
+    const normalizedAccountNumber = String(formData.accountNumber || "").replace(/\s+/g, "");
+    const normalizedRoutingNumber = String(formData.routingNumber || "").replace(/\s+/g, "").toUpperCase();
+    const normalizedCountry = String(formData.country || "IN").trim().toUpperCase();
+
+    if (!ACCOUNT_NUMBER_REGEX.test(normalizedAccountNumber)) {
+      setError("Account number must be 8-20 digits");
+      setSaving(false);
+      return;
+    }
+
+    if (!normalizedRoutingNumber) {
+      setError("Routing / IFSC number is required");
+      setSaving(false);
+      return;
+    }
+
+    if (normalizedCountry === "IN") {
+      if (!IFSC_REGEX.test(normalizedRoutingNumber)) {
+        setError("Please enter a valid IFSC code (example: HDFC0001234)");
+        setSaving(false);
+        return;
+      }
+    } else if (!GENERIC_ROUTING_REGEX.test(normalizedRoutingNumber)) {
+      setError("Routing number must be 4-20 letters, numbers, or hyphen");
+      setSaving(false);
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      accountNumber: normalizedAccountNumber,
+      routingNumber: normalizedRoutingNumber,
+      country: normalizedCountry,
+      currency: String(formData.currency || "INR").trim().toUpperCase(),
+    };
+
     try {
-      const { data } = await api.put("/transactions/bank-details", formData);
+      const { data } = await api.put("/transactions/bank-details", payload);
       setBankDetails(data.bankDetails);
-      setSuccess("Bank details saved successfully");
+      setBankDetailsReview(data.bankDetailsReview || { status: "pending" });
+      setBankDetailsSecurity(data.bankDetailsSecurity || { invalidAttempts: 0, isLocked: false });
+      setSuccess(data.message || "Bank details submitted for review");
       setIsEditing(false);
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -85,11 +155,22 @@ const BankDetails = ({ dark }) => {
 
   const handleCancel = () => {
     if (bankDetails) {
-      setFormData({ ...bankDetails });
+      applyBankDetailsToForm(bankDetails);
+      setIsEditing(false);
+    } else if (bankDetailsReview?.requestedDetails) {
+      applyBankDetailsToForm(bankDetailsReview.requestedDetails);
       setIsEditing(false);
     }
     setError("");
   };
+
+  const reviewStatus = bankDetailsReview?.status || "not_submitted";
+  const isBankLocked = Boolean(bankDetailsSecurity?.isLocked);
+  const hasPendingReview = reviewStatus === "pending";
+  const isReviewRejected = reviewStatus === "rejected";
+  const reviewDueAtText = bankDetailsReview?.dueAt
+    ? new Date(bankDetailsReview.dueAt).toLocaleString()
+    : "within 2 days";
 
   if (loading) {
     return (
@@ -144,13 +225,18 @@ const BankDetails = ({ dark }) => {
             </div>
           </div>
           
-          {!isEditing && bankDetails && (
+          {!isEditing && (bankDetails || bankDetailsReview?.requestedDetails) && (
             <button
               onClick={handleEdit}
+              disabled={isBankLocked || hasPendingReview}
               className={`px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all ${
-                dark 
-                  ? "bg-white/[0.07] text-white hover:bg-white/[0.12]" 
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                isBankLocked || hasPendingReview
+                  ? dark
+                    ? "bg-white/[0.05] text-white/30 cursor-not-allowed"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : dark
+                    ? "bg-white/[0.07] text-white hover:bg-white/[0.12]"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
               <Edit2 className="w-4 h-4" />
@@ -205,8 +291,47 @@ const BankDetails = ({ dark }) => {
           <p className={`text-xs mt-1 ${dark ? "text-blue-400/70" : "text-blue-700/70"}`}>
             All bank details are encrypted and stored securely. We never share this information with third parties.
           </p>
+          <p className={`text-xs mt-1 ${dark ? "text-blue-300/70" : "text-blue-700/70"}`}>
+            Invalid attempts: {Number(bankDetailsSecurity?.invalidAttempts || 0)} / 5
+          </p>
         </div>
       </div>
+
+      {(hasPendingReview || isReviewRejected) && (
+        <div className={`mx-8 mt-4 px-4 py-3 rounded-xl flex items-start gap-3 ${
+          hasPendingReview
+            ? dark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"
+            : dark ? "bg-red-500/10 border border-red-500/20" : "bg-red-50 border border-red-200"
+        }`}>
+          <Info className={`w-5 h-5 flex-shrink-0 mt-0.5 ${hasPendingReview ? "text-amber-500" : "text-red-500"}`} />
+          <div>
+            <p className={`text-sm font-semibold ${hasPendingReview ? dark ? "text-amber-300" : "text-amber-800" : dark ? "text-red-300" : "text-red-800"}`}>
+              {hasPendingReview ? "Bank details under admin review" : "Bank details review was rejected"}
+            </p>
+            <p className={`text-xs mt-1 ${hasPendingReview ? dark ? "text-amber-200/80" : "text-amber-700" : dark ? "text-red-200/80" : "text-red-700"}`}>
+              {hasPendingReview
+                ? `Your request is expected to be reviewed ${reviewDueAtText}. Credits can be purchased after approval.`
+                : (bankDetailsReview?.adminNote || "Please update and resubmit your bank details.")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isBankLocked && (
+        <div className={`mx-8 mt-4 px-4 py-3 rounded-xl flex items-start gap-3 ${
+          dark ? "bg-red-500/10 border border-red-500/20" : "bg-red-50 border border-red-200"
+        }`}>
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-500" />
+          <div>
+            <p className={`text-sm font-semibold ${dark ? "text-red-300" : "text-red-800"}`}>
+              Bank detail updates are blocked
+            </p>
+            <p className={`text-xs mt-1 ${dark ? "text-red-200/80" : "text-red-700"}`}>
+              Too many invalid attempts were detected. Please contact support team. Only admin can unblock your account.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Form / Display */}
       <div className="p-8">
@@ -267,7 +392,7 @@ const BankDetails = ({ dark }) => {
                     type={showAccountNumber ? "text" : "password"}
                     required
                     value={formData.accountNumber}
-                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value.replace(/\D/g, "").slice(0, 20) })}
                     className={`w-full px-4 py-3 pr-12 rounded-xl border text-sm font-medium transition-all ${
                       dark 
                         ? "bg-white/[0.03] border-white/[0.06] text-white placeholder-white/30 focus:bg-white/[0.05] focus:border-white/20" 
@@ -298,14 +423,14 @@ const BankDetails = ({ dark }) => {
                   type="text"
                   required
                   value={formData.routingNumber}
-                  onChange={(e) => setFormData({ ...formData, routingNumber: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, routingNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, formData.country?.toUpperCase() === "IN" ? 11 : 20) })}
                   className={`w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
                     dark 
                       ? "bg-white/[0.03] border-white/[0.06] text-white placeholder-white/30 focus:bg-white/[0.05] focus:border-white/20" 
                       : "bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   }`}
-                  placeholder="9-digit routing number"
-                  maxLength="9"
+                  placeholder={formData.country?.toUpperCase() === "IN" ? "IFSC code (e.g., HDFC0001234)" : "Routing number"}
+                  maxLength={formData.country?.toUpperCase() === "IN" ? 11 : 20}
                 />
               </div>
             </div>
@@ -347,7 +472,7 @@ const BankDetails = ({ dark }) => {
                   <input
                     type="text"
                     value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) })}
                     className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm font-medium transition-all ${
                       dark 
                         ? "bg-white/[0.03] border-white/[0.06] text-white placeholder-white/30 focus:bg-white/[0.05] focus:border-white/20" 
@@ -451,7 +576,7 @@ const BankDetails = ({ dark }) => {
               )}
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || isBankLocked}
                 className={`flex-1 px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
                   dark
                     ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600"
@@ -463,6 +588,8 @@ const BankDetails = ({ dark }) => {
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Saving...
                   </>
+                ) : isBankLocked ? (
+                  "Blocked - Contact Support"
                 ) : (
                   <>
                     <Save className="w-4 h-4" />

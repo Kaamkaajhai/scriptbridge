@@ -19,7 +19,6 @@ router.use(protect);
 router.get("/", getUserTransactions);
 router.get("/stats", getTransactionStats);
 router.get("/wallet/balance", getWalletBalance);
-router.get("/:id", getTransactionById);
 
 // Withdrawal routes
 router.post("/withdraw", requestWithdrawal);
@@ -27,5 +26,8 @@ router.post("/withdraw", requestWithdrawal);
 // Bank details routes
 router.get("/bank-details", getBankDetails);
 router.put("/bank-details", updateBankDetails);
+
+// Keep this after specific routes to avoid matching reserved paths like /bank-details
+router.get("/:id", getTransactionById);
 
 export default router;
