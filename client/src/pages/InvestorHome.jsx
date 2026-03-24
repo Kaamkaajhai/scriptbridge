@@ -16,36 +16,7 @@ const GE = {
 };
 const gEmoji = (g) => GE[g?.toLowerCase()] ?? "";
 
-<<<<<<< HEAD
 /*  Fade-in wrapper  */
-=======
-const normGenre = (value = "") => {
-  const v = String(value || "").toLowerCase().trim();
-  if (!v) return "";
-  const compact = v.replace(/[\s_]+/g, "-");
-  if (compact === "science-fiction" || compact === "sci fi" || compact === "scifi") return "sci-fi";
-  return compact;
-};
-
-const rankScriptsByDetectedGenres = (scripts = [], detectedGenres = []) => {
-  if (!Array.isArray(scripts) || scripts.length === 0) return [];
-  if (!Array.isArray(detectedGenres) || detectedGenres.length === 0) return scripts;
-
-  const order = new Map(detectedGenres.map((g, idx) => [normGenre(g), idx]));
-
-  return scripts
-    .map((script, idx) => {
-      const primary = normGenre(script?.genre || script?.primaryGenre || script?.classification?.primaryGenre || "");
-      const genreScore = order.has(primary) ? 1000 - order.get(primary) * 40 : 0;
-      const score = genreScore + (script?.rating || 0) * 10 + Math.min(80, (script?.readsCount || 0) * 0.2);
-      return { script, idx, score };
-    })
-    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-    .map((item) => item.script);
-};
-
-/* ── Fade-in wrapper ── */
->>>>>>> origin/master
 const Fade = ({ children, delay = 0, className = "" }) => (
   <motion.div
     initial={{ opacity: 0, y: 14 }}
@@ -86,11 +57,7 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
     {to && (
       <Link to={to}
         className={`text-[11px] font-semibold flex items-center gap-0.5 transition-all hover:gap-1
-<<<<<<< HEAD
           ${dark ? "text-blue-400/80 hover:text-blue-300" : "text-[#111111]/70 hover:text-[#111111]"}`}>
-=======
-          ${dark ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"}`}>
->>>>>>> origin/master
         See all
         <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -303,11 +270,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
 
         {/*  Info below poster  */}
         <h3 className={`text-[12.5px] font-bold leading-tight line-clamp-1 transition-colors
-<<<<<<< HEAD
           ${dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"}`}>
-=======
-          ${dark ? "text-gray-100 group-hover:text-gray-300" : "text-gray-900 group-hover:text-gray-700"}`}>
->>>>>>> origin/master
           {script.title}
         </h3>
         <div className="flex items-center justify-between mt-1 gap-1">
@@ -388,7 +351,6 @@ const InvestorHome = () => {
   return (
     <div className={`min-h-screen ${bg} pb-24`}>
 
-<<<<<<< HEAD
       {/*  HERO HEADER  */}
       <div className={`relative overflow-hidden
         ${dark ? "border-b border-white/[0.05] bg-[#07101f]" : "border-b border-gray-200 bg-white"}`}>
@@ -482,16 +444,6 @@ const InvestorHome = () => {
                   </svg>
                   Investor
                 </div>
-=======
-      {/* ═══════ HERO HEADER ═══════ */}
-      <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-5">
-        <div className={`relative overflow-hidden rounded-xl ${panel}`}>
-          <div className="relative z-10 px-4 sm:px-5 py-4 sm:py-5">
-            <Fade>
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${dark ? "text-gray-300" : "text-gray-600"}`}>{greeting}</p>
-                <span className={`text-[10px] font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>Investor Workspace</span>
->>>>>>> origin/master
               </div>
 
               <h1 className={`text-[20px] sm:text-[24px] font-extrabold tracking-[-0.01em] leading-tight ${dark ? "text-white" : "text-gray-900"}`}>
@@ -543,13 +495,8 @@ const InvestorHome = () => {
         </div>
       </div>
 
-<<<<<<< HEAD
       {/*  FEED  */}
       <div className="max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 space-y-12">
-=======
-      {/* ═══════ FEED ═══════ */}
-      <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 space-y-7">
->>>>>>> origin/master
 
         {/* Loading skeleton */}
         {loading && !feed && (
@@ -588,7 +535,6 @@ const InvestorHome = () => {
                 </Fade>
               ))}
 
-<<<<<<< HEAD
               {/*  Trending  */}
               {trending.length > 0 && (
                 <Fade delay={0.15}>
@@ -645,24 +591,6 @@ const InvestorHome = () => {
                   <HRow>
                     {explore.map((s, i) => <ScriptPoster key={s._id} script={s} idx={i} dark={dark} />)}
                   </HRow>
-=======
-              {/* ── Matched For You ── */}
-              {matched.length > 0 && (
-                <Fade delay={0.15}>
-                  <section className={`rounded-2xl p-5 sm:p-6 ${panel}`}>
-                    <SectionHead
-                      icon={
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-                          <path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-                        </svg>
-                      }
-                      title="Matched For You" count={matched.length}
-                      sub="Based on your profile, genres, and activity" to="/search" dark={dark} />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {matched.map((s, i) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
-                    </div>
-                  </section>
->>>>>>> origin/master
                 </Fade>
               )}
 
@@ -687,13 +615,8 @@ const InvestorHome = () => {
                     </p>
                     <div className="flex items-center justify-center gap-3 flex-wrap">
                       <Link to="/search"
-<<<<<<< HEAD
                         className="px-6 py-2.5 rounded-xl bg-[#111111] text-white text-[13px] font-bold hover:bg-[#17304e]
                           transition-all shadow-lg shadow-[#111111]/25 hover:shadow-xl inline-flex items-center gap-2">
-=======
-                        className="px-6 py-2.5 rounded-xl bg-gray-700 text-white text-[13px] font-bold hover:bg-gray-800
-                          transition-all shadow-lg shadow-gray-700/20 hover:shadow-xl inline-flex items-center gap-2">
->>>>>>> origin/master
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                         </svg>

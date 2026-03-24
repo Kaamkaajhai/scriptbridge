@@ -2,31 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useDarkMode } from "../context/DarkModeContext";
-<<<<<<< HEAD
 import useIntersectionObserver from "../utils/useIntersectionObserver";
-=======
-import { formatCurrency } from "../utils/currency";
-import { AuthContext } from "../context/AuthContext";
-import api from "../services/api";
-
-const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
-
-const FORMAT_LABEL = {
-  feature: "Feature Film",
-  short: "Short Film",
-  tv_pilot: "TV Pilot",
-  limited_series: "Limited Series",
-  webseries: "Web Series",
-  documentary: "Documentary",
-};
-
-const STATUS = {
-  pending_approval: { label: "In Review", dot: "bg-amber-400",   dk: "text-amber-400",   lt: "text-amber-600" },
-  rejected:         { label: "Rejected",  dot: "bg-rose-400",    dk: "text-rose-400",    lt: "text-rose-600"  },
-  published:        { label: "Published", dot: "bg-emerald-400", dk: "text-emerald-400", lt: "text-emerald-600" },
-  draft:            { label: "Draft",     dot: "bg-[#4a5a6e]",   dk: "text-[#4a5a6e]",  lt: "text-gray-400"  },
-};
->>>>>>> origin/master
 
 const ProjectCard = ({ project, userName }) => {
   const navigate = useNavigate();
@@ -34,7 +10,6 @@ const ProjectCard = ({ project, userName }) => {
   const { user, setUser } = useContext(AuthContext);
   const [isBookmarked, setIsBookmarked] = useState(false);
 
-<<<<<<< HEAD
   const [cardRef, isVisible] = useIntersectionObserver({ threshold: 0.05 });
 
   const statusConfig = {
@@ -76,88 +51,6 @@ const ProjectCard = ({ project, userName }) => {
         dark
           ? "bg-[#0d1829] border-white/[0.06]"
           : "bg-white border-gray-100 shadow-sm"
-=======
-  const isClickable  = project?.status === "published";
-  const genre        = project?.primaryGenre || project?.genre || null;
-  const format       = FORMAT_LABEL[project?.format] || project?.format || null;
-  const score        = project?.platformScore?.overall ?? project?.scriptScore?.overall ?? null;
-  const views        = project?.views ?? 0;
-  const rating       = project?.rating ?? 0;
-  const reads        = project?.readsCount ?? 0;
-  const status       = STATUS[project?.status] || STATUS.draft;
-  const coverImage   = project?.coverImage || null;
-  const initials     = (project?.title || "SC").replace(/[^a-zA-Z0-9 ]/g, "").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "SC";
-  const canBookmark  = Boolean(user?._id && project?._id && project?.creator?._id !== user?._id);
-
-  useEffect(() => {
-    const ids = user?.favoriteScripts || [];
-    const scriptId = project?._id;
-    if (!scriptId || !Array.isArray(ids)) {
-      setIsBookmarked(false);
-      return;
-    }
-    const hasBookmark = ids.some((item) => (typeof item === "string" ? item : item?._id) === scriptId);
-    setIsBookmarked(hasBookmark);
-  }, [user?.favoriteScripts, project?._id]);
-
-  const handleToggleBookmark = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!canBookmark) return;
-    try {
-      const { data } = await api.post(`/scripts/${project._id}/favorite`);
-      const nextFavorited = Boolean(data?.favorited);
-      setIsBookmarked(nextFavorited);
-
-      setUser((prev) => {
-        if (!prev) return prev;
-        const currentIds = Array.isArray(prev.favoriteScripts)
-          ? prev.favoriteScripts.map((item) => (typeof item === "string" ? item : item?._id)).filter(Boolean)
-          : [];
-        const updatedIds = nextFavorited
-          ? Array.from(new Set([...currentIds, project._id]))
-          : currentIds.filter((item) => item !== project._id);
-        const updatedUser = { ...prev, favoriteScripts: updatedIds };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        return updatedUser;
-      });
-
-      window.dispatchEvent(new CustomEvent("bookmarkUpdated", {
-        detail: { scriptId: project._id, bookmarked: nextFavorited },
-      }));
-    } catch {
-      // keep card interaction silent on toggle failure
-    }
-  };
-
-  const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-
-  const handleCardClick = async () => {
-    if (!isClickable) return;
-
-    if (project?._id) {
-      api
-        .post(`/scripts/${project._id}/interactions`, {
-          type: "click",
-          source: "project_card",
-          metadata: { from: "feed" },
-        })
-        .catch(() => null);
-    }
-
-    navigate(`/script/${project._id}`);
-  };
-
-  return (
-    <div
-      onClick={handleCardClick}
-      className={`group relative flex flex-col overflow-hidden rounded-2xl border transition-all duration-500 select-none ${
-        isClickable ? "cursor-pointer" : "cursor-default"
-      } ${
-        dark
-          ? "bg-[#0c1420] border-[#1a2636] hover:border-[#263c54]"
-          : "bg-white border-gray-200 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.05)]"
->>>>>>> origin/master
       }`}
     >
 
@@ -416,7 +309,6 @@ const ProjectCard = ({ project, userName }) => {
           {project.rejectionReason}
         </div>
       )}
-<<<<<<< HEAD
       {/* Card body */}
       <div className="flex flex-col items-center px-6 pt-10 pb-6 relative">
         {/* Subtle accent at top */}
@@ -479,8 +371,6 @@ const ProjectCard = ({ project, userName }) => {
         </div>
       </div>
     </motion.div>
-=======
->>>>>>> origin/master
     </div>
   );
 };

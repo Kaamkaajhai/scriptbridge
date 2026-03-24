@@ -8,11 +8,7 @@ import { formatCurrency } from "../utils/currency";
 const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
 
 // Admin-specific API — uses admin token from sessionStorage, separate from user session
-<<<<<<< HEAD
 const adminApi = axios.create({ baseURL: "http://localhost:5002/api" });
-=======
-const adminApi = axios.create({ baseURL: API_BASE_URL });
->>>>>>> origin/master
 adminApi.interceptors.request.use((config) => {
     const adminSession = sessionStorage.getItem("admin-session");
     if (adminSession) {
@@ -1036,11 +1032,7 @@ const AdminDashboard = () => {
         setCodeLoading(true);
         try {
             // Login as admin — store token ONLY in sessionStorage (does NOT affect user's localStorage session)
-<<<<<<< HEAD
             const { data } = await axios.post("http://localhost:5002/api/auth/login", { email: "admin@ckript.com", password: "admin123" });
-=======
-            const { data } = await axios.post(`${API_BASE_URL}/auth/login`, { email: "admin@ckript.com", password: "admin123" });
->>>>>>> origin/master
             sessionStorage.setItem("admin-session", JSON.stringify(data));
             setAuthorized(true);
         } catch {

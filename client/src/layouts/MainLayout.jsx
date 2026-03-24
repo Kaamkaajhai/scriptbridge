@@ -23,12 +23,6 @@ const MainLayout = ({ children }) => {
   const [showInvestorRejectedPopup, setShowInvestorRejectedPopup] = useState(false);
   const [latestRejectedPurchaseNotification, setLatestRejectedPurchaseNotification] = useState(null);
   const [notifLoading, setNotifLoading] = useState(false);
-<<<<<<< HEAD
-=======
-  const [showBuyCredits, setShowBuyCredits] = useState(false);
-  const [creditsBalance, setCreditsBalance] = useState(0);
-  const [avatarLoadError, setAvatarLoadError] = useState(false);
->>>>>>> origin/master
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -143,15 +137,6 @@ const MainLayout = ({ children }) => {
     if (!user) return undefined;
 
     fetchUnreadCount();
-<<<<<<< HEAD
-=======
-    fetchUnreadMessageCount();
-    fetchPendingPurchaseCount();
-    // Only fetch credits balance for non-investors
-    if (user.role !== "investor") {
-      fetchCreditsBalance();
-    }
->>>>>>> origin/master
 
     const interval = setInterval(() => {
       fetchUnreadCount();
@@ -368,199 +353,12 @@ const MainLayout = ({ children }) => {
   }, [resolvedProfileImage]);
 
   return (
-<<<<<<< HEAD
     <div className={`min-h-screen ${isDarkMode ? "bg-[#060d18]" : "bg-[#eef0f3]"}`}>
       <Sidebar />
 
       {/* Top bar */}
       <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[280px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
         isDarkMode ? "bg-[#0b1426]/95 border-[#1a3050] backdrop-blur-xl" : "glass-strong border-gray-200/60"
-=======
-    <>
-      <BuyCreditsModal 
-        isOpen={showBuyCredits} 
-        onClose={() => setShowBuyCredits(false)}
-        onSuccess={handleCreditsUpdate}
-      />
-
-      {showPurchasePopup && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,380px)] animate-scaleIn">
-          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
-            isDarkMode
-              ? "bg-[#0f1d2d]/95 border-[#27415f] text-white shadow-black/40"
-              : "bg-white/95 border-[#d5e2ef] text-gray-900 shadow-slate-200/80"
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isDarkMode ? "bg-sky-500/15 text-sky-300" : "bg-sky-50 text-sky-600"
-                }`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    New Purchase Request{pendingPurchaseCount > 1 ? "s" : ""}
-                  </p>
-                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-[#9db2c9]" : "text-gray-600"}`}>
-                    You have <span className="font-semibold">{pendingPurchaseCount}</span> pending request{pendingPurchaseCount > 1 ? "s" : ""} waiting for your decision.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={dismissPurchasePopup}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                  isDarkMode ? "text-[#8ca5be] hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                }`}
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={dismissPurchasePopup}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  isDarkMode ? "text-[#9db2c9] hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Later
-              </button>
-              <button
-                onClick={handleGoToPurchaseRequests}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#1e3a5f] text-white hover:bg-[#2a4b77] transition-colors"
-              >
-                Review now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showInvestorApprovalPopup && latestApprovedPurchaseNotification && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,420px)] animate-scaleIn">
-          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
-            isDarkMode
-              ? "bg-[#102417]/95 border-emerald-600/30 text-white shadow-black/40"
-              : "bg-white/95 border-emerald-200 text-gray-900 shadow-slate-200/80"
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isDarkMode ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600"
-                }`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    Purchase Approved
-                  </p>
-                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-emerald-100/80" : "text-gray-600"}`}>
-                    {latestApprovedPurchaseNotification.message || "Your purchase request was approved. You now have full script access."}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={dismissInvestorApprovalPopup}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                  isDarkMode ? "text-emerald-200/80 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                }`}
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={dismissInvestorApprovalPopup}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  isDarkMode ? "text-emerald-100/80 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Later
-              </button>
-              <button
-                onClick={handleOpenApprovedScript}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-              >
-                Open script
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showInvestorRejectedPopup && latestRejectedPurchaseNotification && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,420px)] animate-scaleIn">
-          <div className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
-            isDarkMode
-              ? "bg-[#2a1313]/95 border-rose-600/30 text-white shadow-black/40"
-              : "bg-white/95 border-rose-200 text-gray-900 shadow-slate-200/80"
-          }`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isDarkMode ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-600"
-                }`}>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-                    Purchase Request Declined
-                  </p>
-                  <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-rose-100/80" : "text-gray-600"}`}>
-                    {latestRejectedPurchaseNotification.message || "Your purchase request was declined. Your payment has been refunded."}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={dismissInvestorRejectedPopup}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-                  isDarkMode ? "text-rose-200/80 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                }`}
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                onClick={dismissInvestorRejectedPopup}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  isDarkMode ? "text-rose-100/80 hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Later
-              </button>
-              <button
-                onClick={handleOpenPurchaseRequestsFromRejected}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors"
-              >
-                View details
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <div className={`min-h-screen ${isDarkMode ? "bg-[#080e18]" : "bg-[#eef0f3]"}`}>
-      <Sidebar purchaseRequestCount={pendingPurchaseCount} unreadMessageCount={unreadMessageCount} />
-
-      {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
-        isDarkMode ? "bg-[#080e18]/95 border-[#151f2e] backdrop-blur-xl" : "glass-strong border-gray-200/60"
->>>>>>> origin/master
       }`}>
         {/* Search */}
         <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-lg">
@@ -766,29 +564,6 @@ const MainLayout = ({ children }) => {
             )}
           </div>
 
-<<<<<<< HEAD
-=======
-          {/* Credits Button - Hidden for investors */}
-          {user?.role !== "investor" && (
-            <button
-              onClick={() => setShowBuyCredits(true)}
-              className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
-                isDarkMode
-                  ? "bg-[#0a1628] border-white/[0.07] hover:bg-[#0d1c2e] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
-                  : "bg-white border-gray-200 hover:border-sky-300 hover:bg-sky-50 shadow-sm hover:shadow-md"
-              }`}
-            >
-              <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                isDarkMode ? "text-sky-400 group-hover:text-sky-300" : "text-sky-500 group-hover:text-sky-600"
-              }`} viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" />
-              </svg>
-              <span className={`font-bold text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
-              <span className={`hidden sm:inline text-[11px] font-medium ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-400"}`}>CR</span>
-            </button>
-          )}
-
->>>>>>> origin/master
           {/* User menu */}
           <div className="relative" ref={dropdownRef}>
             <button onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -820,12 +595,7 @@ const MainLayout = ({ children }) => {
                   </svg>
                   Profile
                 </button>
-<<<<<<< HEAD
                 <div className={`border-t my-1 ${isDarkMode ? "border-[#1a3050]" : "border-gray-100"}`}></div>
-=======
-
-                <div className={`border-t my-1 ${isDarkMode ? "border-[#1c2a3a]" : "border-gray-100"}`}></div>
->>>>>>> origin/master
                 <button onClick={() => { logout(); navigate("/login"); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-red-400" : "text-gray-500 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">

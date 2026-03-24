@@ -330,7 +330,6 @@ export const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-<<<<<<< HEAD
     user.name = name || user.name;
     user.bio = bio !== undefined ? bio : user.bio;
     user.skills = skills || user.skills;
@@ -339,14 +338,6 @@ export const updateUserProfile = async (req, res) => {
 
     if (removeCoverImage) user.coverImage = "";
     else if (coverImage !== undefined) user.coverImage = coverImage;
-=======
-    user.name = normalizeString(name) || user.name;
-    user.bio = bio !== undefined ? normalizeString(bio) : user.bio;
-    if (skills !== undefined) {
-      user.skills = normalizeStringArray(skills, 25);
-    }
-    user.profileImage = normalizeString(profileImage) || user.profileImage;
->>>>>>> origin/master
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {

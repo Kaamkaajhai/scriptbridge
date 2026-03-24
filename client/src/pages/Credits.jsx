@@ -111,7 +111,6 @@ const Credits = () => {
 
   const getTxConf = (type) => txConfig[type] || { label: type, icon: Coins, darkCls: "text-gray-400 bg-gray-500/10", lightCls: "text-gray-600 bg-gray-50" };
 
-<<<<<<< HEAD
   const getServiceIcon = (key) => {
     switch (key) {
       case "aiEvaluation":
@@ -151,99 +150,6 @@ const Credits = () => {
   };
 
   //  Loading State 
-=======
->>>>>>> origin/master
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-3">
-          <div className={`w-10 h-10 border-[3px] rounded-full animate-spin ${dark ? "border-white/10 border-t-blue-400" : "border-gray-200 border-t-blue-600"}`} />
-          <p className={`text-sm font-medium ${dark ? "text-white/40" : "text-gray-400"}`}>Loading credits...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const usagePercent = balance?.totalPurchased > 0
-    ? Math.round((balance.totalSpent / balance.totalPurchased) * 100) : 0;
-
-  const getCredits = (key, fallback) => pricing?.[key]?.credits ?? fallback;
-
-  const services = [
-    {
-      key: "evaluation", icon: Award,
-      label: "Script Evaluation", tag: "Professional",
-      desc: "Industry-standard reader coverage with detailed scores across 6 dimensions.",
-      credits: getCredits("aiEvaluation", 50),
-      color: { dark: "text-amber-400", light: "text-amber-600", iconDark: "bg-amber-400/10", iconLight: "bg-amber-100", badgeDark: "bg-amber-400/10 text-amber-300", badgeLight: "bg-amber-50 text-amber-700", btnDark: "bg-amber-500 hover:bg-amber-400 text-white", btnLight: "bg-amber-500 hover:bg-amber-600 text-white" },
-      features: ["Score across 6 dimensions", "Strengths & weaknesses", "Market assessment", "Editorial feedback"],
-      onUse: async () => { try { const { data } = await api.get("/scripts/mine"); const w = (data||[]).find(s=>!s.services?.evaluation); navigate(w ? `/upload?edit=${w._id}` : "/upload"); } catch { navigate("/upload"); } },
-    },
-    {
-      key: "aiScript", icon: Brain,
-      label: "AI Script Analysis", tag: "AI Powered",
-      desc: "Deep AI intelligence dissects plot structure, character arcs, and marketability.",
-      credits: getCredits("scriptAnalysis", 30),
-      color: { dark: "text-blue-400", light: "text-blue-600", iconDark: "bg-blue-400/10", iconLight: "bg-blue-100", badgeDark: "bg-blue-400/10 text-blue-300", badgeLight: "bg-blue-50 text-blue-700", btnDark: "bg-blue-500 hover:bg-blue-400 text-white", btnLight: "bg-blue-600 hover:bg-blue-700 text-white" },
-      features: ["Plot & pacing score", "Character arc analysis", "Dialogue rating", "Genre fit index"],
-      onUse: () => navigate("/upload"),
-    },
-    {
-      key: "aiTrailer", icon: Video,
-      label: "AI Concept Trailer", tag: "Text to Trailer",
-      desc: "Turn your screenplay into a cinematic 60-second teaser automatically.",
-      credits: getCredits("aiTrailer", 80),
-      beta: true,
-      color: { dark: "text-violet-400", light: "text-violet-600", iconDark: "bg-violet-400/10", iconLight: "bg-violet-100", badgeDark: "bg-violet-400/10 text-violet-300", badgeLight: "bg-violet-50 text-violet-700", btnDark: "bg-violet-500 hover:bg-violet-400 text-white", btnLight: "bg-violet-600 hover:bg-violet-700 text-white" },
-      features: ["AI voiceover & narration", "Scene matching", "Title card generation", "Shareable link"],
-      onUse: () => navigate("/upload"),
-    },
-    {
-      key: "hosting", icon: Rocket,
-      label: "Script Hosting", tag: "Free Forever",
-      desc: "List your script in our marketplace — visible to producers and studios.",
-      credits: 0,
-      color: { dark: "text-emerald-400", light: "text-emerald-600", iconDark: "bg-emerald-400/10", iconLight: "bg-emerald-100", badgeDark: "bg-emerald-400/10 text-emerald-300", badgeLight: "bg-emerald-50 text-emerald-700", btnDark: "bg-emerald-500 hover:bg-emerald-400 text-white", btnLight: "bg-emerald-600 hover:bg-emerald-700 text-white" },
-      features: ["Visible to producers", "SEO-optimised profile", "Download requests", "Lifetime page"],
-      onUse: () => navigate("/upload"),
-    },
-  ];
-
-  return (
-    <>
-      <BuyCreditsModal isOpen={showBuyModal} onClose={() => setShowBuyModal(false)} onSuccess={handlePurchaseSuccess} />
-
-      <div className="max-w-5xl mx-auto space-y-6">
-
-        {/* ── Page Header ── */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-              Credits
-            </h1>
-            <p className={`text-sm mt-1 ${dark ? "text-gray-500" : "text-gray-400"}`}>
-              Manage your credits balance and unlock professional tools
-            </p>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={() => setShowBuyModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-shadow"
-          >
-            <Plus className="w-4 h-4" />
-            Buy Credits
-          </motion.button>
-        </div>
-
-<<<<<<< HEAD
-        {/*  Balance Cards  */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Current Balance */}
-=======
-        {/* ── Balance Cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Main balance */}
->>>>>>> origin/master
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             className={`relative rounded-2xl border p-5 overflow-hidden col-span-1 sm:col-span-1 ${dark ? "bg-[#0d1b2e] border-[#1a2e48]" : "bg-gradient-to-br from-blue-50 to-white border-blue-100"}`}
@@ -305,7 +211,6 @@ const Credits = () => {
           </motion.div>
         </div>
 
-<<<<<<< HEAD
         {/*  Tabs  */}
         <div
           className={`flex gap-1 p-1 rounded-xl ${
@@ -316,11 +221,6 @@ const Credits = () => {
             { id: "overview", label: "Services", icon: Zap },
             { id: "history", label: "History", icon: History },
           ].map((tab) => (
-=======
-        {/* ── Tabs ── */}
-        <div className={`flex gap-1 p-1 rounded-xl w-fit ${dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
-          {[{ id: "services", label: "Services", icon: Zap }, { id: "history", label: "History", icon: History }].map((tab) => (
->>>>>>> origin/master
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -336,7 +236,6 @@ const Credits = () => {
           ))}
         </div>
 
-<<<<<<< HEAD
         {/*  Services Tab  */}
         <AnimatePresence mode="wait">
           {activeTab === "overview" && (
@@ -358,19 +257,6 @@ const Credits = () => {
                   <div className="absolute -bottom-4 -left-4 w-32 h-32 rounded-full bg-purple-300 blur-2xl" />
                 </div>
                 <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-=======
-        {/* ── Tab Content ── */}
-        <AnimatePresence mode="wait">
-
-          {/* SERVICES TAB */}
-          {activeTab === "services" && (
-            <motion.div key="services" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-
-              {/* Hero */}
-              <div className={`relative overflow-hidden rounded-2xl p-6 ${dark ? "bg-gradient-to-br from-blue-600/15 via-violet-600/8 to-transparent border border-white/[0.06]" : "bg-gradient-to-r from-blue-600 to-violet-700"}`}>
-                <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5 blur-2xl pointer-events-none" />
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
->>>>>>> origin/master
                   <div>
                     <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3 ${dark ? "bg-white/10 text-white/60" : "bg-white/20 text-white"}`}>
                       <Flame className="w-3 h-3" /> Spend Your Credits
@@ -389,7 +275,6 @@ const Credits = () => {
                 </div>
               </div>
 
-<<<<<<< HEAD
               {/*  Service cards  */}
               {(() => {
                 const getCredits = (key, fallback) =>
@@ -517,29 +402,6 @@ const Credits = () => {
                           {svc.beta && (
                             <span className="absolute top-4 right-4 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500 text-white tracking-wide">
                               BETA
-=======
-              {/* Service Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {services.map((svc, i) => {
-                  const IconComp = svc.icon;
-                  const canAfford = svc.credits === 0 || (balance?.balance || 0) >= svc.credits;
-                  const c = svc.color;
-                  return (
-                    <motion.div
-                      key={svc.key}
-                      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                      className={`rounded-2xl border p-5 flex flex-col gap-4 transition-all hover:shadow-lg ${dark ? "bg-[#0d1b2e] border-[#1a2e48] hover:border-[#264a70] hover:shadow-black/30" : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-gray-100/80"}`}
-                    >
-                      {/* Header */}
-                      <div className="flex items-start gap-3.5">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${dark ? c.iconDark : c.iconLight}`}>
-                          <IconComp className={`w-5 h-5 ${dark ? c.dark : c.light}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] font-black tracking-widest uppercase px-2 py-0.5 rounded-md ${dark ? c.badgeDark : c.badgeLight}`}>
-                              {svc.tag}
->>>>>>> origin/master
                             </span>
                             {svc.beta && (
                               <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white tracking-wide">BETA</span>
@@ -587,7 +449,6 @@ const Credits = () => {
                 })}
               </div>
 
-<<<<<<< HEAD
                           {/* Features */}
                           <ul className="space-y-1.5">
                             {svc.features.map((f) => (
@@ -668,15 +529,6 @@ const Credits = () => {
                     }`}
                   >
                     Start a new project
-=======
-              {/* Info strip */}
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${dark ? "bg-white/[0.02] border-white/[0.05]" : "bg-gray-50 border-gray-100"}`}>
-                <Info className={`w-4 h-4 shrink-0 ${dark ? "text-gray-600" : "text-gray-400"}`} />
-                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-500"}`}>
-                  Services are activated when you submit a project.{" "}
-                  <button onClick={() => navigate("/upload")} className={`font-semibold underline underline-offset-2 ${dark ? "text-blue-400" : "text-blue-600"}`}>
-                    Start a project
->>>>>>> origin/master
                   </button>{" "}
                   to select a service.
                 </p>
@@ -684,11 +536,7 @@ const Credits = () => {
             </motion.div>
           )}
 
-<<<<<<< HEAD
           {/*  History Tab  */}
-=======
-          {/* HISTORY TAB */}
->>>>>>> origin/master
           {activeTab === "history" && (
             <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1b2e] border-[#1a2e48]" : "bg-white border-gray-100"}`}>

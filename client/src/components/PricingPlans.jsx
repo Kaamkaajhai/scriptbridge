@@ -57,37 +57,22 @@ const PricingPlans = () => {
       title: "Unlock Fees",
       description: "Producers pay to see full scripts",
       creator: "You earn 50%",
-<<<<<<< HEAD
       example: "$500 unlock = $250 for you",
       icon: ""
-=======
-      example: "₹500 unlock = ₹250 for you",
-      icon: "🔓"
->>>>>>> origin/master
     },
     {
       title: "Pro Analysis",
       description: "Offer AI-powered script feedback",
       creator: "You earn 70%",
-<<<<<<< HEAD
       example: "$10 analysis = $7 for you",
       icon: ""
-=======
-      example: "₹10 analysis = ₹7 for you",
-      icon: "📊"
->>>>>>> origin/master
     },
     {
       title: "Option Fees",
       description: "Producers hold scripts with fees",
       creator: "Platform takes 10%",
-<<<<<<< HEAD
       example: "$300 option = $270 for you",
       icon: ""
-=======
-      example: "₹300 option = ₹270 for you",
-      icon: "⏳"
->>>>>>> origin/master
     },
     {
       title: "Domain Packages",

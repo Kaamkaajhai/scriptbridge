@@ -1977,16 +1977,9 @@ export const getInvestorHomeFeed = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getTopList = async (req, res) => {
   try {
-<<<<<<< HEAD
     const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
     const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
     const match = { status: "published", isSold: { $ne: true } };
-=======
-    const now = new Date();
-    const { genre, contentType, budget, sort = "platform", premium } = req.query;
-    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
-    const match = { ...PUBLIC_SCRIPT_FILTER };
->>>>>>> origin/master
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;

@@ -9,7 +9,6 @@ import ProjectCard from "../components/ProjectCard";
 import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
-<<<<<<< HEAD
 import PrivacySettings from "../components/PrivacySettingsWrapper";
 
 /* ── Streak helper ── */
@@ -213,9 +212,6 @@ const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
     </div>
   );
 };
-=======
-import { formatCurrency } from "../utils/currency";
->>>>>>> origin/master
 
 /* â”€â”€ Helper components â”€â”€ */
 
@@ -363,29 +359,13 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-<<<<<<< HEAD
   const [showConnectionsModal, setShowConnectionsModal] = useState(false);
   const [connectionsTab, setConnectionsTab] = useState("followers");
   const [activeTab, setActiveTab] = useState("overview");
-=======
-  const [activeTab, setActiveTab] = useState(currentUser?.role === "investor" ? "about" : "projects");
-  const [showMessageRequestModal, setShowMessageRequestModal] = useState(false);
-  const [messageRequestText, setMessageRequestText] = useState("");
-  const [sendingRequest, setSendingRequest] = useState(false);
-  const [requestSuccess, setRequestSuccess] = useState(false);
-  
-  // Pitch
-  const [showPitchModal, setShowPitchModal] = useState(false);
-  const [myScripts, setMyScripts] = useState([]);
-  const [pitchData, setPitchData] = useState({ scriptId: "", note: "" });
-  const [sendingPitch, setSendingPitch] = useState(false);
-  const [pitchSuccess, setPitchSuccess] = useState(false);
->>>>>>> origin/master
 
   // Settings state
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsErr, setSettingsErr] = useState("");
-<<<<<<< HEAD
   const [privacySettings, setPrivacySettings] = useState({
     accountEmail: "",
     emailVerified: false,
@@ -403,26 +383,12 @@ const Profile = () => {
     enableTwoFactor: false,
     blockedUsers: [],
   });
-=======
-  const [isBlockedByCurrent, setIsBlockedByCurrent] = useState(false);
-  const [blockedByProfile, setBlockedByProfile] = useState(false);
-  const [blockedUsers, setBlockedUsers] = useState([]);
-  const [blockingAction, setBlockingAction] = useState(false);
-  const [emailForm, setEmailForm] = useState({ password: "", newEmail: "" });
-  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [emailVerificationCode, setEmailVerificationCode] = useState("");
-  const [sendingVerificationCode, setSendingVerificationCode] = useState(false);
-  const [verifyingEmailCode, setVerifyingEmailCode] = useState(false);
-  const [verificationCodeSent, setVerificationCodeSent] = useState(false);
->>>>>>> origin/master
 
   useEffect(() => {
     fetchProfile();
   }, [id]);
 
   useEffect(() => {
-<<<<<<< HEAD
     if (!profile) return;
     setPrivacySettings((prev) => ({
       ...prev,
@@ -432,14 +398,6 @@ const Profile = () => {
       blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers : [],
     }));
   }, [profile]);
-=======
-    const isOwnView = !id || id === currentUser?._id;
-    if (!isOwnView) return undefined;
-    const refreshBookmarks = () => fetchProfile();
-    window.addEventListener("bookmarkUpdated", refreshBookmarks);
-    return () => window.removeEventListener("bookmarkUpdated", refreshBookmarks);
-  }, [id, currentUser?._id]);
->>>>>>> origin/master
 
   const handleDeleteScript = async (scriptId) => {
     try {
@@ -622,11 +580,7 @@ const Profile = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-<<<<<<< HEAD
     return `http://localhost:5002${url}`;
-=======
-    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
->>>>>>> origin/master
   };
 
   /* â”€â”€ Loading â”€â”€ */
@@ -763,20 +717,14 @@ const Profile = () => {
      RENDER
      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   return (
-<<<<<<< HEAD
     <div className="max-w-5xl mx-auto space-y-5">
       {/* ──────── PROFILE CARD ──────── */}
-=======
-    <div className={`mx-auto space-y-5 ${isWriterUser ? "max-w-6xl" : "max-w-3xl"}`}>
-      {/* ════════ PROFILE CARD ════════ */}
->>>>>>> origin/master
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
         className={`rounded-2xl border transition-colors relative overflow-visible ${t.card}`}
       >
-<<<<<<< HEAD
         {/* Cover area */}
         <div
           className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden ${
@@ -794,27 +742,6 @@ const Profile = () => {
         >
           {/* Edit / Follow button — pinned on cover */}
           <div className="absolute top-4 right-4 z-10">
-=======
-        {/* Cover — clean solid for writers */}
-        <div
-          className={`${isWriterUser ? "h-56 sm:h-60" : "h-36 sm:h-44"} rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
-        >
-          {/* Subtle dot pattern — single, no gradients */}
-          <div className="absolute inset-0" style={{
-            opacity: dark ? 0.035 : 0.05,
-            backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
-            backgroundSize: "24px 24px",
-          }} />
-          {isWriterUser && (
-            <>
-              <div className={`absolute -left-8 -top-10 w-40 h-40 rounded-full blur-2xl ${dark ? "bg-[#2f5485]/35" : "bg-[#89b8ff]/35"}`} />
-              <div className={`absolute right-8 top-8 w-24 h-24 rounded-full blur-xl ${dark ? "bg-[#6ca6ff]/25" : "bg-white/45"}`} />
-            </>
-          )}
-
-          {/* Edit / Follow button */}
-          <div className="absolute top-4 right-4 z-10 flex gap-2">
->>>>>>> origin/master
             {isOwnProfile ? (
               <button onClick={() => setShowEditModal(true)}
                 className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${t.editBtn}`}>
@@ -844,7 +771,6 @@ const Profile = () => {
           </div>
         </div>
 
-<<<<<<< HEAD
         {/* Avatar + Info row */}
         <div className="px-6 sm:px-8 relative">
           <div className="-mt-16 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
@@ -887,26 +813,6 @@ const Profile = () => {
                     >
                       WGA
                     </span>
-=======
-        {/* Writer-first premium hero */}
-        {isWriterUser ? (
-          <div className="px-5 sm:px-8 lg:px-10 pb-7 -mt-20 sm:-mt-24 relative z-20">
-            <div className={`rounded-3xl border backdrop-blur-xl ${t.writerPanel}`}>
-              <div className="p-5 sm:p-7 flex flex-col lg:flex-row lg:items-end gap-5 sm:gap-6">
-                <div className="shrink-0">
-                  {profile.profileImage ? (
-                    <img
-                      src={resolveImage(profile.profileImage)}
-                      alt={profile.name}
-                      className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover ring-[5px] shadow-2xl ring-white/30"
-                    />
-                  ) : (
-                    <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[5px] shadow-2xl ring-white/30 ${t.avatarGrad}`}>
-                      <span className="text-4xl sm:text-5xl font-extrabold text-white/85">
-                        {profile.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
->>>>>>> origin/master
                   )}
                 </div>
 
@@ -948,7 +854,6 @@ const Profile = () => {
                   )}
                 </div>
               </div>
-<<<<<<< HEAD
               {isOwnProfile && (
                 <p className={`text-[13px] font-medium ${t.email}`}>
                   {profile.email}
@@ -993,26 +898,6 @@ const Profile = () => {
                     >
                       {skill}
                     </span>
-=======
-
-              <div className="px-5 sm:px-7 pb-5 sm:pb-7">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
-                  {[
-                    { value: scripts.length, label: "Projects" },
-                    { value: profile.followers.length, label: "Followers" },
-                    { value: profile.following.length, label: "Following" },
-                    { value: profile.writerProfile?.genres?.length || 0, label: "Genres" },
-                    ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
-                  ].map((s) => (
-                    <div key={s.label} className={`rounded-xl p-3.5 border text-center ${t.writerStatCard}`}>
-                      <p className={`${s.isStr ? "text-[13px]" : "text-[22px]"} font-extrabold tabular-nums ${t.writerStatValue}`}>
-                        {s.value}
-                      </p>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-0.5 ${t.writerStatLabel}`}>
-                        {s.label}
-                      </p>
-                    </div>
->>>>>>> origin/master
                   ))}
                 </div>
               </div>
@@ -1041,134 +926,12 @@ const Profile = () => {
                         )}
                       </div>
 
-<<<<<<< HEAD
         {/* Stats */}
         {/* REMOVED: Activity Stats section */}
       </motion.div>
 
       {/* ──────── TABS ──────── */}
       <div className="flex items-center gap-2 flex-wrap">
-=======
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
-                            Investor
-                          </span>
-                        </div>
-
-                        {(profile.industryProfile?.company || profile.industryProfile?.jobTitle) && (
-                          <p className={`text-[13px] mt-1.5 ${dark ? "text-white/50" : "text-gray-600"}`}>
-                            {profile.industryProfile?.jobTitle || "Investor"}
-                            {profile.industryProfile?.company ? ` at ${profile.industryProfile.company}` : ""}
-                          </p>
-                        )}
-
-                        {isOwnProfile && (
-                          <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
-                        )}
-
-                        {profile.bio && (
-                          <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
-                            {profile.bio}
-                          </p>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-2 mt-3">
-                          {memberSince && (
-                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                              Joined {memberSince}
-                            </span>
-                          )}
-                          {profile.industryProfile?.investmentRange && (
-                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                              {profile.industryProfile.investmentRange.replace(/_/g, " ")}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2.5 w-full lg:w-[360px]">
-                      {[
-                        { label: "Followers", value: profile.followers.length },
-                        { label: "Following", value: profile.following.length },
-                        { label: "Purchased", value: investorStats?.scriptsPurchased ?? purchasedScripts.length },
-                      ].map((item) => (
-                        <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
-                          <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Avatar + Info row */}
-                <div className="px-6 sm:px-8">
-                  <div className="-mt-12 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
-                    <div className="shrink-0">
-                      {profile.profileImage ? (
-                        <img src={resolveImage(profile.profileImage)} alt={profile.name}
-                          className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-[5px] ${t.avatarRing}`} />
-                      ) : (
-                        <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full ring-[5px] bg-gradient-to-br flex items-center justify-center ${t.avatarRing} ${t.avatarGrad}`}>
-                          <span className="text-4xl sm:text-5xl font-extrabold text-white/80">
-                            {profile.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0 pb-1 pt-1 sm:pt-0">
-                      <div className="space-y-2">
-                        <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>
-                          {profile.name}
-                        </h1>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
-                            {profile.role}
-                          </span>
-                        </div>
-                      </div>
-                      {isOwnProfile && <p className={`text-[13px] font-medium mt-2 ${t.email}`}>{profile.email}</p>}
-                      {profile.bio && (
-                        <p className={`text-[14px] leading-relaxed mt-2.5 line-clamp-3 ${t.body}`}>
-                          {profile.bio}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats for non-writer */}
-                <div className="px-6 sm:px-8 pb-7 pt-5">
-                  <div className={`flex flex-wrap items-end gap-6 sm:gap-8 pt-5 border-t ${t.divider}`}>
-                    {[
-                      ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
-                      { value: profile.followers.length, label: "Followers" },
-                      { value: profile.following.length, label: "Following" },
-                      ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
-                    ].map((s) => (
-                      <div key={s.label}>
-                        <p className={`${s.isStr ? "text-lg sm:text-xl" : "text-2xl"} font-extrabold tabular-nums ${t.statNum}`}>{s.value}</p>
-                        <p className={`text-[11px] font-semibold uppercase tracking-wider mt-0.5 ${t.statLabel}`}>{s.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </motion.div>
-
-
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="flex items-center gap-2">
->>>>>>> origin/master
         {[
           { key: "overview", label: "Overview", icon: "✦" },
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
@@ -1211,7 +974,6 @@ const Profile = () => {
         ))}
       </div>
 
-<<<<<<< HEAD
       {/* ──────── OVERVIEW TAB ──────── */}
       {activeTab === "overview" && (
         <motion.div
@@ -1486,9 +1248,6 @@ const Profile = () => {
       )}
 
       {/* ──────── PROJECTS TAB ──────── */}
-=======
-      {/* â”€â”€â”€â”€â”€â”€â”€â”€ PROJECTS TAB â”€â”€â”€â”€â”€â”€â”€â”€ */}
->>>>>>> origin/master
       {activeTab === "projects" && profile.role !== "investor" && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -1526,11 +1285,7 @@ const Profile = () => {
               </p>
             </div>
           ) : (
-<<<<<<< HEAD
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-=======
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
->>>>>>> origin/master
               {scripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -2111,11 +1866,7 @@ const Profile = () => {
                   {/* Thumbnail */}
                   <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 ${dark ? "bg-[#1a2d47]" : "bg-gray-100"}`}>
                     {script.coverImage ? (
-<<<<<<< HEAD
                       <img src={script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`}
-=======
-                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${script.coverImage}`}
->>>>>>> origin/master
                         alt={script.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -2179,246 +1930,8 @@ const Profile = () => {
             </div>
           )}
 
-<<<<<<< HEAD
           {/* Privacy Settings */}
           <PrivacySettings dark={dark} privacySettings={privacySettings} setPrivacySettings={setPrivacySettings} userId={id || currentUser?._id} api={api} />
-=======
-          {/* Account */}
-          <SectionCard dark={dark} title="Account" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
-            <div className="space-y-4">
-              <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
-                <div>
-                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Private Account</p>
-                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>Only approved followers can see your profile</p>
-                </div>
-                <button onClick={async () => { try { setSavingSettings(true); await api.put("/users/settings", { isPrivate: !profile.isPrivate }); setProfile({ ...profile, isPrivate: !profile.isPrivate }); setSettingsMsg("Privacy updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr("Failed"); } finally { setSavingSettings(false); } }}
-                  className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.isPrivate ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
-                  <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.isPrivate ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
-                </button>
-              </div>
-              <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
-                <div>
-                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Email Verified</p>
-                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{profile.pendingEmail ? `Current: ${profile.email}` : profile.email}</p>
-                  {profile.pendingEmail && (
-                    <p className={`text-[11px] mt-0.5 ${dark ? "text-amber-300/70" : "text-amber-700"}`}>Pending: {profile.pendingEmail}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {(profile.pendingEmail || !profile.emailVerified) && (
-                    <button
-                      disabled={sendingVerificationCode || savingSettings}
-                      onClick={async () => {
-                        try {
-                          setSendingVerificationCode(true);
-                          setSettingsErr("");
-                          await api.post("/users/email-verification/send");
-                          setVerificationCodeSent(true);
-                          setSettingsMsg("Verification code sent to your email");
-                          setTimeout(() => setSettingsMsg(""), 3000);
-                        } catch (e) {
-                          setSettingsErr(e.response?.data?.message || "Failed to send verification code");
-                        } finally {
-                          setSendingVerificationCode(false);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${dark ? "bg-[#1e3a5f]/30 text-blue-300 border-[#1e3a5f]/40 hover:bg-[#1e3a5f]/40 disabled:opacity-40" : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 disabled:opacity-40"}`}
-                    >
-                      {sendingVerificationCode ? "Sending..." : "Send Code"}
-                    </button>
-                  )}
-                  <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${(profile.emailVerified && !profile.pendingEmail) ? dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200" : dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-200"}`}>{(profile.emailVerified && !profile.pendingEmail) ? "Verified" : "Unverified"}</span>
-                </div>
-              </div>
-              {(profile.pendingEmail || !profile.emailVerified) && (
-                <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                  <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Verify Email</p>
-                  <div className="space-y-2.5">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      placeholder="Enter 6-digit code"
-                      value={emailVerificationCode}
-                      onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`}
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        disabled={verifyingEmailCode || emailVerificationCode.length !== 6}
-                        onClick={async () => {
-                          try {
-                            setVerifyingEmailCode(true);
-                            setSettingsErr("");
-                            await api.post("/users/email-verification/verify", { otp: emailVerificationCode });
-                            const verifiedEmail = profile.pendingEmail || profile.email;
-                            setProfile({ ...profile, email: verifiedEmail, emailVerified: true, pendingEmail: undefined });
-                            setEmailVerificationCode("");
-                            setVerificationCodeSent(false);
-                            setSettingsMsg("Email verified successfully");
-                            setTimeout(() => setSettingsMsg(""), 3000);
-                          } catch (e) {
-                            setSettingsErr(e.response?.data?.message || "Failed to verify email");
-                          } finally {
-                            setVerifyingEmailCode(false);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40" : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-40"}`}
-                      >
-                        {verifyingEmailCode ? "Verifying..." : "Verify Code"}
-                      </button>
-                      <button
-                        disabled={sendingVerificationCode || savingSettings}
-                        onClick={async () => {
-                          try {
-                            setSendingVerificationCode(true);
-                            setSettingsErr("");
-                            await api.post("/users/email-verification/send");
-                            setVerificationCodeSent(true);
-                            setSettingsMsg("Verification code resent");
-                            setTimeout(() => setSettingsMsg(""), 3000);
-                          } catch (e) {
-                            setSettingsErr(e.response?.data?.message || "Failed to resend verification code");
-                          } finally {
-                            setSendingVerificationCode(false);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-white/[0.04] text-white/70 border border-white/[0.08] hover:bg-white/[0.08] disabled:opacity-40" : "bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 disabled:opacity-40"}`}
-                      >
-                        {sendingVerificationCode ? "Sending..." : "Resend"}
-                      </button>
-                    </div>
-                    {verificationCodeSent && (
-                      <p className={`text-[11px] ${dark ? "text-white/30" : "text-gray-500"}`}>
-                        A verification code was sent to {profile.pendingEmail || profile.email}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Email</p>
-                <div className="space-y-2.5">
-                  <input type="email" placeholder="New email address" value={emailForm.newEmail} onChange={e => setEmailForm({ ...emailForm, newEmail: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="Current password" value={emailForm.password} onChange={e => setEmailForm({ ...emailForm, password: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <button disabled={savingSettings || !emailForm.newEmail || !emailForm.password} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); const { data } = await api.put("/users/change-email", emailForm); setProfile({ ...profile, email: data.email, pendingEmail: data.pendingEmail, emailVerified: true }); setEmailForm({ password: "", newEmail: "" }); setEmailVerificationCode(""); setVerificationCodeSent(true); setSettingsMsg(data.message || "Verification code sent to new email."); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
-                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Update Email"}</button>
-                </div>
-              </div>
-              <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Password</p>
-                <div className="space-y-2.5">
-                  <input type="password" placeholder="Current password" value={pwForm.currentPassword} onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="New password (min 6 chars)" value={pwForm.newPassword} onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <input type="password" placeholder="Confirm new password" value={pwForm.confirmPassword} onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
-                  <button disabled={savingSettings || !pwForm.currentPassword || !pwForm.newPassword || pwForm.newPassword !== pwForm.confirmPassword} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); await api.put("/users/change-password", { currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); setSettingsMsg("Password changed"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
-                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Change Password"}</button>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* Notification Preferences */}
-          <SectionCard dark={dark} title="Notification Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>}>
-            <div className="space-y-2.5">
-              {[{ key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "When a new script matches your mandates" }, { key: "holdAlerts", label: "Hold Alerts", desc: "Option hold status updates" }, { key: "viewAlerts", label: "View Alerts", desc: "When someone views your profile" }, { key: "auditionAlerts", label: "Audition Alerts", desc: "New audition opportunities" }].map((pref) => (
-                <div key={pref.key} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                  <div><p className={`text-[13px] font-semibold ${dark ? "text-white/65" : "text-gray-700"}`}>{pref.label}</p><p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{pref.desc}</p></div>
-                  <button onClick={async () => { const nv = !profile.notificationPrefs?.[pref.key]; try { await api.put("/users/settings", { notificationPrefs: { [pref.key]: nv } }); setProfile({ ...profile, notificationPrefs: { ...profile.notificationPrefs, [pref.key]: nv } }); } catch (e) { setSettingsErr("Failed"); } }}
-                    className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.notificationPrefs?.[pref.key] ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
-                    <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.notificationPrefs?.[pref.key] ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          {/* Content Preferences + Subscription */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <SectionCard dark={dark} title="Content Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
-              <div className="space-y-3">
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Preferred Genres</p>
-                  {profile.preferences?.genres?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.genres.map((g, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${t.genreChip}`}>{g}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No genres selected</p>)}
-                </div>
-                <InfoRow dark={dark} label="Budget Range" value={profile.preferences?.budgetRange ? `${formatCurrency(profile.preferences.budgetRange.min || 0, "INR")} - ${formatCurrency(profile.preferences.budgetRange.max || 0, "INR")}` : <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Content Types</p>
-                  {profile.preferences?.contentTypes?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.contentTypes.map((ct, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${t.chip}`}>{ct.replace(/_/g, " ")}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No content types selected</p>)}
-                </div>
-              </div>
-            </SectionCard>
-            <SectionCard dark={dark} title="Subscription" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between"><span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>Plan</span><span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border uppercase ${profile.subscription?.plan === "enterprise" ? dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-200" : profile.subscription?.plan === "pro" ? dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200" : dark ? "bg-white/[0.04] text-white/45 border-white/[0.06]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{profile.subscription?.plan || "free"}</span></div>
-                <InfoRow dark={dark} label="Script Score Credits" value={profile.subscription?.scriptScoreCredits || 0} />
-                {profile.subscription?.expiresAt && (<InfoRow dark={dark} label="Expires" value={new Date(profile.subscription.expiresAt).toLocaleDateString()} />)}
-              </div>
-            </SectionCard>
-          </div>
-
-          {/* Localization */}
-          <SectionCard dark={dark} title="Localization" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" /></svg>}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
-                <select value={profile.language || "en"} onChange={async (e) => { try { await api.put("/users/settings", { language: e.target.value }); setProfile({ ...profile, language: e.target.value }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
-                  <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option>
-                </select>
-              </div>
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Timezone</p>
-                <select value={profile.timezone || "Asia/Kolkata"} onChange={async (e) => { try { await api.put("/users/settings", { timezone: e.target.value }); setProfile({ ...profile, timezone: e.target.value }); setSettingsMsg("Timezone updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
-                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="America/New_York">America/New_York (EST)</option><option value="America/Los_Angeles">America/Los_Angeles (PST)</option><option value="America/Chicago">America/Chicago (CST)</option><option value="Europe/London">Europe/London (GMT)</option><option value="Europe/Paris">Europe/Paris (CET)</option><option value="Asia/Tokyo">Asia/Tokyo (JST)</option><option value="Asia/Shanghai">Asia/Shanghai (CST)</option><option value="Australia/Sydney">Australia/Sydney (AEST)</option>
-                </select>
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* Blocked Users */}
-          <SectionCard dark={dark} title="Blocked Users" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728" /></svg>}>
-            {blockedUsers.length === 0 ? (
-              <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>No blocked users.</p>
-            ) : (
-              <div className="space-y-2.5">
-                {blockedUsers.map((u) => (
-                  <div key={u._id} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {u.profileImage ? (
-                        <img src={resolveImage(u.profileImage)} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${dark ? "bg-white/[0.06] text-white/70" : "bg-gray-200 text-gray-700"}`}>
-                          {u.name?.charAt(0)?.toUpperCase() || "U"}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/75" : "text-gray-800"}`}>{u.name}</p>
-                        <p className={`text-[11px] capitalize ${dark ? "text-white/30" : "text-gray-400"}`}>{u.role || "user"}</p>
-                      </div>
-                    </div>
-                    <button
-                      disabled={savingSettings}
-                      onClick={() => handleUnblockFromSettings(u._id)}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors disabled:opacity-40 ${dark ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"}`}
-                    >
-                      Unblock
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Danger Zone */}
-          <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>
-            <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-red-500/15 bg-red-500/[0.03]" : "border-red-100 bg-red-50/40"}`}>
-              <div><p className={`text-[13px] font-semibold ${dark ? "text-red-400/80" : "text-red-600"}`}>Delete Account</p><p className={`text-[11px] ${dark ? "text-red-400/30" : "text-red-400"}`}>Permanently delete your account and all data</p></div>
-              <button className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}>Delete</button>
-            </div>
-          </SectionCard>
->>>>>>> origin/master
         </motion.div>
       )}
 
@@ -2609,7 +2122,6 @@ const Profile = () => {
         </motion.div>
       )}
 
-<<<<<<< HEAD
       <AnimatePresence>
         {showConnectionsModal && (
           <motion.div
@@ -2714,214 +2226,6 @@ const Profile = () => {
           </motion.div>
         )}
       </AnimatePresence>
-=======
-      {/* Pitch Modal */}
-      {showPitchModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowPitchModal(false)}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`rounded-2xl shadow-2xl max-w-lg w-full p-6 border ${dark ? "bg-[#0d1520] border-white/[0.06]" : "bg-white border-gray-200"}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {pitchSuccess ? (
-              <div className="text-center py-8">
-                <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
-                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className={`text-lg font-extrabold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Pitch Sent!</h3>
-                <p className={`text-sm ${dark ? "text-white/50" : "text-gray-500"}`}>
-                  Your pitch to {profile.name} was successfully submitted.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className={`text-lg font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Pitch Script</h3>
-                    <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-gray-500"}`}>
-                      Select a script to pitch to {profile.name}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowPitchModal(false)}
-                    className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.06] text-white/40 hover:text-white/60" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className={`block text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
-                      Select Script
-                    </label>
-                    <select
-                      value={pitchData.scriptId}
-                      onChange={(e) => setPitchData({ ...pitchData, scriptId: e.target.value })}
-                      className={`w-full p-3 rounded-xl border text-[13px] outline-none transition-all ${
-                        dark 
-                          ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20" 
-                          : "bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-purple-500"
-                      }`}
-                    >
-                      <option value="">-- Choose a script --</option>
-                      {myScripts.map(script => (
-                        <option key={script._id} value={script._id}>{script.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={`block text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
-                      Pitch Note (Optional)
-                    </label>
-                    <textarea
-                      value={pitchData.note}
-                      onChange={(e) => setPitchData({ ...pitchData, note: e.target.value })}
-                      placeholder="Add a brief note about why this fits their mandate..."
-                      className={`w-full min-h-[100px] p-3 rounded-xl border text-[13px] outline-none resize-none transition-all ${
-                        dark 
-                          ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20 placeholder-white/20" 
-                          : "bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-purple-500 placeholder-gray-400"
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowPitchModal(false)}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                      dark ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSendPitch}
-                    disabled={!pitchData.scriptId || sendingPitch}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                      dark ? "bg-purple-500 text-white hover:bg-purple-600" : "bg-purple-600 text-white hover:bg-purple-700 shadow-md"
-                    }`}
-                  >
-                    {sendingPitch ? "Sending..." : "Submit Pitch"}
-                  </button>
-                </div>
-              </>
-            )}
-          </motion.div>
-        </div>
-      )}
-
-      {/* Message Request Modal */}
-      {showMessageRequestModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowMessageRequestModal(false)}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className={`rounded-2xl shadow-2xl max-w-lg w-full p-6 border ${dark ? "bg-[#0d1520] border-white/[0.06]" : "bg-white border-gray-200"}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {requestSuccess ? (
-              <div className="text-center py-8">
-                <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
-                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className={`text-lg font-extrabold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Request Sent!</h3>
-                <p className={`text-sm ${dark ? "text-white/50" : "text-gray-500"}`}>
-                  Your message request has been sent to {profile.name}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className={`text-lg font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>
-                      Send Message Request
-                    </h3>
-                    <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-gray-500"}`}>
-                      Introduce yourself to {profile.name}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowMessageRequestModal(false)}
-                    className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.06] text-white/40 hover:text-white/60" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="mb-4">
-                  <label className={`block text-sm font-semibold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
-                    Your Message
-                  </label>
-                  <textarea
-                    value={messageRequestText}
-                    onChange={(e) => setMessageRequestText(e.target.value)}
-                    placeholder="Tell them about your work and why you'd like to connect..."
-                    rows={5}
-                    className={`w-full px-4 py-3 rounded-xl text-sm border outline-none transition-colors resize-none ${
-                      dark
-                        ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/25 focus:border-white/20"
-                        : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-blue-400"
-                    }`}
-                    maxLength={500}
-                  />
-                  <p className={`text-xs mt-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>
-                    {messageRequestText.length}/500 characters
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowMessageRequestModal(false)}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-                      dark
-                        ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSendMessageRequest}
-                    disabled={!messageRequestText.trim() || sendingRequest}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                      dark
-                        ? "bg-blue-500 text-white hover:bg-blue-600"
-                        : "bg-blue-500 text-white hover:bg-blue-600 shadow-md"
-                    }`}
-                  >
-                    {sendingRequest ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        Sending...
-                      </span>
-                    ) : (
-                      "Send Request"
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </motion.div>
-        </div>
-      )}
->>>>>>> origin/master
 
       {/* Edit Modal */}
       {showEditModal && (

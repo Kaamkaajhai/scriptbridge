@@ -1,11 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-<<<<<<< HEAD
   baseURL: "http://localhost:5002/api",
-=======
-  baseURL: `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`,
->>>>>>> origin/master
 });
 
 // Auth endpoints that should never receive an Authorization header

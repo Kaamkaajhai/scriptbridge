@@ -8,23 +8,7 @@ import PrivacySettingsUI from "./PrivacySettingsVanilla";
 const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, api }) => {
   const containerRef = useRef(null);
   const uiInstanceRef = useRef(null);
-<<<<<<< HEAD
   const lastSyncedStateRef = useRef("");
-=======
->>>>>>> origin/master
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Pass the DOM element directly, not a selector string, along with userId and api service
-    uiInstanceRef.current = new PrivacySettingsUI(containerRef.current, dark, userId, api);
-
-    if (privacySettings) {
-      uiInstanceRef.current.updateState(privacySettings);
-<<<<<<< HEAD
-      lastSyncedStateRef.current = JSON.stringify(privacySettings);
-=======
->>>>>>> origin/master
     }
 
     return () => {
@@ -34,7 +18,6 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
 
   useEffect(() => {
     if (!uiInstanceRef.current || !privacySettings) return;
-<<<<<<< HEAD
 
     const incoming = JSON.stringify(privacySettings);
     const current = JSON.stringify(uiInstanceRef.current.getState());
@@ -46,26 +29,6 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
     }
 
     lastSyncedStateRef.current = incoming;
-=======
->>>>>>> origin/master
-    uiInstanceRef.current.updateState(privacySettings);
-  }, [privacySettings]);
-
-  // Sync state changes back to React parent
-  useEffect(() => {
-    if (!uiInstanceRef.current || !setPrivacySettings) return;
-
-    // Create an interval to check for state changes
-    const syncInterval = setInterval(() => {
-      const currentState = uiInstanceRef.current.getState();
-<<<<<<< HEAD
-      const serialized = JSON.stringify(currentState);
-
-      if (serialized === lastSyncedStateRef.current) return;
-
-      lastSyncedStateRef.current = serialized;
-=======
->>>>>>> origin/master
       setPrivacySettings(currentState);
     }, 500);
 

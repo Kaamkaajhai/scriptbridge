@@ -21,19 +21,11 @@ const CONTENT_TYPES = [
   { key: "startup",     label: "Startup"     },
 ];
 const BUDGETS = [
-<<<<<<< HEAD
   { key: "micro",       label: "Micro"       },
   { key: "low",         label: "Low"         },
   { key: "mid",         label: "Mid"         },
   { key: "high",        label: "High"        },
   { key: "blockbuster", label: "Blockbuster" },
-=======
-  { key: "micro", label: "Micro (<?10L)" },
-  { key: "low", label: "Low (?10L-?1Cr)" },
-  { key: "mid", label: "Mid (?1Cr-?10Cr)" },
-  { key: "high", label: "High (?10Cr-?100Cr)" },
-  { key: "blockbuster", label: "Blockbuster (>?100Cr)" },
->>>>>>> origin/master
 ];
 const PREMIUM_OPTIONS = [
   { key: "all",     label: "All"     },
@@ -246,12 +238,7 @@ const TopList = () => {
 
   const resolveImage = (url) => {
     if (!url) return "";
-<<<<<<< HEAD
     return url.startsWith("http") || url.startsWith("data:") ? url : `http://localhost:5002${url}`;
-=======
-    if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
->>>>>>> origin/master
   };
 
   const numericMetrics = scripts.map(s => {
@@ -457,7 +444,6 @@ const TopList = () => {
           )}
         </motion.div>
       ) : (
-<<<<<<< HEAD
         <AnimatePresence mode="wait">
           <motion.div
             key={sortBy}
@@ -629,23 +615,6 @@ const TopList = () => {
             })}
           </motion.div>
         </AnimatePresence>
-=======
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {scripts.map((script, index) => {
-            const rank = index + 1;
-            return (
-              <motion.div
-                key={script._id || index}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04, duration: 0.32, ease }}
-              >
-                <ProjectCard project={script} userName={script.creator?.name || "Unknown"} />
-              </motion.div>
-            );
-          })}
-        </div>
->>>>>>> origin/master
       )}
     </div>
   );

@@ -135,7 +135,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       ? profile.bankDetails.accountNumber
       : "";
 
-<<<<<<< HEAD
   // Reader preferences state
   const isReader = profile.role === "reader";
   const [readerGenres, setReaderGenres] = useState(profile.preferences?.genres || []);
@@ -149,20 +148,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   };
 
 
-=======
-  // Bank details state
-  const [bankDetails, setBankDetails] = useState({
-    accountHolderName: profile.bankDetails?.accountHolderName || "",
-    bankName: profile.bankDetails?.bankName || "",
-    accountNumber: "",
-    routingNumber: profile.bankDetails?.routingNumber || "",
-    accountType: profile.bankDetails?.accountType || "checking",
-    swiftCode: profile.bankDetails?.swiftCode || "",
-    iban: profile.bankDetails?.iban || "",
-    country: profile.bankDetails?.country || "IN",
-    currency: profile.bankDetails?.currency || "INR"
-  });
->>>>>>> origin/master
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -189,11 +174,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         { key: "basic", label: "Basic", icon: <User size={13} /> },
         { key: "investor", label: "Professional", icon: <BadgeCheck size={13} /> },
         { key: "preferences", label: "Preferences", icon: <Film size={13} /> },
-<<<<<<< HEAD
         { key: "notifications", label: "Alerts", icon: <Bell size={13} /> },
-=======
-        { key: "bank", label: "Banking", icon: <CreditCard size={13} /> },
->>>>>>> origin/master
       ]
       : isReader
         ? [
@@ -250,11 +231,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setFormData({ ...formData, profileImage: data.profileImage });
-<<<<<<< HEAD
       setImagePreview(`http://localhost:5002${data.profileImage}`);
-=======
-      setImagePreview(`${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${data.profileImage}`);
->>>>>>> origin/master
     } catch (err) {
       setError(err.response?.data?.message || "Failed to upload image");
       setImagePreview(profile.profileImage || "");
@@ -364,54 +341,12 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         payload.preferredFormats = investorFormats;
       }
 
-<<<<<<< HEAD
       // Reader preferences
       if (isReader) {
         payload.preferences = {
           genres: readerGenres,
           contentTypes: readerContentTypes,
         };
-=======
-      const normalizedBankDetails = {
-        accountHolderName: bankDetails.accountHolderName.trim(),
-        bankName: bankDetails.bankName.trim(),
-        accountNumber: bankDetails.accountNumber.replace(/\s+/g, ""),
-        routingNumber: bankDetails.routingNumber.replace(/\s+/g, ""),
-        accountType: bankDetails.accountType || "checking",
-        swiftCode: bankDetails.swiftCode.trim().toUpperCase(),
-        iban: bankDetails.iban.trim().toUpperCase(),
-        country: (bankDetails.country || "IN").trim().toUpperCase(),
-        currency: (bankDetails.currency || "INR").trim().toUpperCase(),
-      };
-
-      const hasEditableBankValues =
-        normalizedBankDetails.accountHolderName ||
-        normalizedBankDetails.bankName ||
-        normalizedBankDetails.accountNumber ||
-        normalizedBankDetails.routingNumber ||
-        normalizedBankDetails.swiftCode ||
-        normalizedBankDetails.iban;
-
-      if (hasEditableBankValues) {
-        if (!normalizedBankDetails.accountHolderName || !normalizedBankDetails.bankName) {
-          setError("Account holder name and bank name are required for bank details.");
-          setLoading(false);
-          return;
-        }
-
-        if (!normalizedBankDetails.accountNumber && !maskedAccountNumber) {
-          setError("Account number is required for bank details.");
-          setLoading(false);
-          return;
-        }
-
-        // Keep existing account number if the user did not provide a new one.
-        if (!normalizedBankDetails.accountNumber && maskedAccountNumber) {
-          delete normalizedBankDetails.accountNumber;
-        }
-
-        payload.bankDetails = normalizedBankDetails;
->>>>>>> origin/master
       }
 
 
@@ -430,7 +365,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const displayImage = imagePreview
     ? imagePreview.startsWith("data:") || imagePreview.startsWith("http")
       ? imagePreview
-<<<<<<< HEAD
       : `http://localhost:5002${imagePreview}`
     : "";
 
@@ -438,9 +372,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     ? coverImagePreview.startsWith("data:") || coverImagePreview.startsWith("http")
       ? coverImagePreview
       : `http://localhost:5002${coverImagePreview}`
-=======
-      : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${imagePreview}`
->>>>>>> origin/master
     : "";
 
   const inputClass = dark
@@ -1032,7 +963,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
             </motion.div>
           )}
 
-<<<<<<< HEAD
           {/* === NOTIFICATION PREFERENCES SECTION === */}
           {activeSection === "notifications" && isInvestor && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -1089,50 +1019,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       {readerGenres.length} selected
                     </span>
                   )}
-=======
-          {/* === BANK DETAILS SECTION === */}
-          {activeSection === "bank" && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-              <div>
-                <h3 className={`text-sm font-bold mb-1 ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Bank Account Details</h3>
-                <p className="text-xs text-gray-400 mb-4">
-                  Secure payment information for receiving funds
-                </p>
-              </div>
-
-              <div>
-                <label className={labelClass}>Account Holder Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.accountHolderName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, accountHolderName: e.target.value })}
-                  className={inputClass}
-                  placeholder="Full name as it appears on your account"
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>Bank Name</label>
-                <input
-                  type="text"
-                  value={bankDetails.bankName}
-                  onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g., HDFC Bank, ICICI Bank, SBI"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Account Number</label>
-                  <input
-                    type="text"
-                    value={bankDetails.accountNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                    className={inputClass}
-                    placeholder={maskedAccountNumber ? `Current: ${maskedAccountNumber}` : "Account number"}
-                  />
->>>>>>> origin/master
                 </div>
                 <p className={`text-xs mb-3 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Tap to select genres you love — we'll show those scripts first</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -1166,37 +1052,9 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     onClick={() => setReaderGenres([])}
                     className={`mt-2 text-[11px] font-semibold hover:underline ${dark ? 'text-white/30 hover:text-white/50' : 'text-gray-400 hover:text-gray-600'}`}
                   >
-<<<<<<< HEAD
                     Clear all
                   </button>
                 )}
-=======
-                    <option value="checking">Checking</option>
-                    <option value="savings">Savings</option>
-                    <option value="business">Business</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Country</label>
-                  <input
-                    type="text"
-                    value={bankDetails.country}
-                    onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
-                    className={inputClass}
-                    placeholder="IN"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Currency</label>
-                  <input
-                    type="text"
-                    value={bankDetails.currency}
-                    onChange={(e) => setBankDetails({ ...bankDetails, currency: e.target.value })}
-                    className={inputClass}
-                    placeholder="INR"
-                  />
-                </div>
->>>>>>> origin/master
               </div>
 
               {/* Content Types */}

@@ -100,11 +100,7 @@ const Messages = () => {
 
   /* ── Socket setup ────────────────────────────────────────── */
   useEffect(() => {
-<<<<<<< HEAD
     const sock = io("http://localhost:5002");
-=======
-    const sock = io(API_ORIGIN);
->>>>>>> origin/master
     setSocket(sock);
 
     sock.on("receive-message", (msg) => {
@@ -416,11 +412,7 @@ const Messages = () => {
   /* ── Avatar URL helper ──────────────────────────────────── */
   const avatar = (u) =>
     u?.profileImage
-<<<<<<< HEAD
       ? u.profileImage.startsWith("http") ? u.profileImage : `http://localhost:5002${u.profileImage}`
-=======
-      ? u.profileImage.startsWith("http") ? u.profileImage : `${API_ORIGIN}${u.profileImage}`
->>>>>>> origin/master
       : `https://placehold.co/48x48/1e3a5f/ffffff?text=${encodeURIComponent(u?.name?.charAt(0) || "U")}`;
 
   /* ── Theme shorthand ────────────────────────────────────── */

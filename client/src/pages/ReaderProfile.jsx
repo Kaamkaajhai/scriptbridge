@@ -30,11 +30,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:")) return url;
-<<<<<<< HEAD
     return `http://localhost:5002${url}`;
-=======
-    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
->>>>>>> origin/master
   };
 
   const handleImageChange = (e) => {
@@ -410,11 +406,7 @@ const ReaderProfile = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-<<<<<<< HEAD
     return `http://localhost:5002${url}`;
-=======
-    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
->>>>>>> origin/master
   };
 
   useEffect(() => { fetchProfile(); }, [profileId]);
@@ -682,7 +674,6 @@ const ReaderProfile = () => {
            DASHBOARD BODY  (two-column layout)
       ══════════════════════════════════════════════════ */}
       <AnimatePresence mode="wait">
-<<<<<<< HEAD
         {dashboardTab === "overview" && (
           <motion.div
             key="overview"
@@ -706,38 +697,6 @@ const ReaderProfile = () => {
                       <p className={`text-[16px] font-bold ${ dark ? "text-white" : "text-gray-900" }`}>Currently Reading</p>
                       <p className={`text-[13px] mt-0.5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>{readScripts.length} script{readScripts.length !== 1 ? "s" : ""} in your list</p>
                     </div>
-=======
-        {dataLoading ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className={`rounded-2xl border h-[280px] animate-pulse shadow-sm ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`} />
-            ))}
-          </motion.div>
-        ) : (
-          <div className="min-h-[400px]">
-            {activeTab === "read" && (
-              <motion.div key="read" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                {readScripts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {readScripts.map((s) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
-                  </div>
-                ) : (
-                  <EmptyState
-                    icon={BookOpen}
-                    title="No scripts read yet"
-                    subtitle={isOwnProfile ? "Discover new scripts and dive into a reading adventure!" : "This user hasn't made their reading list public."}
-                    action={isOwnProfile ? <Link to="/reader" className="mt-4 inline-block px-6 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-bold hover:bg-[#162d4a] transition-colors shadow-sm">Explore Scripts</Link> : null}
-                  />
-                )}
-              </motion.div>
-            )}
-
-            {activeTab === "favorites" && (
-              <motion.div key="favorites" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                {favorites.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {favorites.map((s) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
->>>>>>> origin/master
                   </div>
                   <Link to="/reader" className={`inline-flex items-center gap-1 text-[14px] font-semibold transition-colors px-3 py-1.5 rounded-lg ${ dark ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50" }`}>
                     Browse <ChevronRight size={12} />

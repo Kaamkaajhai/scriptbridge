@@ -185,7 +185,6 @@ const scriptSchema = new mongoose.Schema({
   rejectionReason: { type: String },
 }, { timestamps: true });
 
-<<<<<<< HEAD
 // Indexes for fast queries
 scriptSchema.index({ status: 1, rating: -1 });
 scriptSchema.index({ status: 1, isFeatured: 1, rating: -1 });
@@ -199,21 +198,5 @@ scriptSchema.index({ status: 1, views: -1 });
 scriptSchema.index({ status: 1, "scriptScore.overall": -1 });
 scriptSchema.index({ status: 1, genre: 1, views: -1 });
 scriptSchema.index({ status: 1, contentType: 1, views: -1 });
-=======
-scriptSchema.pre("validate", async function () {
-  if (this.sid) return;
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const candidate = createSid("PRJ");
-    const exists = await this.constructor.exists({ sid: candidate });
-    if (!exists) {
-      this.sid = candidate;
-      return;
-    }
-  }
-
-  throw new Error("Unable to generate unique project SID");
-});
->>>>>>> origin/master
 
 export default mongoose.model("Script", scriptSchema);

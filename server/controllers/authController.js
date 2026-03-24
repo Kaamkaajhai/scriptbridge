@@ -229,13 +229,6 @@ export const login = async (req, res) => {
 
     email = sanitizeEmail(email);
 
-<<<<<<< HEAD
-=======
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ message: "Please provide a valid email address" });
-    }
-
->>>>>>> origin/master
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
       if (!user.sid) {

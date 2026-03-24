@@ -47,7 +47,6 @@ connectDB().catch((error) => {
 const app = express();
 const isVercel = Boolean(process.env.VERCEL);
 
-<<<<<<< HEAD
 // Socket.io Configuration
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -72,10 +71,6 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-=======
-app.disable("x-powered-by");
-app.set("trust proxy", 1);
->>>>>>> origin/master
 
 applyGlobalSecurity(app);
 
@@ -149,11 +144,7 @@ const createRealtimeServer = () => {
 
 // CORS Configuration - MUST be before routes
 app.use(cors({
-<<<<<<< HEAD
   origin: ALLOWED_ORIGINS,
-=======
-  origin: corsOrigin,
->>>>>>> origin/master
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

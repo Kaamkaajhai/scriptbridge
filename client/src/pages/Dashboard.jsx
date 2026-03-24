@@ -426,13 +426,8 @@ const CreatorDashboard = ({ user, dark }) => {
                                         return (
                                           <div key={key} className={`rounded-lg px-3 py-2.5 ${dark ? 'bg-[#0d1520] ring-1 ring-white/[0.05]' : 'bg-gray-50/80'}`}>
                                             <div className="flex items-center justify-between mb-1.5">
-<<<<<<< HEAD
                                               <span className={`text-[11px] font-semibold uppercase tracking-wider ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{key}</span>
                                               <span className={`text-[12px] font-bold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>{val}</span>
-=======
-                                              <span className={`text-[11px] font-semibold uppercase tracking-wider capitalize ${dark ? 'text-[#3a4a5e]' : 'text-gray-400'}`}>{key}</span>
-                                              <span className={`text-[12px] font-bold ${dark ? 'text-[#8896a7]' : 'text-gray-700'}`}>{val}</span>
->>>>>>> origin/master
                                             </div>
                                             <div className={`h-1 rounded-full overflow-hidden ${dark ? 'bg-[#1c2a3a]' : 'bg-gray-200'}`}>
                                               <motion.div initial={{ width: 0 }} animate={{ width: `${val}%` }}
@@ -466,13 +461,8 @@ const CreatorDashboard = ({ user, dark }) => {
                                       <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>Strengths</p>
                                       <ul className="space-y-1">
                                         {r.strengths.map((s, i) => (
-<<<<<<< HEAD
                                           <li key={i} className={`flex items-start gap-1.5 text-[12px] ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
                                             {s}
-=======
-                                          <li key={i} className={`flex items-start gap-1.5 text-[12px] ${dark ? 'text-[#8896a7]' : 'text-gray-600'}`}>
-                                            <span className={`mt-0.5 shrink-0 text-xs ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>✓</span>{s}
->>>>>>> origin/master
                                           </li>
                                         ))}
                                       </ul>
@@ -487,13 +477,8 @@ const CreatorDashboard = ({ user, dark }) => {
                                           <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${dark ? 'text-amber-400' : 'text-amber-600'}`}>To Improve</p>
                                           <ul className="space-y-1">
                                             {r.weaknesses.map((w, i) => (
-<<<<<<< HEAD
                                               <li key={i} className={`flex items-start gap-1.5 text-[12px] ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
                                                 {w}
-=======
-                                              <li key={i} className={`flex items-start gap-1.5 text-[12px] ${dark ? 'text-[#8896a7]' : 'text-gray-600'}`}>
-                                                <span className={`mt-0.5 shrink-0 text-xs ${dark ? 'text-amber-400' : 'text-amber-600'}`}>△</span>{w}
->>>>>>> origin/master
                                               </li>
                                             ))}
                                           </ul>
