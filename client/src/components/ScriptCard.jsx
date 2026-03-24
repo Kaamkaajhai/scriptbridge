@@ -63,6 +63,8 @@ const StarIcon = () => (
   </svg>
 );
 
+   <motion.div
+      initial={{ opacity: 0, y: 25 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.035, duration: 0.35, ease: "easeOut" }}
       className="h-full"

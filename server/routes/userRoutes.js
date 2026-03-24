@@ -1,6 +1,6 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
-import { getWriters, getCurrentUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, updateSettings, changePassword, changeEmail, deleteAccount } from "../controllers/userController.js";
+import { getWriters, getBlockedUsers, blockUser,getCurrentUser,unblockUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, updateSettings, changePassword, changeEmail, deleteAccount } from "../controllers/userController.js";
 
 const router = express.Router();
 

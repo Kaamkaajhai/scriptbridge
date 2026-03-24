@@ -9,7 +9,7 @@ import { Server } from "socket.io";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from server/.env regardless of process working directory
+// Load env variables
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 import connectDB from "./config/db.js";
@@ -34,140 +34,55 @@ import creditsRoutes from "./routes/creditsRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import scriptPitchRoutes from "./routes/scriptPitchRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
+
 import {
   applyGlobalSecurity,
   apiLimiter,
   authLimiter,
   paymentLimiter,
 } from "./middleware/securityMiddleware.js";
-connectDB().catch((error) => {
-  console.error("Initial database connection failed:", error.message);
+
+connectDB().catch((err) => {
+  console.error("Database connection failed:", err.message);
 });
 
 const app = express();
 const isVercel = Boolean(process.env.VERCEL);
 
-// Socket.io Configuration
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:5175',
-  'http://localhost:5176',
-  'http://localhost:5177',
-  'http://localhost:5178',
-  'http://localhost:5179',
-  'http://localhost:5180',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  'http://127.0.0.1:5175',
-  'http://127.0.0.1:5176',
-];
-
-const io = new Server(server, {
-  cors: {
-    origin: ALLOWED_ORIGINS,
-    credentials: true,
-  },
-});
-
 applyGlobalSecurity(app);
 
-const localOrigins = [
+const allowedOrigins = [
+  "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
-  "http://localhost:5176",
   "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174",
-  "http://127.0.0.1:5175",
-  "http://127.0.0.1:5176",
-];
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
-const envOrigins = [process.env.CLIENT_URL, process.env.CORS_ORIGINS]
-  .filter(Boolean)
-  .flatMap((value) => String(value).split(","))
-  .map((value) => value.trim())
-  .filter(Boolean);
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 
-const allowedOrigins = [...new Set([...localOrigins, ...envOrigins])];
-
-const corsOrigin = (origin, callback) => {
-  if (!origin) return callback(null, true);
-  if (allowedOrigins.includes(origin)) return callback(null, true);
-  return callback(new Error("Not allowed by CORS"));
-};
-
-const createRealtimeServer = () => {
-  const server = http.createServer(app);
-
-  const io = new Server(server, {
-    cors: {
-      origin: allowedOrigins,
-      credentials: true,
-    },
-  });
-
-  io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
-
-    socket.on("join-chat", (chatId) => {
-      socket.join(chatId);
-      console.log(`User ${socket.id} joined chat: ${chatId}`);
-    });
-
-    socket.on("join-notifications", (userId) => {
-      socket.join(`notifications-${userId}`);
-      console.log(`User ${socket.id} joined notifications for: ${userId}`);
-    });
-
-    socket.on("send-message", (data) => {
-      io.to(data.chatId).emit("receive-message", data);
-    });
-
-    socket.on("typing", (data) => {
-      socket.to(data.chatId).emit("user-typing", data);
-    });
-
-    socket.on("smart-match-alert", (data) => {
-      io.to(`notifications-${data.userId}`).emit("new-match", data);
-    });
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
-    });
-  });
-
-  return server;
-};
-
-// CORS Configuration - MUST be before routes
-app.use(cors({
-  origin: ALLOWED_ORIGINS,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
-
-// Body parsing middleware
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-// Baseline abuse protection (route-level limiters remain stricter for sensitive endpoints)
 app.use("/api", apiLimiter);
 
-// Serve uploaded files
+// Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Test endpoint
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'API is working!' });
+// Test API
+app.get("/api/test", (req, res) => {
+  res.json({ message: "API working successfully 🚀" });
 });
 
-// Routes
+
+// ---------------- ROUTES ----------------
+
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
@@ -190,10 +105,60 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/script-pitches", scriptPitchRoutes);
 app.use("/api/invoices", invoiceRoutes);
 
+
+// ---------------- SOCKET.IO ----------------
+
+const createRealtimeServer = () => {
+  const server = http.createServer(app);
+
+  const io = new Server(server, {
+    cors: {
+      origin: allowedOrigins,
+      credentials: true,
+    },
+  });
+
+  io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    socket.on("join-chat", (chatId) => {
+      socket.join(chatId);
+    });
+
+    socket.on("join-notifications", (userId) => {
+      socket.join(`notifications-${userId}`);
+    });
+
+    socket.on("send-message", (data) => {
+      io.to(data.chatId).emit("receive-message", data);
+    });
+
+    socket.on("typing", (data) => {
+      socket.to(data.chatId).emit("user-typing", data);
+    });
+
+    socket.on("smart-match-alert", (data) => {
+      io.to(`notifications-${data.userId}`).emit("new-match", data);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.id);
+    });
+  });
+
+  return server;
+};
+
 export default app;
+
+
+// ---------------- START SERVER ----------------
 
 if (!isVercel) {
   const server = createRealtimeServer();
   const PORT = process.env.PORT || 5002;
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
 }

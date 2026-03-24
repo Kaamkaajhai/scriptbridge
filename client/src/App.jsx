@@ -24,7 +24,6 @@ const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
 const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
-const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Writers = lazy(() => import("./pages/Writers"));
 const InvestorHome = lazy(() => import("./pages/InvestorHome"));
