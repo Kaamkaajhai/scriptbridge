@@ -11,12 +11,15 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
+import { jsPDF } from "jspdf";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
 import api from "../services/api";
 import { formatCurrency } from "../utils/currency";
 import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
+
+const DRAFT_ENDPOINT = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api/scripts/draft`;
 
 /* -- Constants --------------------------------------- */
 const formats = [
@@ -403,6 +406,8 @@ const CreateProject = () => {
   const [loading, setLoading] = useState(false);
   const [grammarLoading, setGrammarLoading] = useState(false);
   const [grammarNotes, setGrammarNotes] = useState([]);
+  const lastDraftSignatureRef = useRef("");
+  const autoSaveInFlightRef = useRef(false);
 
   // Grammar credit confirmation + undo/keep
   const GRAMMAR_COST = 5;
@@ -688,28 +693,158 @@ const CreateProject = () => {
         })));
       }
       if (data.classification) setClassification({ tones: data.classification.tones || [], themes: data.classification.themes || [], settings: data.classification.settings || [] });
+      lastDraftSignatureRef.current = `${(data.title || "Untitled Draft").trim()}::${String(data.textContent || "").length}:${String(data.textContent || "").slice(0, 120)}:${String(data.textContent || "").slice(-120)}`;
+      setSaved(true);
       setShowDrafts(false);
     } catch { }
   }, [editor]);
   useEffect(() => { if (draftId && editor) loadDraft(draftId); }, [draftId, editor, loadDraft]);
 
-  // Auto-save every 30s
-  useEffect(() => {
-    if (!editor) return;
-    const iv = setInterval(() => { if (!saved && editor.getHTML().length > 15) handleSave(true); }, 30000);
-    return () => clearInterval(iv);
-  }, [editor, saved]);
+  const buildDraftPayload = useCallback(() => {
+    if (!editor) return null;
+    return {
+      title: title?.trim() ? title.trim() : "Untitled Draft",
+      textContent: editor.getHTML(),
+      ...(scriptId ? { scriptId } : {}),
+    };
+  }, [editor, scriptId, title]);
+
+  const getDraftSignature = useCallback((payload) => {
+    if (!payload) return "";
+    const html = String(payload.textContent || "");
+    return `${payload.title || ""}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
+  }, []);
+
+  const hasMeaningfulDraft = useCallback((payload) => {
+    if (!payload) return false;
+    const htmlText = String(payload.textContent || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return Boolean((payload.title || "").trim() || htmlText.length >= 10);
+  }, []);
+
+  const queueKeepaliveDraftSave = useCallback((reason = "close") => {
+    const payload = buildDraftPayload();
+    if (!hasMeaningfulDraft(payload)) return false;
+
+    const signature = getDraftSignature(payload);
+    if (!signature || signature === lastDraftSignatureRef.current) return false;
+
+    const stored = localStorage.getItem("user");
+    let token = "";
+    if (stored) {
+      try {
+        token = JSON.parse(stored)?.token || "";
+      } catch {
+        token = "";
+      }
+    }
+
+    fetch(DRAFT_ENDPOINT, {
+      method: "POST",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "X-Draft-Save-Reason": reason,
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+
+    lastDraftSignatureRef.current = signature;
+    return true;
+  }, [buildDraftPayload, getDraftSignature, hasMeaningfulDraft]);
 
   // Save draft
-  const handleSave = async (auto = false) => {
-    if (!editor) return; setSaving(true);
+  const handleSave = useCallback(async (auto = false) => {
+    if (!editor) return;
+    if (auto && autoSaveInFlightRef.current) return;
+
+    const payload = buildDraftPayload();
+    if (!hasMeaningfulDraft(payload)) return;
+
+    const signature = getDraftSignature(payload);
+    if (auto && signature === lastDraftSignatureRef.current) {
+      setSaved(true);
+      return;
+    }
+
+    if (auto) {
+      autoSaveInFlightRef.current = true;
+    } else {
+      setSaving(true);
+    }
+
     try {
-      const body = { title: title || "Untitled Draft", textContent: editor.getHTML(), ...(scriptId ? { scriptId } : {}) };
-      const { data } = await api.post("/scripts/draft", body);
-      setScriptId(data._id); setSaved(true); setLastSaved(new Date());
+      const { data } = await api.post("/scripts/draft", payload);
+      setScriptId(data._id);
+      setSaved(true);
+      setLastSaved(new Date());
+      lastDraftSignatureRef.current = signature;
       if (!auto) fetchDrafts();
-    } catch (err) { console.error("Save failed:", err); } finally { setSaving(false); }
-  };
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      if (auto) {
+        autoSaveInFlightRef.current = false;
+      } else {
+        setSaving(false);
+      }
+    }
+  }, [buildDraftPayload, editor, fetchDrafts, getDraftSignature, hasMeaningfulDraft]);
+
+  // Debounced autosave while typing title/content.
+  useEffect(() => {
+    if (!editor) return;
+    const payload = buildDraftPayload();
+    if (!hasMeaningfulDraft(payload)) return;
+
+    const timeoutId = setTimeout(() => {
+      handleSave(true);
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [title, charCount, wordCount, editor, buildDraftPayload, handleSave, hasMeaningfulDraft]);
+
+  // Interval fallback autosave every 3 seconds.
+  useEffect(() => {
+    if (!editor) return;
+    const iv = setInterval(() => {
+      handleSave(true);
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [editor, handleSave]);
+
+  // Save draft when user closes tab, switches away, or navigates away.
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleBeforeUnload = (event) => {
+      const queued = queueKeepaliveDraftSave("beforeunload");
+      if (!queued) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const handlePageHide = () => {
+      queueKeepaliveDraftSave("pagehide");
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        queueKeepaliveDraftSave("hidden");
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      queueKeepaliveDraftSave("unmount");
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [editor, queueKeepaliveDraftSave]);
 
   // Delete draft
   const handleDeleteDraft = async (id) => {
@@ -717,6 +852,62 @@ const CreateProject = () => {
       await api.delete(`/scripts/${id}`); setDrafts(p => p.filter(d => d._id !== id));
       if (scriptId === id) { setScriptId(null); setTitle(""); editor?.commands.clearContent(); }
     } catch { }
+  };
+
+  const sanitizePdfFileName = (value = "") => {
+    const safe = String(value)
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/\s+/g, " ");
+    return safe || "script";
+  };
+
+  const handleDownloadMainContentPdf = () => {
+    if (!editor) return;
+
+    const plainText = editor.getText({ blockSeparator: "\n\n" }).trim();
+    if (!plainText) {
+      setError("Write some main content before downloading PDF.");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const marginX = 48;
+      const marginTop = 56;
+      const lineHeight = 16;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const usableWidth = pageWidth - marginX * 2;
+      const usableHeight = pageHeight - marginTop * 2;
+
+      const scriptTitle = title?.trim() || "Untitled Draft";
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      const titleLines = doc.splitTextToSize(scriptTitle, usableWidth);
+      let y = marginTop;
+      doc.text(titleLines, marginX, y);
+      y += titleLines.length * 22;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      const contentLines = doc.splitTextToSize(plainText, usableWidth);
+
+      for (const line of contentLines) {
+        if (y + lineHeight > marginTop + usableHeight) {
+          doc.addPage();
+          y = marginTop;
+        }
+        doc.text(line, marginX, y);
+        y += lineHeight;
+      }
+
+      const fileBase = sanitizePdfFileName(scriptTitle);
+      doc.save(`${fileBase}.pdf`);
+    } catch {
+      setError("Failed to generate PDF. Please try again.");
+    }
   };
 
   // Form handlers
@@ -745,6 +936,27 @@ const CreateProject = () => {
   };
   const removeRole = (index) => {
     setRoles((prev) => prev.filter((_, i) => i !== index));
+  };
+  const getInvalidRoleAgeRangeMessage = () => {
+    const invalidIndex = roles.findIndex((role) => {
+      const min = role?.ageRange?.min;
+      const max = role?.ageRange?.max;
+      if (min === "" || max === "" || min === undefined || max === undefined || min === null || max === null) {
+        return false;
+      }
+      const minAge = Number(min);
+      const maxAge = Number(max);
+      if (!Number.isFinite(minAge) || !Number.isFinite(maxAge)) {
+        return true;
+      }
+      return minAge >= maxAge;
+    });
+
+    if (invalidIndex >= 0) {
+      return `Role ${invalidIndex + 1}: Min age must be less than max age.`;
+    }
+
+    return "";
   };
   const toggleChip = (cat, val) => {
     setClassification(prev => {
@@ -844,6 +1056,8 @@ const CreateProject = () => {
       if (!formData.primaryGenre) { setError("Primary genre is required."); return false; }
       if (formData.logline && formData.logline.length > 50) { setError("Logline must be 50 chars or less."); return false; }
       if (!formData.synopsis || !formData.synopsis.trim()) { setError("Synopsis is required."); return false; }
+      const ageRangeError = getInvalidRoleAgeRangeMessage();
+      if (ageRangeError) { setError(ageRangeError); return false; }
       return true;
     }
     if (s === 3) return true;
@@ -859,6 +1073,8 @@ const CreateProject = () => {
   // Publish
   const handlePublish = async () => {
     if (!validateStep(4)) return;
+    const ageRangeError = getInvalidRoleAgeRangeMessage();
+    if (ageRangeError) { setError(ageRangeError); return; }
     const creditsNeeded = calculateTotal();
     if (creditsNeeded > creditsBalance) { setError(`Insufficient credits. Need ${creditsNeeded} but have ${creditsBalance}.`); return; }
     setLoading(true); setError("");
@@ -1492,6 +1708,13 @@ const CreateProject = () => {
                   <button onClick={() => handleSave(false)} disabled={saving}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
                     Save Draft
+                  </button>
+                  <button
+                    onClick={handleDownloadMainContentPdf}
+                    disabled={saving}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}
+                  >
+                    Download PDF
                   </button>
                   <button onClick={handleGrammarClick} disabled={grammarLoading || saving}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-40 ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>

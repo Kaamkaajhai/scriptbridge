@@ -56,6 +56,28 @@ const PROJECT_SPOTLIGHT_EXTENSION_CREDITS = 150;
 const PROJECT_SPOTLIGHT_DURATION_DAYS = 30;
 const SCRIPT_UPLOAD_TERMS_VERSION = process.env.SCRIPT_UPLOAD_TERMS_VERSION || "2026-03-24";
 
+const getInvalidRoleAgeRangeMessage = (roles = []) => {
+  if (!Array.isArray(roles)) return "";
+
+  for (let i = 0; i < roles.length; i += 1) {
+    const role = roles[i] || {};
+    const min = role?.ageRange?.min;
+    const max = role?.ageRange?.max;
+
+    if (min === undefined || min === null || min === "" || max === undefined || max === null || max === "") {
+      continue;
+    }
+
+    const minAge = Number(min);
+    const maxAge = Number(max);
+    if (!Number.isFinite(minAge) || !Number.isFinite(maxAge) || minAge >= maxAge) {
+      return `Role ${i + 1}: Min age must be less than max age.`;
+    }
+  }
+
+  return "";
+};
+
 const isSpotlightActive = (script, now = new Date()) => {
   const endAt = script?.promotion?.spotlightEndAt;
   return Boolean(endAt && new Date(endAt) >= now);
@@ -117,7 +139,14 @@ export const saveDraft = async (req, res) => {
       if (otherData.pageCount !== undefined) script.pageCount = Number(otherData.pageCount) || 0;
       if (otherData.primaryGenre !== undefined) script.primaryGenre = otherData.primaryGenre;
       if (otherData.tags !== undefined) script.tags = Array.isArray(otherData.tags) ? otherData.tags : [];
-      if (otherData.roles !== undefined) script.roles = Array.isArray(otherData.roles) ? otherData.roles : [];
+      if (otherData.roles !== undefined) {
+        const nextRoles = Array.isArray(otherData.roles) ? otherData.roles : [];
+        const ageRangeError = getInvalidRoleAgeRangeMessage(nextRoles);
+        if (ageRangeError) {
+          return res.status(400).json({ message: ageRangeError });
+        }
+        script.roles = nextRoles;
+      }
       if (otherData.classification !== undefined) {
         script.classification = {
           primaryGenre: otherData.classification?.primaryGenre ?? script.classification?.primaryGenre,
@@ -343,8 +372,9 @@ export const uploadScript = async (req, res) => {
     if (!scriptUrl && !fileUrl && !textContent) {
       return res.status(400).json({ message: "Script file or text content is required" });
     }
-    if (!legal?.agreedToTerms) {
-      return res.status(400).json({ message: "Script Upload Terms & Conditions acceptance is required." });
+    const ageRangeError = getInvalidRoleAgeRangeMessage(roles);
+    if (ageRangeError) {
+      return res.status(400).json({ message: ageRangeError });
     }
 
     const invoiceDate = new Date();
@@ -561,7 +591,9 @@ export const uploadScript = async (req, res) => {
       scriptTitle: script.title,
       scriptSid: script?.sid,
     });
-    invoice.pdfPath = generatedInvoicePdf.relativePath;
+    if (generatedInvoicePdf.relativePath) {
+      invoice.pdfPath = generatedInvoicePdf.relativePath;
+    }
     invoice.pdfGeneratedAt = new Date();
     await invoice.save();
 

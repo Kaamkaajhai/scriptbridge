@@ -598,81 +598,90 @@ const CardSaveBtn = ({ scriptId, dark }) => {
 /* ── CARD COMPONENTS ── */
 /* ══════════════════════════════════════════════════════════════ */
 
-// Sponsored Project Card (Grid Layout)
 const SponsoredCard = ({ script, getImageUrl, dark }) => (
   <Link to={`/scripts/${script._id}`}>
     <motion.div
-      whileHover={{ y: -4 }}
-      className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
+      whileHover={{ y: -6 }}
+      className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 ${
         dark
-          ? "border-blue-500/40 bg-gradient-to-br from-[#0a1628] to-[#0d1b2e] hover:shadow-2xl hover:shadow-blue-500/20"
-          : "border-blue-300 bg-gradient-to-br from-blue-50 to-slate-50 hover:shadow-2xl hover:shadow-blue-200/50"
+          ? "border-blue-500/25 bg-[#0a1628] hover:shadow-2xl hover:shadow-blue-500/15 hover:border-blue-400/40"
+          : "border-blue-200/60 bg-white hover:shadow-2xl hover:shadow-blue-200/40 hover:border-blue-300"
       }`}
     >
       {/* Cover Image */}
-      <div className="relative h-[340px] overflow-hidden">
+      <div className="relative h-[320px] overflow-hidden">
         {script.coverImage && (
           <img
             src={getImageUrl(script.coverImage)}
             alt={script.title}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         
         {/* Sponsored Badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] border border-blue-400/50 rounded-full shadow-lg">
-          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl shadow-lg">
+          <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
           </svg>
-          <span className="text-white text-xs font-bold">SPONSORED</span>
+          <span className="text-white text-[10px] font-black tracking-[0.1em] uppercase">Sponsored</span>
+        </div>
+
+        {/* Price Tag */}
+        <div className="absolute top-3 right-3">
+          {script.premium ? (
+            <span className="px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg text-[11px] font-black text-white">${script.price}</span>
+          ) : (
+            <span className="px-2.5 py-1 bg-emerald-500/80 backdrop-blur-sm rounded-lg text-[10px] font-bold text-white">Free</span>
+          )}
+        </div>
+
+        {/* Bottom overlay content */}
+        <div className="absolute bottom-0 left-0 right-0 p-5">
+          <h3 className="text-lg font-black text-white leading-tight line-clamp-2 mb-1.5 tracking-tight">
+            {script.title}
+          </h3>
+          {script.genre && (
+            <span className="text-[11px] font-semibold text-white/60">{script.genre}</span>
+          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-6">
-        <h3 className={`text-xl font-bold mb-2 line-clamp-1 ${
-          dark ? "text-white group-hover:text-blue-400" : "text-gray-900 group-hover:text-blue-600"
-        } transition-colors`}>
-          {script.title}
-        </h3>
-        
+      <div className="p-5">
         {script.logline && (
-          <p className={`text-sm mb-4 line-clamp-2 leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+          <p className={`text-[12px] mb-4 line-clamp-2 leading-relaxed ${dark ? "text-gray-400" : "text-gray-500"}`}>
             {script.logline}
           </p>
         )}
 
         <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {/* Creator avatar */}
+            <div className={`w-7 h-7 rounded-full overflow-hidden flex items-center justify-center ring-1 ${dark ? "ring-white/10 bg-blue-900/30" : "ring-gray-200 bg-blue-50"}`}>
+              {script.creator?.profileImage ? (
+                <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className={`text-[10px] font-bold ${dark ? "text-blue-400" : "text-blue-600"}`}>{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</span>
+              )}
+            </div>
+            <span className={`text-[12px] font-semibold ${dark ? "text-gray-400" : "text-gray-600"}`}>{script.creator?.name || "Unknown"}</span>
+          </div>
           <div className="flex items-center gap-3">
-            {script.genre && (
-              <span className={`text-xs font-semibold ${dark ? "text-gray-400" : "text-gray-600"}`}>
-                {script.genre}
-              </span>
-            )}
             {script.rating && (
               <div className="flex items-center gap-1">
                 <StarIcon filled />
-                <span className={`text-xs font-bold ${dark ? "text-white" : "text-gray-900"}`}>
-                  {script.rating.toFixed(1)}
-                </span>
+                <span className={`text-[12px] font-bold ${dark ? "text-white" : "text-gray-800"}`}>{script.rating.toFixed(1)}</span>
+              </div>
+            )}
+            {script.views && (
+              <div className="flex items-center gap-1">
+                <EyeIcon />
+                <span className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>{script.views.toLocaleString()}</span>
               </div>
             )}
           </div>
-          {script.views && (
-            <div className="flex items-center gap-1">
-              <EyeIcon />
-              <span className={`text-xs ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                {script.views.toLocaleString()}
-              </span>
-            </div>
-          )}
         </div>
-      </div>
-
-      {/* Premium Glow Effect */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-t from-gray-900/20 via-transparent to-transparent" />
       </div>
     </motion.div>
   </Link>
@@ -682,9 +691,9 @@ const SponsoredCard = ({ script, getImageUrl, dark }) => (
 const TrendingCard = ({ script, getImageUrl, dark }) => (
   <Link to={`/scripts/${script._id}`}>
     <motion.div
-      whileHover={{ scale: 1.03 }}
-      className={`group relative overflow-hidden rounded-2xl w-[360px] flex-shrink-0 border-2 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
-        dark ? "bg-[#0a1628] border-[#1a3050] hover:border-blue-500/40 hover:shadow-blue-500/10" : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-blue-100/60"
+      whileHover={{ scale: 1.02, y: -4 }}
+      className={`group relative overflow-hidden rounded-2xl w-[360px] flex-shrink-0 border transition-all duration-400 ${
+        dark ? "bg-[#0a1628] border-[#1a3050] hover:border-blue-400/30 hover:shadow-xl hover:shadow-blue-500/10" : "bg-white border-gray-200/60 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/50"
       }`}
     >
       <div className="relative h-[240px] overflow-hidden">
@@ -692,29 +701,29 @@ const TrendingCard = ({ script, getImageUrl, dark }) => (
           <img
             src={getImageUrl(script.coverImage)}
             alt={script.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a]" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
         
         {/* Trending Badge */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] border border-blue-400/50 rounded-full shadow-lg backdrop-blur-sm">
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl shadow-lg">
           <TrendingIcon />
-          <span className="text-white text-[11px] font-bold tracking-wide">TRENDING</span>
+          <span className="text-white text-[10px] font-black tracking-[0.1em]">TRENDING</span>
         </div>
 
         {/* Genre tag */}
         {script.genre && (
-          <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/10 border border-white/20 rounded-lg backdrop-blur-sm">
+          <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/10 border border-white/15 rounded-xl backdrop-blur-xl">
             <span className="text-white text-[11px] font-semibold">{script.genre}</span>
           </div>
         )}
 
         {/* Title Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-4">
-          <h3 className="text-white font-extrabold text-[17px] line-clamp-2 mb-2 leading-snug">
+          <h3 className="text-white font-black text-[17px] line-clamp-2 mb-2 leading-snug tracking-tight">
             {script.title}
           </h3>
           <div className="flex items-center gap-3">
@@ -735,14 +744,14 @@ const TrendingCard = ({ script, getImageUrl, dark }) => (
       </div>
 
       {/* Bottom info */}
-      <div className="px-4 py-3 flex items-center justify-between">
-        <div>
+      <div className="px-4 py-3.5 flex items-center justify-between">
+        <div className="min-w-0 flex-1">
           {script.logline && (
             <p className={`text-[12px] line-clamp-1 ${dark ? "text-gray-400" : "text-gray-500"}`}>{script.logline}</p>
           )}
         </div>
-        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
-          dark ? "bg-blue-500/15 text-blue-400" : "bg-blue-50 text-blue-600"
+        <span className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition-colors ml-2 ${
+          dark ? "bg-blue-500/15 text-blue-400 group-hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 group-hover:bg-blue-100"
         }`}>View →</span>
       </div>
     </motion.div>
@@ -753,35 +762,34 @@ const TrendingCard = ({ script, getImageUrl, dark }) => (
 const NewlyPromotedCard = ({ script, getImageUrl, dark }) => (
   <Link to={`/scripts/${script._id}`}>
     <motion.div
-      whileHover={{ scale: 1.03 }}
-      className={`group relative overflow-hidden rounded-xl w-[240px] flex-shrink-0 ${
-        dark ? "bg-[#0d1e30] border border-[#1a3050]" : "bg-white border border-gray-200"
-      } hover:shadow-xl transition-all duration-300`}
+      whileHover={{ scale: 1.03, y: -3 }}
+      className={`group relative overflow-hidden rounded-2xl w-[240px] flex-shrink-0 ${
+        dark ? "bg-[#0d1e30] border border-[#1a3050] hover:border-violet-400/30" : "bg-white border border-gray-200/60 hover:border-violet-200"
+      } hover:shadow-xl transition-all duration-400`}
     >
       <div className="relative aspect-[3/4] overflow-hidden">
         {script.coverImage && (
           <img
             src={getImageUrl(script.coverImage)}
             alt={script.title}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
         
         {/* New Badge */}
-        <div className={`absolute top-2 left-2 px-2 py-1 rounded-full ${
-          dark ? "bg-blue-600 border border-blue-500" : "bg-blue-500"
-        }`}>
-          <span className="text-white text-xs font-bold">NEW</span>
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2.5 py-1 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl">
+          <svg className={`w-3 h-3 text-violet-400`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span className="text-white text-[10px] font-black tracking-[0.08em]">JUST IN</span>
         </div>
 
         {/* Content Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-3">
-          <h3 className="text-white font-bold text-sm line-clamp-2 mb-2">
+        <div className="absolute bottom-0 left-0 right-0 p-3.5">
+          <h3 className="text-white font-bold text-[14px] line-clamp-2 mb-1.5 leading-snug">
             {script.title}
           </h3>
           {script.genre && (
-            <span className="text-gray-400 text-xs font-semibold">
+            <span className="text-white/50 text-[11px] font-semibold">
               {script.genre}
             </span>
           )}
@@ -967,12 +975,14 @@ const FeaturedProjects = () => {
 
   /*  Pill Button Helper  */
   const Pill = ({ active, onClick, children, variant = "default" }) => {
-    const base = "px-3.5 py-[7px] rounded-xl text-[12px] font-semibold transition-all duration-200 whitespace-nowrap border cursor-pointer select-none";
+    const base = "px-4 py-[8px] rounded-xl text-[12px] font-semibold transition-all duration-250 whitespace-nowrap border cursor-pointer select-none";
     const styles = active
-      ? "bg-[#111111] text-white border-[#111111] shadow-sm shadow-[#111111]/15"
+      ? dark
+        ? "bg-white text-gray-900 border-white shadow-md shadow-white/10"
+        : "bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-900/15"
       : dark
-        ? "bg-white/[0.04] text-gray-300 border-[#444] hover:border-[#555] hover:text-gray-200"
-        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm";
+        ? "bg-white/[0.04] text-gray-300 border-white/[0.08] hover:border-white/15 hover:bg-white/[0.07] hover:text-gray-200"
+        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50";
     return (
       <button onClick={onClick} className={`${base} ${styles}`}>
         {children}
@@ -994,26 +1004,35 @@ const FeaturedProjects = () => {
     <div className="max-w-6xl mx-auto">
       {/* ── Premium Header with Promote CTA ── */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease }}
-        className="mb-6"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease }}
+        className="mb-8"
       >
-        <div className="flex items-start justify-between gap-4 mb-4">
+        {/* Decorative top accent line */}
+        <div className={`h-[2px] rounded-full mb-6 ${dark ? "bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" : "bg-gradient-to-r from-transparent via-[#1e3a5f]/25 to-transparent"}`} />
+
+        <div className="flex items-start justify-between gap-6 mb-2">
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              {/* Sparkle Icon */}
-              <div className={`p-2 rounded-xl ${dark ? "bg-gray-800 border border-gray-700" : "bg-gray-100"}`}>
-                <svg className={`w-5 h-5 ${dark ? "text-gray-300" : "text-gray-700"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <div className="flex items-center gap-4 mb-3">
+              {/* Premium Sparkle Badge */}
+              <div className={`relative p-2.5 rounded-2xl border ${dark ? "bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border-blue-500/20" : "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200/60"}`}>
+                <svg className={`w-6 h-6 ${dark ? "text-blue-400" : "text-[#1e3a5f]"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
                 </svg>
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
               </div>
               <div>
-                <h1 className={`text-3xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Featured Promotions
-                </h1>
-                <p className={`text-sm font-medium mt-1 ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                  Sponsored projects and premium content • Higher visibility for creators
+                <div className="flex items-center gap-2.5 mb-1">
+                  <h1 className={`text-3xl sm:text-4xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                    Featured
+                  </h1>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.15em] border ${dark ? "bg-amber-500/10 border-amber-400/25 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
+                    Curated
+                  </span>
+                </div>
+                <p className={`text-[14px] font-medium leading-relaxed ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                  Handpicked premium scripts & sponsored projects — elevated visibility for creators
                 </p>
               </div>
             </div>
@@ -1022,58 +1041,20 @@ const FeaturedProjects = () => {
           {/* Promote Your Project CTA */}
           <button
             onClick={() => alert("Promotion feature coming soon! Contact support to promote your project.")}
-            className="flex items-center gap-2 px-5 py-3 bg-[#1e3a5f] hover:bg-[#2c5282] text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all hover:scale-105 border border-blue-400/30"
+            className={`group flex items-center gap-2.5 px-6 py-3 rounded-2xl font-bold text-[13px] transition-all duration-300 border whitespace-nowrap ${
+              dark
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-blue-500/30 shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30"
+                : "bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-[#1e3a5f]/80 shadow-lg shadow-[#1e3a5f]/15 hover:shadow-xl hover:shadow-[#1e3a5f]/25"
+            }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <svg className="w-4 h-4 transition-transform group-hover:rotate-90 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Promote Your Project
           </button>
         </div>
 
-        {/* Info Banner */}
-        <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${
-          dark 
-            ? "bg-blue-500/10 border-blue-500/20 text-blue-200" 
-            : "bg-blue-50 border-blue-200 text-blue-900"
-        }`}>
-          <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-          </svg>
-          <div className="flex-1">
-            <p className="text-sm font-semibold mb-1">Sponsored Content</p>
-            <p className="text-xs opacity-90">
-              Projects displayed here are either paid promotions or trending content selected for increased visibility. 
-              Want to feature your project? Click "Promote Your Project" to get started.
-            </p>
-          </div>
-        </div>
       </motion.div>
-
-      {/* ══ AD PAGE TOP HEADER BAR ══ */}
-      <div className={`rounded-2xl mb-6 overflow-hidden border ${
-        dark ? "bg-gradient-to-r from-[#0a1628] via-[#0d1f3a] to-[#0a1628] border-blue-500/20" : "bg-gradient-to-r from-[#0f2044] via-[#1a3a6e] to-[#0f2044] border-blue-400/30"
-      }`}>
-        <div className="flex items-center justify-between px-6 py-4 flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg">
-              <svg className="w-4 h-4 text-blue-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-              <span className="text-white text-xs font-black tracking-widest uppercase">Promoted Content</span>
-            </div>
-            <span className={`text-sm font-medium ${ dark ? "text-blue-200/70" : "text-blue-100/80"}`}>Premium placements for maximum visibility</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-white/70 text-xs font-semibold">Live Ads Running</span>
-            </div>
-            <Link to="/promote" className="flex items-center gap-2 px-4 py-2 bg-white text-[#0f2044] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all shadow-lg">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-              Advertise Your Project
-            </Link>
-          </div>
-        </div>
-      </div>
 
       {/* ══ FEATURED CAROUSEL ══ */}
       {heroSlides.length > 0 && (() => {
@@ -1085,7 +1066,7 @@ const FeaturedProjects = () => {
             transition={{ duration: 0.5, delay: 0.1, ease }}
             className="mb-8"
           >
-            <div className="relative overflow-hidden rounded-2xl h-[560px] group border-2 border-blue-500/20 shadow-2xl shadow-blue-500/10">
+            <div className={`relative overflow-hidden rounded-2xl h-[360px] sm:h-[420px] group border ${dark ? "border-[#23324a] bg-[#0f1726]" : "border-[#d9e4f2] bg-[#f4f8ff]"}`}>
               {/* Slides */}
               <AnimatePresence mode="wait">
                 <motion.div
@@ -1100,56 +1081,56 @@ const FeaturedProjects = () => {
                   {slide.coverImage ? (
                     <>
                       <img src={getImageUrl(slide.coverImage)} alt={slide.title} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-transparent" />
                     </>
                   ) : (
-                    <div className={`w-full h-full ${dark ? "bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#1e293b]" : "bg-gradient-to-br from-gray-900 via-[#0f1c30] to-[#1e3a5f]"}`} />
+                    <div className={`w-full h-full ${dark ? "bg-gradient-to-br from-[#132136] via-[#1a2d47] to-[#233a5a]" : "bg-gradient-to-br from-[#dde9f8] via-[#cddff4] to-[#b8d1ee]"}`} />
                   )}
 
                   {/* Content */}
-                  <div className="absolute inset-0 flex flex-col justify-end p-10">
+                  <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8">
                     {/* Top badges row */}
-                    <div className="absolute top-5 left-5 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 rounded-lg shadow-lg">
+                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${dark ? "bg-[#1f4f8d]/85 border-[#5f8fc7]/45" : "bg-[#1f4f8d] border-[#1f4f8d]"}`}>
                         <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                         <span className="text-white font-black text-[11px] tracking-widest uppercase">{slide.premium ? "Premium Ad" : "Sponsored"}</span>
                       </div>
-                      {slide.genre && <span className="px-2.5 py-1.5 bg-black/40 backdrop-blur-sm text-white/90 text-[11px] font-bold rounded-lg border border-white/15">{slide.genre}</span>}
+                      {slide.genre && <span className="px-2.5 py-1.5 bg-black/35 backdrop-blur-sm text-white/90 text-[11px] font-semibold rounded-lg border border-white/15">{slide.genre}</span>}
                     </div>
 
                     {/* Slide counter top-right */}
-                    <div className="absolute top-6 right-6 px-3 py-1.5 bg-black/40 backdrop-blur-sm rounded-full border border-white/20">
+                    <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15">
                       <span className="text-white/80 text-xs font-semibold">{heroIndex + 1} / {heroSlides.length}</span>
                     </div>
 
                     <div className="max-w-3xl">
-                      <h2 className="text-5xl font-black text-white mb-4 leading-tight drop-shadow-2xl">
+                      <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 leading-tight">
                         {slide.title}
                       </h2>
                       {slide.logline && (
-                        <p className="text-lg text-gray-200 font-medium mb-6 line-clamp-2 drop-shadow-lg">{slide.logline}</p>
+                        <p className="text-sm sm:text-base text-gray-200 font-medium mb-4 line-clamp-2">{slide.logline}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-3 mb-8">
-                        {slide.genre && <span className="px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg text-white text-sm font-semibold border border-white/20">{slide.genre}</span>}
+                      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+                        {slide.genre && <span className="px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg text-white text-xs sm:text-sm font-semibold border border-white/20">{slide.genre}</span>}
                         {slide.rating && (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
                             <StarIcon filled />
-                            <span className="text-white text-sm font-bold">{slide.rating.toFixed(1)}</span>
+                            <span className="text-white text-xs sm:text-sm font-bold">{slide.rating.toFixed(1)}</span>
                           </div>
                         )}
                         {slide.views && (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
                             <EyeIcon />
-                            <span className="text-white text-sm font-semibold">{slide.views.toLocaleString()} views</span>
+                            <span className="text-white text-xs sm:text-sm font-semibold">{slide.views.toLocaleString()} views</span>
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Link to={`/scripts/${slide._id}`} className="px-8 py-4 bg-white text-gray-900 rounded-xl font-black text-base shadow-2xl hover:bg-blue-50 transition-all hover:scale-105">
+                      <div className="flex items-center gap-2.5">
+                        <Link to={`/scripts/${slide._id}`} className={`px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all border ${dark ? "bg-white text-[#0f172a] border-white hover:bg-slate-100" : "bg-[#0f172a] text-white border-[#0f172a] hover:bg-[#1f2937]"}`}>
                           View Project →
                         </Link>
-                        <Link to={`/scripts/${slide._id}`} className="px-6 py-4 bg-blue-600/80 hover:bg-blue-600 backdrop-blur-sm text-white rounded-xl font-bold text-base border border-blue-400/50 transition-all">
+                        <Link to={`/scripts/${slide._id}`} className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-all border ${dark ? "bg-white/[0.08] border-white/[0.16] text-white hover:bg-white/[0.14]" : "bg-white/90 border-white text-[#0f172a] hover:bg-white"}`}>
                           Quick Preview
                         </Link>
                       </div>
@@ -1163,13 +1144,13 @@ const FeaturedProjects = () => {
                 <>
                   <button
                     onClick={() => setHeroIndex(i => (i - 1 + heroSlides.length) % heroSlides.length)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white transition-all hover:scale-110"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/35 hover:bg-black/60 backdrop-blur-sm border border-white/20 text-white transition-all"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                   </button>
                   <button
                     onClick={() => setHeroIndex(i => (i + 1) % heroSlides.length)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white transition-all hover:scale-110"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/35 hover:bg-black/60 backdrop-blur-sm border border-white/20 text-white transition-all"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
                   </button>
@@ -1178,13 +1159,13 @@ const FeaturedProjects = () => {
 
               {/* Dot indicators */}
               {heroSlides.length > 1 && (
-                <div className="absolute bottom-5 right-10 flex items-center gap-2 z-20">
+                <div className="absolute bottom-4 right-6 flex items-center gap-2 z-20">
                   {heroSlides.map((_, i) => (
                     <button
                       key={i}
                       onClick={() => setHeroIndex(i)}
                       className={`transition-all duration-300 rounded-full ${
-                        i === heroIndex ? "w-7 h-2.5 bg-white" : "w-2.5 h-2.5 bg-white/40 hover:bg-white/70"
+                        i === heroIndex ? "w-6 h-2 bg-white" : "w-2 h-2 bg-white/40 hover:bg-white/70"
                       }`}
                     />
                   ))}
@@ -1207,22 +1188,26 @@ const FeaturedProjects = () => {
         >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1 bg-blue-600 rounded-lg">
-                <span className="text-white text-[11px] font-black tracking-widest">AD</span>
+              <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-blue-500/15 to-indigo-500/10 border-blue-400/20" : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200/60"}`}>
+                <svg className={`w-3.5 h-3.5 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                <span className={`text-[11px] font-black tracking-[0.12em] ${dark ? "text-blue-300" : "text-blue-700"}`}>SPONSORED</span>
               </div>
               <div>
-                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Sponsored Projects
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Premium Spotlight
                 </h2>
-                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>Premium promoted content</p>
+                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Handpicked promoted projects with premium placement</p>
               </div>
             </div>
-            <Link to="/promote" className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-              dark ? "border-blue-500/30 text-blue-400 hover:bg-blue-500/10" : "border-blue-300 text-blue-600 hover:bg-blue-50"
-            }`}>+ Promote your project</Link>
+            <Link to="/promote" className={`group flex items-center gap-1.5 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all duration-200 ${
+              dark ? "border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400/35" : "border-[#1e3a5f]/20 text-[#1e3a5f] hover:bg-[#1e3a5f]/[0.05] hover:border-[#1e3a5f]/30"
+            }`}>
+              <svg className="w-3.5 h-3.5 transition-transform group-hover:rotate-90 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Promote yours
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {sponsoredScripts.map((script, idx) => (
               <SponsoredCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
             ))}
@@ -1242,17 +1227,20 @@ const FeaturedProjects = () => {
         >
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg">
+              <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-emerald-500/15 to-teal-500/10 border-emerald-400/20" : "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200/60"}`}>
                 <TrendingIcon />
-                <span className="text-white text-[11px] font-black tracking-widest">TRENDING</span>
+                <span className={`text-[11px] font-black tracking-[0.12em] ${dark ? "text-emerald-400" : "text-emerald-700"}`}>TRENDING</span>
               </div>
               <div>
-                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Trending Promotions
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Trending Now
                 </h2>
-                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>High engagement featured projects</p>
+                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Highest engagement scripts right now</p>
               </div>
             </div>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${dark ? "bg-emerald-500/10 border-emerald-400/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-700"}`}>
+              🔥 Hot
+            </span>
           </div>
 
           <HorizontalScroll>
@@ -1275,16 +1263,22 @@ const FeaturedProjects = () => {
         >
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div className={`h-8 w-1 rounded-full bg-gradient-to-b from-green-500 to-emerald-500`} />
+              <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-violet-500/15 to-purple-500/10 border-violet-400/20" : "bg-gradient-to-r from-violet-50 to-purple-50 border-violet-200/60"}`}>
+                <svg className={`w-3.5 h-3.5 ${dark ? "text-violet-400" : "text-violet-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span className={`text-[11px] font-black tracking-[0.12em] ${dark ? "text-violet-400" : "text-violet-700"}`}>NEW</span>
+              </div>
               <div>
-                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Newly Promoted
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Just Launched
                 </h2>
-                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                  Recently featured projects
+                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                  Fresh scripts recently promoted by creators
                 </p>
               </div>
             </div>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${dark ? "bg-violet-500/10 border-violet-400/20 text-violet-400" : "bg-violet-50 border-violet-200 text-violet-700"}`}>
+              ✨ Fresh
+            </span>
           </div>
 
           <HorizontalScroll>
@@ -1376,7 +1370,7 @@ const FeaturedProjects = () => {
               transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className={`${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"} rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 border`}>
+              <div className={`${dark ? "bg-[#0a1628] border-[#1a3050]" : "bg-white border-gray-100"} rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 border`}>
                 {/* Sort By */}
                 <FilterSection label="Sort By">
                   {SORT_OPTIONS.map((opt) => (
@@ -1471,10 +1465,12 @@ const FeaturedProjects = () => {
 
       {/*  Loading  */}
       {loading && (
-        <div className="flex items-center justify-center py-28">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-[2.5px] border-gray-200 border-t-[#111111] rounded-full animate-spin"></div>
-            <p className="text-sm text-gray-400 font-medium">Loading projects…</p>
+        <div className="flex items-center justify-center py-32">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative w-10 h-10">
+              <div className={`absolute inset-0 border-[2.5px] rounded-full animate-spin ${dark ? "border-white/10 border-t-blue-400" : "border-gray-200 border-t-[#1e3a5f]"}`} />
+            </div>
+            <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-400"}`}>Discovering featured projects…</p>
           </div>
         </div>
       )}
@@ -1482,21 +1478,23 @@ const FeaturedProjects = () => {
       {/*  Empty state  */}
       {!loading && scripts.length === 0 && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className={`text-center py-24 rounded-2xl border ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`text-center py-28 rounded-2xl border ${dark ? "bg-[#0a1628] border-[#1a3050]" : "bg-white border-gray-100"}`}
         >
-          <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
-            <svg className={`w-8 h-8 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <div className={`w-16 h-16 mx-auto mb-5 rounded-2xl flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
+            <svg className={`w-7 h-7 ${dark ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>
-          <p className={`text-lg font-bold mb-1 ${dark ? "text-gray-200" : "text-gray-700"}`}>No projects found</p>
-          <p className="text-sm text-gray-400 mb-4">Try adjusting your filters or check back later</p>
+          <p className={`text-lg font-black mb-1.5 ${dark ? "text-gray-200" : "text-gray-700"}`}>No Projects Found</p>
+          <p className={`text-[13px] font-medium mb-5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Try adjusting your filters or explore later</p>
           {activeFilterCount > 0 && (
             <button
               onClick={clearAllFilters}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111111] text-white rounded-xl text-sm font-semibold hover:bg-[#000000] transition-colors shadow-sm"
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border ${
+                dark ? "bg-white/[0.06] text-white/70 border-white/10 hover:bg-white/10" : "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
+              }`}
             >
               Clear all filters
             </button>
@@ -1536,40 +1534,47 @@ const FeaturedProjects = () => {
             {/* ── More Promoted Projects Section Header ── */}
             {scripts.length > 1 && (
               <>
-                <div className="flex items-center justify-between mb-5 mt-8">
+                <div className="flex items-center justify-between mb-6 mt-10">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-blue-600 rounded-lg">
-                      <span className="text-white text-[11px] font-black tracking-widest">AD</span>
+                    <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-blue-500/15 to-indigo-500/10 border-blue-400/20" : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200/60"}`}>
+                      <svg className={`w-3.5 h-3.5 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                      <span className={`text-[11px] font-black tracking-[0.1em] ${dark ? "text-blue-300" : "text-blue-700"}`}>ALL</span>
                     </div>
                     <div>
-                      <h2 className={`text-xl font-black ${dark ? "text-white" : "text-gray-900"}`}>
-                        More Promoted Projects
+                      <h2 className={`text-xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                        All Promoted
                       </h2>
-                      <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                      <p className={`text-[12px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>
                         Sponsored content & trending scripts
                       </p>
                     </div>
                   </div>
-                  <span className={`text-sm font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                  <span className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border ${dark ? "bg-white/[0.04] text-gray-400 border-white/[0.08]" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
                     {scripts.length - 1} projects
                   </span>
                 </div>
 
                 {/* ══ MID-PAGE ADVERTISE BANNER ══ */}
-                <div className={`rounded-2xl p-6 mb-6 flex items-center justify-between flex-wrap gap-4 border ${
-                  dark ? "bg-gradient-to-r from-[#0d1f3a] to-[#0a1628] border-blue-500/20" : "bg-gradient-to-r from-[#1a3a6e] to-[#0f2044] border-blue-400/20"
+                <div className={`relative rounded-2xl overflow-hidden p-6 sm:p-8 mb-8 flex items-center justify-between flex-wrap gap-6 border ${
+                  dark ? "bg-gradient-to-br from-[#0d1f3a] via-[#101d35] to-[#0a1628] border-blue-500/15" : "bg-gradient-to-br from-[#1a3a6e] via-[#1e4380] to-[#0f2044] border-blue-400/15"
                 }`}>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <SparklesIcon />
-                      <span className="text-blue-300 font-black text-sm tracking-wide uppercase">Boost Your Reach</span>
+                  {/* Background decoration */}
+                  <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-blue-500/[0.06] blur-2xl" />
+                  <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full bg-indigo-500/[0.06] blur-2xl" />
+
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 border border-white/15 rounded-lg backdrop-blur-sm">
+                        <SparklesIcon />
+                        <span className="text-blue-200 font-black text-[11px] tracking-[0.12em] uppercase">Boost Your Reach</span>
+                      </div>
                     </div>
-                    <p className="text-white font-bold text-lg">Get your script in front of 10,000+ readers & investors</p>
-                    <p className="text-white/50 text-sm mt-0.5">Premium placements starting from ₹999/month</p>
+                    <p className="text-white font-black text-xl sm:text-2xl tracking-tight leading-tight mb-1">Get in front of 10,000+ readers & investors</p>
+                    <p className="text-white/45 text-[13px] font-medium">Premium placements starting from <span className="text-white/70 font-bold">₹999/month</span> — cancel anytime</p>
                   </div>
-                  <Link to="/promote" className="flex items-center gap-2 px-6 py-3 bg-white text-[#0f2044] rounded-xl font-black text-sm hover:bg-blue-50 transition-all shadow-xl whitespace-nowrap">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    Start Advertising
+                  <Link to="/promote" className="relative z-10 group flex items-center gap-2.5 px-7 py-3.5 bg-white text-[#0f2044] rounded-2xl font-black text-[13px] hover:bg-blue-50 transition-all duration-300 shadow-xl shadow-black/20 whitespace-nowrap">
+                    <svg className="w-4 h-4 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
+                    Start Promoting
                   </Link>
                 </div>
                 

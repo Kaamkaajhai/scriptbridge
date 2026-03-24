@@ -35,6 +35,7 @@ const TABS = [
     { key: "approvals", label: "Approvals", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
     { key: "trailers", label: "AI Trailers", icon: "M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" },
     { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
+    { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
 ];
 
@@ -323,7 +324,7 @@ const Pagination = ({ page, totalPages, onPageChange, isDark }) => {
 // Main Admin Dashboard
 // ═══════════════════════════════════════════════
 const ADMIN_CODE = "24062004";
-const BADGE_WATCH_KEYS = ["approvals", "trailers", "pending-investors", "queries"];
+const BADGE_WATCH_KEYS = ["approvals", "trailers", "pending-investors", "bank-reviews", "queries"];
 
 const formatBadgeCount = (count) => {
     if (!count || count <= 0) return "";
@@ -346,6 +347,7 @@ const SEARCH_PLACEHOLDER_BY_TAB = {
     approvals: "Search approvals...",
     trailers: "Search AI trailers...",
     "pending-investors": "Search investor requests...",
+    "bank-reviews": "Search bank review requests...",
     queries: "Search queries...",
 };
 
@@ -355,6 +357,7 @@ const EMPTY_GLOBAL_RESULTS = {
     transactions: [],
     invoices: [],
     pendingInvestors: [],
+    bankReviews: [],
     contacts: [],
 };
 
@@ -428,6 +431,7 @@ const AdminDashboard = () => {
     const [scoreSubTab, setScoreSubTab] = useState("ai");
     const [total, setTotal] = useState(0);
     const [pendingInvestors, setPendingInvestors] = useState([]);
+    const [bankReviews, setBankReviews] = useState([]);
     const [rejectModal, setRejectModal] = useState(null); // investor object
     const [contacts, setContacts] = useState([]);
     const [alertSummary, setAlertSummary] = useState({});
@@ -458,6 +462,7 @@ const AdminDashboard = () => {
                         approvals: "Project approvals",
                         trailers: "AI trailer requests",
                         "pending-investors": "Investor requests",
+                        "bank-reviews": "Bank detail reviews",
                         queries: "Queries",
                     };
                     const text = increasedSections.map((key) => sectionLabelMap[key] || key).join(" • ");
@@ -486,6 +491,7 @@ const AdminDashboard = () => {
     const sourceTransactions = isGlobalSearchMode ? globalResults.transactions : transactions;
     const sourceInvoices = isGlobalSearchMode ? globalResults.invoices : invoices;
     const sourcePendingInvestors = isGlobalSearchMode ? globalResults.pendingInvestors : pendingInvestors;
+    const sourceBankReviews = isGlobalSearchMode ? globalResults.bankReviews : bankReviews;
     const sourceContacts = isGlobalSearchMode ? globalResults.contacts : contacts;
 
     const filteredUsers = sourceUsers.filter((u) => matchesSearch(u.name, u.email, u.role, u.sid));
@@ -493,6 +499,7 @@ const AdminDashboard = () => {
     const filteredTransactions = sourceTransactions.filter((t) => matchesSearch(t.user?.name, t.type, t.status, t.description, t.amount, t.currency, t.createdAt));
     const filteredInvoices = sourceInvoices.filter((inv) => matchesSearch(inv.invoiceNumber, inv.creator?.name, inv.creatorSid, inv.creator?.sid, inv.script?.title, inv.scriptSid, inv.script?.sid, inv.accessType));
     const filteredPendingInvestors = sourcePendingInvestors.filter((inv) => matchesSearch(inv.name, inv.email, inv.createdAt));
+    const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
     const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
 
     const buildCurrentSectionPayload = () => {
@@ -545,6 +552,11 @@ const AdminDashboard = () => {
                 return {
                     title: `Investor Requests (${pendingInvestors.length})`,
                     lines: pendingInvestors.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
+                };
+            case "bank-reviews":
+                return {
+                    title: `Bank Detail Reviews (${bankReviews.length})`,
+                    lines: bankReviews.map((review, idx) => `${idx + 1}. ${review.name || "-"} | ${review.email || "-"} | Bank: ${review.requestedDetails?.bankName || "-"} | Status: ${review.status || "-"} | Attempts: ${review.bankSecurity?.invalidAttempts || 0} | Locked: ${review.bankSecurity?.isLocked ? "Yes" : "No"} | Submitted: ${formatExportDate(review.submittedAt)}`),
                 };
             case "queries":
                 return {
@@ -601,6 +613,7 @@ const AdminDashboard = () => {
                 approvalsData,
                 trailersData,
                 pendingInvestorsData,
+                bankReviewsData,
                 queriesData,
             ] = await Promise.all([
                 fetchList("/admin/stats"),
@@ -620,6 +633,7 @@ const AdminDashboard = () => {
                 fetchList("/admin/scripts/pending?page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/trailer-requests?page=1&limit=1000", "scripts"),
                 fetchList("/admin/investors/pending?page=1&limit=1000", "investors"),
+                fetchList("/admin/bank-details/reviews?page=1&limit=1000", "reviews"),
                 fetchList("/admin/queries?page=1&limit=1000", "submissions"),
             ]);
 
@@ -673,6 +687,10 @@ const AdminDashboard = () => {
                     {
                         title: `Investor Requests (${pendingInvestorsData.length})`,
                         lines: pendingInvestorsData.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
+                    },
+                    {
+                        title: `Bank Detail Reviews (${bankReviewsData.length})`,
+                        lines: bankReviewsData.map((review, idx) => `${idx + 1}. ${review.name || "-"} | ${review.email || "-"} | Bank: ${review.requestedDetails?.bankName || "-"} | Status: ${review.status || "-"} | Attempts: ${review.bankSecurity?.invalidAttempts || 0} | Locked: ${review.bankSecurity?.isLocked ? "Yes" : "No"} | Submitted: ${formatExportDate(review.submittedAt)}`),
                     },
                     {
                         title: `Queries (${queriesData.length})`,
@@ -768,6 +786,11 @@ const AdminDashboard = () => {
                     setPendingInvestors(data.investors); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
+                case "bank-reviews": {
+                    const { data } = await adminApi.get(`/admin/bank-details/reviews?page=${page}&status=pending&search=${encodeURIComponent(activeSearch)}`);
+                    setBankReviews(data.reviews); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
                 case "queries": {
                     const { data } = await adminApi.get(`/admin/queries?page=${page}`);
                     setContacts(data.submissions); setTotalPages(data.totalPages); setTotal(data.total);
@@ -805,6 +828,7 @@ const AdminDashboard = () => {
                 invoicesRes,
                 paymentsRes,
                 pendingInvestorsRes,
+                bankReviewsRes,
                 queriesRes,
             ] = await Promise.all([
                 adminApi.get(`/admin/users?role=investor&page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
@@ -815,6 +839,7 @@ const AdminDashboard = () => {
                 adminApi.get(`/admin/invoices?page=1&limit=100&search=${encodeURIComponent(activeSearch)}`),
                 adminApi.get(`/admin/payments?page=1&limit=200`),
                 adminApi.get(`/admin/investors/pending?page=1&limit=200`),
+                adminApi.get(`/admin/bank-details/reviews?page=1&limit=200&search=${encodeURIComponent(activeSearch)}`),
                 adminApi.get(`/admin/queries?page=1&limit=200`),
             ]);
 
@@ -829,6 +854,7 @@ const AdminDashboard = () => {
                 transactions: paymentsRes.data?.transactions || [],
                 invoices: invoicesRes.data?.invoices || [],
                 pendingInvestors: pendingInvestorsRes.data?.investors || [],
+                bankReviews: bankReviewsRes.data?.reviews || [],
                 contacts: queriesRes.data?.submissions || [],
             });
         } catch (err) {
@@ -980,6 +1006,40 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(err);
             showToast("Failed to reject investor", "error");
+        }
+    };
+
+    const handleApproveBankReview = async (id) => {
+        try {
+            await adminApi.put(`/admin/bank-details/reviews/${id}/approve`);
+            showToast("Bank details approved and activated");
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to approve bank details", "error");
+        }
+    };
+
+    const handleRejectBankReview = async (id) => {
+        const note = window.prompt("Rejection reason (optional):") || "";
+        try {
+            await adminApi.put(`/admin/bank-details/reviews/${id}/reject`, { note });
+            showToast("Bank details request rejected");
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to reject bank details", "error");
+        }
+    };
+
+    const handleUnblockBankReview = async (id) => {
+        try {
+            await adminApi.put(`/admin/bank-details/reviews/${id}/unblock`);
+            showToast("User bank-detail lock removed");
+            fetchData();
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to unblock user", "error");
         }
     };
 
@@ -1551,6 +1611,99 @@ const AdminDashboard = () => {
                                 </table>
                             </div>
                         )}
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                    </div>
+                );
+
+            case "bank-reviews":
+                return (
+                    <div>
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>
+                            Bank Detail Reviews
+                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredBankReviews.length : total})</span>
+                        </h2>
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                            {["Writer", "Requested Details", "Active Details", "Security", "Submitted", "Due", "Actions"].map((h) => (
+                                                <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                        {filteredBankReviews.map((review) => (
+                                            <tr key={review._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
+                                                <td className="px-5 py-3.5">
+                                                    <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{review.name || "-"}</p>
+                                                    <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{review.email || "-"}</p>
+                                                    <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>SID: {review.sid || "-"}</p>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <div className={`text-xs leading-5 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Holder:</span> {review.requestedDetails?.accountHolderName || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Bank:</span> {review.requestedDetails?.bankName || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Account #:</span> {review.requestedDetails?.accountNumber || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Routing:</span> {review.requestedDetails?.routingNumber || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Type:</span> {review.requestedDetails?.accountType || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Country/Currency:</span> {review.requestedDetails?.country || "-"} / {review.requestedDetails?.currency || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>SWIFT:</span> {review.requestedDetails?.swiftCode || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>IBAN:</span> {review.requestedDetails?.iban || "-"}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    {review.activeDetails ? (
+                                                        <div className={`text-xs leading-5 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Holder:</span> {review.activeDetails?.accountHolderName || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Bank:</span> {review.activeDetails?.bankName || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Account #:</span> {review.activeDetails?.accountNumber || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Routing:</span> {review.activeDetails?.routingNumber || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Type:</span> {review.activeDetails?.accountType || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Country/Currency:</span> {review.activeDetails?.country || "-"} / {review.activeDetails?.currency || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>SWIFT:</span> {review.activeDetails?.swiftCode || "-"}</p>
+                                                            <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>IBAN:</span> {review.activeDetails?.iban || "-"}</p>
+                                                        </div>
+                                                    ) : (
+                                                        <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No active bank details yet</p>
+                                                    )}
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <div className={`text-xs leading-5 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Attempts:</span> {Number(review.bankSecurity?.invalidAttempts || 0)} / 5</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Locked:</span> {review.bankSecurity?.isLocked ? "Yes" : "No"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Last invalid:</span> {review.bankSecurity?.lastInvalidAttemptAt ? new Date(review.bankSecurity.lastInvalidAttemptAt).toLocaleString() : "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Reason:</span> {review.bankSecurity?.lastInvalidReason || "-"}</p>
+                                                        <p><span className={`font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Review status:</span> {review.status || "-"}</p>
+                                                    </div>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{review.submittedAt ? new Date(review.submittedAt).toLocaleString() : "-"}</td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{review.dueAt ? new Date(review.dueAt).toLocaleString() : "-"}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <div className="flex items-center gap-2">
+                                                        {review.status === "pending" && (
+                                                            <>
+                                                                <button onClick={() => handleApproveBankReview(review._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">✓ Approve</button>
+                                                                <button onClick={() => handleRejectBankReview(review._id)} className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">✕ Reject</button>
+                                                            </>
+                                                        )}
+                                                        {review.bankSecurity?.isLocked && (
+                                                            <button onClick={() => handleUnblockBankReview(review._id)} className="text-xs font-bold text-amber-500 hover:text-amber-400 px-3 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors">Unblock User</button>
+                                                        )}
+                                                    </div>
+                                                    {review.adminNote ? (
+                                                        <p className={`text-xs mt-2 max-w-[200px] ${isDark ? "text-gray-500" : "text-gray-500"}`}>Note: {review.adminNote}</p>
+                                                    ) : null}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {filteredBankReviews.length === 0 && (
+                                            <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No bank detail reviews found</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );

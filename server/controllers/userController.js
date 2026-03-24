@@ -12,6 +12,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
+const WRITER_REPRESENTATION_REQUIRING_AGENCY = ["agent", "manager_and_agent"];
+const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+const MAX_BANK_INVALID_ATTEMPTS = 5;
+const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
 
@@ -37,7 +44,7 @@ const sanitizeBankPayload = (bankDetails) => {
       ? bankDetails.accountNumber.replace(/\s+/g, "")
       : "",
     routingNumber: typeof bankDetails.routingNumber === "string"
-      ? bankDetails.routingNumber.replace(/\s+/g, "")
+      ? bankDetails.routingNumber.replace(/\s+/g, "").toUpperCase()
       : "",
     accountType: normalizeString(bankDetails.accountType) || "checking",
     swiftCode: normalizeString(bankDetails.swiftCode)?.toUpperCase() || "",
@@ -52,6 +59,85 @@ const sanitizeBankPayload = (bankDetails) => {
   }
 
   return clean;
+};
+
+const getInvalidBankDetailsMessage = (bankDetails) => {
+  if (!ACCOUNT_NUMBER_REGEX.test(bankDetails.accountNumber || "")) {
+    return "Account number must be 8-20 digits";
+  }
+
+  if (!bankDetails.routingNumber) {
+    return "Routing / IFSC number is required";
+  }
+
+  if (bankDetails.country === "IN") {
+    if (!IFSC_REGEX.test(bankDetails.routingNumber)) {
+      return "Please enter a valid IFSC code (example: HDFC0001234)";
+    }
+  } else if (!GENERIC_ROUTING_REGEX.test(bankDetails.routingNumber)) {
+    return "Routing number must be 4-20 letters, numbers, or hyphen";
+  }
+
+  return "";
+};
+
+const ensureBankDetailsSecurity = (user) => {
+  if (!user.bankDetailsSecurity) {
+    user.bankDetailsSecurity = {};
+  }
+
+  if (typeof user.bankDetailsSecurity.invalidAttempts !== "number") {
+    user.bankDetailsSecurity.invalidAttempts = 0;
+  }
+
+  if (typeof user.bankDetailsSecurity.isLocked !== "boolean") {
+    user.bankDetailsSecurity.isLocked = false;
+  }
+
+  return user.bankDetailsSecurity;
+};
+
+const recordInvalidBankAttempt = async (user, reason = "Invalid bank details") => {
+  const security = ensureBankDetailsSecurity(user);
+  security.invalidAttempts = Number(security.invalidAttempts || 0) + 1;
+  security.lastInvalidAttemptAt = new Date();
+  security.lastInvalidReason = String(reason || "Invalid bank details");
+
+  if (security.invalidAttempts >= MAX_BANK_INVALID_ATTEMPTS) {
+    security.isLocked = true;
+    security.lockedAt = new Date();
+  }
+
+  user.markModified("bankDetailsSecurity");
+  await user.save();
+
+  return security;
+};
+
+const maskAccountNumber = (accountNumber = "") => {
+  if (!accountNumber) return "";
+  return `****${String(accountNumber).slice(-4)}`;
+};
+
+const sanitizeBankReviewForResponse = (bankDetailsReview) => {
+  if (!bankDetailsReview) return { status: "not_submitted" };
+
+  const plain = bankDetailsReview?.toObject ? bankDetailsReview.toObject() : bankDetailsReview;
+  const requested = plain?.requestedDetails || {};
+
+  return {
+    status: plain.status || "not_submitted",
+    submittedAt: plain.submittedAt,
+    dueAt: plain.dueAt,
+    reviewedAt: plain.reviewedAt,
+    adminNote: plain.adminNote || "",
+    requestedDetails: requested.accountNumber
+      ? {
+          ...requested,
+          accountNumber: maskAccountNumber(requested.accountNumber),
+        }
+      : null,
+  };
 };
 
 // Multer config for profile image uploads
@@ -415,7 +501,7 @@ export const updateUserProfile = async (req, res) => {
         user.writerProfile.wgaMember = writerProfile.wgaMember;
       }
       if (writerProfile.genres !== undefined) {
-        user.writerProfile.genres = normalizeStringArray(writerProfile.genres, 12);
+        user.writerProfile.genres = normalizeStringArray(writerProfile.genres);
       }
       if (writerProfile.specializedTags !== undefined) {
         user.writerProfile.specializedTags = normalizeStringArray(writerProfile.specializedTags, 5);
@@ -431,7 +517,7 @@ export const updateUserProfile = async (req, res) => {
       }
 
       const currentStatus = user.writerProfile.representationStatus || "unrepresented";
-      if (["agent", "manager", "manager_and_agent"].includes(currentStatus) && !user.writerProfile.agencyName) {
+      if (WRITER_REPRESENTATION_REQUIRING_AGENCY.includes(currentStatus) && !user.writerProfile.agencyName) {
         return res.status(400).json({ message: "Agency name is required for represented writers" });
       }
 
@@ -440,46 +526,125 @@ export const updateUserProfile = async (req, res) => {
 
     // Bank details
     if (bankDetails) {
+      const security = ensureBankDetailsSecurity(user);
+      if (security.isLocked) {
+        return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+      }
+
       const sanitizedBankDetails = sanitizeBankPayload(bankDetails);
-      if (!user.bankDetails) user.bankDetails = {};
-      if (sanitizedBankDetails.accountHolderName !== undefined) {
-        user.bankDetails.accountHolderName = sanitizedBankDetails.accountHolderName;
-      }
-      if (sanitizedBankDetails.bankName !== undefined) {
-        user.bankDetails.bankName = sanitizedBankDetails.bankName;
-      }
-      if (sanitizedBankDetails.accountNumber !== undefined) {
-        user.bankDetails.accountNumber = sanitizedBankDetails.accountNumber;
-      }
-      if (sanitizedBankDetails.routingNumber !== undefined) {
-        user.bankDetails.routingNumber = sanitizedBankDetails.routingNumber;
-      }
-      if (sanitizedBankDetails.accountType !== undefined) {
-        user.bankDetails.accountType = sanitizedBankDetails.accountType;
-      }
-      if (sanitizedBankDetails.swiftCode !== undefined) {
-        user.bankDetails.swiftCode = sanitizedBankDetails.swiftCode;
-      }
-      if (sanitizedBankDetails.iban !== undefined) {
-        user.bankDetails.iban = sanitizedBankDetails.iban;
-      }
-      if (sanitizedBankDetails.country !== undefined) {
-        user.bankDetails.country = sanitizedBankDetails.country;
-      }
-      if (sanitizedBankDetails.currency !== undefined) {
-        user.bankDetails.currency = sanitizedBankDetails.currency;
-      }
+      const shouldQueueForReview = ["writer", "creator"].includes(user.role);
 
-      if (user.bankDetails.country === "IN" && user.bankDetails.currency !== "INR") {
-        user.bankDetails.currency = "INR";
-      }
+      if (shouldQueueForReview) {
+        const hasRequired = Boolean(
+          sanitizedBankDetails.accountHolderName &&
+          sanitizedBankDetails.bankName &&
+          sanitizedBankDetails.accountNumber &&
+          sanitizedBankDetails.routingNumber
+        );
 
-      // Set addedAt if this is the first time adding bank details
-      if (!user.bankDetails.addedAt) {
-        user.bankDetails.addedAt = new Date();
+        if (!hasRequired) {
+          const updatedSecurity = await recordInvalidBankAttempt(user, "Missing required bank details fields");
+          if (updatedSecurity.isLocked) {
+            return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+          }
+          return res.status(400).json({ message: "Account holder name, bank name, account number, and routing / IFSC number are required" });
+        }
+
+        const invalidBankDetailsMessage = getInvalidBankDetailsMessage(sanitizedBankDetails);
+        if (invalidBankDetailsMessage) {
+          const updatedSecurity = await recordInvalidBankAttempt(user, invalidBankDetailsMessage);
+          if (updatedSecurity.isLocked) {
+            return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+          }
+          return res.status(400).json({ message: invalidBankDetailsMessage });
+        }
+
+        if (sanitizedBankDetails.country === "IN") {
+          sanitizedBankDetails.currency = "INR";
+        }
+
+        const now = new Date();
+        user.bankDetailsReview = {
+          status: "pending",
+          requestedDetails: sanitizedBankDetails,
+          submittedAt: now,
+          dueAt: new Date(now.getTime() + BANK_REVIEW_WINDOW_MS),
+          reviewedAt: undefined,
+          reviewedBy: undefined,
+          adminNote: "",
+        };
+
+        security.invalidAttempts = 0;
+        security.lastInvalidAttemptAt = undefined;
+        security.lastInvalidReason = "";
+        user.markModified("bankDetailsSecurity");
+      } else {
+        if (!user.bankDetails) user.bankDetails = {};
+        if (sanitizedBankDetails.accountHolderName !== undefined) {
+          user.bankDetails.accountHolderName = sanitizedBankDetails.accountHolderName;
+        }
+        if (sanitizedBankDetails.bankName !== undefined) {
+          user.bankDetails.bankName = sanitizedBankDetails.bankName;
+        }
+        if (sanitizedBankDetails.accountNumber !== undefined) {
+          if (!ACCOUNT_NUMBER_REGEX.test(sanitizedBankDetails.accountNumber)) {
+            const updatedSecurity = await recordInvalidBankAttempt(user, "Account number must be 8-20 digits");
+            if (updatedSecurity.isLocked) {
+              return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+            }
+            return res.status(400).json({ message: "Account number must be 8-20 digits" });
+          }
+          user.bankDetails.accountNumber = sanitizedBankDetails.accountNumber;
+        }
+        if (sanitizedBankDetails.routingNumber !== undefined) {
+          const countryForRouting = sanitizedBankDetails.country || user.bankDetails.country || "IN";
+          if (countryForRouting === "IN") {
+            if (!IFSC_REGEX.test(sanitizedBankDetails.routingNumber)) {
+              const updatedSecurity = await recordInvalidBankAttempt(user, "Invalid IFSC code format");
+              if (updatedSecurity.isLocked) {
+                return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+              }
+              return res.status(400).json({ message: "Please enter a valid IFSC code (example: HDFC0001234)" });
+            }
+          } else if (!GENERIC_ROUTING_REGEX.test(sanitizedBankDetails.routingNumber)) {
+            const updatedSecurity = await recordInvalidBankAttempt(user, "Invalid routing number format");
+            if (updatedSecurity.isLocked) {
+              return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+            }
+            return res.status(400).json({ message: "Routing number must be 4-20 letters, numbers, or hyphen" });
+          }
+          user.bankDetails.routingNumber = sanitizedBankDetails.routingNumber;
+        }
+        if (sanitizedBankDetails.accountType !== undefined) {
+          user.bankDetails.accountType = sanitizedBankDetails.accountType;
+        }
+        if (sanitizedBankDetails.swiftCode !== undefined) {
+          user.bankDetails.swiftCode = sanitizedBankDetails.swiftCode;
+        }
+        if (sanitizedBankDetails.iban !== undefined) {
+          user.bankDetails.iban = sanitizedBankDetails.iban;
+        }
+        if (sanitizedBankDetails.country !== undefined) {
+          user.bankDetails.country = sanitizedBankDetails.country;
+        }
+        if (sanitizedBankDetails.currency !== undefined) {
+          user.bankDetails.currency = sanitizedBankDetails.currency;
+        }
+
+        if (user.bankDetails.country === "IN" && user.bankDetails.currency !== "INR") {
+          user.bankDetails.currency = "INR";
+        }
+
+        if (!user.bankDetails.addedAt) {
+          user.bankDetails.addedAt = new Date();
+        }
+        user.bankDetails.isVerified = false;
+
+        security.invalidAttempts = 0;
+        security.lastInvalidAttemptAt = undefined;
+        security.lastInvalidReason = "";
+        user.markModified("bankDetailsSecurity");
       }
-      // Reset verification when details change
-      user.bankDetails.isVerified = false;
     }
 
     // Notification preferences
@@ -499,9 +664,10 @@ export const updateUserProfile = async (req, res) => {
     if (user.bankDetails && user.bankDetails.accountNumber) {
       sanitizedBankDetails = {
         ...user.bankDetails.toObject(),
-        accountNumber: '****' + user.bankDetails.accountNumber.slice(-4)
+        accountNumber: maskAccountNumber(user.bankDetails.accountNumber)
       };
     }
+    const sanitizedBankReview = sanitizeBankReviewForResponse(user.bankDetailsReview);
 
     res.json({
       _id: user._id,
@@ -516,6 +682,7 @@ export const updateUserProfile = async (req, res) => {
       preferences: user.preferences,
       notificationPrefs: user.notificationPrefs,
       bankDetails: sanitizedBankDetails,
+      bankDetailsReview: sanitizedBankReview,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

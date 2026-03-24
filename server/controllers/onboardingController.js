@@ -138,6 +138,13 @@ export const completeOnboarding = async (req, res) => {
       privacyPolicyVersion,
       stripePaymentMethodId
     } = req.body;
+
+    if (plan && !["free", "paid"].includes(plan)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan selection",
+      });
+    }
     
     if (!agreementAccepted) {
       return res.status(400).json({ 
@@ -199,7 +206,8 @@ export const completeOnboarding = async (req, res) => {
       
       subscription = await Subscription.create({
         user: req.user._id,
-        plan: "pro",
+        // Must match Subscription schema enum values
+        plan: "hosting_plus_evaluation",
         amount: totalAmount,
         status: "pending", // Will be updated after Stripe payment
         billingCycle: "monthly",

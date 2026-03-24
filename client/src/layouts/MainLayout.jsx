@@ -558,7 +558,7 @@ const MainLayout = ({ children }) => {
       <Sidebar purchaseRequestCount={pendingPurchaseCount} unreadMessageCount={unreadMessageCount} />
 
       {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 ${
+      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-[90] ${
         isDarkMode ? "bg-[#080e18]/95 border-[#151f2e] backdrop-blur-xl" : "glass-strong border-gray-200/60"
       }`}>
         {/* Search */}
@@ -594,7 +594,7 @@ const MainLayout = ({ children }) => {
         </form>
 
         {/* Right side: notification + user menu */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative z-[95]">
           <button
             onClick={toggleDarkMode}
             className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
@@ -632,10 +632,10 @@ const MainLayout = ({ children }) => {
 
             {/* Notification Panel */}
             {notifOpen && (
-              <div className={`absolute right-0 mt-2 w-[360px] max-h-[500px] rounded-xl z-50 flex flex-col overflow-hidden animate-scaleIn ${
+              <div className={`absolute right-0 mt-2 w-[min(92vw,380px)] sm:w-[360px] max-h-[min(70vh,560px)] rounded-xl z-[130] flex flex-col overflow-hidden origin-top-right animate-scaleIn ${
                 isDarkMode
-                  ? "bg-[#0b1622] border border-[#1a2a3a] shadow-2xl shadow-black/40"
-                  : "bg-white border border-gray-200 shadow-xl shadow-gray-200/60"
+                  ? "bg-[#0b1622]/98 border border-[#1a2a3a] shadow-2xl shadow-black/50 backdrop-blur-xl"
+                  : "bg-white/98 border border-gray-200 shadow-2xl shadow-gray-300/60 backdrop-blur-xl"
               }`}>
                 {/* Header */}
                 <div className={`flex items-center justify-between px-4 py-3 border-b ${
@@ -808,7 +808,7 @@ const MainLayout = ({ children }) => {
             </button>
 
             {dropdownOpen && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl border py-1.5 z-50 animate-scaleIn ${isDarkMode ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-200/80 shadow-gray-200/50"}`}>
+              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-2xl border py-1.5 z-[130] origin-top-right animate-scaleIn ${isDarkMode ? "bg-[#0d1520]/98 border-[#1c2a3a] backdrop-blur-xl" : "bg-white/98 border-gray-200/80 shadow-gray-300/50 backdrop-blur-xl"}`}>
                 <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">

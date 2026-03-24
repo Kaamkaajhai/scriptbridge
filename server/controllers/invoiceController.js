@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Invoice from "../models/Invoice.js";
@@ -26,7 +27,16 @@ export const getInvoicePdf = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (!invoice.pdfPath) {
+    let absolutePdfPath = "";
+
+    if (invoice.pdfPath) {
+      const resolvedPath = path.join(__dirname, "..", invoice.pdfPath.replace(/^\//, ""));
+      if (fs.existsSync(resolvedPath)) {
+        absolutePdfPath = resolvedPath;
+      }
+    }
+
+    if (!absolutePdfPath) {
       const generated = await generateAndSaveInvoicePdf({
         invoice,
         creatorName: invoice.creator?.name,
@@ -35,12 +45,17 @@ export const getInvoicePdf = async (req, res) => {
         scriptTitle: invoice.script?.title,
         scriptSid: invoice.scriptSid || invoice.script?.sid,
       });
-      invoice.pdfPath = generated.relativePath;
+
+      absolutePdfPath = generated.absolutePath;
+
+      if (generated.relativePath && invoice.pdfPath !== generated.relativePath) {
+        invoice.pdfPath = generated.relativePath;
+      }
+
       invoice.pdfGeneratedAt = new Date();
       await invoice.save();
     }
 
-    const absolutePdfPath = path.join(__dirname, "..", invoice.pdfPath.replace(/^\//, ""));
     const isDownload = String(req.query.download || "").toLowerCase() === "1";
     const disposition = isDownload ? "attachment" : "inline";
 
