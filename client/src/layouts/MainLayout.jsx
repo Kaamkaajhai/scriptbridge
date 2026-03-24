@@ -137,25 +137,41 @@ const MainLayout = ({ children }) => {
     }
   }, [user?._id, user?.role]);
 
+  const fetchCreditsBalance = useCallback(async () => {
+    try {
+      const { data } = await api.get("/credits/balance");
+      setCreditsBalance(data.balance || 0);
+    } catch {
+      setCreditsBalance(0);
+    }
+  }, []);
+
+  const refreshHeaderState = useCallback(async () => {
+    const tasks = [
+      fetchUnreadCount(),
+      fetchUnreadMessageCount(),
+      fetchPendingPurchaseCount(),
+      fetchInvestorPurchaseOutcomePopups(),
+    ];
+
+    if (user?.role !== "investor") {
+      tasks.push(fetchCreditsBalance());
+    }
+
+    await Promise.allSettled(tasks);
+  }, [fetchCreditsBalance, fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user?.role]);
+
   useEffect(() => {
     if (!user) return undefined;
 
-    fetchUnreadCount();
-    fetchUnreadMessageCount();
-    fetchPendingPurchaseCount();
-    // Only fetch credits balance for non-investors
-    if (user.role !== "investor") {
-      fetchCreditsBalance();
-    }
+    refreshHeaderState();
 
     const interval = setInterval(() => {
-      fetchUnreadCount();
-      fetchUnreadMessageCount();
-      fetchPendingPurchaseCount();
-      fetchInvestorPurchaseOutcomePopups();
+      refreshHeaderState();
     }, 60000);
+
     return () => clearInterval(interval);
-  }, [fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user]);
+  }, [refreshHeaderState, user]);
 
   useEffect(() => {
     const isWriter = ["writer", "creator"].includes(user?.role);
@@ -182,15 +198,6 @@ const MainLayout = ({ children }) => {
       setNotifications(data);
     } catch { setNotifications([]); }
     finally { setNotifLoading(false); }
-  };
-
-  const fetchCreditsBalance = async () => {
-    try {
-      const { data } = await api.get("/credits/balance");
-      setCreditsBalance(data.balance || 0);
-    } catch {
-      setCreditsBalance(0);
-    }
   };
 
   const handleCreditsUpdate = (data) => {

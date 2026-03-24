@@ -203,7 +203,7 @@ export const join = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  let { email, password } = req.body;
+  let { email, password, adminCode } = req.body;
   try {
     if (!email || !password) {
       return res.status(400).json({ message: "Please provide email and password" });
@@ -217,6 +217,13 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      if (user.role === "admin") {
+        const requiredAdminCode = String(process.env.ADMIN_PANEL_CODE || "24062004").trim();
+        if (String(adminCode || "").trim() !== requiredAdminCode) {
+          return res.status(403).json({ message: "Invalid admin access code" });
+        }
+      }
+
       if (!user.sid) {
         await user.save();
       }
