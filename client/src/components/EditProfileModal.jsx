@@ -51,6 +51,10 @@ const FORMAT_OPTIONS = [
   "Short Film", "Anime", "Limited Series", "Reality Show"
 ];
 
+const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+
 const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const { isDarkMode: dark } = useDarkMode();
   const isWriter = profile.role === "creator" || profile.role === "writer";
@@ -119,6 +123,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   // Active section for mobile-friendly navigation
   const [activeSection, setActiveSection] = useState("basic");
+  const shouldRequireAgencyName = ["agent", "manager_and_agent"].includes(representationStatus);
 
   const sections = isWriter
     ? [
@@ -213,7 +218,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         .map((s) => s.trim())
         .filter((s) => s);
 
-      if (isWriter && ["agent", "manager", "manager_and_agent"].includes(representationStatus) && !agencyName.trim()) {
+      if (isWriter && shouldRequireAgencyName && !agencyName.trim()) {
         setError("Agency name is required when representation is selected.");
         setLoading(false);
         return;
@@ -259,7 +264,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         accountHolderName: bankDetails.accountHolderName.trim(),
         bankName: bankDetails.bankName.trim(),
         accountNumber: bankDetails.accountNumber.replace(/\s+/g, ""),
-        routingNumber: bankDetails.routingNumber.replace(/\s+/g, ""),
+        routingNumber: bankDetails.routingNumber.replace(/\s+/g, "").toUpperCase(),
         accountType: bankDetails.accountType || "checking",
         swiftCode: bankDetails.swiftCode.trim().toUpperCase(),
         iban: bankDetails.iban.trim().toUpperCase(),
@@ -284,6 +289,30 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
         if (!normalizedBankDetails.accountNumber && !maskedAccountNumber) {
           setError("Account number is required for bank details.");
+          setLoading(false);
+          return;
+        }
+
+        if (normalizedBankDetails.accountNumber && !ACCOUNT_NUMBER_REGEX.test(normalizedBankDetails.accountNumber)) {
+          setError("Account number must be 8-20 digits.");
+          setLoading(false);
+          return;
+        }
+
+        if (!normalizedBankDetails.routingNumber) {
+          setError("Routing / IFSC number is required for bank details.");
+          setLoading(false);
+          return;
+        }
+
+        if (normalizedBankDetails.country === "IN") {
+          if (!IFSC_REGEX.test(normalizedBankDetails.routingNumber)) {
+            setError("Please enter a valid IFSC code (example: HDFC0001234).");
+            setLoading(false);
+            return;
+          }
+        } else if (!GENERIC_ROUTING_REGEX.test(normalizedBankDetails.routingNumber)) {
+          setError("Routing number must be 4-20 letters, numbers, or hyphen.");
           setLoading(false);
           return;
         }
@@ -486,7 +515,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </select>
               </div>
 
-              {(representationStatus === "agent" || representationStatus === "manager_and_agent") && (
+              {shouldRequireAgencyName && (
                 <div>
                   <label className={labelClass}>Agency Name</label>
                   <input
@@ -886,7 +915,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   <input
                     type="text"
                     value={bankDetails.accountNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
+                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value.replace(/\D/g, "").slice(0, 20) })}
                     className={inputClass}
                     placeholder={maskedAccountNumber ? `Current: ${maskedAccountNumber}` : "Account number"}
                   />
@@ -896,10 +925,10 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   <input
                     type="text"
                     value={bankDetails.routingNumber}
-                    onChange={(e) => setBankDetails({ ...bankDetails, routingNumber: e.target.value })}
+                    onChange={(e) => setBankDetails({ ...bankDetails, routingNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, bankDetails.country?.toUpperCase() === "IN" ? 11 : 20) })}
                     className={inputClass}
-                    placeholder="9-digit routing"
-                    maxLength="9"
+                    placeholder={bankDetails.country?.toUpperCase() === "IN" ? "IFSC code (e.g., HDFC0001234)" : "Routing number"}
+                    maxLength={bankDetails.country?.toUpperCase() === "IN" ? 11 : 20}
                   />
                 </div>
               </div>
@@ -922,7 +951,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   <input
                     type="text"
                     value={bankDetails.country}
-                    onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value })}
+                    onChange={(e) => setBankDetails({ ...bankDetails, country: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) })}
                     className={inputClass}
                     placeholder="IN"
                   />

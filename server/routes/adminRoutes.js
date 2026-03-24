@@ -24,6 +24,10 @@ import {
     getPendingInvestors,
     approveInvestor,
     rejectInvestor,
+    getBankDetailReviews,
+    approveBankDetailReview,
+    rejectBankDetailReview,
+    unblockBankDetailUpdates,
     getAdminAlertSummary,
 } from "../controllers/adminController.js";
 import { getContactSubmissions } from "../controllers/contactController.js";
@@ -69,6 +73,12 @@ router.post("/login-as/:userId", loginAsUser);
 router.get("/investors/pending", getPendingInvestors);
 router.put("/investors/:id/approve", approveInvestor);
 router.put("/investors/:id/reject", rejectInvestor);
+
+// Bank details review
+router.get("/bank-details/reviews", getBankDetailReviews);
+router.put("/bank-details/reviews/:id/approve", approveBankDetailReview);
+router.put("/bank-details/reviews/:id/reject", rejectBankDetailReview);
+router.put("/bank-details/reviews/:id/unblock", unblockBankDetailUpdates);
 
 // Contact Queries
 router.get("/queries", getContactSubmissions);

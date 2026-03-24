@@ -1,11 +1,20 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, "..", "uploads", "invoices");
+const localUploadsDir = path.join(__dirname, "..", "uploads", "invoices");
+const isServerlessRuntime = Boolean(
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT
+);
+const uploadsDir = process.env.INVOICE_PDF_DIR
+  ? path.resolve(process.env.INVOICE_PDF_DIR)
+  : isServerlessRuntime
+    ? path.join(process.env.TMPDIR || os.tmpdir(), "scriptbridge", "invoices")
+    : localUploadsDir;
 const logoCandidates = [
   path.join(__dirname, "..", "..", "client", "public", "cklogo-nobg.png"),
   path.join(__dirname, "..", "..", "client", "public", "cklogo.png"),
@@ -38,7 +47,7 @@ export const generateAndSaveInvoicePdf = async ({
   const safeInvoiceNumber = String(invoice.invoiceNumber).replace(/[^a-zA-Z0-9-_]/g, "_");
   const filename = `${safeInvoiceNumber}-${invoice._id}.pdf`;
   const absolutePath = path.join(uploadsDir, filename);
-  const relativePath = `/uploads/invoices/${filename}`;
+  const relativePath = uploadsDir === localUploadsDir ? `/uploads/invoices/${filename}` : "";
   const logoPath = pickLogoPath();
   const resolvedCreatorSid = creatorSid || invoice.creatorSid || "-";
   const resolvedScriptSid = scriptSid || invoice.scriptSid || "-";

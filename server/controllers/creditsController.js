@@ -51,6 +51,40 @@ const getStandardPlanByCode = (planCode) =>
 const isValidCustomCredits = (value) =>
   Number.isInteger(value) && value >= 1 && value <= 10000;
 
+const getBankPurchaseEligibility = (user) => {
+  const reviewStatus = user?.bankDetailsReview?.status || "not_submitted";
+  const hasActiveBankDetails = Boolean(user?.bankDetails?.accountNumber);
+  const requiresReview = ["writer", "creator"].includes(user?.role);
+
+  if (!requiresReview) {
+    return { allowed: true, reviewStatus, message: "" };
+  }
+
+  if (reviewStatus !== "approved" || !hasActiveBankDetails) {
+    if (reviewStatus === "pending") {
+      return {
+        allowed: false,
+        reviewStatus,
+        message: "Your bank details are under admin review. Credit purchase is enabled after approval.",
+      };
+    }
+    if (reviewStatus === "rejected") {
+      return {
+        allowed: false,
+        reviewStatus,
+        message: "Your bank details review was rejected. Please update and resubmit bank details.",
+      };
+    }
+    return {
+      allowed: false,
+      reviewStatus,
+      message: "Please submit bank details for admin approval before buying credits.",
+    };
+  }
+
+  return { allowed: true, reviewStatus, message: "" };
+};
+
 const buildPurchaseDetails = async ({ packageId, customCredits }) => {
   const parsedCustomCredits =
     customCredits === undefined ? undefined : Number(customCredits);
@@ -166,12 +200,16 @@ export const getCreditPackages = async (req, res) => {
 // @access  Private
 export const getCreditBalance = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("credits");
+    const user = await User.findById(req.user._id).select("credits role bankDetails bankDetailsReview");
+    const bankEligibility = getBankPurchaseEligibility(user);
     res.json({
       balance: user.credits?.balance || 0,
       totalPurchased: user.credits?.totalPurchased || 0,
       totalSpent: user.credits?.totalSpent || 0,
-      lastPurchase: user.credits?.lastPurchase
+      lastPurchase: user.credits?.lastPurchase,
+      canPurchaseCredits: bankEligibility.allowed,
+      bankReviewStatus: bankEligibility.reviewStatus,
+      bankPurchaseMessage: bankEligibility.message,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -219,6 +257,10 @@ export const purchaseCredits = async (req, res) => {
     }
     
     const user = await User.findById(req.user._id);
+    const bankEligibility = getBankPurchaseEligibility(user);
+    if (!bankEligibility.allowed) {
+      return res.status(403).json({ message: bankEligibility.message, bankReviewStatus: bankEligibility.reviewStatus });
+    }
     
     // In a real app, this is where you'd process Stripe payment
     // For now, we'll simulate successful payment
@@ -444,6 +486,11 @@ export const createRazorpayOrder = async (req, res) => {
     }
     
     const { packageId, customCredits } = req.body;
+    const user = await User.findById(req.user._id).select("role bankDetails bankDetailsReview");
+    const bankEligibility = getBankPurchaseEligibility(user);
+    if (!bankEligibility.allowed) {
+      return res.status(403).json({ message: bankEligibility.message, bankReviewStatus: bankEligibility.reviewStatus });
+    }
 
     const purchase = await buildPurchaseDetails({ packageId, customCredits });
     if (purchase.error) {
@@ -540,6 +587,14 @@ export const verifyRazorpayPayment = async (req, res) => {
       return res.status(404).json({ 
         message: "User not found",
         success: false 
+      });
+    }
+    const bankEligibility = getBankPurchaseEligibility(user);
+    if (!bankEligibility.allowed) {
+      return res.status(403).json({
+        message: bankEligibility.message,
+        bankReviewStatus: bankEligibility.reviewStatus,
+        success: false,
       });
     }
     

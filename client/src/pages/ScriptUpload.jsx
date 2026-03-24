@@ -17,6 +17,32 @@ const formats = [
   { value: "short", label: "Short" },
 ];
 
+const FORMAT_PAGE_RANGES = {
+  feature: { min: 70, max: 180, typical: "90-120", label: "Feature" },
+  tv_1hour: { min: 45, max: 75, typical: "50-65", label: "TV 1-Hour" },
+  tv_halfhour: { min: 22, max: 45, typical: "25-35", label: "TV Half-Hour" },
+  short: { min: 1, max: 40, typical: "5-25", label: "Short" },
+};
+
+const getPageCountWarning = (format, pageCountValue) => {
+  const range = FORMAT_PAGE_RANGES[format];
+  const pageCount = Number(pageCountValue);
+
+  if (!range || !Number.isFinite(pageCount) || pageCount <= 0) {
+    return "";
+  }
+
+  if (pageCount < range.min) {
+    return `${range.label} scripts are usually ${range.min}+ pages (typical ${range.typical}). You can continue, but this may feel short for the format.`;
+  }
+
+  if (pageCount > range.max) {
+    return `${range.label} scripts are usually under ${range.max} pages (typical ${range.typical}). You can continue, but this may feel long for the format.`;
+  }
+
+  return "";
+};
+
 // Genre options
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller",
@@ -367,12 +393,7 @@ const ScriptUpload = () => {
   // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-
-    // Validate page count against format
-    if (name === "pageCount" || name === "format") {
-      validatePageCount();
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const addRole = () => {
@@ -404,17 +425,7 @@ const ScriptUpload = () => {
     setRoles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Validate page count based on format
-  const validatePageCount = () => {
-    const pageCount = Number(formData.pageCount);
-    const format = formData.format;
-
-    if (format === "feature" && pageCount > 0 && pageCount < 70) {
-      setError("Feature films typically require at least 70 pages. Please adjust your page count or format.");
-      return false;
-    }
-    return true;
-  };
+  const pageCountWarning = getPageCountWarning(formData.format, formData.pageCount);
 
   // Toggle classification chips (max 3 per category)
   const toggleClassification = (category, value) => {
@@ -697,7 +708,6 @@ const ScriptUpload = () => {
           setError("Page count is required.");
           return false;
         }
-        if (!validatePageCount()) return false;
         if (!formData.primaryGenre) {
           setError("Primary genre is required.");
           return false;
@@ -1301,9 +1311,9 @@ const ScriptUpload = () => {
                         placeholder="110"
                         className={inputCls}
                       />
-                      {formData.format === "feature" && Number(formData.pageCount) > 0 && Number(formData.pageCount) < 70 && (
+                      {pageCountWarning && (
                         <p className="text-xs text-amber-600 mt-1">
-                          ⚠️ Feature films typically require at least 70 pages
+                          ⚠️ {pageCountWarning}
                         </p>
                       )}
                     </div>

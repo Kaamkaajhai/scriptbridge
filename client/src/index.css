@@ -92,6 +92,21 @@ select:focus-visible {
   border-color: var(--brand-600) !important;
 }
 
+/* ── Native Select Readability in Dark Mode ── */
+html.dark-mode select {
+  color: #f3f4f6;
+}
+
+/*
+  Many browsers (especially on Windows) render native option popups with a light
+  system background, so keep option text dark for consistent readability.
+*/
+html.dark-mode select option,
+html.dark-mode select optgroup {
+  color: #111827;
+  background-color: #ffffff;
+}
+
 /* ── Editor — no focus border ── */
 .editor-title:focus,
 .editor-title:focus-visible {
