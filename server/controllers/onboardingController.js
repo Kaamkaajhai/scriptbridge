@@ -133,6 +133,9 @@ export const completeOnboarding = async (req, res) => {
       tags,
       plan,
       agreementAccepted,
+      termsVersion,
+      privacyPolicyAccepted,
+      privacyPolicyVersion,
       stripePaymentMethodId
     } = req.body;
     
@@ -142,6 +145,13 @@ export const completeOnboarding = async (req, res) => {
         message: "You must accept the terms and conditions" 
       });
     }
+
+    if (!privacyPolicyAccepted) {
+      return res.status(400).json({
+        success: false,
+        message: "You must accept the privacy policy"
+      });
+    }
     
     const user = await User.findById(req.user._id);
     
@@ -149,6 +159,13 @@ export const completeOnboarding = async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         message: "User not found" 
+      });
+    }
+
+    if (!["creator", "writer"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only writers can complete writer onboarding"
       });
     }
     
@@ -165,6 +182,12 @@ export const completeOnboarding = async (req, res) => {
     user.writerProfile.onboardingComplete = true;
     user.writerProfile.onboardingStep = 4;
     user.writerProfile.plan = plan || "free";
+    user.writerProfile.writerOnboardingTermsAccepted = true;
+    user.writerProfile.writerOnboardingTermsAcceptedAt = new Date();
+    user.writerProfile.writerOnboardingTermsVersion = termsVersion || "writer-onboarding-v1";
+    user.privacyPolicyAccepted = true;
+    user.privacyPolicyAcceptedAt = new Date();
+    user.privacyPolicyVersion = privacyPolicyVersion || "registration-privacy-v1";
     await user.save();
     
     // Create subscription record if paid plan

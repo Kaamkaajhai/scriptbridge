@@ -1,13 +1,14 @@
 import { useState, useContext, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Cropper from "react-easy-crop";
 import { jsPDF } from "jspdf";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
+import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
 
 // Format options
 const formats = [
@@ -133,42 +134,7 @@ const STEPS = [
   { num: 5, label: "Review", desc: "Legal & checkout" },
 ];
 
-// Legal agreement text (placeholder - replace with actual legal text)
-const LEGAL_AGREEMENT = `
-SUBMISSION RELEASE AGREEMENT
-
-By submitting your script ("Work") to Ckript ("Platform"), you agree to the following terms:
-
-1. REPRESENTATIONS AND WARRANTIES
-You represent and warrant that:
-- You are the sole owner of the Work or have full authority to submit it
-- The Work is original and does not infringe upon any third-party rights
-- You have the right to grant the licenses set forth herein
-
-2. LICENSE GRANT
-You grant Ckript a non-exclusive, worldwide, royalty-free license to:
-- Display, distribute, and promote your Work on the Platform
-- Use your Work for marketing and promotional purposes
-- Allow industry professionals to view and evaluate your Work
-
-3. PAYMENT TERMS
-- Hosting fees are charged monthly and are non-refundable
-- One-time service fees (evaluation, AI trailer) are non-refundable once processing begins
-- All payments are processed securely through Razorpay
-
-4. INTELLECTUAL PROPERTY
-You retain all ownership rights to your Work. Ckript does not claim ownership of your script.
-
-5. LIMITATION OF LIABILITY
-Ckript shall not be liable for any indirect, incidental, or consequential damages arising from your use of the Platform.
-
-6. TERMINATION
-You may remove your Work from the Platform at any time. Ckript reserves the right to remove content that violates our terms of service.
-
-By clicking "I Agree" and proceeding with payment, you acknowledge that you have read, understood, and agree to be bound by these terms.
-
-Last Updated: ${new Date().toLocaleDateString()}
-`.trim();
+const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
 
 const formatDuration = (seconds) => {
   const total = Math.max(0, Math.floor(seconds || 0));
@@ -1021,6 +987,7 @@ const ScriptUpload = () => {
         legal: {
           agreedToTerms: legal.agreedToTerms,
           timestamp: new Date().toISOString(),
+          termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
         },
         premium: isPremium && effectivePrice > 0,
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
@@ -2190,6 +2157,14 @@ const ScriptUpload = () => {
                       </div>
                     </div>
 
+                    <p className={`text-xs mb-3 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                      Review the full legal document:
+                      {" "}
+                      <Link to="/script-upload-terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-2">
+                        Script Upload Terms & Conditions
+                      </Link>
+                    </p>
+
                     <div
                       ref={agreementRef}
                       className={`rounded-xl p-4 h-48 overflow-y-auto text-xs leading-relaxed border ${isDarkMode ? "border-[#182840] text-gray-400 bg-[#050b14]" : "border-gray-200 text-gray-500 bg-white"}`}
@@ -2223,7 +2198,9 @@ const ScriptUpload = () => {
                               disabled={!agreementScrolled}
                               className="w-4 h-4 rounded mt-0.5 accent-[#1e3a5f] disabled:opacity-50"
                             />
-                            <span className={`text-[11px] leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>I agree to the Submission Release Agreement and confirm publishing rights.</span>
+                            <span className={`text-[11px] leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                              I agree to the Script Upload Terms & Conditions (v{SCRIPT_UPLOAD_TERMS_VERSION}) and confirm publishing rights.
+                            </span>
                           </label>
                         </div>
                       </div>

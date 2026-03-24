@@ -31,6 +31,11 @@ const userSchema = new mongoose.Schema({
   emailVerificationToken: { type: String },
   emailVerificationExpires: { type: Date },
 
+  // Legal acceptance tracking
+  privacyPolicyAccepted: { type: Boolean, default: false },
+  privacyPolicyAcceptedAt: { type: Date },
+  privacyPolicyVersion: { type: String },
+
   // Writer-specific profile fields
   writerProfile: {
     legalName: { type: String },
@@ -57,6 +62,9 @@ const userSchema = new mongoose.Schema({
     // Onboarding completion tracking
     onboardingComplete: { type: Boolean, default: false },
     onboardingStep: { type: Number, default: 0 }, // Track which step they're on
+    writerOnboardingTermsAccepted: { type: Boolean, default: false },
+    writerOnboardingTermsAcceptedAt: { type: Date },
+    writerOnboardingTermsVersion: { type: String },
   },
 
   // Industry Professional Profile

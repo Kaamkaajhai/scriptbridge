@@ -54,6 +54,7 @@ const PUBLIC_SCRIPT_FILTER = {
 const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
 const PROJECT_SPOTLIGHT_EXTENSION_CREDITS = 150;
 const PROJECT_SPOTLIGHT_DURATION_DAYS = 30;
+const SCRIPT_UPLOAD_TERMS_VERSION = process.env.SCRIPT_UPLOAD_TERMS_VERSION || "2026-03-24";
 
 const isSpotlightActive = (script, now = new Date()) => {
   const endAt = script?.promotion?.spotlightEndAt;
@@ -199,6 +200,10 @@ export const updateScript = async (req, res) => {
       coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
 
+    if (!legal?.agreedToTerms) {
+      return res.status(400).json({ message: "Script Upload Terms & Conditions acceptance is required." });
+    }
+
     if (logline !== undefined && String(logline).trim().length > 50) {
       return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
     }
@@ -248,8 +253,9 @@ export const updateScript = async (req, res) => {
     if (legal?.agreedToTerms !== undefined) {
       script.legal = {
         agreedToTerms: legal.agreedToTerms,
-        timestamp: script.legal?.timestamp || new Date(),
+        timestamp: legal.timestamp || script.legal?.timestamp || new Date(),
         ipAddress: req.ip || req.connection.remoteAddress,
+        termsVersion: legal.termsVersion || script.legal?.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
       };
     }
 
@@ -336,6 +342,9 @@ export const uploadScript = async (req, res) => {
     }
     if (!scriptUrl && !fileUrl && !textContent) {
       return res.status(400).json({ message: "Script file or text content is required" });
+    }
+    if (!legal?.agreedToTerms) {
+      return res.status(400).json({ message: "Script Upload Terms & Conditions acceptance is required." });
     }
 
     const invoiceDate = new Date();
@@ -454,7 +463,8 @@ export const uploadScript = async (req, res) => {
       legal: legal ? {
         agreedToTerms: legal.agreedToTerms || false,
         timestamp: legal.timestamp || new Date(),
-        ipAddress: req.ip || req.connection.remoteAddress
+        ipAddress: req.ip || req.connection.remoteAddress,
+        termsVersion: legal.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
       } : undefined,
 
       // AI Trailer status initialization

@@ -314,6 +314,8 @@ export const updateUserProfile = async (req, res) => {
       preferredGenres, preferredBudgets, preferredFormats,
       // onboarding completion
       onboardingComplete,
+      privacyPolicyAccepted,
+      privacyPolicyVersion,
       // investor profile fields
       subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange,
       // bank details
@@ -381,10 +383,19 @@ export const updateUserProfile = async (req, res) => {
         user.writerProfile.onboardingComplete = onboardingComplete;
         user.markModified("writerProfile");
       } else {
+        if (onboardingComplete === true && user.role === "investor" && !privacyPolicyAccepted && !user.privacyPolicyAccepted) {
+          return res.status(400).json({ message: "Privacy policy acceptance is required" });
+        }
         if (!user.industryProfile) user.industryProfile = {};
         user.industryProfile.onboardingComplete = onboardingComplete;
         user.markModified("industryProfile");
       }
+    }
+
+    if (privacyPolicyAccepted !== undefined) {
+      user.privacyPolicyAccepted = Boolean(privacyPolicyAccepted);
+      user.privacyPolicyAcceptedAt = privacyPolicyAccepted ? new Date() : undefined;
+      user.privacyPolicyVersion = normalizeString(privacyPolicyVersion) || user.privacyPolicyVersion || "registration-privacy-v1";
     }
 
     // Writer-specific fields

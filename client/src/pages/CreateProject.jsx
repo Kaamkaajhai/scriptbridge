@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Cropper from "react-easy-crop";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -16,6 +16,7 @@ import { AuthContext } from "../context/AuthContext";
 import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
 import api from "../services/api";
 import { formatCurrency } from "../utils/currency";
+import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
 
 /* -- Constants --------------------------------------- */
 const formats = [
@@ -121,7 +122,7 @@ const FORMAT_PAGE_RANGES = {
   limited_series: { min: 45, max: 75, typical: "50-65", label: "Limited Series", wordsPerPage: 250 },
   documentary: { min: 60, max: 120, typical: "70-100", label: "Documentary", wordsPerPage: 250 },
 };
-const LEGAL_AGREEMENT = `SUBMISSION RELEASE AGREEMENT\n\nBy submitting your script ("Work") to Ckript ("Platform"), you agree to these terms:\n\n1. OWNERSHIP AND AUTHORITY\nYou confirm that you own the Work or have legal authority to publish it.\n\n2. ORIGINALITY AND NON-INFRINGEMENT\nYou confirm the Work is original and does not violate third-party rights.\n\n3. PLATFORM LICENSE\nYou grant Ckript a non-exclusive, worldwide, royalty-free license to host, display, distribute, and promote the Work on the Platform.\n\n4. FEES AND REFUNDS\nHosting fees are recurring and non-refundable. One-time service fees are non-refundable once processing starts.\n\n5. YOUR RIGHTS\nYou keep ownership of your Work.\n\n6. REMOVAL\nYou may request removal of your Work from the Platform at any time, subject to platform policy and completed transactions.\n\nBy selecting "I agree," you confirm that you read and accept this agreement.\n\nLast Updated: ${new Date().toLocaleDateString()}`;
+const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
 
 const TEXT_COLORS = [
   { label: "Default", value: null },
@@ -884,7 +885,11 @@ const CreateProject = () => {
             },
           })),
         services: { hosting: services.hosting, evaluation: services.evaluation, aiTrailer: services.aiTrailer },
-        legal: { agreedToTerms: legal.agreedToTerms, timestamp: new Date().toISOString() },
+        legal: {
+          agreedToTerms: legal.agreedToTerms,
+          timestamp: new Date().toISOString(),
+          termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+        },
         premium: isPremium && effectivePrice > 0,
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
         ...(scriptId ? { scriptId } : {}),
@@ -2092,10 +2097,20 @@ const CreateProject = () => {
                       <pre className="whitespace-pre-wrap font-sans">{LEGAL_AGREEMENT}</pre>
                     </div>
 
+                    <p className={`text-xs mb-3 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                      Review the full legal document:
+                      {" "}
+                      <Link to="/script-upload-terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-2">
+                        Script Upload Terms & Conditions
+                      </Link>
+                    </p>
+
                     <label className="flex items-start gap-3 cursor-pointer mt-4">
                       <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal({ agreedToTerms: e.target.checked })}
                         className="w-5 h-5 rounded mt-0.5 accent-[#1e3a5f]" />
-                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I confirm I own or control the rights to this script and agree to the Submission Release Agreement.</span>
+                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                        I confirm I own or control the rights to this script and agree to the Script Upload Terms & Conditions (v{SCRIPT_UPLOAD_TERMS_VERSION}).
+                      </span>
                     </label>
                   </div>
                 </div>
@@ -2179,7 +2194,9 @@ const CreateProject = () => {
                           onChange={e => setLegal({ agreedToTerms: e.target.checked })}
                           className="w-4 h-4 rounded mt-0.5 accent-[#1e3a5f]"
                         />
-                        <span className={`text-[11px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I agree to the Submission Release Agreement and confirm publishing rights.</span>
+                        <span className={`text-[11px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                          I agree to the Script Upload Terms & Conditions (v{SCRIPT_UPLOAD_TERMS_VERSION}) and confirm publishing rights.
+                        </span>
                       </label>
                     )}
                   </div>

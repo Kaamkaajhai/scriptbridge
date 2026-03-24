@@ -8,6 +8,10 @@ import { AuthContext } from "./context/AuthContext";
 const Landing = lazy(() => import("./pages/Landing"));
 const PrivacyPolicy = lazy(() => import("./pages/PolicyPage"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const RegistrationPrivacyPolicy = lazy(() => import("./pages/RegistrationPrivacyPolicy"));
+const WriterTermsConditions = lazy(() => import("./pages/WriterTermsConditions"));
+const InvestorTermsConditions = lazy(() => import("./pages/InvestorTermsConditions"));
+const ScriptUploadTermsConditions = lazy(() => import("./pages/ScriptUploadTermsConditions"));
 const Login = lazy(() => import("./pages/Login"));
 const Join = lazy(() => import("./pages/Join"));
 const RoleSelection = lazy(() => import("./pages/RoleSelection"));
@@ -74,7 +78,11 @@ function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/registration-privacy-policy" element={<RegistrationPrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
+              <Route path="/writer-terms" element={<WriterTermsConditions />} />
+              <Route path="/investor-terms" element={<InvestorTermsConditions />} />
+              <Route path="/script-upload-terms" element={<ScriptUploadTermsConditions />} />
               <Route path="/login" element={<Login />} />
               <Route path="/join" element={<RoleSelection />} />
               <Route path="/signup" element={<Join />} />
