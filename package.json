@@ -4,6 +4,11 @@
   "description": "A full-stack social platform connecting **creators, actors, investors, producers, and readers** in the entertainment industry. Share scripts, discover talent, fund projects, and collaborate — all in one place.",
   "main": "index.js",
   "scripts": {
+    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/backup.ps1",
+    "backup:code": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/backup.ps1 -SkipDb",
+    "backup:db": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/backup.ps1 -SkipCode",
+    "restore:db": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/restore-db.ps1",
+    "restore:code": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/restore-code.ps1",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

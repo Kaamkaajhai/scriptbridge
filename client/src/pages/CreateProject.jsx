@@ -14,7 +14,6 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
-import { jsPDF } from "jspdf";
 import api from "../services/api";
 import { formatCurrency } from "../utils/currency";
 
@@ -780,131 +779,40 @@ const CreateProject = () => {
       amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
     },
   ];
-  const invoiceDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
-  const invoiceNumber = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${(scriptId || "NEW").slice(-4).toUpperCase()}`;
-  const companyAddress = "India, Maharashtra, Pune";
-  const companyEmail = "info.ckript@gmail.com";
 
-  const handleDownloadInvoice = async () => {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const left = 44;
-    const right = pageWidth - 44;
-    let y = 56;
-
-    const blobToDataUrl = (blob) =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-
-    let logoAdded = false;
-    try {
-      const logoRes = await fetch("/cklogo-nobg.png");
-      if (logoRes.ok) {
-        const logoBlob = await logoRes.blob();
-        const logoDataUrl = await blobToDataUrl(logoBlob);
-        doc.addImage(String(logoDataUrl), "PNG", left, y - 26, 110, 26);
-        logoAdded = true;
-      }
-    } catch {
-      logoAdded = false;
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("Script Publish Invoice", logoAdded ? left + 124 : left, y);
-
-    if (!logoAdded) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("CKRIPT", left, y - 20);
-    }
-
-    y += 24;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(`Invoice: ${invoiceNumber}`, left, y);
-    doc.text(`Date: ${invoiceDate}`, right, y, { align: "right" });
-
-    y += 16;
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Address: ${companyAddress}`, left, y);
-    doc.text(`Email: ${companyEmail}`, right, y, { align: "right" });
-    doc.setTextColor(15, 23, 42);
-
-    y += 18;
-    doc.setDrawColor(220, 226, 236);
-    doc.line(left, y, right, y);
-
-    y += 20;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("ITEM", left, y);
-    doc.text("TYPE", left + 290, y);
-    doc.text("AMOUNT", right, y, { align: "right" });
-
-    y += 10;
-    doc.line(left, y, right, y);
-
-    publishInvoiceRows.forEach((row) => {
-      y += 18;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(String(row.item), left, y);
-
-      y += 14;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      const detailLines = doc.splitTextToSize(String(row.detail), 270);
-      doc.text(detailLines, left, y);
-
-      doc.setFontSize(10);
-      doc.text(String(row.type), left + 290, y);
-      doc.setFont("helvetica", "bold");
-      doc.text(String(row.amount), right, y, { align: "right" });
-
-      y += Math.max(detailLines.length * 11, 16) + 6;
-      doc.setDrawColor(237, 240, 245);
-      doc.line(left, y, right, y);
+  const handleInvoicePdfAction = async (invoiceId, invoiceNo, action = "open") => {
+    const { data } = await api.get(`/invoices/${invoiceId}/pdf`, {
+      params: action === "download" ? { download: 1 } : {},
+      responseType: "blob",
     });
+    const blobUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
 
-    y += 24;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("SUMMARY", left, y);
+    if (action === "download") {
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${invoiceNo || "invoice"}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      return;
+    }
 
-    y += 18;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(`Due Now: ${totalServiceCost} cr`, left, y);
-    y += 14;
-    doc.text(`Remaining Credits: ${creditsAfterPublish}`, left, y);
-    y += 14;
-    doc.text(`Net per Premium Sale: ${isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}`, left, y);
-
-    y += 34;
-    doc.setFont("times", "italic");
-    doc.setFontSize(18);
-    doc.text("Yash", left + 8, y);
-    doc.setDrawColor(170, 179, 193);
-    doc.line(left, y + 8, left + 170, y + 8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text("Founder Signature", left, y + 20);
-    doc.setTextColor(15, 23, 42);
-
-    doc.save(`${invoiceNumber}.pdf`);
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
   };
 
-  const offerInvoiceDownload = async () => {
-    const shouldDownload = window.confirm("Your project has been submitted for admin approval. It will be visible after approval. Would you like to download the invoice now?");
+  const offerInvoiceActions = async (invoice) => {
+    if (!invoice?._id) return;
+
+    const shouldOpen = window.confirm("Project submitted for admin approval. Open your saved invoice PDF now?");
+    if (shouldOpen) {
+      await handleInvoicePdfAction(invoice._id, invoice.invoiceNumber, "open");
+    }
+
+    const shouldDownload = window.confirm("Download this invoice PDF as well?");
     if (shouldDownload) {
-      await handleDownloadInvoice();
+      await handleInvoicePdfAction(invoice._id, invoice.invoiceNumber, "download");
     }
   };
 
@@ -981,9 +889,9 @@ const CreateProject = () => {
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
         ...(scriptId ? { scriptId } : {}),
       };
-      await api.post("/scripts/upload", payload);
+      const { data } = await api.post("/scripts/upload", payload);
       if (scriptId) { try { await api.delete(`/scripts/${scriptId}`); } catch { } }
-      await offerInvoiceDownload();
+      await offerInvoiceActions(data?.invoice);
       navigate("/dashboard");
     } catch (err) { setError(err.response?.data?.message || "Failed to publish."); } finally { setLoading(false); }
   };

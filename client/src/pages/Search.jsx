@@ -331,12 +331,12 @@ const Search = () => {
 
   const getProfileImage = (user) => {
     if (!user.profileImage) return null;
-    return user.profileImage.startsWith("http") ? user.profileImage : `http://localhost:5001${user.profileImage}`;
+    return user.profileImage.startsWith("http") ? user.profileImage : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${user.profileImage}`;
   };
 
   const getCoverImage = (script) => {
     if (!script.coverImage) return null;
-    return script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5001${script.coverImage}`;
+    return script.coverImage.startsWith("http") ? script.coverImage : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${script.coverImage}`;
   };
 
   const ease = [0.25, 0.46, 0.45, 0.94];
@@ -687,6 +687,9 @@ const Search = () => {
                           </div>
                           {user.bio && (
                             <p className={`text-[12px] line-clamp-1 mt-0.5 ${t.personBio}`}>{user.bio}</p>
+                          )}
+                          {user.sid && (
+                            <p className={`text-[10px] font-semibold mt-0.5 ${t.personFollowers}`}>SID: {user.sid}</p>
                           )}
                         </div>
 

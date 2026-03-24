@@ -1,11 +1,11 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
 
-/* â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */ 
+/* ── Constants ─────────────────────────────────────── */ 
 const GENRES = [
   "Thriller","Drama","Comedy","Sci-Fi","Horror","Romance",
   "Action","Mystery","Fantasy","Animation","Crime","Adventure",
@@ -21,11 +21,11 @@ const CONTENT_TYPES = [
   { key: "startup", label: "Startup" },
 ];
 const BUDGETS = [
-  { key: "micro", label: "Micro (<₹10L)" },
-  { key: "low", label: "Low (₹10L-₹1Cr)" },
-  { key: "mid", label: "Mid (₹1Cr-₹10Cr)" },
-  { key: "high", label: "High (₹10Cr-₹100Cr)" },
-  { key: "blockbuster", label: "Blockbuster (>₹100Cr)" },
+  { key: "micro", label: "Micro (<?10L)" },
+  { key: "low", label: "Low (?10L-?1Cr)" },
+  { key: "mid", label: "Mid (?1Cr-?10Cr)" },
+  { key: "high", label: "High (?10Cr-?100Cr)" },
+  { key: "blockbuster", label: "Blockbuster (>?100Cr)" },
 ];
 const PREMIUM_OPTIONS = [
   { key: "all", label: "All" },
@@ -34,14 +34,14 @@ const PREMIUM_OPTIONS = [
 ];
 const budgetLabel = { micro: "Micro", low: "Low", mid: "Mid", high: "High", blockbuster: "Blockbuster" };
 
-/* â”€â”€ Sort Tabs â€” merged from all 3 sections â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Sort Tabs — merged from all 3 sections ───────── */
 const SORT_TABS = [
   { key: "platform",  label: "Top Ranked", desc: "Ranked by overall platform score",            icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" },
   { key: "score",     label: "AI Score",   desc: "Ranked by script quality score",              icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
   { key: "views",     label: "Most Viewed",desc: "Ranked by total views",                       icon: "M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" },
 ];
 
-/* â”€â”€ Small UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Small UI helpers ─────────────────────────────── */
 const ease = [0.25, 0.46, 0.45, 0.94];
 
 const FilterIcon = () => (
@@ -60,7 +60,7 @@ const XIcon = () => (
   </svg>
 );
 
-/* â”€â”€ Rank Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Rank Badge ────────────────────────────────────── */
 const RankBadge = ({ rank, dark }) => {
   const medals = {
     1: { bg: "from-amber-400 to-yellow-300", text: "text-amber-900", shadow: "shadow-amber-400/40" },
@@ -84,7 +84,7 @@ const RankBadge = ({ rank, dark }) => {
   );
 };
 
-/* â”€â”€ Pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Pill ─────────────────────────────────────────── */
 const Pill = ({ active, onClick, children, dark }) => (
   <button
     onClick={onClick}
@@ -107,7 +107,7 @@ const FilterSection = ({ label, children, dark }) => (
   </div>
 );
 
-/* â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Skeleton ────────────────────────────────────── */
 const SkeletonCard = ({ dark }) => (
   <div className={`rounded-2xl overflow-hidden border ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-gray-100"}`}>
     <div className={`h-[200px] animate-pulse ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
@@ -118,9 +118,9 @@ const SkeletonCard = ({ dark }) => (
   </div>
 );
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   MAIN COMPONENT â€” Top List (merged)
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══════════════════════════════════════════════════════
+   MAIN COMPONENT — Top List (merged)
+══════════════════════════════════════════════════════ */
 const TopList = () => {
   const { isDarkMode: dark } = useDarkMode();
 
@@ -147,7 +147,7 @@ const TopList = () => {
     iconMuted:   dark ? "text-gray-500" : "text-gray-300",
   };
 
-  /* â”€â”€ State â”€â”€ */
+  /* ── State ── */
   const [scripts, setScripts]           = useState([]);
   const [loading, setLoading]           = useState(true);
   const [sortBy, setSortBy]             = useState("platform");
@@ -189,7 +189,7 @@ const TopList = () => {
     setLoading(false);
   };
 
-  /* â”€â”€ Metrics â”€â”€ */
+  /* ── Metrics ── */
   const getMetric = (script) => {
     if (sortBy === "platform")  { const v = Math.round(script.platformScore || 0);   return { value: v, pct: Math.min(v, 100) }; }
     if (sortBy === "score")     { const v = script.scriptScore?.overall || 0;         return { value: v, pct: Math.min(v, 100) }; }
@@ -202,7 +202,7 @@ const TopList = () => {
   const resolveImg = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5001${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   const numericMetrics = scripts.map((s) => {
@@ -216,7 +216,7 @@ const TopList = () => {
 
   const activeTab = SORT_TABS.find((t) => t.key === sortBy) || SORT_TABS[0];
 
-  /* â”€â”€ Loading â”€â”€ */
+  /* ── Loading ── */
   if (loading && scripts.length === 0) return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
@@ -232,7 +232,7 @@ const TopList = () => {
   return (
     <div className="max-w-6xl mx-auto">
 
-      {/* â•â•â•â•â•â•â• HEADER â•â•â•â•â•â•â• */}
+      {/* ═══════ HEADER ═══════ */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -269,7 +269,7 @@ const TopList = () => {
         </div>
       </motion.div>
 
-      {/* â•â•â•â•â•â•â• SORT TABS + FILTERS â•â•â•â•â•â•â• */}
+      {/* ═══════ SORT TABS + FILTERS ═══════ */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -344,7 +344,7 @@ const TopList = () => {
           )}
         </div>
 
-        {/* â”€â”€ Filter panel â”€â”€ */}
+        {/* ── Filter panel ── */}
         <AnimatePresence>
           {filtersOpen && (
             <motion.div
@@ -395,7 +395,7 @@ const TopList = () => {
         </AnimatePresence>
       </motion.div>
 
-      {/* â•â•â•â•â•â•â• CONTENT â•â•â•â•â•â•â• */}
+      {/* ═══════ CONTENT ═══════ */}
       {scripts.length === 0 && !loading ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}

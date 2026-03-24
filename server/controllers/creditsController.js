@@ -7,6 +7,105 @@ import crypto from "crypto";
 // Lazy initialization of Razorpay
 let razorpayInstance = null;
 
+const CUSTOM_CREDIT_PRICE = 9;
+
+const STANDARD_CREDIT_PLANS = [
+  {
+    code: "plan_50",
+    name: "50 Credits",
+    credits: 50,
+    price: 400,
+    currency: "INR",
+    popular: false,
+    description: "Starter pack for quick usage",
+    features: ["50 credits", "Instant top-up"],
+    bonusCredits: 0,
+  },
+  {
+    code: "plan_100",
+    name: "100 Credits",
+    credits: 100,
+    price: 749,
+    currency: "INR",
+    popular: true,
+    description: "Best value for regular creators",
+    features: ["100 credits", "Instant top-up"],
+    bonusCredits: 0,
+  },
+  {
+    code: "plan_400",
+    name: "400 Credits",
+    credits: 400,
+    price: 2999,
+    currency: "INR",
+    popular: false,
+    description: "Maximum savings for power users",
+    features: ["400 credits", "Instant top-up"],
+    bonusCredits: 0,
+  },
+];
+
+const getStandardPlanByCode = (planCode) =>
+  STANDARD_CREDIT_PLANS.find((plan) => plan.code === planCode);
+
+const isValidCustomCredits = (value) =>
+  Number.isInteger(value) && value >= 1 && value <= 10000;
+
+const buildPurchaseDetails = async ({ packageId, customCredits }) => {
+  const parsedCustomCredits =
+    customCredits === undefined ? undefined : Number(customCredits);
+
+  if (parsedCustomCredits !== undefined) {
+    if (!isValidCustomCredits(parsedCustomCredits)) {
+      return { error: "Custom credits must be an integer between 1 and 10000" };
+    }
+
+    return {
+      planCode: "custom",
+      name: `Custom ${parsedCustomCredits} Credits`,
+      credits: parsedCustomCredits,
+      bonusCredits: 0,
+      totalCredits: parsedCustomCredits,
+      price: parsedCustomCredits * CUSTOM_CREDIT_PRICE,
+      currency: "INR",
+      isCustom: true,
+      packageRef: null,
+    };
+  }
+
+  const standardPlan = getStandardPlanByCode(packageId);
+  if (standardPlan) {
+    return {
+      planCode: standardPlan.code,
+      name: standardPlan.name,
+      credits: standardPlan.credits,
+      bonusCredits: standardPlan.bonusCredits || 0,
+      totalCredits: standardPlan.credits + (standardPlan.bonusCredits || 0),
+      price: standardPlan.price,
+      currency: standardPlan.currency || "INR",
+      isCustom: false,
+      packageRef: null,
+    };
+  }
+
+  const creditPackage = await CreditPackage.findById(packageId);
+  if (!creditPackage) {
+    return { error: "Credit package not found" };
+  }
+
+  return {
+    planCode: creditPackage._id.toString(),
+    name: creditPackage.name,
+    credits: creditPackage.credits,
+    bonusCredits: creditPackage.bonusCredits || 0,
+    totalCredits: creditPackage.credits + (creditPackage.bonusCredits || 0),
+    price: creditPackage.price,
+    currency: creditPackage.currency || "INR",
+    isCustom: false,
+    packageRef: creditPackage._id,
+  };
+};
+
 const getRazorpay = () => {
   if (!razorpayInstance) {
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -35,8 +134,28 @@ export const CREDIT_PRICES = {
 // @access  Public
 export const getCreditPackages = async (req, res) => {
   try {
-    const packages = await CreditPackage.find({ active: true }).sort({ price: 1 });
-    res.json(packages);
+    const packages = STANDARD_CREDIT_PLANS.map((plan) => ({
+      _id: plan.code,
+      name: plan.name,
+      credits: plan.credits,
+      price: plan.price,
+      currency: plan.currency,
+      discount: 0,
+      popular: plan.popular,
+      active: true,
+      description: plan.description,
+      features: plan.features,
+      bonusCredits: plan.bonusCredits || 0,
+    }));
+
+    res.json({
+      packages,
+      customPricing: {
+        pricePerCredit: CUSTOM_CREDIT_PRICE,
+        minCredits: 1,
+        maxCredits: 10000,
+      },
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -92,11 +211,11 @@ export const getCreditHistory = async (req, res) => {
 // @access  Private
 export const purchaseCredits = async (req, res) => {
   try {
-    const { packageId, paymentMethod = "stripe" } = req.body;
-    
-    const creditPackage = await CreditPackage.findById(packageId);
-    if (!creditPackage) {
-      return res.status(404).json({ message: "Credit package not found" });
+    const { packageId, customCredits, paymentMethod = "stripe" } = req.body;
+
+    const purchase = await buildPurchaseDetails({ packageId, customCredits });
+    if (purchase.error) {
+      return res.status(400).json({ message: purchase.error });
     }
     
     const user = await User.findById(req.user._id);
@@ -104,7 +223,7 @@ export const purchaseCredits = async (req, res) => {
     // In a real app, this is where you'd process Stripe payment
     // For now, we'll simulate successful payment
     
-    const totalCredits = creditPackage.credits + (creditPackage.bonusCredits || 0);
+    const totalCredits = purchase.totalCredits;
     const reference = `CREDIT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     
     // Update user credits
@@ -123,7 +242,7 @@ export const purchaseCredits = async (req, res) => {
     user.credits.transactions.push({
       type: "purchase",
       amount: totalCredits,
-      description: `Purchased ${creditPackage.name}`,
+      description: `Purchased ${purchase.name}`,
       reference,
       createdAt: new Date()
     });
@@ -134,15 +253,18 @@ export const purchaseCredits = async (req, res) => {
     await Transaction.create({
       user: user._id,
       type: "payment",
-      amount: -creditPackage.price,
-      currency: creditPackage.currency,
+      amount: -purchase.price,
+      currency: purchase.currency,
       status: "completed",
-      description: `Credit purchase: ${creditPackage.name} (${totalCredits} credits)`,
+      description: `Credit purchase: ${purchase.name} (${totalCredits} credits)`,
       reference,
       paymentMethod,
       metadata: {
-        packageId: creditPackage._id,
-        credits: totalCredits
+        packageId: purchase.packageRef,
+        planCode: purchase.planCode,
+        isCustom: purchase.isCustom,
+        credits: totalCredits,
+        customCredits: purchase.isCustom ? purchase.credits : undefined,
       }
     });
     
@@ -151,7 +273,7 @@ export const purchaseCredits = async (req, res) => {
       credits: {
         balance: user.credits.balance,
         purchased: totalCredits,
-        package: creditPackage.name
+        package: purchase.name
       },
       reference
     });
@@ -321,23 +443,25 @@ export const createRazorpayOrder = async (req, res) => {
       });
     }
     
-    const { packageId } = req.body;
-    
-    const creditPackage = await CreditPackage.findById(packageId);
-    if (!creditPackage) {
-      return res.status(404).json({ message: "Credit package not found" });
+    const { packageId, customCredits } = req.body;
+
+    const purchase = await buildPurchaseDetails({ packageId, customCredits });
+    if (purchase.error) {
+      return res.status(400).json({ message: purchase.error });
     }
     
     // Create Razorpay order
     const options = {
-      amount: Math.round(creditPackage.price * 100), // Amount in paise (INR)
-      currency: creditPackage.currency || "INR",
+      amount: Math.round(purchase.price * 100), // Amount in paise (INR)
+      currency: purchase.currency || "INR",
       receipt: `receipt_${Date.now()}`,
       notes: {
         userId: req.user._id.toString(),
-        packageId: packageId,
-        packageName: creditPackage.name,
-        credits: creditPackage.credits + (creditPackage.bonusCredits || 0)
+        packageId: packageId || "custom",
+        planCode: purchase.planCode,
+        packageName: purchase.name,
+        credits: purchase.totalCredits,
+        customCredits: purchase.isCustom ? purchase.credits : undefined,
       }
     };
     
@@ -350,10 +474,13 @@ export const createRazorpayOrder = async (req, res) => {
       currency: order.currency,
       keyId: process.env.RAZORPAY_KEY_ID,
       packageDetails: {
-        name: creditPackage.name,
-        credits: creditPackage.credits,
-        bonusCredits: creditPackage.bonusCredits || 0,
-        totalCredits: creditPackage.credits + (creditPackage.bonusCredits || 0)
+        name: purchase.name,
+        credits: purchase.credits,
+        bonusCredits: purchase.bonusCredits,
+        totalCredits: purchase.totalCredits,
+        price: purchase.price,
+        isCustom: purchase.isCustom,
+        pricePerCredit: purchase.isCustom ? CUSTOM_CREDIT_PRICE : Number((purchase.price / purchase.totalCredits).toFixed(2)),
       }
     });
   } catch (error) {
@@ -370,7 +497,8 @@ export const verifyRazorpayPayment = async (req, res) => {
       razorpay_order_id, 
       razorpay_payment_id, 
       razorpay_signature,
-      packageId 
+      packageId,
+      customCredits
     } = req.body;
     
     // Check if Razorpay key secret is available
@@ -399,11 +527,11 @@ export const verifyRazorpayPayment = async (req, res) => {
     }
     
     // Payment verified successfully, credit the user
-    const creditPackage = await CreditPackage.findById(packageId);
-    if (!creditPackage) {
-      return res.status(404).json({ 
-        message: "Credit package not found",
-        success: false 
+    const purchase = await buildPurchaseDetails({ packageId, customCredits });
+    if (purchase.error) {
+      return res.status(400).json({
+        message: purchase.error,
+        success: false,
       });
     }
     
@@ -415,7 +543,7 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
     
-    const totalCredits = creditPackage.credits + (creditPackage.bonusCredits || 0);
+    const totalCredits = purchase.totalCredits;
     const reference = `RAZORPAY-${razorpay_payment_id}`;
     
     // Initialize credits if not exists
@@ -435,7 +563,7 @@ export const verifyRazorpayPayment = async (req, res) => {
     user.credits.transactions.push({
       type: "purchase",
       amount: totalCredits,
-      description: `Purchased ${creditPackage.name} via Razorpay`,
+      description: `Purchased ${purchase.name} via Razorpay`,
       reference,
       createdAt: new Date()
     });
@@ -446,15 +574,18 @@ export const verifyRazorpayPayment = async (req, res) => {
     await Transaction.create({
       user: user._id,
       type: "payment",
-      amount: -creditPackage.price,
-      currency: creditPackage.currency || "INR",
+      amount: -purchase.price,
+      currency: purchase.currency || "INR",
       status: "completed",
-      description: `Credit purchase: ${creditPackage.name} (${totalCredits} credits)`,
+      description: `Credit purchase: ${purchase.name} (${totalCredits} credits)`,
       reference,
       paymentMethod: "razorpay",
       metadata: {
-        packageId: creditPackage._id,
+        packageId: purchase.packageRef,
+        planCode: purchase.planCode,
+        isCustom: purchase.isCustom,
         credits: totalCredits,
+        customCredits: purchase.isCustom ? purchase.credits : undefined,
         razorpay_order_id,
         razorpay_payment_id
       }
@@ -466,7 +597,7 @@ export const verifyRazorpayPayment = async (req, res) => {
       credits: {
         balance: user.credits.balance,
         purchased: totalCredits,
-        package: creditPackage.name
+        package: purchase.name
       },
       reference
     });

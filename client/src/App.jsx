@@ -21,6 +21,7 @@ const NewProject = lazy(() => import("./pages/NewProject"));
 const CreateProject = lazy(() => import("./pages/CreateProject"));
 const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
+const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
 const Messages = lazy(() => import("./pages/Messages"));
@@ -98,7 +99,13 @@ function App() {
               />
               <Route
                 path="/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <FeaturedProjects />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
               />
               <Route
                 path="/trending"

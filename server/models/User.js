@@ -1,7 +1,17 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const createSid = (prefix) => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let token = "";
+  for (let i = 0; i < 8; i += 1) {
+    token += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${prefix}-${token}`;
+};
+
 const userSchema = new mongoose.Schema({
+  sid: { type: String, unique: true, sparse: true, index: true },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   pendingEmail: { type: String },
@@ -186,6 +196,21 @@ const userSchema = new mongoose.Schema({
   },
   approvalNote: { type: String },
 }, { timestamps: true });
+
+userSchema.pre("validate", async function () {
+  if (this.sid) return;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = createSid("USR");
+    const exists = await this.constructor.exists({ sid: candidate });
+    if (!exists) {
+      this.sid = candidate;
+      return;
+    }
+  }
+
+  throw new Error("Unable to generate unique user SID");
+});
 
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
