@@ -8,6 +8,7 @@ import PrivacySettingsUI from "./PrivacySettingsVanilla";
 const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, api }) => {
   const containerRef = useRef(null);
   const uiInstanceRef = useRef(null);
+  const lastSyncedStateRef = useRef("");
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -17,6 +18,7 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
 
     if (privacySettings) {
       uiInstanceRef.current.updateState(privacySettings);
+      lastSyncedStateRef.current = JSON.stringify(privacySettings);
     }
 
     return () => {
@@ -26,6 +28,17 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
 
   useEffect(() => {
     if (!uiInstanceRef.current || !privacySettings) return;
+
+    const incoming = JSON.stringify(privacySettings);
+    const current = JSON.stringify(uiInstanceRef.current.getState());
+
+    // Skip no-op updates to avoid constant DOM re-renders in the vanilla component.
+    if (incoming === current) {
+      lastSyncedStateRef.current = incoming;
+      return;
+    }
+
+    lastSyncedStateRef.current = incoming;
     uiInstanceRef.current.updateState(privacySettings);
   }, [privacySettings]);
 
@@ -36,6 +49,11 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
     // Create an interval to check for state changes
     const syncInterval = setInterval(() => {
       const currentState = uiInstanceRef.current.getState();
+      const serialized = JSON.stringify(currentState);
+
+      if (serialized === lastSyncedStateRef.current) return;
+
+      lastSyncedStateRef.current = serialized;
       setPrivacySettings(currentState);
     }, 500);
 

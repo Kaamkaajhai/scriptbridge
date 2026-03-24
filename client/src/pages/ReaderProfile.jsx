@@ -18,10 +18,14 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const [previewImage, setPreviewImage] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imageRemoved, setImageRemoved] = useState(false);
+  const [previewCoverImage, setPreviewCoverImage] = useState(null);
+  const [coverImageFile, setCoverImageFile] = useState(null);
+  const [coverImageRemoved, setCoverImageRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef(null);
+  const coverInputRef = useRef(null);
 
   const resolveImage = (url) => {
     if (!url) return "";
@@ -49,12 +53,33 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleCoverImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Cover image must be under 5MB");
+      return;
+    }
+    setCoverImageFile(file);
+    setPreviewCoverImage(URL.createObjectURL(file));
+    setCoverImageRemoved(false);
+    setError("");
+  };
+
+  const handleRemoveCoverImage = () => {
+    setPreviewCoverImage(null);
+    setCoverImageFile(null);
+    setCoverImageRemoved(true);
+    if (coverInputRef.current) coverInputRef.current.value = "";
+  };
+
   const handleSave = async () => {
     if (!name.trim()) { setError("Name is required"); return; }
     setSaving(true);
     setError("");
     try {
-      let profileImageUrl = imageRemoved ? "" : profile.profileImage;
+      let profileImageUrl = imageRemoved ? null : profile.profileImage;
+      let coverImageUrl = coverImageRemoved ? null : profile.coverImage;
 
       // Upload image first if changed
       if (imageFile) {
@@ -64,6 +89,17 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
           headers: { "Content-Type": "multipart/form-data" },
         });
         profileImageUrl = imgData.profileImage;
+      }
+
+      // Upload cover image if changed
+      if (coverImageFile) {
+        const formData = new FormData();
+        formData.append("profileImage", coverImageFile);
+        formData.append("target", "coverImage");
+        const { data: imgData } = await api.post("/users/upload-image", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        coverImageUrl = imgData.coverImage;
       }
 
       // Update profile
@@ -77,16 +113,25 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
         bio: bio.trim(),
         skills: skillsArr,
         profileImage: profileImageUrl,
+        coverImage: coverImageUrl,
+        removeProfileImage: imageRemoved,
+        removeCoverImage: coverImageRemoved,
       });
 
+      const normalizedData = {
+        ...data,
+        profileImage: imageRemoved ? "" : (data.profileImage ?? profileImageUrl ?? ""),
+        coverImage: coverImageRemoved ? "" : (data.coverImage ?? coverImageUrl ?? ""),
+      };
+
       // Update AuthContext
-      const updatedUser = { ...user, ...data };
+      const updatedUser = { ...user, ...normalizedData };
       setUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
       setSuccess(true);
       setTimeout(() => {
-        onSaved(data);
+        onSaved(normalizedData);
         onClose();
       }, 600);
     } catch (err) {
@@ -96,6 +141,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   };
 
   const currentImage = imageRemoved ? "" : (previewImage || resolveImage(profile.profileImage));
+  const currentCoverImage = coverImageRemoved ? "" : (previewCoverImage || resolveImage(profile.coverImage));
 
   return (
     <motion.div
@@ -185,6 +231,55 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
                   </>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Cover Upload */}
+          <div>
+            <p className="text-sm font-bold text-gray-700">Cover Image</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Shown in your profile header. JPG, PNG or GIF. Max 5MB.</p>
+
+            <div className="mt-3">
+              <div
+                className="relative h-24 w-full rounded-xl border border-gray-200 overflow-hidden"
+                style={currentCoverImage
+                  ? {
+                      backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.45) 100%), url(\"${currentCoverImage}\")`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }
+                  : { background: "linear-gradient(135deg, #061020 0%, #0f2444 40%, #1a3d6b 70%, #1e5090 100%)" }}
+              />
+
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  className="text-[12px] font-bold text-[#1e3a5f] hover:text-[#162d4a] transition-colors"
+                >
+                  Change cover
+                </button>
+                {currentCoverImage && (
+                  <>
+                    <span className="text-gray-300 text-[10px]">·</span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoverImage}
+                      className="text-[12px] font-bold text-red-400 hover:text-red-500 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverImageChange}
+                className="hidden"
+              />
             </div>
           </div>
 
@@ -389,6 +484,7 @@ const ReaderProfile = () => {
   const memberSince = profile.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
     : null;
+  const coverImageUrl = resolveImage(profile.coverImage);
 
   const tabs = [
     { key: "read", label: "Scripts Read", icon: BookOpen, count: profile.scriptsRead?.length || 0 },
@@ -446,13 +542,26 @@ const ReaderProfile = () => {
         className={`rounded-3xl overflow-hidden mb-6 ${ dark ? "bg-[#0b1929] border border-[#16263d] shadow-[0_4px_24px_rgba(0,0,0,0.4)]" : "bg-white border border-gray-100 shadow-md" }`}
       >
         {/* ── Banner ── */}
-        <div className="relative h-40 overflow-hidden" style={{ background: "linear-gradient(135deg, #061020 0%, #0f2444 40%, #1a3d6b 70%, #1e5090 100%)" }}>
-          {/* Geometric shapes */}
-          <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl" />
-          <div className="absolute -bottom-20 left-1/4 w-80 h-80 rounded-full bg-sky-400/8 blur-3xl" />
-          <div className="absolute top-6 right-1/4 w-32 h-32 rounded-full bg-indigo-500/15 blur-2xl" />
-          {/* Subtle line texture */}
-          <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+        <div
+          className="relative h-40 overflow-hidden"
+          style={coverImageUrl
+            ? {
+                backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.45) 100%), url("${coverImageUrl}")`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : { background: "linear-gradient(135deg, #061020 0%, #0f2444 40%, #1a3d6b 70%, #1e5090 100%)" }}
+        >
+          {!coverImageUrl && (
+            <>
+              {/* Geometric shapes */}
+              <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl" />
+              <div className="absolute -bottom-20 left-1/4 w-80 h-80 rounded-full bg-sky-400/8 blur-3xl" />
+              <div className="absolute top-6 right-1/4 w-32 h-32 rounded-full bg-indigo-500/15 blur-2xl" />
+              {/* Subtle line texture */}
+              <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+            </>
+          )}
           {/* Bottom fade */}
           <div className={`absolute bottom-0 left-0 right-0 h-16 ${ dark ? "bg-gradient-to-t from-[#0b1929] to-transparent" : "bg-gradient-to-t from-white/20 to-transparent" }`} />
         </div>

@@ -17,11 +17,22 @@ class PrivacySettingsUI {
     this.userId = userId;
     this.api = apiService;
     this.isSaving = false;
+    this.boundPanelClickHandler = null;
 
-    this.state = {
+    this.state = this.getInitialState();
+
+    this.loadState();
+    this.init();
+  }
+
+  getInitialState() {
+    return {
       accountEmail: "",
       emailVerified: false,
       requestVerification: false,
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
       profileVisibility: "public",
       messagingPermissions: "everyone",
       showOnlineStatus: true,
@@ -31,19 +42,108 @@ class PrivacySettingsUI {
         bio: "public",
       },
       allowAnalytics: true,
-      personalizedAds: false,
       enableTwoFactor: false,
       blockedUsers: [],
     };
-
-    this.loadState();
-    this.init();
   }
 
   init() {
     if (!this.container) return;
+    this.injectStyles();
     this.render();
     this.attachEventListeners();
+  }
+
+  injectStyles() {
+    const styleId = "privacy-settings-ui-styles";
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      .settings-ui-root .settings-select {
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+        min-height: 44px;
+        padding-right: 2.25rem;
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 14px;
+      }
+
+      .settings-ui-root .settings-select:focus {
+        border-color: rgba(96, 165, 250, 0.7);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      }
+
+      .settings-ui-root .settings-select::-ms-expand {
+        display: none;
+      }
+
+      .settings-ui-dark .settings-select {
+        background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none"%3E%3Cpath d="M5 7.5L10 12.5L15 7.5" stroke="%23E5E7EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E');
+      }
+
+      .settings-ui-light .settings-select {
+        background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none"%3E%3Cpath d="M5 7.5L10 12.5L15 7.5" stroke="%23374151" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E');
+      }
+
+      .settings-ui-dark .settings-select option {
+        background-color: #12243a;
+        color: #f3f4f6;
+      }
+
+      .settings-ui-light .settings-select option {
+        background-color: #ffffff;
+        color: #111827;
+      }
+
+      .settings-ui-root .settings-action-btn {
+        cursor: pointer;
+        pointer-events: auto;
+        position: relative;
+        z-index: 1;
+      }
+
+      .settings-ui-root .settings-password-wrap {
+        position: relative;
+      }
+
+      .settings-ui-root .settings-password-wrap .settings-input {
+        padding-right: 2.75rem;
+      }
+
+      .settings-ui-root .settings-password-toggle {
+        position: absolute;
+        right: 0.65rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 1.75rem;
+        height: 1.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .settings-ui-dark .settings-password-toggle {
+        color: rgba(229, 231, 235, 0.75);
+      }
+
+      .settings-ui-light .settings-password-toggle {
+        color: rgba(55, 65, 81, 0.8);
+      }
+
+      .settings-ui-root .settings-password-toggle:hover {
+        background: rgba(148, 163, 184, 0.18);
+      }
+    `;
+
+    document.head.appendChild(style);
   }
 
   loadState() {
@@ -142,7 +242,7 @@ class PrivacySettingsUI {
       {
         id: "privacy",
         title: "Privacy Settings",
-        desc: "Visibility, messaging, online status and data",
+        desc: "Visibility, online status and data",
       },
       {
         id: "security",
@@ -152,7 +252,7 @@ class PrivacySettingsUI {
     ];
 
     this.container.innerHTML = `
-      <div class="rounded-2xl border overflow-hidden transition-all ${theme.shell}">
+      <div class="settings-ui-root ${this.darkMode ? "settings-ui-dark" : "settings-ui-light"} rounded-2xl border overflow-hidden transition-all ${theme.shell}">
         <div class="p-4 md:p-6">
           <div class="mb-4">
             <h2 class="text-lg font-bold ${theme.text}">Settings</h2>
@@ -186,7 +286,7 @@ class PrivacySettingsUI {
   renderSubPanel() {
     const theme = this.getThemeClasses();
     this.container.innerHTML = `
-      <div class="rounded-2xl border overflow-hidden transition-all ${theme.shell}">
+      <div class="settings-ui-root ${this.darkMode ? "settings-ui-dark" : "settings-ui-light"} rounded-2xl border overflow-hidden transition-all ${theme.shell}">
         <div class="p-4 md:p-6">
           <div class="flex items-center gap-2 mb-4">
             <button
@@ -251,12 +351,34 @@ class PrivacySettingsUI {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">New Password</label>
-            <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="newPassword" type="password" placeholder="Enter new password" />
+            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Current Password</label>
+            <div class="settings-password-wrap">
+              <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="currentPassword" type="password" placeholder="Enter current password" />
+              <button type="button" class="settings-password-toggle" data-target-field="currentPassword" aria-label="Show password">
+                ${this.getPasswordToggleIcon(false)}
+              </button>
+            </div>
           </div>
           <div>
+            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">New Password</label>
+            <div class="settings-password-wrap">
+              <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="newPassword" type="password" placeholder="Enter new password" />
+              <button type="button" class="settings-password-toggle" data-target-field="newPassword" aria-label="Show password">
+                ${this.getPasswordToggleIcon(false)}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
             <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Confirm Password</label>
-            <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="confirmPassword" type="password" placeholder="Confirm password" />
+            <div class="settings-password-wrap">
+              <input class="settings-input w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="confirmPassword" type="password" placeholder="Confirm password" />
+              <button type="button" class="settings-password-toggle" data-target-field="confirmPassword" aria-label="Show password">
+                ${this.getPasswordToggleIcon(false)}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -272,6 +394,16 @@ class PrivacySettingsUI {
           </button>
         </div>
 
+        <div class="rounded-xl border p-4 ${this.darkMode ? "border-red-500/30 bg-red-500/10" : "border-red-200 bg-red-50"}">
+          <div class="mb-3">
+            <p class="text-sm font-semibold ${this.darkMode ? "text-red-400" : "text-red-700"}">Danger Zone</p>
+            <p class="text-xs mt-1 ${this.darkMode ? "text-red-300/70" : "text-red-600"}">Permanently delete your account and all associated data</p>
+          </div>
+          <button type="button" data-action="deleteAccount" class="settings-action-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all ${this.darkMode ? "bg-red-500/30 text-red-300 hover:bg-red-500/40 border border-red-500/40" : "bg-red-100 text-red-700 hover:bg-red-200 border border-red-300"}">
+            Delete Account
+          </button>
+        </div>
+
         <div class="flex items-center justify-end">
           <button type="button" data-action="saveAccount" class="settings-action-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all ${theme.primaryButton}">Save Account</button>
         </div>
@@ -284,22 +416,13 @@ class PrivacySettingsUI {
 
     return `
       <div class="space-y-3.5 animate-fade-in">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
           <div>
             <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Profile Visibility</label>
             <select class="settings-select w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="profileVisibility">
               <option value="public">Public</option>
               <option value="private">Private</option>
               <option value="only_me">Only Me</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="text-xs font-semibold uppercase tracking-wider mb-1.5 block ${theme.textMuted}">Messaging</label>
-            <select class="settings-select w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-all ${theme.input}" data-field="messagingPermissions">
-              <option value="everyone">Everyone</option>
-              <option value="followers_only">Followers Only</option>
-              <option value="no_one">No One</option>
             </select>
           </div>
         </div>
@@ -312,31 +435,6 @@ class PrivacySettingsUI {
 
         ${this.renderToggleRow("showOnlineStatus", "Show Online Status", "Let others see when you are active")}
         ${this.renderToggleRow("allowAnalytics", "Allow Analytics", "Share anonymous usage to improve experience")}
-        ${this.renderToggleRow("personalizedAds", "Personalized Ads", "Allow personalized recommendations and ads")}
-
-        <div class="rounded-xl border p-3 ${this.darkMode ? "border-white/10 bg-white/5" : "border-gray-200 bg-gray-50"}">
-          <div class="flex items-center justify-between gap-2 mb-2">
-            <p class="text-sm font-semibold ${theme.text}">Blocked Users</p>
-            <span class="text-xs ${theme.textSecondary}">${this.state.blockedUsers.length}</span>
-          </div>
-          <div class="space-y-1.5">
-            ${
-              this.state.blockedUsers.length
-                ? this.state.blockedUsers
-                    .slice(0, 4)
-                    .map(
-                      (user, idx) => `
-                  <div class="flex items-center justify-between px-2.5 py-2 rounded-lg ${this.darkMode ? "bg-white/5" : "bg-white"}">
-                    <p class="text-xs ${theme.textSecondary}">${this.escapeValue(user?.name || user?.username || `User ${idx + 1}`)}</p>
-                    <button type="button" class="settings-unblock-btn text-[11px] font-semibold ${this.darkMode ? "text-red-400" : "text-red-600"}" data-user-id="${this.escapeValue(user?._id || user?.id || String(idx))}">Unblock</button>
-                  </div>
-                `
-                    )
-                    .join("")
-                : `<p class="text-xs ${theme.textMuted}">No blocked users.</p>`
-            }
-          </div>
-        </div>
 
         <div class="flex items-center justify-end">
           <button type="button" data-action="savePrivacy" class="settings-action-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all ${theme.primaryButton}">Save Privacy</button>
@@ -408,6 +506,21 @@ class PrivacySettingsUI {
   }
 
   attachPanelEventListeners() {
+    if (this.boundPanelClickHandler) {
+      this.container.removeEventListener("click", this.boundPanelClickHandler);
+    }
+
+    this.boundPanelClickHandler = (event) => {
+      const actionBtn = event.target.closest(".settings-action-btn");
+      if (actionBtn && this.container.contains(actionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.handleAction(actionBtn.dataset.action);
+      }
+    };
+
+    this.container.addEventListener("click", this.boundPanelClickHandler);
+
     const selects = this.container.querySelectorAll(".settings-select");
     selects.forEach((select) => {
       const field = select.dataset.field;
@@ -465,18 +578,47 @@ class PrivacySettingsUI {
       });
     });
 
-    const actionBtns = this.container.querySelectorAll(".settings-action-btn");
-    actionBtns.forEach((btn) => {
-      btn.addEventListener("click", () => this.handleAction(btn.dataset.action));
+    const passwordToggles = this.container.querySelectorAll(".settings-password-toggle");
+    passwordToggles.forEach((toggleBtn) => {
+      toggleBtn.addEventListener("click", () => {
+        const targetField = toggleBtn.dataset.targetField;
+        if (!targetField) return;
+
+        const input = this.container.querySelector(`.settings-input[data-field="${targetField}"]`);
+        if (!input) return;
+
+        const isVisible = input.type === "text";
+        input.type = isVisible ? "password" : "text";
+        toggleBtn.innerHTML = this.getPasswordToggleIcon(!isVisible);
+        toggleBtn.setAttribute("aria-label", isVisible ? "Show password" : "Hide password");
+      });
     });
+
+  }
+
+  getPasswordToggleIcon(isVisible) {
+    if (isVisible) {
+      return `
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+          <path d="M3 3L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M10.58 10.58C10.21 10.95 10 11.46 10 12C10 13.1 10.9 14 12 14C12.54 14 13.05 13.79 13.42 13.42" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M9.88 5.09C10.56 4.94 11.27 4.86 12 4.86C16.5 4.86 20.31 7.82 21.57 12C21.14 13.44 20.33 14.74 19.24 15.77M6.23 6.23C4.97 7.33 3.98 8.79 3.43 10.45C4.69 14.63 8.5 17.59 13 17.59C14.07 17.59 15.1 17.42 16.07 17.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+    }
+
+    return `
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+        <path d="M2.5 12C3.88 7.95 7.63 5.11 12 5.11C16.37 5.11 20.12 7.95 21.5 12C20.12 16.05 16.37 18.89 12 18.89C7.63 18.89 3.88 16.05 2.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+      </svg>
+    `;
   }
 
   handleAction(action) {
     switch (action) {
       case "requestVerification": {
-        this.state.requestVerification = true;
-        this.saveState();
-        window.alert("Verification request captured in UI state.");
+        this.handleRequestVerification();
         break;
       }
       case "changePassword": {
@@ -487,13 +629,175 @@ class PrivacySettingsUI {
         window.alert("Logout from all devices triggered (UI only).");
         break;
       }
+      case "deleteAccount": {
+        this.handleDeleteAccount();
+        break;
+      }
       case "saveAccount":
+      {
+        this.handleSaveAccount();
+        break;
+      }
       case "savePrivacy": {
-        this.saveState();
+        this.handleSavePrivacy();
         break;
       }
       default:
         break;
+    }
+  }
+
+  async handleSavePrivacy() {
+    try {
+      this.saveState();
+
+      if (this.userId && this.api) {
+        await this.syncToBackend();
+      }
+
+      window.alert("Privacy settings saved successfully.");
+    } catch (error) {
+      window.alert(this.getApiErrorMessage(error, "Failed to save privacy settings."));
+    }
+  }
+
+  getApiErrorMessage(error, fallback) {
+    return (
+      error?.response?.data?.message ||
+      error?.message ||
+      fallback
+    );
+  }
+
+  async handleRequestVerification() {
+    if (this.state.emailVerified) {
+      window.alert("Your email is already verified.");
+      return;
+    }
+
+    try {
+      if (!this.api) {
+        throw new Error("API service is unavailable");
+      }
+
+      const { data } = await this.api.post("/onboarding/send-verification");
+      this.state.requestVerification = true;
+      this.saveState();
+
+      const devCodeSuffix = data?.devCode ? `\n\nDev code: ${data.devCode}` : "";
+      window.alert(`${data?.message || "Verification code sent."}${devCodeSuffix}`);
+    } catch (error) {
+      window.alert(this.getApiErrorMessage(error, "Failed to request verification."));
+    }
+  }
+
+  async handleSaveAccount() {
+    const currentPassword = (this.state.currentPassword || "").trim();
+    const newPassword = (this.state.newPassword || "").trim();
+    const confirmPassword = (this.state.confirmPassword || "").trim();
+    const isChangingPassword = !!(currentPassword || newPassword || confirmPassword);
+
+    if (!isChangingPassword) {
+      this.saveState();
+      window.alert("Account settings saved.");
+      return;
+    }
+
+    if (!currentPassword) {
+      window.alert("Current password is required.");
+      return;
+    }
+
+    if (!newPassword || !confirmPassword) {
+      window.alert("New password and confirmation are required.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      window.alert("New password and confirm password do not match.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      window.alert("New password must be at least 6 characters.");
+      return;
+    }
+
+    try {
+      if (!this.api) {
+        throw new Error("API service is unavailable");
+      }
+
+      await this.api.put("/users/change-password", {
+        currentPassword,
+        newPassword,
+      });
+
+      this.state.currentPassword = "";
+      this.state.newPassword = "";
+      this.state.confirmPassword = "";
+      this.saveState();
+      this.renderSubPanel();
+      window.alert("Password changed successfully.");
+    } catch (error) {
+      window.alert(this.getApiErrorMessage(error, "Failed to change password."));
+    }
+  }
+
+  handleDeleteAccount() {
+    const firstConfirm = window.confirm(
+      "Are you sure you want to delete your account? This action cannot be undone.\n\nAll your data, posts, and reviews will be permanently deleted."
+    );
+
+    if (!firstConfirm) return;
+    const userInput = window.prompt(
+      "Please type 'DELETE' to confirm account deletion:"
+    );
+
+    if (userInput !== "DELETE") {
+      window.alert("Account deletion cancelled. Input did not match 'DELETE'.");
+      return;
+    }
+
+    const password = window.prompt(
+      "Enter your current password to confirm account deletion:"
+    );
+
+    if (!password) {
+      window.alert("Account deletion cancelled. Password is required.");
+      return;
+    }
+
+    this.performDeleteAccount(password);
+  }
+
+  async performDeleteAccount(password) {
+    try {
+      if (!this.api) {
+        throw new Error("API service is unavailable");
+      }
+
+      await this.api.delete("/users/account", {
+        data: {
+          password,
+          confirmationText: "DELETE",
+        },
+      });
+
+      localStorage.removeItem(this.storageKey);
+      localStorage.removeItem("user");
+
+      this.state = this.getInitialState();
+
+      window.alert(
+        "Your account has been deleted successfully. You will be redirected to login."
+      );
+
+      window.location.href = "/login";
+    } catch (error) {
+      window.alert(
+        this.getApiErrorMessage(error, "Failed to delete account. Please try again later.")
+      );
     }
   }
 

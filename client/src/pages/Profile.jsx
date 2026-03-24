@@ -356,6 +356,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
+  const [connectionsTab, setConnectionsTab] = useState("followers");
   const [activeTab, setActiveTab] = useState("overview");
 
   // Settings state
@@ -683,11 +685,29 @@ const Profile = () => {
                   {profile.email}
                 </p>
               )}
-              <p className={`text-[13px] font-semibold mt-1 ${dark ? "text-white/45" : "text-gray-500"}`}>
-                {profile.followers.length} Followers
+              <div className={`text-[13px] font-semibold mt-1 flex items-center ${dark ? "text-white/45" : "text-gray-500"}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectionsTab("followers");
+                    setShowConnectionsModal(true);
+                  }}
+                  className={`transition-colors hover:underline ${dark ? "hover:text-white/80" : "hover:text-gray-800"}`}
+                >
+                  {profile.followers.length} Followers
+                </button>
                 <span className={`mx-2 ${dark ? "text-white/20" : "text-gray-300"}`}>•</span>
-                {profile.following.length} Following
-              </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConnectionsTab("following");
+                    setShowConnectionsModal(true);
+                  }}
+                  className={`transition-colors hover:underline ${dark ? "hover:text-white/80" : "hover:text-gray-800"}`}
+                >
+                  {profile.following.length} Following
+                </button>
+              </div>
               {profile.bio && (
                 <p
                   className={`text-[14px] leading-relaxed mt-2 line-clamp-2 ${t.body}`}
@@ -1851,6 +1871,111 @@ const Profile = () => {
           {isWriter(profile.role) && <BankDetails dark={dark} />}
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {showConnectionsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm p-4 flex items-center justify-center"
+            onClick={() => setShowConnectionsModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              onClick={(event) => event.stopPropagation()}
+              className={`w-full max-w-md rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1829] border-white/[0.1]" : "bg-white border-gray-200 shadow-xl"}`}
+            >
+              <div className={`px-4 py-3 border-b flex items-center ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
+                <h3 className={`text-[16px] font-bold ${dark ? "text-white" : "text-gray-900"}`}>Connections</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowConnectionsModal(false)}
+                  className={`ml-auto w-8 h-8 rounded-lg text-lg leading-none ${dark ? "text-white/60 hover:bg-white/[0.06] hover:text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"}`}
+                  aria-label="Close connections modal"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className={`px-4 pt-3 pb-2 flex items-center gap-2 border-b ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
+                <button
+                  type="button"
+                  onClick={() => setConnectionsTab("followers")}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border transition-colors ${connectionsTab === "followers"
+                    ? dark
+                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/70"
+                      : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                    : dark
+                      ? "bg-transparent text-white/70 border-white/[0.15] hover:bg-white/[0.04]"
+                      : "bg-transparent text-gray-600 border-gray-200 hover:bg-gray-50"
+                    }`}
+                >
+                  Followers ({profile.followers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConnectionsTab("following")}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border transition-colors ${connectionsTab === "following"
+                    ? dark
+                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/70"
+                      : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                    : dark
+                      ? "bg-transparent text-white/70 border-white/[0.15] hover:bg-white/[0.04]"
+                      : "bg-transparent text-gray-600 border-gray-200 hover:bg-gray-50"
+                    }`}
+                >
+                  Following ({profile.following.length})
+                </button>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto p-4 space-y-2.5">
+                {(connectionsTab === "followers" ? profile.followers : profile.following).length === 0 ? (
+                  <div className={`text-center py-8 text-[13px] ${dark ? "text-white/35" : "text-gray-500"}`}>
+                    {connectionsTab === "followers" ? "No followers yet." : "Not following anyone yet."}
+                  </div>
+                ) : (
+                  (connectionsTab === "followers" ? profile.followers : profile.following).map((person, idx) => {
+                    const item = typeof person === "object" && person !== null ? person : {};
+                    const displayName = item.name || item.username || "Unknown User";
+                    const subtitle = item.username
+                      ? item.username.startsWith("@")
+                        ? item.username
+                        : `@${item.username}`
+                      : item.email || "ScriptBridge member";
+                    const imageSrc = item.profileImage ? resolveImage(item.profileImage) : "";
+                    const key = item._id || item.id || `${connectionsTab}-${idx}`;
+
+                    return (
+                      <div
+                        key={key}
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border ${dark ? "bg-white/[0.03] border-white/[0.06]" : "bg-gray-50/60 border-gray-100"}`}
+                      >
+                        <div className={`w-10 h-10 rounded-full overflow-hidden shrink-0 ${dark ? "bg-white/[0.08]" : "bg-gray-200"}`}>
+                          {imageSrc ? (
+                            <img src={imageSrc} alt={displayName} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className={`w-full h-full flex items-center justify-center text-[13px] font-extrabold uppercase ${dark ? "text-white/60" : "text-gray-600"}`}>
+                              {displayName.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-900"}`}>{displayName}</p>
+                          <p className={`text-[12px] truncate ${dark ? "text-white/35" : "text-gray-500"}`}>{subtitle}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Edit Modal */}
       {showEditModal && (

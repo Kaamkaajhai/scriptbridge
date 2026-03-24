@@ -207,6 +207,7 @@ export const updateUserProfile = async (req, res) => {
   try {
     const {
       name, bio, skills, profileImage, coverImage, writerProfile,
+      removeProfileImage, removeCoverImage,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
       // Reader preferences (genres + contentTypes)
@@ -229,8 +230,11 @@ export const updateUserProfile = async (req, res) => {
     user.name = name || user.name;
     user.bio = bio !== undefined ? bio : user.bio;
     user.skills = skills || user.skills;
-    user.profileImage = profileImage || user.profileImage;
-    if (coverImage !== undefined) user.coverImage = coverImage;
+    if (removeProfileImage) user.profileImage = "";
+    else if (profileImage !== undefined) user.profileImage = profileImage;
+
+    if (removeCoverImage) user.coverImage = "";
+    else if (coverImage !== undefined) user.coverImage = coverImage;
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
@@ -382,8 +386,8 @@ export const updateUserProfile = async (req, res) => {
       role: user.role,
       bio: user.bio,
       skills: user.skills,
-      profileImage: user.profileImage,
-      coverImage: user.coverImage,
+      profileImage: user.profileImage || "",
+      coverImage: user.coverImage || "",
       writerProfile: user.writerProfile,
       industryProfile: user.industryProfile,
       preferences: user.preferences,
@@ -440,10 +444,11 @@ export const uploadProfileImage = async (req, res) => {
     }
 
     const imageUrl = `/uploads/profiles/${req.file.filename}`;
-    user.profileImage = imageUrl;
+    const target = req.body?.target === "coverImage" ? "coverImage" : "profileImage";
+    user[target] = imageUrl;
     await user.save();
 
-    res.json({ profileImage: imageUrl });
+    res.json({ [target]: imageUrl });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -617,6 +622,42 @@ export const changeEmail = async (req, res) => {
     user.emailVerified = false;
     await user.save();
     res.json({ message: "Email changed successfully", email: user.email });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteAccount = async (req, res) => {
+  try {
+    const { password, confirmationText } = req.body || {};
+
+    if (confirmationText !== "DELETE") {
+      return res.status(400).json({ message: "Invalid deletion confirmation" });
+    }
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    await Promise.all([
+      Post.deleteMany({ user: req.user._id }),
+      Script.deleteMany({ creator: req.user._id }),
+      Notification.deleteMany({ $or: [{ user: req.user._id }, { from: req.user._id }] }),
+    ]);
+
+    await User.findByIdAndDelete(req.user._id);
+
+    res.json({ message: "Account deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
