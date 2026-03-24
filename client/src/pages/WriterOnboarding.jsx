@@ -1,5 +1,5 @@
-import { useState, useContext, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import OTPVerification from "../components/OTPVerification";
@@ -17,7 +17,7 @@ import {
   MapPin,
   Phone,
   Calendar,
-  Link,
+  Link as LinkIcon,
   Instagram,
   Twitter,
   Linkedin,
@@ -54,6 +54,11 @@ const validatePassword = (password) => {
     special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password),
   };
 };
+
+const WRITER_TERMS_VERSION = "writer-onboarding-v2026-03-24";
+const WRITER_TERMS_ROUTE = "/writer-terms";
+const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
+const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
 
 const WriterOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
@@ -131,9 +136,8 @@ const WriterOnboarding = () => {
 
   // Step 4: Legal & Checkout
   const [selectedPlan, setSelectedPlan] = useState("free");
-  const [agreementScrolled, setAgreementScrolled] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
-  const agreementRef = useRef(null);
+  const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
 
   const steps = [
     { num: 1, title: "Account" },
@@ -365,16 +369,6 @@ const WriterOnboarding = () => {
     }
   };
 
-  // Agreement scroll handler
-  const handleAgreementScroll = (e) => {
-    const element = e.target;
-    const isScrolledToBottom = 
-      element.scrollHeight - element.scrollTop <= element.clientHeight + 10;
-    if (isScrolledToBottom && !agreementScrolled) {
-      setAgreementScrolled(true);
-    }
-  };
-
   const handleTagsSubmit = (e) => {
     e.preventDefault();
     setCurrentStep(4);
@@ -390,7 +384,10 @@ const WriterOnboarding = () => {
         genres: selectedGenres,
         tags: nuancedTags,
         plan: selectedPlan,
-        agreementAccepted
+        agreementAccepted,
+        termsVersion: WRITER_TERMS_VERSION,
+        privacyPolicyAccepted,
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION,
       });
       
       if (response.data.success) {
@@ -858,7 +855,7 @@ const WriterOnboarding = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Portfolio / Website</label>
                   <div className="relative">
-                    <Link className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                     <input type="url" value={writerProfile.links.portfolio}
                       onChange={(e) => setWriterProfile({...writerProfile, links: {...writerProfile.links, portfolio: e.target.value}})}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
@@ -1300,29 +1297,21 @@ const WriterOnboarding = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Terms & Conditions
               </label>
-              <div
-                ref={agreementRef}
-                onScroll={handleAgreementScroll}
-                className="border-2 border-gray-200 rounded-lg p-4 h-[150px] overflow-y-auto text-sm text-gray-700 bg-gray-50"
-              >
-                <h4 className="font-semibold mb-2">Ckript Submission Agreement</h4>
-                <p className="mb-3">
-                  By submitting your profile and/or scripts to Ckript, you agree to the following terms:
+              <div className="border-2 border-gray-200 rounded-lg p-4 text-sm text-gray-700 bg-gray-50">
+                <p className="leading-relaxed mb-3">
+                  Please review the full Writer Onboard Terms and Conditions on a separate page.
                 </p>
-                <ol className="list-decimal pl-5 space-y-2">
-                  <li>You retain all copyright and ownership of your work.</li>
-                  <li>You grant Ckript permission to display your scripts to verified industry professionals.</li>
-                  <li>You confirm that you own the rights to any material you submit or have permission to submit it.</li>
-                  <li>You release Ckript from liability if similar content is independently produced.</li>
-                  <li>Your profile and scripts will be viewable by verified industry professionals only.</li>
-                  <li>For paid plans, payment is non-refundable after your profile is activated.</li>
-                  <li>Monthly subscriptions renew automatically and can be cancelled at any time.</li>
-                  <li>Ckript reserves the right to remove content that violates our community guidelines.</li>
-                  <li>You agree to maintain professional conduct when interacting with other users.</li>
-                  <li>These terms are subject to change with notice to active users.</li>
-                </ol>
-                <p className="mt-4 text-xs text-gray-500">
-                  Last updated: February 2026
+                <Link
+                  to={WRITER_TERMS_ROUTE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0f2544] text-white hover:bg-[#1a365d] transition font-semibold"
+                >
+                  Open Terms & Conditions
+                  <ArrowRight size={16} />
+                </Link>
+                <p className="mt-3 text-xs text-gray-500">
+                  Terms version: {WRITER_TERMS_VERSION}
                 </p>
               </div>
               
@@ -1333,22 +1322,49 @@ const WriterOnboarding = () => {
                   id="agreement"
                   checked={agreementAccepted}
                   onChange={(e) => setAgreementAccepted(e.target.checked)}
-                  disabled={!agreementScrolled}
-                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5"
                   style={{ accentColor: '#1e3a5f' }}
                 />
                 <label
                   htmlFor="agreement"
-                  className={`ml-3 text-sm ${
-                    agreementScrolled ? 'text-gray-900' : 'text-gray-400'
-                  }`}
+                  className="ml-3 text-sm text-gray-900"
                 >
                   I have read and agree to the Terms & Conditions
-                  {!agreementScrolled && (
-                    <span className="block text-xs text-gray-500 mt-1">
-                      (Scroll to the bottom to enable)
-                    </span>
-                  )}
+                </label>
+              </div>
+
+              <div className="mt-4 border-2 border-gray-200 rounded-lg p-4 text-sm text-gray-700 bg-gray-50">
+                <p className="leading-relaxed mb-3">
+                  Please review the Registration Privacy Policy. This applies to both writers and investors.
+                </p>
+                <Link
+                  to={REGISTRATION_PRIVACY_ROUTE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0f2544] text-white hover:bg-[#1a365d] transition font-semibold"
+                >
+                  Open Privacy Policy
+                  <ArrowRight size={16} />
+                </Link>
+                <p className="mt-3 text-xs text-gray-500">
+                  Privacy policy version: {PRIVACY_POLICY_VERSION}
+                </p>
+              </div>
+
+              <div className="flex items-start mt-3">
+                <input
+                  type="checkbox"
+                  id="privacy-policy"
+                  checked={privacyPolicyAccepted}
+                  onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
+                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5"
+                  style={{ accentColor: '#1e3a5f' }}
+                />
+                <label
+                  htmlFor="privacy-policy"
+                  className="ml-3 text-sm text-gray-900"
+                >
+                  I have read and agree to the Privacy Policy
                 </label>
               </div>
             </div>
@@ -1370,7 +1386,7 @@ const WriterOnboarding = () => {
               </button>
               <button
                 type="submit"
-                disabled={loading || !agreementAccepted}
+                disabled={loading || !agreementAccepted || !privacyPolicyAccepted}
                 className="flex-1 bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? "Processing..." : selectedPlan === "paid" ? "Pay & Publish" : "Complete Setup"}
