@@ -1,5 +1,5 @@
 import { useState, useContext, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import OTPVerification from "../components/OTPVerification";
@@ -98,6 +98,11 @@ const loadInvestorOnboardingDraft = () => {
   }
 };
 
+const INVESTOR_TERMS_ROUTE = "/investor-terms";
+const INVESTOR_TERMS_VERSION = "investor-onboarding-v2026-03-24";
+const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
+const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
+
 const InvestorOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -147,6 +152,8 @@ const InvestorOnboarding = () => {
   const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
   const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
   const agreementRef = useRef(null);
+  const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
+  const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -391,31 +398,28 @@ const InvestorOnboarding = () => {
   };
 
   // ── Step 4: Legal & Complete ───────────────────────────────
-  const handleScrollAgreement = () => {
-    const el = agreementRef.current;
-    if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
-      setAgreementScrolled(true);
-    }
-  };
-
   const handleComplete = async () => {
     if (!agreementAccepted) {
       setError("Please accept the agreement to continue");
       return;
     }
+    if (!privacyPolicyAccepted) {
+      setError("Please accept the privacy policy to continue");
+      return;
+    }
     setLoading(true);
     try {
-      await api.put("/users/update", { onboardingComplete: true });
+      await api.put("/users/update", {
+        onboardingComplete: true,
+        privacyPolicyAccepted,
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+      });
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem(INVESTOR_ONBOARDING_DRAFT_KEY);
       }
       navigate("/?investorReview=pending", { replace: true });
-    } catch {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.removeItem(INVESTOR_ONBOARDING_DRAFT_KEY);
-      }
-      navigate("/?investorReview=pending", { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to complete onboarding");
     } finally {
       setLoading(false);
     }
@@ -996,47 +1000,65 @@ const InvestorOnboarding = () => {
                   <p className="text-gray-400 text-sm font-medium mt-1">Please read and accept the terms before accessing the platform</p>
                 </div>
                 <div className="p-8 space-y-5">
-                  {/* Agreement scroll box */}
-                  <div
-                    ref={agreementRef}
-                    onScroll={handleScrollAgreement}
-                    className="h-56 overflow-y-auto border border-gray-100 rounded-xl p-5 bg-gray-50 text-xs text-gray-500 font-medium leading-relaxed space-y-3"
-                  >
-                    <p className="font-black text-gray-700 text-sm">Ckript Producer/Director Platform Agreement</p>
-                    <p>By joining Ckript as a Producer/Director, you agree to the following terms:</p>
-                    <p><strong>1. Platform Use.</strong> This platform is for discovery and connection purposes only. Ckript facilitates introductions between producers/directors and content creators but is not a party to any investment agreement.</p>
-                    <p><strong>2. No Financial Advice.</strong> Nothing on this platform constitutes financial, legal, or investment advice. All investment decisions are made solely at your own discretion and risk.</p>
-                    <p><strong>3. Due Diligence.</strong> You are responsible for conducting your own due diligence on any project or creator before committing funds. Ckript makes no representations about the viability, legality, or returns of any listed project.</p>
-                    <p><strong>4. Confidentiality.</strong> Scripts, synopses, and creative materials accessed through this platform are confidential and may not be shared, reproduced, or distributed without written consent from the rights holder.</p>
-                    <p><strong>5. Data & Privacy.</strong> Your profile information may be visible to creators and industry professionals on the platform. Refer to our Privacy Policy for full details on data handling.</p>
-                    <p><strong>6. Compliance.</strong> You represent that any investment activities conducted through connections made on this platform will comply with all applicable laws and regulations in your jurisdiction.</p>
-                    <p><strong>7. Termination.</strong> Ckript reserves the right to suspend or terminate any account found in violation of these terms or the platform's community standards.</p>
-                    <p className="text-gray-400">Last updated: January 2026</p>
+                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600 space-y-3">
+                    <p className="font-black text-gray-700">Investor Registration Terms and Conditions</p>
+                    <p>
+                      Review the full investor terms on a separate page before you complete registration.
+                    </p>
+                    <Link
+                      to={INVESTOR_TERMS_ROUTE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm"
+                    >
+                      Open Terms & Conditions
+                      <ArrowRight size={14} />
+                    </Link>
+                    <p className="text-xs text-gray-400">Terms version: {INVESTOR_TERMS_VERSION}</p>
                   </div>
 
-                  {!agreementScrolled && (
-                    <p className="text-center text-xs text-gray-400 font-semibold">↓ Scroll to the bottom to accept</p>
-                  )}
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={agreementAccepted}
+                      onChange={(e) => setAgreementAccepted(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                      style={{ accentColor: "#1e3a5f" }}
+                    />
+                    <span className="text-sm font-semibold text-gray-700">
+                      I have read and agree to the Investor Registration Terms and Conditions
+                    </span>
+                  </label>
 
-                  {agreementScrolled && (
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <div
-                        onClick={() => setAgreementAccepted(!agreementAccepted)}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-                          agreementAccepted ? "bg-[#1e3a5f] border-[#1e3a5f]" : "border-gray-300 bg-white"
-                        }`}
-                      >
-                        {agreementAccepted && (
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-sm font-semibold text-gray-700">
-                        I have read and agree to the Producer/Director Platform Agreement
-                      </span>
-                    </label>
-                  )}
+                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600 space-y-3">
+                    <p className="font-black text-gray-700">Registration Privacy Policy</p>
+                    <p>
+                      Review the privacy policy that applies to both writer and investor registrations.
+                    </p>
+                    <Link
+                      to={REGISTRATION_PRIVACY_ROUTE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm"
+                    >
+                      Open Privacy Policy
+                      <ArrowRight size={14} />
+                    </Link>
+                    <p className="text-xs text-gray-400">Privacy policy version: {PRIVACY_POLICY_VERSION}</p>
+                  </div>
+
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={privacyPolicyAccepted}
+                      onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                      style={{ accentColor: "#1e3a5f" }}
+                    />
+                    <span className="text-sm font-semibold text-gray-700">
+                      I have read and agree to the Privacy Policy
+                    </span>
+                  </label>
 
                   {error && (
                     <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
@@ -1053,7 +1075,7 @@ const InvestorOnboarding = () => {
                     <button
                       type="button"
                       onClick={handleComplete}
-                      disabled={!agreementAccepted || loading}
+                      disabled={!agreementAccepted || !privacyPolicyAccepted || loading}
                       className="flex-1 h-11 bg-[#1e3a5f] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#162d4a] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {loading ? "Completing..." : <>

@@ -90,7 +90,8 @@ const scriptSchema = new mongoose.Schema({
   legal: {
     agreedToTerms: { type: Boolean, default: false },
     timestamp: { type: Date },
-    ipAddress: { type: String }
+    ipAddress: { type: String },
+    termsVersion: { type: String }
   },
 
   premium: { type: Boolean, default: false },

@@ -452,10 +452,51 @@ export const validateSignupAddress = async (req, res) => {
 
     const { city, state, zipCode } = parsed;
 
-    const response = await fetch(`https://api.postalpincode.in/pincode/${zipCode}`);
-    const data = await response.json();
+    const strictAddressValidation =
+      String(process.env.STRICT_ADDRESS_VALIDATION || "false").toLowerCase() === "true";
 
-    const offices = Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+    let offices = [];
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(`https://api.postalpincode.in/pincode/${zipCode}`, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Postal API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      offices = Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+    } catch (postalError) {
+      console.warn("Postal API unavailable during signup address validation:", postalError.message || postalError);
+
+      if (strictAddressValidation) {
+        return res.status(503).json({
+          valid: false,
+          message: "Address validation service is temporarily unavailable. Please try again.",
+        });
+      }
+
+      return res.json({
+        valid: true,
+        skipped: true,
+        message: "Address format accepted. Live ZIP verification is temporarily unavailable.",
+        normalized: {
+          city,
+          state,
+          zipCode,
+        },
+      });
+    }
+
     if (!offices.length) {
       return res.status(400).json({
         valid: false,
