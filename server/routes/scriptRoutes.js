@@ -19,9 +19,25 @@ import {
 import multer from "multer";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const PDF_UPLOAD_MAX_BYTES = 30 * 1024 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: PDF_UPLOAD_MAX_BYTES },
+});
 
-router.post("/extract-pdf", protect, upload.single("pdf"), extractPdfText);
+const uploadPdfWithLimit = (req, res, next) => {
+  upload.single("pdf")(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ message: "PDF must be 30MB or smaller." });
+    }
+    if (err) {
+      return res.status(400).json({ message: err.message || "PDF upload failed." });
+    }
+    next();
+  });
+};
+
+router.post("/extract-pdf", protect, uploadPdfWithLimit, extractPdfText);
 router.post("/draft", protect, saveDraft);
 router.post("/upload", protect, uploadScript);
 

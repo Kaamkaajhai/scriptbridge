@@ -155,7 +155,8 @@ const Messages = () => {
     if (loading) return;
     const recipientId = searchParams.get("recipientId");
     const recipientName = searchParams.get("recipientName") || "Writer";
-    if (!recipientId || !isInvestor) return;
+    const recipientRole = searchParams.get("recipientRole") || (isInvestor ? "writer" : "investor");
+    if (!recipientId || !(isInvestor || isWriter)) return;
 
     const chatId = buildChatId(user._id, recipientId);
     const existing = conversations.find((c) => c.chatId === chatId);
@@ -163,7 +164,7 @@ const Messages = () => {
 
     const pendingChat = {
       chatId,
-      user: { _id: recipientId, name: recipientName, role: "writer", profileImage: "" },
+      user: { _id: recipientId, name: recipientName, role: recipientRole, profileImage: "" },
       lastMessage: "",
       timestamp: new Date().toISOString(),
       isPending: true,
@@ -238,11 +239,6 @@ const Messages = () => {
     setSendError("");
     const hasAttachment = Boolean(extraPayload?.fileUrl);
     if ((!textToSend?.trim() && !hasAttachment) || !activeChat) return false;
-
-    if (isWriter && !messagesLoading && messages.length === 0) {
-      setSendError("You cannot initiate a conversation. Only investors can message first.");
-      return false;
-    }
 
     const tempId = `temp_${Date.now()}`;
     const optimistic = {
@@ -458,11 +454,9 @@ const Messages = () => {
         <div className={`px-4 py-4 border-b ${dark ? "border-[#151f2e]" : "border-gray-100"}`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className={`text-lg font-extrabold tracking-tight ${t.title}`}>Messages</h2>
-            {isWriter && (
-              <span className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.04] text-[#8896a7]" : "bg-gray-100 text-gray-500"}`}>
-                <Lock size={10} /> Reply only
-              </span>
-            )}
+            <span className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.04] text-[#8896a7]" : "bg-gray-100 text-gray-500"}`}>
+              <Lock size={10} /> Purchase unlocked
+            </span>
           </div>
           {/* Search */}
           <div className="relative">
@@ -494,7 +488,7 @@ const Messages = () => {
               </p>
               {isWriter && !searchQuery && (
                 <p className={`text-xs mt-1.5 leading-relaxed ${t.muted}`}>
-                  Investors will message you after purchasing your projects.
+                  After an approved purchase, you or the investor can start the conversation.
                 </p>
               )}
               {isInvestor && !searchQuery && (
@@ -574,7 +568,7 @@ const Messages = () => {
               {isInvestor
                 ? "Select a conversation or purchase a project to unlock messaging with its writer."
                 : isWriter
-                ? "Investors will message you here after purchasing one of your projects."
+                ? "After a purchase is approved, you can start a conversation with that investor here."
                 : "Select a conversation from the left to start chatting."}
             </p>
             {isInvestor && (
@@ -616,7 +610,7 @@ const Messages = () => {
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 gap-2">
                   <p className={`text-sm ${t.sub}`}>No messages yet.</p>
-                  {isInvestor && (
+                  {(isInvestor || isWriter) && (
                     <p className={`text-xs ${t.muted}`}>Send the first message to start the conversation.</p>
                   )}
                 </div>

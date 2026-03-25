@@ -343,7 +343,7 @@ const Search = () => {
 
   return (
     <div className={t.pageBg}>
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto max-[580px]:overflow-x-hidden max-[380px]:px-0.5">
 
       {/* ── Header + Search ── */}
       <motion.div
@@ -352,13 +352,13 @@ const Search = () => {
         transition={{ duration: 0.4, ease }}
         className="mb-6"
       >
-        <div className="flex items-end justify-between gap-4 mb-5">
+        <div className="flex items-end justify-between gap-4 mb-5 max-[580px]:mb-4 max-[380px]:mb-3">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className={`w-1 h-6 rounded-full bg-gradient-to-b ${t.accentBar}`} />
-              <h1 className={`text-2xl font-extrabold tracking-tight ${t.title}`}>Search</h1>
+              <h1 className={`text-2xl max-[580px]:text-[26px] max-[380px]:text-[22px] font-extrabold tracking-tight ${t.title}`}>Search</h1>
             </div>
-            <p className={`text-[13px] font-medium ml-[18px] ${t.subtitle}`}>
+            <p className={`text-[13px] max-[580px]:text-[12px] max-[380px]:text-[11px] font-medium ml-[18px] max-[580px]:ml-[14px] max-[380px]:ml-[10px] ${t.subtitle}`}>
               Discover talent & projects across the platform
             </p>
           </div>
@@ -366,7 +366,7 @@ const Search = () => {
 
         {/* Search bar */}
         <div className={`relative rounded-xl border transition-all duration-300 ${t.searchWrap} ${focused ? t.searchFocused : ""}`}>
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+          <div className="absolute left-4 max-[380px]:left-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <svg className={`w-[18px] h-[18px] ${t.searchIcon}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
@@ -379,7 +379,7 @@ const Search = () => {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Search by name, genre, title, skills..."
-            className={`w-full h-12 pl-12 pr-12 bg-transparent rounded-xl text-[14px] focus:outline-none ${t.searchInput}`}
+            className={`w-full h-12 max-[580px]:h-11 max-[380px]:h-10 pl-12 max-[580px]:pl-10 max-[380px]:pl-9 pr-12 max-[580px]:pr-10 max-[380px]:pr-9 bg-transparent rounded-xl text-[14px] max-[580px]:text-[13px] max-[380px]:text-[12px] focus:outline-none ${t.searchInput}`}
           />
           {query ? (
             <button
@@ -405,15 +405,15 @@ const Search = () => {
         transition={{ duration: 0.35, delay: 0.08, ease }}
         className="mb-6"
       >
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3 max-[580px]:flex-col max-[580px]:items-stretch max-[380px]:gap-2">
+          <div className="flex items-center gap-3 max-[580px]:flex-col max-[580px]:items-stretch max-[380px]:gap-2">
             {/* Category tabs */}
-            <div className={`inline-flex items-center rounded-full p-1 gap-0.5 ${t.tabBar}`}>
-              {tabs.map((tab) => (
+            <div className={`inline-flex items-center rounded-full p-1 gap-0.5 ${t.tabBar} max-[580px]:w-full max-[580px]:overflow-x-auto max-[580px]:whitespace-nowrap max-[380px]:overflow-visible max-[380px]:whitespace-normal max-[380px]:grid max-[380px]:grid-cols-2 max-[380px]:rounded-2xl max-[380px]:p-1.5 max-[380px]:gap-1` }>
+              {tabs.map((tab, idx) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-250 whitespace-nowrap ${activeTab === tab.key
+                  className={`relative px-5 max-[580px]:px-3.5 max-[380px]:px-2.5 py-2 max-[580px]:py-1.5 max-[380px]:py-2 rounded-full max-[380px]:rounded-xl text-[13px] max-[580px]:text-[12px] max-[380px]:text-[11px] font-semibold transition-all duration-250 whitespace-nowrap max-[380px]:whitespace-normal max-[380px]:text-center max-[380px]:w-full ${idx === tabs.length - 1 ? "max-[380px]:col-span-2" : ""} ${activeTab === tab.key
                     ? t.tabActive
                     : t.tabIdle
                     }`}
@@ -427,7 +427,7 @@ const Search = () => {
             {showProjectFilters && (
               <button
                 onClick={() => setFiltersOpen(!filtersOpen)}
-                className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${filtersOpen || activeFilterCount > 0
+                className={`relative inline-flex items-center justify-center gap-2 px-4 max-[580px]:px-3 max-[380px]:px-2.5 py-2.5 max-[580px]:py-2 max-[380px]:py-1.5 rounded-xl text-[13px] max-[580px]:text-[12px] max-[380px]:text-[11px] font-semibold transition-all duration-200 border max-[580px]:w-full ${filtersOpen || activeFilterCount > 0
                   ? t.filterBtnActive
                   : t.filterBtnIdle
                   }`}

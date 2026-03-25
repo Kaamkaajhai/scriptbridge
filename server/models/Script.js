@@ -67,11 +67,13 @@ const scriptSchema = new mongoose.Schema({
   services: {
     hosting: { type: Boolean, default: true },
     evaluation: { type: Boolean, default: false },
-    aiTrailer: { type: Boolean, default: false }
+    aiTrailer: { type: Boolean, default: false },
+    spotlight: { type: Boolean, default: false }
   },
   billing: {
     evaluationCreditsCharged: { type: Number, default: 0 },
     aiTrailerCreditsCharged: { type: Number, default: 0 },
+    spotlightCreditsChargedAtUpload: { type: Number, default: 0 },
     evaluationCreditsChargedAtUpload: { type: Number, default: 0 },
     aiTrailerCreditsChargedAtUpload: { type: Number, default: 0 },
     evaluationCreditsRefunded: { type: Number, default: 0 },
@@ -85,6 +87,7 @@ const scriptSchema = new mongoose.Schema({
     enum: ["none", "requested", "completed"],
     default: "none",
   },
+  evaluationRequestedAt: { type: Date },
 
   // Legal & Compliance
   legal: {
@@ -98,6 +101,7 @@ const scriptSchema = new mongoose.Schema({
   verifiedBadge: { type: Boolean, default: false },
   promotion: {
     spotlightActive: { type: Boolean, default: false },
+    pendingSpotlightActivation: { type: Boolean, default: false },
     spotlightStartAt: { type: Date },
     spotlightEndAt: { type: Date },
     lastSpotlightPurchaseAt: { type: Date },

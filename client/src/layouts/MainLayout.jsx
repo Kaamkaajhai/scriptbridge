@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
 import BuyCreditsModal from "../components/BuyCreditsModal";
+import BrandLogo from "../components/BrandLogo";
 import api from "../services/api";
 
 const MainLayout = ({ children }) => {
@@ -27,6 +28,7 @@ const MainLayout = ({ children }) => {
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [sidebarToggleToken, setSidebarToggleToken] = useState(0);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -562,14 +564,42 @@ const MainLayout = ({ children }) => {
       )}
       
       <div className={`min-h-screen ${isDarkMode ? "bg-[#080e18]" : "bg-[#eef0f3]"}`}>
-      <Sidebar purchaseRequestCount={pendingPurchaseCount} unreadMessageCount={unreadMessageCount} />
+      <Sidebar
+        purchaseRequestCount={pendingPurchaseCount}
+        unreadMessageCount={unreadMessageCount}
+        showFloatingToggle={false}
+        mobileToggleToken={sidebarToggleToken}
+      />
 
       {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] h-16 border-b flex items-center justify-between px-4 sm:px-6 lg:px-8 z-[90] ${
+      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] border-b px-3 sm:px-6 lg:px-8 py-2 sm:py-0 z-[90] ${
         isDarkMode ? "bg-[#080e18]/95 border-[#151f2e] backdrop-blur-xl" : "glass-strong border-gray-200/60"
       }`}>
-        {/* Search */}
-        <form onSubmit={handleSearch} className="flex items-center flex-1 max-w-lg">
+        <div className="flex flex-wrap min-[640px]:max-[690px]:flex-nowrap items-center gap-2 sm:gap-3 min-[640px]:max-[690px]:gap-2 min-h-16">
+          <button
+            onClick={() => setSidebarToggleToken((v) => v + 1)}
+            className={`md:hidden order-1 w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+              isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-500 hover:text-[#1e3a5f] hover:bg-gray-100"
+            }`}
+            aria-label="Open sidebar"
+            title="Open sidebar"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="order-1 shrink-0 flex items-center rounded-lg px-1 py-1"
+            aria-label="Go to dashboard"
+            title="Dashboard"
+          >
+            <BrandLogo className="h-8 sm:h-9 w-auto" />
+          </button>
+
+          {/* Search */}
+          <form onSubmit={handleSearch} className="hidden sm:flex min-[640px]:max-[690px]:hidden order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-[200px] md:min-w-[260px] sm:max-w-[320px] md:max-w-lg items-center">
           <div className={`group flex items-center w-full rounded-xl overflow-hidden transition-all duration-300 ${
             isDarkMode
               ? "border border-[#1c2a3a] bg-[#0d1520] hover:border-[#2a3a4e] focus-within:border-[#2a3a4e] focus-within:ring-2 focus-within:ring-white/5"
@@ -582,10 +612,10 @@ const MainLayout = ({ children }) => {
             </div>
             <input
               type="text"
-              placeholder="Search projects, writers, investors..."
+              placeholder="Search projects, writers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`flex-1 px-3 py-2.5 text-[14px] font-medium outline-none bg-transparent ${
+              className={`flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent ${
                 isDarkMode ? "text-white placeholder-[#3a4a5e]" : "text-gray-800 placeholder-gray-400"
               }`}
             />
@@ -601,10 +631,23 @@ const MainLayout = ({ children }) => {
         </form>
 
         {/* Right side: notification + user menu */}
-        <div className="flex items-center gap-2 relative z-[95]">
+        <div className="order-2 sm:order-3 ml-auto flex items-center gap-1 sm:gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 relative z-[95] shrink-0">
+          <button
+            onClick={() => navigate("/search")}
+            className={`sm:hidden min-[640px]:max-[690px]:flex max-[376px]:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+              isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100"
+            }`}
+            aria-label="Open search"
+            title="Search"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+
           <button
             onClick={toggleDarkMode}
-            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`max-[376px]:hidden w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
               isDarkMode ? "text-amber-300 hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
             }`}
             aria-label="Toggle dark mode"
@@ -624,7 +667,7 @@ const MainLayout = ({ children }) => {
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
-              className={`relative w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+              className={`relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
                 isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
               }`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -639,13 +682,13 @@ const MainLayout = ({ children }) => {
 
             {/* Notification Panel */}
             {notifOpen && (
-              <div className={`absolute right-0 mt-2 w-[min(92vw,380px)] sm:w-[360px] max-h-[min(70vh,560px)] rounded-xl z-[130] flex flex-col overflow-hidden origin-top-right animate-scaleIn ${
+              <div className={`absolute right-0 mt-2 w-[min(94vw,380px)] sm:w-[360px] max-h-[min(70vh,560px)] max-[500px]:fixed max-[500px]:left-1/2 max-[500px]:right-auto max-[500px]:-translate-x-1/2 max-[500px]:top-[66px] max-[500px]:mt-0 max-[500px]:w-[min(96vw,360px)] max-[500px]:max-h-[72vh] rounded-xl z-[130] flex flex-col overflow-hidden origin-top-right animate-scaleIn ${
                 isDarkMode
                   ? "bg-[#0b1622]/98 border border-[#1a2a3a] shadow-2xl shadow-black/50 backdrop-blur-xl"
                   : "bg-white/98 border border-gray-200 shadow-2xl shadow-gray-300/60 backdrop-blur-xl"
               }`}>
                 {/* Header */}
-                <div className={`flex items-center justify-between px-4 py-3 border-b ${
+                <div className={`flex items-center justify-between max-[500px]:items-start max-[500px]:flex-col max-[500px]:gap-2 px-4 max-[500px]:px-3 py-3 border-b ${
                   isDarkMode ? "border-[#1a2a3a]" : "border-gray-100"
                 }`}>
                   <div className="flex items-center gap-2">
@@ -658,10 +701,10 @@ const MainLayout = ({ children }) => {
                       }`}>{unreadCount}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 max-[500px]:w-full max-[500px]:justify-end">
                     {unreadCount > 0 && (
                       <button onClick={handleMarkAllRead}
-                        className={`text-[11px] font-semibold transition-colors ${
+                        className={`text-[11px] max-[340px]:text-[10px] font-semibold transition-colors ${
                           isDarkMode ? "text-[#4a6a8a] hover:text-white" : "text-gray-400 hover:text-gray-700"
                         }`}>
                         Mark all read
@@ -669,7 +712,7 @@ const MainLayout = ({ children }) => {
                     )}
                     {notifications.length > 0 && (
                       <button onClick={handleClearAll}
-                        className={`text-[11px] font-semibold transition-colors ${
+                        className={`text-[11px] max-[340px]:text-[10px] font-semibold transition-colors ${
                           isDarkMode ? "text-[#4a6a8a] hover:text-red-400" : "text-gray-400 hover:text-red-500"
                         }`}>
                         Clear all
@@ -689,7 +732,7 @@ const MainLayout = ({ children }) => {
                   ) : notifications.length > 0 ? (
                     notifications.map((n) => (
                       <div key={n._id}
-                        className={`relative flex items-start gap-3 px-4 py-3 transition-colors group ${
+                        className={`relative flex items-start gap-3 max-[500px]:gap-2.5 px-4 max-[500px]:px-3 py-3 transition-colors group ${
                           isDarkMode
                             ? `hover:bg-white/[0.03] ${!n.read ? "bg-white/[0.025]" : ""}`
                             : `hover:bg-gray-50 ${!n.read ? "bg-gray-50/60" : ""}`
@@ -702,7 +745,7 @@ const MainLayout = ({ children }) => {
                         )}
 
                         {/* Icon */}
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${getNotifColor(n.type)}`}>
+                        <div className={`w-8 h-8 max-[340px]:w-7 max-[340px]:h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${getNotifColor(n.type)}`}>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d={getNotifIcon(n.type)} />
                           </svg>
@@ -710,7 +753,7 @@ const MainLayout = ({ children }) => {
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 pr-1">
-                          <p className={`text-[12.5px] leading-[1.45] ${
+                          <p className={`text-[12.5px] max-[340px]:text-[12px] leading-[1.45] break-words ${
                             isDarkMode ? "text-[#b0c0d0]" : "text-gray-600"
                           }`}>
                             {n.from?.name && (
@@ -725,28 +768,28 @@ const MainLayout = ({ children }) => {
                               </span>
                             )}
                           </p>
-                          <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-[#3d5470]" : "text-gray-400"}`}>
+                          <p className={`text-[11px] max-[340px]:text-[10px] mt-0.5 ${isDarkMode ? "text-[#3d5470]" : "text-gray-400"}`}>
                             {timeAgo(n.createdAt)}
                           </p>
                         </div>
 
                         {/* Actions (hover) */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 max-[500px]:opacity-100 transition-opacity shrink-0">
                           {!n.read && (
                             <button onClick={() => handleMarkOneRead(n._id)} title="Mark as read"
-                              className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${
+                              className={`w-6 h-6 max-[340px]:w-5 max-[340px]:h-5 flex items-center justify-center rounded-md transition-colors ${
                                 isDarkMode ? "text-[#3d5470] hover:text-white hover:bg-white/8" : "text-gray-300 hover:text-gray-700 hover:bg-gray-100"
                               }`}>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                              <svg className="w-3 h-3 max-[340px]:w-2.5 max-[340px]:h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                               </svg>
                             </button>
                           )}
                           <button onClick={() => handleDeleteNotif(n._id)} title="Delete"
-                            className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${
+                            className={`w-6 h-6 max-[340px]:w-5 max-[340px]:h-5 flex items-center justify-center rounded-md transition-colors ${
                               isDarkMode ? "text-[#3d5470] hover:text-red-400 hover:bg-red-500/10" : "text-gray-300 hover:text-red-500 hover:bg-red-50"
                             }`}>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 max-[340px]:w-2.5 max-[340px]:h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
@@ -776,7 +819,7 @@ const MainLayout = ({ children }) => {
           {user?.role !== "investor" && (
             <button
               onClick={() => setShowBuyCredits(true)}
-              className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
+              className={`group flex items-center gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 px-2.5 md:px-3.5 min-[640px]:max-[690px]:px-2 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
                 isDarkMode
                   ? "bg-[#0a1628] border-white/[0.07] hover:bg-[#0d1c2e] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
                   : "bg-white border-gray-200 hover:border-sky-300 hover:bg-sky-50 shadow-sm hover:shadow-md"
@@ -787,15 +830,15 @@ const MainLayout = ({ children }) => {
               }`} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" />
               </svg>
-              <span className={`font-bold text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
-              <span className={`hidden sm:inline text-[11px] font-medium ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-400"}`}>CR</span>
+              <span className={`font-bold text-[12px] md:text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
+              <span className={`hidden md:inline text-[11px] font-medium ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-400"}`}>CR</span>
             </button>
           )}
 
           {/* User menu */}
-          <div className="relative" ref={dropdownRef}>
+          <div className="hidden sm:block min-[640px]:max-[690px]:hidden relative" ref={dropdownRef}>
             <button onClick={() => setDropdownOpen(!dropdownOpen)}
-              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#0d1520]" : "hover:bg-gray-100"}`}>
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#0d1520]" : "hover:bg-gray-100"}`}>
               {resolvedProfileImage && !avatarLoadError ? (
                 <img
                   src={resolvedProfileImage}
@@ -808,7 +851,7 @@ const MainLayout = ({ children }) => {
                   {initials}
                 </div>
               )}
-              <span className={`hidden sm:block text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-gray-700"}`}>{user?.name || "User"}</span>
+              <span className={`hidden lg:block text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-gray-700"}`}>{user?.name || "User"}</span>
               <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${isDarkMode ? "text-[#4a5a6e]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
@@ -836,10 +879,11 @@ const MainLayout = ({ children }) => {
             )}
           </div>
         </div>
+        </div>
       </header>
 
       {/* Main content */}
-      <main className="pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
+      <main className="pt-20 sm:pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
         <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
           {children}
         </div>

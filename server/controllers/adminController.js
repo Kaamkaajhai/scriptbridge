@@ -351,9 +351,55 @@ export const approveScript = async (req, res) => {
     try {
         const script = await Script.findById(req.params.id);
         if (!script) return res.status(404).json({ message: "Script not found" });
+
+        const spotlightChargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+        const shouldAutoActivateSpotlight = Boolean(
+            !script.promotion?.spotlightActive &&
+            (
+                (script.services?.spotlight && script.promotion?.pendingSpotlightActivation) ||
+                spotlightChargedAtUpload > 0
+            )
+        );
+
         script.status = "published";
         script.adminApproved = true;
         script.rejectionReason = undefined;
+
+        if (shouldAutoActivateSpotlight) {
+            const now = new Date();
+            script.premium = true;
+            script.isFeatured = true;
+            script.verifiedBadge = true;
+            script.services = {
+                hosting: true,
+                evaluation: true,
+                aiTrailer: true,
+                spotlight: true,
+            };
+            script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+            if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+                script.trailerStatus = "requested";
+            }
+            const previousSpent = Number(script.promotion?.totalSpotlightCreditsSpent || 0);
+            const spentAtUpload = spotlightChargedAtUpload;
+            script.promotion = {
+                spotlightActive: true,
+                pendingSpotlightActivation: false,
+                spotlightStartAt: now,
+                spotlightEndAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+                lastSpotlightPurchaseAt: now,
+                totalSpotlightCreditsSpent: previousSpent || spentAtUpload,
+            };
+            script.billing = {
+                ...(script.billing || {}),
+                spotlightCreditsSpent: Math.max(Number(script.billing?.spotlightCreditsSpent || 0), spentAtUpload || 310),
+                lastSpotlightActivatedAt: now,
+            };
+            script.markModified("services");
+            script.markModified("promotion");
+            script.markModified("billing");
+        }
+
         await script.save();
 
         // Notify the writer
@@ -361,7 +407,9 @@ export const approveScript = async (req, res) => {
             user: script.creator,
             type: "script_approved",
             script: script._id,
-            message: `Your project "${script.title}" has been approved and is now live on the platform.`,
+            message: shouldAutoActivateSpotlight
+                ? `Your project "${script.title}" has been approved and is now live. Spotlight purchased at upload is now active for 1 month.`
+                : `Your project "${script.title}" has been approved and is now live on the platform.`,
         });
 
         res.json({ message: "Script approved and published", script });

@@ -110,6 +110,21 @@ const ScriptDetail = () => {
   }, [id]);
 
   useEffect(() => {
+    if (!script?._id) return;
+    if (script?.evaluationStatus !== "requested" || script?.scriptScore?.overall) return;
+
+    let attempts = 0;
+    const maxAttempts = 36; // 3 minutes
+    const timer = setInterval(async () => {
+      attempts += 1;
+      await fetchScript({ silent: true });
+      if (attempts >= maxAttempts) clearInterval(timer);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [script?._id, script?.evaluationStatus, script?.scriptScore?.overall]);
+
+  useEffect(() => {
     if (!id) return;
 
     viewStartRef.current = Date.now();
@@ -142,9 +157,11 @@ const ScriptDetail = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script?._id, script?.isCreator]);
 
-  const fetchScript = async () => {
+  const fetchScript = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const { data } = await api.get(`/scripts/${id}`);
       setScript(data);
     } catch {
@@ -222,7 +239,9 @@ const ScriptDetail = () => {
         readsCount: 56,
       });
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -266,11 +285,42 @@ const ScriptDetail = () => {
   };
 
   const handleGenerateScore = async () => {
+    if (!script?._id || scoreLoading) return;
     setActiveTab("evaluation");
     setScoreLoading(true);
     try {
       const { data } = await api.post("/ai/script-score", { scriptId: script._id });
-      await fetchScript();
+
+      // Keep UI in sync immediately so both trigger buttons feel consistent.
+      if (data?.score) {
+        setScript((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            scriptScore: data.score,
+            services: {
+              ...(prev.services || {}),
+              evaluation: true,
+            },
+            evaluationStatus: "completed",
+          };
+        });
+      } else if (data?.pending) {
+        setScript((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            services: {
+              ...(prev.services || {}),
+              evaluation: true,
+            },
+            evaluationStatus: "requested",
+            evaluationRequestedAt: new Date().toISOString(),
+          };
+        });
+      }
+
+      await fetchScript({ silent: true });
       if (data?.message) {
         alert(data.message);
       } else {
@@ -572,7 +622,17 @@ const ScriptDetail = () => {
   const showCoverPlaceholder = !hasTrailer || !heroImage || coverError;
   const spotlightEndsAt = script?.promotion?.spotlightEndAt ? new Date(script.promotion.spotlightEndAt) : null;
   const spotlightActive = Boolean(spotlightEndsAt && spotlightEndsAt >= new Date());
+  const spotlightPendingApproval = Boolean(script?.promotion?.pendingSpotlightActivation && script?.status !== "published");
+  const spotlightPaidAtUpload = Number(script?.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
   const hasEvaluationService = Boolean(script?.services?.evaluation);
+  const evaluationRequestedAtMs = script?.evaluationRequestedAt
+    ? new Date(script.evaluationRequestedAt).getTime()
+    : 0;
+  const evaluationRequestInFlight =
+    !score?.overall &&
+    script?.evaluationStatus === "requested" &&
+    evaluationRequestedAtMs > 0 &&
+    Date.now() - evaluationRequestedAtMs < 10 * 60 * 1000;
   const evaluationPending = !score?.overall && (script?.evaluationStatus === "requested" || hasEvaluationService);
   const cl = script.classification || {};
   const ci = script.contentIndicators || {};
@@ -877,7 +937,7 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
-                    {isOwner && (
+                    {isOwner && !spotlightActive && !spotlightPendingApproval && !spotlightPaidAtUpload && (
                       <button
                         onClick={handleActivateSpotlight}
                         disabled={spotlightLoading}
@@ -892,6 +952,18 @@ const ScriptDetail = () => {
                           ? "Extend Spotlight — 150 credits"
                           : "Activate Spotlight — 310 credits"}
                       </button>
+                    )}
+
+                    {isOwner && spotlightPendingApproval && (
+                      <div className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold border text-center ${t.inset}`}>
+                        Spotlight already purchased at upload. It will auto-activate after admin approval.
+                      </div>
+                    )}
+
+                    {isOwner && spotlightPaidAtUpload && !spotlightActive && script?.status === "published" && (
+                      <div className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold border text-center ${t.inset}`}>
+                        Spotlight package already paid at upload. Activation is being synced without additional credits.
+                      </div>
                     )}
 
                     {isOwner && (
@@ -997,7 +1069,7 @@ const ScriptDetail = () => {
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
                       >
                         <Film size={14} />
-                        {trailerLoading ? "Submitting request..." : "Generate AI Trailer — 15 credits"}
+                        {trailerLoading ? "Submitting request..." : "Generate AI Trailer — 120 credits"}
                       </button>
                     )}
 
@@ -1013,14 +1085,21 @@ const ScriptDetail = () => {
 
                     {isOwner && !score?.overall && (
                       <button
+                        type="button"
                         onClick={handleGenerateScore}
-                        disabled={scoreLoading}
+                        disabled={scoreLoading || evaluationRequestInFlight}
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path d="M18 20V10M12 20V4M6 20v-6" />
                         </svg>
-                        {scoreLoading ? "Scoring..." : hasEvaluationService ? "Generate Included Evaluation" : "Get Script Score \u2014 10 credits"}
+                        {scoreLoading
+                          ? "Scoring..."
+                          : evaluationRequestInFlight
+                          ? "Evaluation In Progress"
+                          : hasEvaluationService
+                          ? "Generate Included Evaluation"
+                          : "Get Script Score \u2014 50 credits"}
                       </button>
                     )}
 
@@ -1585,12 +1664,26 @@ const ScriptDetail = () => {
                           : "This project hasn't been evaluated yet."}
                       </p>
                       {isOwner && (
-                        <button onClick={handleGenerateScore} disabled={scoreLoading}
-                          className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 inline-flex items-center gap-2 ${t.btnPrim}`}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGenerateScore();
+                          }}
+                          disabled={scoreLoading || evaluationRequestInFlight}
+                          className={`relative z-10 px-5 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 inline-flex items-center gap-2 ${t.btnPrim}`}
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                           </svg>
-                          {scoreLoading ? "Evaluating…" : hasEvaluationService ? "Generate Included Evaluation" : "Get Evaluation — 10 credits"}
+                          {scoreLoading
+                            ? "Evaluating…"
+                            : evaluationRequestInFlight
+                            ? "Evaluation In Progress"
+                            : hasEvaluationService
+                            ? "Generate Included Evaluation"
+                            : "Get Evaluation — 50 credits"}
                         </button>
                       )}
                     </div>
@@ -1630,13 +1723,14 @@ const ScriptDetail = () => {
             {/* ── Full Script (owner or purchased) ────────── */}
             {activeTab === "content" && (isOwner || script.isUnlocked) && (
               <motion.div key="content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <div className={`flex items-center justify-between mb-4 rounded-xl border px-5 py-3 ${t.card}`}>
-                  <div className="flex items-center gap-3">
+                <div className={`mb-4 rounded-xl border px-3 py-3 sm:px-5 ${t.card}`}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-gray-100"}`}>
                       <Film size={16} className={t.muted} />
                     </div>
-                    <div>
-                      <p className={`text-[13px] font-bold ${t.title}`}>{script.title}</p>
+                    <div className="min-w-0">
+                      <p className={`text-[13px] font-bold truncate ${t.title}`}>{script.title}</p>
                       <p className={`text-[11px] ${t.muted}`}>
                         {(() => {
                           const raw = script.textContent || "";
@@ -1648,14 +1742,14 @@ const ScriptDetail = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full sm:w-auto items-center gap-2 overflow-x-auto pb-1 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <button
                       onClick={() => {
                         const raw = script.textContent || "";
                         const plain = raw.replace(/<[^>]*>/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
                         navigator.clipboard.writeText(plain);
                       }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -1665,7 +1759,7 @@ const ScriptDetail = () => {
                     </button>
                     <button
                       onClick={handlePrint}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <polyline points="6 9 6 2 18 2 18 9" />
@@ -1676,7 +1770,7 @@ const ScriptDetail = () => {
                     </button>
                     <button
                       onClick={handleDownload}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -1685,6 +1779,7 @@ const ScriptDetail = () => {
                       </svg>
                       Download
                     </button>
+                  </div>
                   </div>
                 </div>
 
