@@ -69,6 +69,13 @@ const userSchema = new mongoose.Schema({
     jobTitle: { type: String },
     imdbUrl: { type: String },
     linkedInUrl: { type: String },
+    socialLinks: {
+      instagram: { type: String },
+      twitter: { type: String },
+      website: { type: String },
+      youtube: { type: String },
+      facebook: { type: String },
+    },
     otherUrl: { type: String },
     previousCredits: { type: String },
     investmentRange: { type: String },

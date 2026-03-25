@@ -25,6 +25,16 @@ export const updateWriterProfile = async (req, res) => {
         message: "User not found" 
       });
     }
+
+    const nextGender = String(diversity?.gender ?? user.writerProfile?.diversity?.gender ?? "").trim();
+    const nextNationality = String(diversity?.nationality ?? user.writerProfile?.diversity?.nationality ?? "").trim();
+
+    if (!nextGender || !nextNationality) {
+      return res.status(400).json({
+        success: false,
+        message: "Gender and Nationality are required",
+      });
+    }
     
     // Update writer profile
     user.bio = bio || user.bio;
@@ -35,7 +45,15 @@ export const updateWriterProfile = async (req, res) => {
     if (diversity) {
       user.writerProfile.diversity = {
         ...user.writerProfile.diversity,
-        ...diversity
+        ...diversity,
+        gender: nextGender,
+        nationality: nextNationality,
+      };
+    } else {
+      user.writerProfile.diversity = {
+        ...user.writerProfile.diversity,
+        gender: nextGender,
+        nationality: nextNationality,
       };
     }
     

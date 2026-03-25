@@ -4,6 +4,12 @@ const api = axios.create({
   baseURL: `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`,
 });
 
+const buildLoginRedirectUrl = () => {
+  if (typeof window === "undefined") return "/login";
+  const currentPath = `${window.location.pathname || "/"}${window.location.search || ""}`;
+  return `/login?reason=session-expired&next=${encodeURIComponent(currentPath)}`;
+};
+
 // Auth endpoints that should never receive an Authorization header
 const AUTH_ROUTES = ["/auth/login", "/auth/join", "/auth/verify-otp", "/auth/resend-otp", "/auth/validate-address"];
 
@@ -20,7 +26,9 @@ api.interceptors.request.use((config) => {
       // If token is expired, clear session immediately
       if (expiresAt && Date.now() >= expiresAt) {
         localStorage.removeItem("user");
-        window.location.href = "/login";
+        if (typeof window !== "undefined") {
+          window.location.href = buildLoginRedirectUrl();
+        }
         return Promise.reject(new Error("Token expired"));
       }
       if (token) {
@@ -49,7 +57,7 @@ api.interceptors.response.use(
         !window.location.pathname.startsWith("/signup") &&
         !window.location.pathname.startsWith("/admin")
       ) {
-        window.location.href = "/login";
+        window.location.href = buildLoginRedirectUrl();
       }
     }
     return Promise.reject(error);

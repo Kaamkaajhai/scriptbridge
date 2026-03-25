@@ -400,7 +400,7 @@ const Landing = () => {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/investor-onboarding"
+                to="/producer-director-onboarding"
                 className="px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
               >
                 Sign Up as Producer

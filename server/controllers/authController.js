@@ -353,13 +353,21 @@ export const verifyOTP = async (req, res) => {
     // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
 
-    // Investors cannot log in yet — they need admin approval
+    // Investors cannot sign in from login until approved, but they should
+    // still receive a session here to complete onboarding steps.
     if (user.role === "investor") {
+      const { token, expiresAt } = generateToken(user._id);
       return res.json({
-        message: "Email verified successfully! Your account is now pending admin approval. You will be notified once approved.",
+        message: "Email verified successfully! Complete your onboarding while your account is under admin review.",
         pendingApproval: true,
         email: user.email,
         role: user.role,
+        _id: user._id,
+        name: user.name,
+        approvalStatus: user.approvalStatus,
+        approvalNote: user.approvalNote,
+        token,
+        expiresAt,
       });
     }
 

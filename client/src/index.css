@@ -92,7 +92,7 @@ select:focus-visible {
 }
 
 /* ── Native Select Readability in Dark Mode ── */
-html.dark-mode select {
+html.dark-mode select:not([class*="text-"]) {
   color: #f3f4f6;
 }
 

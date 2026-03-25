@@ -4,7 +4,7 @@ import { FileText, Users, ArrowRight, ArrowLeft, BookOpen } from "lucide-react";
 
 const RoleSelection = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#112240] to-[#1a365d] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#080e18] flex items-center justify-center px-4">
       <div className="max-w-5xl w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -31,20 +31,20 @@ const RoleSelection = () => {
           >
             <Link to="/writer-onboarding">
               <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-100 hover:border-[#1a365d] transition-all duration-300 h-full">
-                <div className="flex flex-col items-center text-center">
+                <div className="flex h-full flex-col items-center text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-[#0f2544] to-[#1a365d] rounded-xl flex items-center justify-center mb-6">
                     <FileText className="text-white" size={32} strokeWidth={1.5} />
                   </div>
                   
-                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight">
+                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
                     I'm a Writer
                   </h2>
                   
-                  <p className="text-gray-600 mb-6 text-sm">
+                  <p className="text-gray-600 mb-6 text-sm min-h-[64px]">
                     Showcase your scripts to industry professionals
                   </p>
                   
-                  <ul className="text-left space-y-2 mb-8 w-full">
+                  <ul className="text-left space-y-2 w-full flex-1">
                     <li className="flex items-start gap-2 text-sm">
                       <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
@@ -79,7 +79,7 @@ const RoleSelection = () => {
                     </li>
                   </ul>
                   
-                  <div className="w-full bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
+                  <div className="w-full mt-8 bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
                     Join as Writer
                     <ArrowRight size={16} />
                   </div>
@@ -100,22 +100,22 @@ const RoleSelection = () => {
             whileHover={{ scale: 1.02, transition: { type: "tween", duration: 0.3 } }}
             className="group"
           >
-            <Link to="/investor-onboarding">
+            <Link to="/producer-director-onboarding">
               <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-100 hover:border-[#1a365d] transition-all duration-300 h-full">
-                <div className="flex flex-col items-center text-center">
+                <div className="flex h-full flex-col items-center text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-[#0f2544] to-[#1a365d] rounded-xl flex items-center justify-center mb-6">
                     <Users className="text-white" size={32} strokeWidth={1.5} />
                   </div>
                   
-                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight">
-                    I'm a Producer/Investor
+                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
+                    I'm a Producer/Director
                   </h2>
                   
-                  <p className="text-gray-600 mb-6 text-sm">
+                  <p className="text-gray-600 mb-6 text-sm min-h-[64px]">
                     Fund projects and connect with talented writers
                   </p>
                   
-                  <ul className="text-left space-y-2 mb-8 w-full">
+                  <ul className="text-left space-y-2 w-full flex-1">
                     <li className="flex items-start gap-2 text-sm">
                       <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
@@ -150,8 +150,8 @@ const RoleSelection = () => {
                     </li>
                   </ul>
                   
-                  <div className="w-full bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
-                    Join as Producer/Investor
+                  <div className="w-full mt-8 bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
+                    Join as Producer/Director
                     <ArrowRight size={16} />
                   </div>
                   
@@ -173,20 +173,20 @@ const RoleSelection = () => {
           >
             <Link to="/signup?role=reader">
               <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-100 hover:border-[#1a365d] transition-all duration-300 h-full">
-                <div className="flex flex-col items-center text-center">
+                <div className="flex h-full flex-col items-center text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-[#0f2544] to-[#1a365d] rounded-xl flex items-center justify-center mb-6">
                     <BookOpen className="text-white" size={32} strokeWidth={1.5} />
                   </div>
                   
-                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight">
+                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
                     I'm a Reader
                   </h2>
                   
-                  <p className="text-gray-600 mb-6 text-sm">
+                  <p className="text-gray-600 mb-6 text-sm min-h-[64px]">
                     Explore scripts, write reviews & discover stories
                   </p>
                   
-                  <ul className="text-left space-y-2 mb-8 w-full">
+                  <ul className="text-left space-y-2 w-full flex-1">
                     <li className="flex items-start gap-2 text-sm">
                       <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                         <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
@@ -221,7 +221,7 @@ const RoleSelection = () => {
                     </li>
                   </ul>
                   
-                  <div className="w-full bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
+                  <div className="w-full mt-8 bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
                     Join as Reader
                     <ArrowRight size={16} />
                   </div>

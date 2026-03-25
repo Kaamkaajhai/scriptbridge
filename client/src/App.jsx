@@ -109,7 +109,8 @@ function App() {
               <Route path="/join" element={<RoleSelection />} />
               <Route path="/signup" element={<Join />} />
               <Route path="/writer-onboarding" element={<WriterOnboarding />} />
-              <Route path="/investor-onboarding" element={<InvestorOnboarding />} />
+              <Route path="/producer-director-onboarding" element={<InvestorOnboarding />} />
+              <Route path="/investor-onboarding" element={<Navigate to="/producer-director-onboarding" replace />} />
               <Route path="/industry-onboarding" element={
                 <PrivateRoute>
                   <MainLayout>
