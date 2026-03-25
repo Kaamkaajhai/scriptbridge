@@ -83,6 +83,61 @@ const isSpotlightActive = (script, now = new Date()) => {
   return Boolean(endAt && new Date(endAt) >= now);
 };
 
+const shouldAutoSyncUploadSpotlight = (script, now = new Date()) => {
+  if (!script) return false;
+  if (script.status !== "published") return false;
+  if (isSpotlightActive(script, now)) return false;
+  if (script.promotion?.lastSpotlightPurchaseAt) return false;
+  return Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
+};
+
+const applySpotlightPackageState = (script, now = new Date()) => {
+  const spotlightEndsAt = new Date(now.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  const chargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+
+  script.premium = true;
+  script.isFeatured = true;
+  script.verifiedBadge = true;
+  script.services = {
+    hosting: true,
+    evaluation: true,
+    aiTrailer: true,
+    spotlight: true,
+  };
+  script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+
+  if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+    script.trailerStatus = "requested";
+  }
+
+  script.promotion = {
+    spotlightActive: true,
+    pendingSpotlightActivation: false,
+    spotlightStartAt: now,
+    spotlightEndAt: spotlightEndsAt,
+    lastSpotlightPurchaseAt: now,
+    totalSpotlightCreditsSpent: Math.max(
+      Number(script.promotion?.totalSpotlightCreditsSpent || 0),
+      chargedAtUpload,
+      PROJECT_SPOTLIGHT_ACTIVATION_CREDITS
+    ),
+  };
+
+  script.billing = {
+    ...(script.billing || {}),
+    spotlightCreditsSpent: Math.max(
+      Number(script.billing?.spotlightCreditsSpent || 0),
+      chargedAtUpload,
+      PROJECT_SPOTLIGHT_ACTIVATION_CREDITS
+    ),
+    lastSpotlightActivatedAt: now,
+  };
+
+  script.markModified("services");
+  script.markModified("promotion");
+  script.markModified("billing");
+};
+
 const getBlockedUserIdsForViewer = async (viewerId) => {
   if (!viewerId) return [];
   const currentUser = await User.findById(viewerId).select("blockedUsers").lean();
@@ -275,6 +330,7 @@ export const updateScript = async (req, res) => {
         hosting: services.hosting ?? script.services?.hosting ?? true,
         evaluation: services.evaluation ?? script.services?.evaluation ?? false,
         aiTrailer: services.aiTrailer ?? script.services?.aiTrailer ?? false,
+        spotlight: services.spotlight ?? script.services?.spotlight ?? false,
       };
       script.markModified("services");
     }
@@ -292,39 +348,56 @@ export const updateScript = async (req, res) => {
     script.status = "pending_approval";
     await script.save();
 
-    if (!wasPendingApproval) {
-      await notifyAdminWorkflowEvent({
-        title: "Writer Project Submitted For Approval",
-        section: "approvals",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          writerEmail: req.user.email || "",
-          source: "update-script",
-        },
-      });
-    }
-
-    if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
-      await notifyAdminWorkflowEvent({
-        title: "AI Trailer Approval Request",
-        section: "trailers",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          trailerStatus: script.trailerStatus,
-          source: "update-script",
-        },
-      });
-    }
-
     res.json(script);
+
+    // Non-critical notifications run after response to reduce submit latency.
+    (async () => {
+      const tasks = [];
+
+      if (!wasPendingApproval) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "Writer Project Submitted For Approval",
+            section: "approvals",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              writerEmail: req.user.email || "",
+              source: "update-script",
+            },
+          })
+        );
+      }
+
+      if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "AI Trailer Approval Request",
+            section: "trailers",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              trailerStatus: script.trailerStatus,
+              source: "update-script",
+            },
+          })
+        );
+      }
+
+      if (tasks.length) {
+        const results = await Promise.allSettled(tasks);
+        const rejected = results.filter((r) => r.status === "rejected");
+        if (rejected.length > 0) {
+          console.error(`[updateScript] ${rejected.length} post-submit notification task(s) failed`);
+        }
+      }
+    })();
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -388,6 +461,7 @@ export const uploadScript = async (req, res) => {
     let creditsRequired = 0;
     if (services?.evaluation) creditsRequired += CREDIT_PRICES.AI_EVALUATION;
     if (services?.aiTrailer) creditsRequired += CREDIT_PRICES.AI_TRAILER;
+    if (services?.spotlight) creditsRequired += PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
 
     const creator = await User.findById(req.user._id);
     if (!creator) {
@@ -435,6 +509,16 @@ export const uploadScript = async (req, res) => {
         });
       }
 
+      if (services?.spotlight) {
+        creator.credits.transactions.push({
+          type: "spent",
+          amount: -PROJECT_SPOTLIGHT_ACTIVATION_CREDITS,
+          description: `Project Spotlight package for "${title}"`,
+          reference: `SPOTUP-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: new Date()
+        });
+      }
+
       await creator.save();
       creditsBalanceAfter = creator.credits?.balance || 0;
     }
@@ -475,18 +559,27 @@ export const uploadScript = async (req, res) => {
       services: services ? {
         hosting: services.hosting !== undefined ? services.hosting : true,
         evaluation: services.evaluation || false,
-        aiTrailer: services.aiTrailer || false
-      } : { hosting: true, evaluation: false, aiTrailer: false },
+        aiTrailer: services.aiTrailer || false,
+        spotlight: services.spotlight || false,
+      } : { hosting: true, evaluation: false, aiTrailer: false, spotlight: false },
       billing: {
         evaluationCreditsCharged: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
         aiTrailerCreditsCharged: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        spotlightCreditsChargedAtUpload: services?.spotlight ? PROJECT_SPOTLIGHT_ACTIVATION_CREDITS : 0,
         evaluationCreditsChargedAtUpload: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
         aiTrailerCreditsChargedAtUpload: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
         evaluationCreditsRefunded: 0,
         aiTrailerCreditsRefunded: 0,
-        spotlightCreditsSpent: 0,
+        spotlightCreditsSpent: services?.spotlight ? PROJECT_SPOTLIGHT_ACTIVATION_CREDITS : 0,
         lastSpotlightRefundCredits: 0,
       },
+      promotion: services?.spotlight
+        ? {
+            spotlightActive: false,
+            pendingSpotlightActivation: true,
+            totalSpotlightCreditsSpent: PROJECT_SPOTLIGHT_ACTIVATION_CREDITS,
+          }
+        : undefined,
       evaluationStatus: services?.evaluation ? "requested" : "none",
 
       // Legal compliance
@@ -507,37 +600,6 @@ export const uploadScript = async (req, res) => {
     // For now, assume it's a new or finalized creation.
     const script = await Script.create(scriptData);
 
-    await notifyAdminWorkflowEvent({
-      title: "Writer Project Submitted For Approval",
-      section: "approvals",
-      actorId: req.user._id,
-      scriptId: script._id,
-      message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
-      metadata: {
-        scriptId: script._id,
-        writerId: req.user._id,
-        writerEmail: creator.email || "",
-        aiTrailerRequested: Boolean(services?.aiTrailer),
-        source: "upload-script",
-      },
-    });
-
-    if (services?.aiTrailer) {
-      await notifyAdminWorkflowEvent({
-        title: "AI Trailer Approval Request",
-        section: "trailers",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          trailerStatus: script.trailerStatus,
-          source: "upload-script",
-        },
-      });
-    }
-
     const invoice = await Invoice.create({
       invoiceNumber,
       invoiceDate,
@@ -553,6 +615,7 @@ export const uploadScript = async (req, res) => {
         hosting: services?.hosting !== undefined ? services.hosting : true,
         evaluation: Boolean(services?.evaluation),
         aiTrailer: Boolean(services?.aiTrailer),
+        spotlight: Boolean(services?.spotlight),
         trailerUpload: !services?.aiTrailer,
       },
       totalCreditsRequired: creditsRequired,
@@ -583,56 +646,6 @@ export const uploadScript = async (req, res) => {
       ],
     });
 
-    const generatedInvoicePdf = await generateAndSaveInvoicePdf({
-      invoice,
-      creatorName: creator.name,
-      creatorEmail: creator.email,
-      creatorSid: creator?.sid,
-      scriptTitle: script.title,
-      scriptSid: script?.sid,
-    });
-    if (generatedInvoicePdf.relativePath) {
-      invoice.pdfPath = generatedInvoicePdf.relativePath;
-    }
-    invoice.pdfGeneratedAt = new Date();
-    await invoice.save();
-
-    // --- Async Service Processing ---
-    // TODO: Implement these async workflows:
-
-    // 1. If hosting: Start subscription timer (30 days)
-    if (services?.hosting) {
-      // TODO: Create/Update Subscription document
-      console.log(`[SERVICE] Hosting activated for script ${script._id}`);
-    }
-
-    // 2. If evaluation: Create job ticket for Reader Portal
-    if (services?.evaluation) {
-      // TODO: Create evaluation job in a Queue or Job collection
-      console.log(`[SERVICE] Evaluation requested for script ${script._id}`);
-      // Example: await createEvaluationJob(script._id, req.user._id);
-    }
-
-    // 3. If aiTrailer: Trigger AI video generation
-    if (services?.aiTrailer) {
-      // TODO: Send request to AI Video API (Runway/HeyGen/OpenAI)
-      console.log(`[SERVICE] AI Trailer generation started for script ${script._id}`);
-      console.log(`Logline: ${logline}`);
-      console.log(`Genre: ${classification?.primaryGenre}`);
-      console.log(`Tones: ${classification?.tones?.join(', ')}`);
-
-      // Example async call:
-      // generateAITrailer({
-      //   scriptId: script._id,
-      //   logline,
-      //   genre: classification.primaryGenre,
-      //   tones: classification.tones
-      // }).catch(err => {
-      //   // Update script.trailerStatus = 'failed'
-      //   console.error('AI Trailer generation failed:', err);
-      // });
-    }
-
     // Return the created script with invoice metadata
     res.status(201).json({
       ...script.toObject(),
@@ -642,6 +655,83 @@ export const uploadScript = async (req, res) => {
         pdfPath: invoice.pdfPath,
       },
     });
+
+    // Run non-critical tasks post-response to keep submit API fast.
+    (async () => {
+      const tasks = [
+        notifyAdminWorkflowEvent({
+          title: "Writer Project Submitted For Approval",
+          section: "approvals",
+          actorId: req.user._id,
+          scriptId: script._id,
+          message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
+          metadata: {
+            scriptId: script._id,
+            writerId: req.user._id,
+            writerEmail: creator.email || "",
+            aiTrailerRequested: Boolean(services?.aiTrailer),
+            source: "upload-script",
+          },
+        }),
+      ];
+
+      if (services?.aiTrailer) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "AI Trailer Approval Request",
+            section: "trailers",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              trailerStatus: script.trailerStatus,
+              source: "upload-script",
+            },
+          })
+        );
+      }
+
+      tasks.push(
+        (async () => {
+          const generatedInvoicePdf = await generateAndSaveInvoicePdf({
+            invoice,
+            creatorName: creator.name,
+            creatorEmail: creator.email,
+            creatorSid: creator?.sid,
+            scriptTitle: script.title,
+            scriptSid: script?.sid,
+          });
+          if (generatedInvoicePdf.relativePath) {
+            invoice.pdfPath = generatedInvoicePdf.relativePath;
+          }
+          invoice.pdfGeneratedAt = new Date();
+          await invoice.save();
+        })()
+      );
+
+      // --- Async Service Processing ---
+      // TODO: Implement these async workflows:
+      if (services?.hosting) {
+        console.log(`[SERVICE] Hosting activated for script ${script._id}`);
+      }
+      if (services?.evaluation) {
+        console.log(`[SERVICE] Evaluation requested for script ${script._id}`);
+      }
+      if (services?.aiTrailer) {
+        console.log(`[SERVICE] AI Trailer generation started for script ${script._id}`);
+        console.log(`Logline: ${logline}`);
+        console.log(`Genre: ${classification?.primaryGenre}`);
+        console.log(`Tones: ${classification?.tones?.join(', ')}`);
+      }
+
+      const results = await Promise.allSettled(tasks);
+      const rejected = results.filter((r) => r.status === "rejected");
+      if (rejected.length > 0) {
+        console.error(`[uploadScript] ${rejected.length} post-submit task(s) failed`);
+      }
+    })();
   } catch (error) {
     console.error("Script upload error:", error);
     res.status(500).json({ message: error.message });
@@ -780,6 +870,12 @@ export const getScriptById = async (req, res) => {
       .populate("heldBy", "name role");
 
     if (!script) return res.status(404).json({ message: "Script not found" });
+
+    const now = new Date();
+    if (shouldAutoSyncUploadSpotlight(script, now)) {
+      applySpotlightPackageState(script, now);
+      await script.save();
+    }
 
     const isOwner = script.creator._id.toString() === req.user._id.toString();
     if (script.status === "draft" && !isOwner) {
@@ -2252,6 +2348,12 @@ export const activateProjectSpotlight = async (req, res) => {
         throw error;
       }
 
+      if (script.services?.spotlight && script.promotion?.pendingSpotlightActivation && script.status !== "published") {
+        const error = new Error("Spotlight is already purchased for this project and will auto-activate after admin approval.");
+        error.statusCode = 409;
+        throw error;
+      }
+
       if (script.status !== "published") {
         const error = new Error("Publish the project before activating spotlight");
         error.statusCode = 400;
@@ -2272,9 +2374,27 @@ export const activateProjectSpotlight = async (req, res) => {
       const now = new Date();
 
       const spotlightCurrentlyActive = isSpotlightActive(script, now);
-      const spotlightCreditsRequired = spotlightCurrentlyActive
-        ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
-        : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+      let spotlightChargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+      if (!spotlightChargedAtUpload) {
+        const uploadInvoice = await Invoice.findOne({ script: script._id, creator: req.user._id })
+          .sort({ createdAt: -1 })
+          .session(session)
+          .lean();
+        if (uploadInvoice?.services?.spotlight) {
+          spotlightChargedAtUpload = PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+        }
+      }
+
+      const hasUnusedUploadSpotlightPayment =
+        !spotlightCurrentlyActive &&
+        spotlightChargedAtUpload > 0 &&
+        !script.promotion?.lastSpotlightPurchaseAt;
+
+      const spotlightCreditsRequired = hasUnusedUploadSpotlightPayment
+        ? 0
+        : spotlightCurrentlyActive
+          ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
+          : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
       isExtensionPurchase = spotlightCurrentlyActive;
       spotlightCreditsCharged = spotlightCreditsRequired;
 
@@ -2376,15 +2496,17 @@ export const activateProjectSpotlight = async (req, res) => {
       const extensionStart = currentEnd && currentEnd > now ? currentEnd : now;
       endAt = new Date(extensionStart.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
-      user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
-      user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
-      user.credits.transactions.push({
-        type: "spent",
-        amount: -spotlightCreditsRequired,
-        description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
-        reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
-        createdAt: now,
-      });
+      if (spotlightCreditsRequired > 0) {
+        user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
+        user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
+        user.credits.transactions.push({
+          type: "spent",
+          amount: -spotlightCreditsRequired,
+          description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
+          reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: now,
+        });
+      }
       await user.save({ session });
 
       script.premium = true;
@@ -2394,6 +2516,7 @@ export const activateProjectSpotlight = async (req, res) => {
         hosting: true,
         evaluation: true,
         aiTrailer: true,
+        spotlight: true,
       };
       script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
@@ -2404,6 +2527,7 @@ export const activateProjectSpotlight = async (req, res) => {
       const previousSpent = script.promotion?.totalSpotlightCreditsSpent || 0;
       script.promotion = {
         spotlightActive: true,
+        pendingSpotlightActivation: false,
         spotlightStartAt: now,
         spotlightEndAt: endAt,
         lastSpotlightPurchaseAt: now,
@@ -2412,6 +2536,7 @@ export const activateProjectSpotlight = async (req, res) => {
       script.billing = {
         evaluationCreditsCharged: evaluationCharged,
         aiTrailerCreditsCharged: aiTrailerCharged,
+        spotlightCreditsChargedAtUpload: spotlightChargedAtUpload,
         evaluationCreditsChargedAtUpload: evaluationChargedAtUpload,
         aiTrailerCreditsChargedAtUpload: aiTrailerChargedAtUpload,
         evaluationCreditsRefunded: evaluationRefunded,
@@ -2425,28 +2550,30 @@ export const activateProjectSpotlight = async (req, res) => {
       script.markModified("billing");
       await script.save({ session });
 
-      await Transaction.create([
-        {
-          user: req.user._id,
-          type: "debit",
-          amount: -spotlightCreditsRequired,
-          currency: "INR",
-          status: "completed",
-          description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
-          reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
-          paymentMethod: "wallet",
-          relatedScript: script._id,
-          metadata: {
-            package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
-            isExtension: spotlightCurrentlyActive,
-            includesVerifiedBadge: true,
-            includesFreeEvaluation: true,
-            includesFreeAITrailer: true,
-            featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
-            spotlightEndAt: endAt.toISOString(),
+      if (spotlightCreditsRequired > 0) {
+        await Transaction.create([
+          {
+            user: req.user._id,
+            type: "debit",
+            amount: -spotlightCreditsRequired,
+            currency: "INR",
+            status: "completed",
+            description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
+            reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
+            paymentMethod: "wallet",
+            relatedScript: script._id,
+            metadata: {
+              package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
+              isExtension: spotlightCurrentlyActive,
+              includesVerifiedBadge: true,
+              includesFreeEvaluation: true,
+              includesFreeAITrailer: true,
+              featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
+              spotlightEndAt: endAt.toISOString(),
+            },
           },
-        },
-      ], { session });
+        ], { session });
+      }
     });
 
     await notifyAdminWorkflowEvent({
@@ -3058,6 +3185,7 @@ export const requestScriptAITrailer = async (req, res) => {
       hosting: script.services?.hosting ?? true,
       evaluation: script.services?.evaluation ?? false,
       aiTrailer: true,
+      spotlight: script.services?.spotlight ?? false,
     };
     script.trailerStatus = "requested";
     script.trailerWriterFeedback = {

@@ -5,7 +5,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 
-const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
+const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const location = useLocation();
@@ -19,6 +19,12 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
   const [watchlist, setWatchlist] = useState([]); // NEW for Producers
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+  useEffect(() => {
+    if (mobileToggleToken > 0) {
+      setMobileOpen((prev) => !prev);
+    }
+  }, [mobileToggleToken]);
 
   const isIndustry = user?.role === 'professional' || user?.role === 'producer' || user?.role === 'investor';
   const isReader = user?.role === 'reader';
@@ -198,13 +204,13 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
       <Link
         to={item.path}
         onClick={() => setMobileOpen(false)}
-        className={`group flex items-center gap-3.5 px-4 py-2.5 mx-2 rounded-xl text-[14px] font-semibold transition-all duration-200 relative ${active
+        className={`group flex items-center gap-3 px-4 py-2.5 min-h-[44px] mx-2 rounded-xl text-[14px] font-semibold leading-none transition-all duration-200 relative ${active
           ? isDarkMode ? "bg-[#0d1520] text-white font-bold" : "bg-[#1e3a5f]/[0.07] text-[#1e3a5f] font-bold"
           : isDarkMode ? "text-[#8896a7] hover:bg-[#0d1520] hover:text-white" : "text-gray-500 hover:bg-gray-50/80 hover:text-gray-700"
           }`}
       >
-        <Icon d={item.icon} />
-        <span>{item.label}</span>
+        <Icon d={item.icon} size="w-5 h-5 shrink-0" />
+        <span className="flex-1 min-w-0 truncate leading-none">{item.label}</span>
         {showMessageBadge && (
           <span className="ml-auto inline-flex items-center justify-center min-w-[34px] h-6 px-2 rounded-full bg-[#0f766e] text-white text-[11px] font-extrabold tracking-tight shadow-sm">
             +{unreadMessageCount > 99 ? "99" : unreadMessageCount}
@@ -379,12 +385,14 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
         </div>
       </aside>
 
-      <button onClick={() => setMobileOpen(true)}
-        className={`md:hidden fixed top-4 left-4 z-50 w-9 h-9 border rounded-lg flex items-center justify-center shadow-sm ${isDarkMode ? "bg-[#080e18] border-[#151f2e] text-[#8896a7]" : "bg-white border-gray-200 text-gray-600"}`}>
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+      {showFloatingToggle && (
+        <button onClick={() => setMobileOpen(true)}
+          className={`md:hidden fixed top-4 left-4 z-50 w-9 h-9 border rounded-lg flex items-center justify-center shadow-sm ${isDarkMode ? "bg-[#080e18] border-[#151f2e] text-[#8896a7]" : "bg-white border-gray-200 text-gray-600"}`}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      )}
 
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50">

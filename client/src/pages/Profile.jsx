@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../services/api";
@@ -184,32 +184,18 @@ const Profile = () => {
   const [sendingVerificationCode, setSendingVerificationCode] = useState(false);
   const [verifyingEmailCode, setVerifyingEmailCode] = useState(false);
   const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const isFetchingProfileRef = useRef(false);
+  const bookmarkRefreshTimerRef = useRef(null);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [id]);
+  const fetchProfile = useCallback(async ({ silent = false } = {}) => {
+    const profileId = id || currentUser?._id;
+    if (!profileId || isFetchingProfileRef.current) return;
 
-  useEffect(() => {
-    const isOwnView = !id || id === currentUser?._id;
-    if (!isOwnView) return undefined;
-    const refreshBookmarks = () => fetchProfile();
-    window.addEventListener("bookmarkUpdated", refreshBookmarks);
-    return () => window.removeEventListener("bookmarkUpdated", refreshBookmarks);
-  }, [id, currentUser?._id]);
-
-  const handleDeleteScript = async (scriptId) => {
     try {
-      await api.delete(`/scripts/${scriptId}`);
-      setScripts((prev) => prev.filter((s) => s._id !== scriptId));
-    } catch (error) {
-      console.error("Delete failed:", error);
-    }
-  };
+      isFetchingProfileRef.current = true;
+      if (!silent) setLoading(true);
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.get(`/users/${id || currentUser._id}`);
+      const { data } = await api.get(`/users/${profileId}`);
       setProfile(data.user);
       setScripts((data.scripts || []).filter((s) => s.status !== "draft"));
       setPurchasedScripts(data.purchasedScripts || []);
@@ -218,11 +204,14 @@ const Profile = () => {
       setIsBlockedByCurrent(Boolean(data.user.blockedByCurrent));
       setBlockedByProfile(Boolean(data.user.blockedByProfile));
       setIsFollowing(
-        data.user.followers.some((f) => f._id === currentUser._id)
+        data.user.followers.some((f) => f._id === currentUser?._id)
       );
 
-      // Fetch investor stats if viewing an investor profile
-      if (["investor", "producer", "director"].includes(data.user.role)) {
+      // Fetch investor stats only when current user is also investor-side to avoid noisy role-mismatch calls.
+      if (
+        ["investor", "producer", "director"].includes(data.user.role) &&
+        ["investor", "producer", "director"].includes(currentUser?.role)
+      ) {
         try {
           const { data: dashData } = await api.get("/dashboard/investor");
           setInvestorStats(dashData.stats);
@@ -233,7 +222,43 @@ const Profile = () => {
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
-      setLoading(false);
+      isFetchingProfileRef.current = false;
+      if (!silent) setLoading(false);
+    }
+  }, [id, currentUser?._id, currentUser?.role]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    const isOwnView = !id || id === currentUser?._id;
+    if (!isOwnView) return undefined;
+
+    const refreshBookmarks = () => {
+      if (bookmarkRefreshTimerRef.current) {
+        clearTimeout(bookmarkRefreshTimerRef.current);
+      }
+      bookmarkRefreshTimerRef.current = setTimeout(() => {
+        fetchProfile({ silent: true });
+      }, 250);
+    };
+
+    window.addEventListener("bookmarkUpdated", refreshBookmarks);
+    return () => {
+      window.removeEventListener("bookmarkUpdated", refreshBookmarks);
+      if (bookmarkRefreshTimerRef.current) {
+        clearTimeout(bookmarkRefreshTimerRef.current);
+      }
+    };
+  }, [id, currentUser?._id, fetchProfile]);
+
+  const handleDeleteScript = async (scriptId) => {
+    try {
+      await api.delete(`/scripts/${scriptId}`);
+      setScripts((prev) => prev.filter((s) => s._id !== scriptId));
+    } catch (error) {
+      console.error("Delete failed:", error);
     }
   };
 
@@ -789,7 +814,7 @@ const Profile = () => {
 
 
       {/* â”€â”€â”€â”€â”€â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {[
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
           ...(isOwnProfile ? [{ key: "bookmarks", label: "Bookmarks", count: profile.favoriteScripts?.length || bookmarkedScripts.length }] : []),
@@ -803,7 +828,7 @@ const Profile = () => {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border ${activeTab === tab.key
+            className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border shrink-0 max-[585px]:px-3 max-[585px]:py-2 max-[585px]:text-[12px] max-[350px]:text-[11px] ${activeTab === tab.key
               ? dark
                 ? "bg-[#1c2b42] text-white border-[#314765]"
                 : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
@@ -812,7 +837,7 @@ const Profile = () => {
                 : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900"
               }`}
           >
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center justify-center gap-1.5 min-w-0">
               {tab.label}
               {tab.count !== undefined && (
                 <span
@@ -869,7 +894,7 @@ const Profile = () => {
               </p>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
+            <div className={`grid grid-cols-1 min-[460px]:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
               {scripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -910,7 +935,7 @@ const Profile = () => {
               <p className={`text-[13px] max-w-xs mx-auto ${t.emptyP}`}>Bookmark projects from cards or project pages to quickly access them here.</p>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
+            <div className={`grid grid-cols-1 min-[460px]:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
               {bookmarkedScripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -1931,11 +1956,10 @@ const Profile = () => {
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          {/* Transactions Overview */}
-          <Transactions dark={dark} />
-
-          {/* Bank Details */}
-          {isWriter(profile.role) && <BankDetails dark={dark} />}
+          <Transactions
+            dark={dark}
+            middleContent={isWriter(profile.role) ? <BankDetails dark={dark} /> : null}
+          />
         </motion.div>
       )}
 

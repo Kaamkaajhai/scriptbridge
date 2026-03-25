@@ -579,8 +579,8 @@ const BankDetails = ({ dark }) => {
                 disabled={saving || isBankLocked}
                 className={`flex-1 px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
                   dark
-                    ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600"
-                    : "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+                    ? "bg-blue-500 text-white hover:bg-blue-600"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
                 } disabled:opacity-50`}
               >
                 {saving ? (

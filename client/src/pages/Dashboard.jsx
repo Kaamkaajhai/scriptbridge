@@ -93,37 +93,39 @@ const CreatorDashboard = ({ user, dark }) => {
   ] : [];
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-1 sm:px-0">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         {/* Page heading */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`text-[13px] font-semibold mb-1 ${dark ? 'text-[#4a5a6e]' : 'text-gray-400'}`}>Welcome back{user?.name ? `, ${user.name}` : ""}</p>
-              <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>
-                Dashboard
-              </h1>
-            </div>
-            <div className="flex items-center gap-3">
+        <div className="mb-6 sm:mb-8">
+          <div className={`rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 overflow-hidden ${dark ? 'bg-[#0d1520]/70 border-[#1c2a3a]' : 'bg-white border-gray-100'}`}>
+            <div className="flex flex-col min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between gap-4">
+              <div className="max-[520px]:text-center max-[520px]:mx-auto">
+                <p className={`text-[12px] sm:text-[13px] font-semibold mb-1 ${dark ? 'text-[#4a5a6e]' : 'text-gray-400'}`}>Welcome back{user?.name ? `, ${user.name}` : ""}</p>
+                <h1 className={`text-[34px] leading-none sm:text-3xl font-extrabold tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>
+                  Dashboard
+                </h1>
+              </div>
+              <div className="grid grid-cols-2 max-[650px]:grid-cols-1 gap-2 w-full min-[520px]:w-full sm:w-auto sm:min-w-0">
               <Link to="/create-project"
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 shadow-sm hover:-translate-y-0.5 ${dark ? 'bg-white/[0.04] text-[#8896a7] hover:bg-white/[0.07] ring-1 ring-white/[0.06]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                className={`inline-flex justify-center items-center gap-2 px-4 max-[420px]:px-3 py-2.5 max-[650px]:py-2 rounded-xl max-[650px]:rounded-lg text-[13px] max-[650px]:text-[12px] font-bold transition-all duration-200 shadow-sm hover:-translate-y-0.5 w-full max-w-full min-w-0 ${dark ? 'bg-white/[0.04] text-[#8896a7] hover:bg-white/[0.07] ring-1 ring-white/[0.06]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                <span className="hidden sm:inline">Create Project</span>
-                <span className="sm:hidden">Create</span>
+                <span className="max-[650px]:hidden">Create Project</span>
+                <span className="hidden max-[650px]:inline">Create</span>
               </Link>
               <Link to="/upload"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-[13px] font-bold hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5">
+                className="inline-flex justify-center items-center gap-2 px-4 max-[420px]:px-3 py-2.5 max-[650px]:py-2 bg-[#1e3a5f] text-white rounded-xl max-[650px]:rounded-lg text-[13px] max-[650px]:text-[12px] font-bold hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 w-full max-w-full min-w-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                <span className="hidden sm:inline">Upload Project</span>
-                <span className="sm:hidden">Upload</span>
+                <span className="max-[650px]:hidden">Upload Project</span>
+                <span className="hidden max-[650px]:inline">Upload</span>
               </Link>
             </div>
+          </div>
           </div>
         </div>
 
         {/* Stats grid */}
         {statCards.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-8">
             {statCards.map((card, idx) => {
               return (
                 <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -155,8 +157,8 @@ const CreatorDashboard = ({ user, dark }) => {
               className={`rounded-2xl border shadow-sm mb-8 overflow-hidden ${dark ? 'bg-[#0d1520] border-[#1c2a3a]' : 'bg-white border-gray-100'}`}
             >
               {/* Header */}
-              <div className="px-6 pt-6 pb-0">
-                <div className="flex items-center justify-between mb-5">
+              <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-0">
+                <div className="flex items-start sm:items-center justify-between mb-4 sm:mb-5 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-[#1e3a5f]/[0.06] flex items-center justify-center">
                       <svg className="w-[18px] h-[18px] text-[#1e3a5f]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -171,7 +173,7 @@ const CreatorDashboard = ({ user, dark }) => {
                 </div>
 
                 {/* Summary Stats */}
-                <div className="grid grid-cols-3 gap-3 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-1">
                   <div className={`rounded-xl px-4 py-3 ${dark ? 'bg-white/[0.03] ring-1 ring-white/[0.05]' : 'bg-gray-50/60 ring-1 ring-gray-200/40'}`}>
                     <div className="flex items-center gap-1.5 mb-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-[#8896a7]"></div>
@@ -216,11 +218,11 @@ const CreatorDashboard = ({ user, dark }) => {
               </div>
 
               {/* Bar Chart */}
-              <div className="px-5 sm:px-6 pb-2 pt-1">
-                <div className="h-[220px]">
+              <div className="px-4 sm:px-6 pb-2 pt-1">
+                <div className="h-[200px] sm:h-[220px]">
                   {chartsReady && (
-                    <ResponsiveContainer width="100%" height={220} minWidth={0}>
-                      <BarChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barSize={26}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <BarChart data={chartData} margin={{ top: 4, right: 4, left: -26, bottom: 0 }} barSize={20}>
                         <CartesianGrid strokeDasharray="3 3" stroke={dark ? '#151f2e' : '#f5f5f5'} vertical={false} />
                         <XAxis
                           dataKey="name"
@@ -228,9 +230,9 @@ const CreatorDashboard = ({ user, dark }) => {
                           axisLine={false}
                           tickLine={false}
                           interval={0}
-                          angle={-15}
+                          angle={-25}
                           textAnchor="end"
-                          height={45}
+                          height={52}
                         />
                         <YAxis
                           tick={{ fontSize: 10, fontWeight: 500, fill: "#d1d5db" }}
@@ -281,7 +283,7 @@ const CreatorDashboard = ({ user, dark }) => {
               </div>
 
               {/* Script Breakdown */}
-              <div className={`border-t px-6 py-4 ${dark ? 'border-[#1c2a3a]' : 'border-gray-100'}`}>
+              <div className={`border-t px-4 sm:px-6 py-4 ${dark ? 'border-[#1c2a3a]' : 'border-gray-100'}`}>
                 <p className={`text-[11px] font-bold uppercase tracking-wider mb-3 ${dark ? 'text-[#2a3a4e]' : 'text-gray-400'}`}>Breakdown</p>
                 <div className="space-y-2.5">
                   {chartData.slice(0, 5).map((s, i) => {
@@ -322,7 +324,7 @@ const CreatorDashboard = ({ user, dark }) => {
         {/* Reviews & Insights Section */}
         <div className="mb-8">
           {/* Section Header */}
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-start sm:items-center gap-3 mb-5 sm:mb-6">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] flex items-center justify-center shadow-sm">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
@@ -337,8 +339,8 @@ const CreatorDashboard = ({ user, dark }) => {
           {/* Tab Navigation */}
           {reviews && (
             <div className={`rounded-2xl border shadow-sm overflow-hidden mb-8 ${dark ? 'bg-[#101e30] border-[#182840]' : 'bg-white border-gray-100'}`}>
-              <div className="px-6 pt-5 pb-0">
-                <div className={`inline-flex items-center rounded-xl p-1 gap-1 ${dark ? 'bg-[#0d1520]' : 'bg-gray-50'}`}>
+              <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-0">
+                <div className={`inline-flex items-center rounded-xl p-1 gap-1 ${dark ? 'bg-[#0d1520]' : 'bg-gray-50'} max-w-full overflow-x-auto whitespace-nowrap`}>
                   {[
                     {
                       key: "ai", label: "AI Analysis", shortLabel: "AI",
@@ -374,7 +376,7 @@ const CreatorDashboard = ({ user, dark }) => {
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {/* AI Analysis Tab */}
                 {reviewTab === "ai" && (
                   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
@@ -389,7 +391,7 @@ const CreatorDashboard = ({ user, dark }) => {
                               transition={{ delay: idx * 0.08 }}
                               className={`group border rounded-2xl p-6 transition-all duration-300 ${dark ? 'border-[#1c2a3a] hover:border-[#2a3a4e] hover:shadow-md hover:shadow-black/30' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}`}
                             >
-                              <div className="flex items-start gap-5">
+                              <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
                                 {/* Circular Score */}
                                 <div className="relative shrink-0">
                                   <svg className="w-[72px] h-[72px] -rotate-90" viewBox="0 0 72 72">
@@ -420,14 +422,14 @@ const CreatorDashboard = ({ user, dark }) => {
 
                                   {/* Score Breakdown */}
                                   {Object.keys(r.scores || {}).length > 0 && (
-                                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                    <div className="mt-4 grid grid-cols-2 max-[400px]:grid-cols-1 md:grid-cols-5 gap-3">
                                       {Object.entries(r.scores).map(([key, val]) => {
                                         const barColor = val >= 80 ? "bg-[#1e3a5f]" : val >= 60 ? "bg-gray-400" : "bg-gray-300";
                                         return (
-                                          <div key={key} className={`rounded-lg px-3 py-2.5 ${dark ? 'bg-[#0d1520] ring-1 ring-white/[0.05]' : 'bg-gray-50/80'}`}>
-                                            <div className="flex items-center justify-between mb-1.5">
-                                              <span className={`text-[11px] font-semibold uppercase tracking-wider capitalize ${dark ? 'text-[#3a4a5e]' : 'text-gray-400'}`}>{key}</span>
-                                              <span className={`text-[12px] font-bold ${dark ? 'text-[#8896a7]' : 'text-gray-700'}`}>{val}</span>
+                                          <div key={key} className={`rounded-lg px-3 max-[400px]:px-2.5 py-2.5 ${dark ? 'bg-[#0d1520] ring-1 ring-white/[0.05]' : 'bg-gray-50/80'}`}>
+                                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                                              <span className={`min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider ${dark ? 'text-[#3a4a5e]' : 'text-gray-400'}`}>{key}</span>
+                                              <span className={`shrink-0 text-[12px] font-bold tabular-nums ${dark ? 'text-[#8896a7]' : 'text-gray-700'}`}>{val}</span>
                                             </div>
                                             <div className={`h-1 rounded-full overflow-hidden ${dark ? 'bg-[#1c2a3a]' : 'bg-gray-200'}`}>
                                               <motion.div initial={{ width: 0 }} animate={{ width: `${val}%` }}
@@ -546,7 +548,7 @@ const CreatorDashboard = ({ user, dark }) => {
                             transition={{ delay: idx * 0.08 }}
                             className={`border rounded-2xl p-5 transition-all duration-300 ${dark ? 'border-[#1c2a3a] hover:border-[#2a3a4e] hover:shadow-md hover:shadow-black/30' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}`}
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                               {/* Script Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1.5">
@@ -563,7 +565,7 @@ const CreatorDashboard = ({ user, dark }) => {
                               </div>
 
                               {/* Metrics */}
-                              <div className={`flex items-center gap-1 shrink-0 rounded-xl px-4 py-3 ${dark ? 'bg-[#0d1520] ring-1 ring-[#1c2a3a]' : 'bg-gray-50/80'}`}>
+                              <div className={`flex items-center gap-1 shrink-0 rounded-xl px-3 sm:px-4 py-3 w-full lg:w-auto justify-between lg:justify-start ${dark ? 'bg-[#0d1520] ring-1 ring-[#1c2a3a]' : 'bg-gray-50/80'}`}>
                                 <div className="text-center px-3">
                                   <p className={`text-lg font-extrabold leading-none mb-0.5 ${dark ? 'text-white' : 'text-gray-900'}`}>{r.views.toLocaleString()}</p>
                                   <p className={`text-[10px] font-semibold uppercase tracking-wider ${dark ? 'text-[#3a4a5e]' : 'text-gray-400'}`}>Total Views</p>
@@ -651,7 +653,7 @@ const CreatorDashboard = ({ user, dark }) => {
                                     const pct = Math.min(100, Math.max(0, val));
                                     return (
                                       <div key={d.key} className="flex items-center gap-3">
-                                        <span className={`text-[11px] font-semibold shrink-0 w-[90px] ${dark ? 'text-[#8896a7]' : 'text-gray-500'}`}>{d.label}</span>
+                                        <span className={`text-[11px] font-semibold shrink-0 w-20 sm:w-[90px] ${dark ? 'text-[#8896a7]' : 'text-gray-500'}`}>{d.label}</span>
                                         <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: d.track }}>
                                           <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: d.color }} />
                                         </div>
@@ -696,7 +698,7 @@ const CreatorDashboard = ({ user, dark }) => {
         </div>
 
         {/* Section heading */}
-        <div className="flex items-center gap-2 mb-5">
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
           <h2 className={`text-[17px] font-bold tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>My Projects</h2>
           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md tabular-nums ${dark ? 'text-[#8896a7] bg-white/[0.04]' : 'text-gray-400 bg-gray-100'}`}>{myScripts.length}</span>
         </div>
@@ -733,7 +735,7 @@ const CreatorDashboard = ({ user, dark }) => {
 
         {/* Projects grid */}
         {myScripts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {myScripts.map((script) => (
               <ProjectCard
                 key={script._id}
@@ -755,10 +757,10 @@ const CreatorDashboard = ({ user, dark }) => {
             </div>
             <h2 className={`text-2xl font-bold mb-2 ${dark ? 'text-gray-300' : 'text-gray-700'}`}>No projects yet</h2>
             <p className={`text-base mb-6 ${dark ? 'text-gray-500' : 'text-gray-500'}`}>Upload your first script to get started</p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 max-w-md mx-auto">
               <Link
                 to="/create-project"
-                className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5 ${dark ? 'bg-white/[0.06] text-gray-200 hover:bg-white/[0.1] ring-1 ring-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                className={`inline-flex justify-center items-center gap-2 px-6 py-3 rounded-xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5 ${dark ? 'bg-white/[0.06] text-gray-200 hover:bg-white/[0.1] ring-1 ring-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -767,7 +769,7 @@ const CreatorDashboard = ({ user, dark }) => {
               </Link>
               <Link
                 to="/upload"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#1e3a5f] text-white font-bold rounded-xl hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 text-base"
+                className="inline-flex justify-center items-center gap-2 px-6 py-3 bg-[#1e3a5f] text-white font-bold rounded-xl hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 text-base"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
