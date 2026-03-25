@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
@@ -55,6 +55,95 @@ const validatePassword = (password) => {
   };
 };
 
+const WRITER_ONBOARDING_DRAFT_KEY = "sb-writer-onboarding-draft-v1";
+
+const DEFAULT_ACCOUNT_DATA = {
+  name: "",
+  dateOfBirth: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+  address: "",
+  phone: "",
+  role: "creator"
+};
+
+const DEFAULT_ADDRESS_FIELDS = {
+  street: "",
+  city: "",
+  state: "",
+  zipCode: "",
+};
+
+const DEFAULT_OPEN_REP_SECTIONS = { filmTv: false, theater: false, literary: false };
+
+const DEFAULT_WRITER_PROFILE = {
+  username: "",
+  bio: "",
+  representationStatus: "unrepresented",
+  agencyName: "",
+  links: {
+    portfolio: "",
+    instagram: "",
+    twitter: "",
+    linkedin: "",
+    imdb: "",
+    facebook: ""
+  },
+  accomplishments: [],
+  representation: {
+    filmTv: { agency: "", agent: "", managementCompany: "", manager: "", lawFirm: "", lawyer: "" },
+    theater: { agency: "", agent: "", managementCompany: "", manager: "", lawFirm: "", lawyer: "" },
+    literary: { agency: "", agent: "", managementCompany: "", manager: "", lawFirm: "", lawyer: "" }
+  },
+  demographicPrivacy: "searchable",
+  diversity: {
+    gender: "",
+    nationality: "",
+    lgbtqStatus: "",
+    disabilityStatus: ""
+  }
+};
+
+const loadWriterOnboardingDraft = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = window.sessionStorage.getItem(WRITER_ONBOARDING_DRAFT_KEY);
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+};
+
+const mergeWriterProfile = (profile) => ({
+  ...DEFAULT_WRITER_PROFILE,
+  ...(profile || {}),
+  links: {
+    ...DEFAULT_WRITER_PROFILE.links,
+    ...(profile?.links || {}),
+  },
+  accomplishments: Array.isArray(profile?.accomplishments) ? profile.accomplishments : [],
+  representation: {
+    filmTv: {
+      ...DEFAULT_WRITER_PROFILE.representation.filmTv,
+      ...(profile?.representation?.filmTv || {}),
+    },
+    theater: {
+      ...DEFAULT_WRITER_PROFILE.representation.theater,
+      ...(profile?.representation?.theater || {}),
+    },
+    literary: {
+      ...DEFAULT_WRITER_PROFILE.representation.literary,
+      ...(profile?.representation?.literary || {}),
+    },
+  },
+  diversity: {
+    ...DEFAULT_WRITER_PROFILE.diversity,
+    ...(profile?.diversity || {}),
+  },
+});
+
 const WRITER_TERMS_VERSION = "writer-onboarding-v2026-03-24";
 const WRITER_TERMS_ROUTE = "/writer-terms";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
@@ -63,81 +152,102 @@ const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
 const WriterOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const initialDraftRef = useRef(loadWriterOnboardingDraft());
+  const initialDraft = initialDraftRef.current;
   
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(() => {
+    const step = Number(initialDraft?.currentStep);
+    return Number.isInteger(step) && step >= 1 && step <= 4 ? step : 1;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [addressError, setAddressError] = useState("");
   const [dobError, setDobError] = useState("");
   const [usernameError, setUsernameError] = useState("");
-  const [openRepSections, setOpenRepSections] = useState({ filmTv: false, theater: false, literary: false });
+  const [openRepSections, setOpenRepSections] = useState(() => ({
+    ...DEFAULT_OPEN_REP_SECTIONS,
+    ...(initialDraft?.openRepSections || {}),
+  }));
   const [emailError, setEmailError] = useState("");
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
-  const [showOTPVerification, setShowOTPVerification] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  const [showOTPVerification, setShowOTPVerification] = useState(Boolean(initialDraft?.showOTPVerification));
+  const [userEmail, setUserEmail] = useState(initialDraft?.userEmail || "");
   
   // Step 1: Account Creation
-  const [accountData, setAccountData] = useState({
-    name: "",
-    dateOfBirth: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    address: "",
-    phone: "",
-    role: "creator"
-  });
-  const [addressFields, setAddressFields] = useState({
-    street: "",
-    city: "",
-    state: "",
-    zipCode: "",
-  });
+  const [accountData, setAccountData] = useState(() => ({
+    ...DEFAULT_ACCOUNT_DATA,
+    ...(initialDraft?.accountData || {}),
+  }));
+  const [addressFields, setAddressFields] = useState(() => ({
+    ...DEFAULT_ADDRESS_FIELDS,
+    ...(initialDraft?.addressFields || {}),
+  }));
   
   // Email Verification (keeping for compatibility, but using OTP now)
-  const [verificationCode, setVerificationCode] = useState("");
-  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
+  const [verificationSent, setVerificationSent] = useState(Boolean(initialDraft?.verificationSent));
   
   // Step 2: Writer Profile
-  const [writerProfile, setWriterProfile] = useState({
-    username: "",
-    bio: "",
-    representationStatus: "unrepresented",
-    agencyName: "",
-    wgaMember: false,
-    links: {
-      portfolio: "",
-      instagram: "",
-      twitter: "",
-      linkedin: "",
-      imdb: "",
-      facebook: ""
-    },
-    accomplishments: [],
-    representation: {
-      filmTv: { agency: "", agent: "", managementCompany: "", manager: "", lawFirm: "", lawyer: "" },
-      theater: { agency: "", agent: "", managementCompany: "", manager: "", lawFirm: "", lawyer: "" },
-      literary: { agency: "", agent: "", managementCompany: "", manager: "", lawFirm: "", lawyer: "" }
-    },
-    demographicPrivacy: "searchable",
-    diversity: {
-      gender: "",
-      nationality: "",
-      lgbtqStatus: "",
-      disabilityStatus: ""
-    }
-  });
+  const [writerProfile, setWriterProfile] = useState(() => mergeWriterProfile(initialDraft?.writerProfile));
 
   // Step 3: Tags
-  const [selectedGenres, setSelectedGenres] = useState([]);
-  const [nuancedTags, setNuancedTags] = useState([]);
+  const [selectedGenres, setSelectedGenres] = useState(
+    Array.isArray(initialDraft?.selectedGenres) ? initialDraft.selectedGenres : []
+  );
+  const [nuancedTags, setNuancedTags] = useState(
+    Array.isArray(initialDraft?.nuancedTags) ? initialDraft.nuancedTags : []
+  );
   const [showTagError, setShowTagError] = useState(false);
 
   // Step 4: Legal & Checkout
+  const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
+  const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
+  const agreementRef = useRef(null);
   const [selectedPlan, setSelectedPlan] = useState("free");
-  const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const safeAccountData = {
+      ...accountData,
+      password: "",
+      confirmPassword: "",
+    };
+
+    const draft = {
+      currentStep,
+      openRepSections,
+      showOTPVerification,
+      userEmail,
+      accountData: safeAccountData,
+      addressFields,
+      verificationCode,
+      verificationSent,
+      writerProfile,
+      selectedGenres,
+      nuancedTags,
+      agreementScrolled,
+      agreementAccepted,
+    };
+
+    window.sessionStorage.setItem(WRITER_ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
+  }, [
+    accountData,
+    addressFields,
+    agreementAccepted,
+    agreementScrolled,
+    currentStep,
+    nuancedTags,
+    openRepSections,
+    selectedGenres,
+    showOTPVerification,
+    userEmail,
+    verificationCode,
+    verificationSent,
+    writerProfile,
+  ]);
 
   const steps = [
     { num: 1, title: "Account" },
@@ -299,6 +409,11 @@ const WriterOnboarding = () => {
       return;
     }
 
+    if (!writerProfile.diversity.gender?.trim() || !writerProfile.diversity.nationality?.trim()) {
+      setError("Gender and Nationality are required");
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -391,6 +506,9 @@ const WriterOnboarding = () => {
       });
       
       if (response.data.success) {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(WRITER_ONBOARDING_DRAFT_KEY);
+        }
         navigate("/dashboard");
       }
     } catch (err) {
@@ -767,7 +885,7 @@ const WriterOnboarding = () => {
               <select
                 value={writerProfile.representationStatus}
                 onChange={(e) => setWriterProfile({...writerProfile, representationStatus: e.target.value})}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent !text-gray-900"
               >
                 <option value="unrepresented">Unrepresented</option>
                 <option value="manager">Manager</option>
@@ -791,26 +909,12 @@ const WriterOnboarding = () => {
               </div>
             )}
             
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="wgaMember"
-                checked={writerProfile.wgaMember}
-                onChange={(e) => setWriterProfile({...writerProfile, wgaMember: e.target.checked})}
-                className="w-5 h-5 border-gray-300 rounded focus:ring-[#0f2544]"
-                style={{ accentColor: '#0f2544' }}
-              />
-              <label htmlFor="wgaMember" className="ml-3 text-sm font-medium text-gray-700">
-                I am a WGA member
-              </label>
-            </div>
-            
             <div className="border-t pt-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Diversity Information <span className="text-sm font-normal text-gray-500">(Optional)</span>
+                Diversity Information
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                This information helps producers find underrepresented voices and is completely optional.
+                Gender and Nationality are required.
               </p>
               
               <div className="grid grid-cols-2 gap-4">
@@ -826,7 +930,8 @@ const WriterOnboarding = () => {
                       diversity: {...writerProfile.diversity, gender: e.target.value}
                     })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="Optional"
+                    placeholder="Required"
+                    required
                   />
                 </div>
                 
@@ -842,7 +947,8 @@ const WriterOnboarding = () => {
                       diversity: {...writerProfile.diversity, nationality: e.target.value}
                     })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="Optional"
+                    placeholder="Required"
+                    required
                   />
                 </div>
               </div>
@@ -951,10 +1057,43 @@ const WriterOnboarding = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Representation <span className="text-sm font-normal text-gray-500">(Optional)</span></h3>
 
               {[
-                { key: "filmTv", label: "Film & TV Writer Representation" },
-                { key: "theater", label: "Theater Representation" },
-                { key: "literary", label: "Literary Representation" }
-              ].map(({ key, label }) => (
+                {
+                  key: "filmTv",
+                  label: "Film & TV Writer Representation",
+                  placeholders: {
+                    agency: "e.g., CAA, WME, UTA",
+                    agent: "e.g., Priya Mehta",
+                    managementCompany: "e.g., Anonymous Content",
+                    manager: "e.g., Rahul Khanna",
+                    lawFirm: "e.g., Loeb & Loeb",
+                    lawyer: "e.g., Neha Sinha",
+                  },
+                },
+                {
+                  key: "theater",
+                  label: "Theater Representation",
+                  placeholders: {
+                    agency: "e.g., Paradigm Theatrical",
+                    agent: "e.g., Aaron Clarke",
+                    managementCompany: "e.g., Stage Door Management",
+                    manager: "e.g., Maria Lopez",
+                    lawFirm: "e.g., Schreck Rose Dapello",
+                    lawyer: "e.g., David Lin",
+                  },
+                },
+                {
+                  key: "literary",
+                  label: "Literary Representation",
+                  placeholders: {
+                    agency: "e.g., Writers House",
+                    agent: "e.g., Sarah Reed",
+                    managementCompany: "e.g., Literary Collective",
+                    manager: "e.g., Tom Bennett",
+                    lawFirm: "e.g., Frankfurt Kurnit",
+                    lawyer: "e.g., Kavya Rao",
+                  },
+                },
+              ].map(({ key, label, placeholders }) => (
                 <div key={key} className="mb-3 border border-gray-200 rounded-lg overflow-hidden">
                   <button
                     type="button"
@@ -991,7 +1130,7 @@ const WriterOnboarding = () => {
                               }
                             })}
                             className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                            placeholder=""
+                            placeholder={placeholders[field] || "Enter details"}
                           />
                         </div>
                       ))}
@@ -1186,111 +1325,19 @@ const WriterOnboarding = () => {
         return (
           <form onSubmit={handleFinalSubmit} className="space-y-6">
             <div>
-              <h2 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Choose Your Plan</h2>
-              <p className="text-gray-600 mt-2">Select the plan that works best for you</p>
+              <h2 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Final Review</h2>
+              <p className="text-gray-600 mt-2">Hosting is free. Review and accept terms to complete setup.</p>
             </div>
 
-            {/* Plan Selection */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Free Plan */}
-              <button
-                type="button"
-                onClick={() => setSelectedPlan("free")}
-                className={`p-6 rounded-xl border-2 transition-all text-left ${
-                  selectedPlan === "free"
-                    ? 'border-[#0f2544] bg-[#f0f4f8]'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold text-gray-900">Free</h3>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    selectedPlan === "free" ? 'border-[#0f2544]' : 'border-gray-300'
-                  }`}>
-                    {selectedPlan === "free" && (
-                      <div className="w-3 h-3 bg-[#0f2544] rounded-full"></div>
-                    )}
-                  </div>
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-4">₹0</div>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Browse script snippets
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Basic profile
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Community access
-                  </li>
-                </ul>
-              </button>
-
-              {/* Paid Plan */}
-              <button
-                type="button"
-                onClick={() => setSelectedPlan("paid")}
-                className={`p-6 rounded-xl border-2 transition-all text-left ${
-                  selectedPlan === "paid"
-                    ? 'border-[#0f2544] bg-[#f0f4f8]'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold text-gray-900">Pro</h3>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    selectedPlan === "paid" ? 'border-[#0f2544]' : 'border-gray-300'
-                  }`}>
-                    {selectedPlan === "paid" && (
-                      <div className="w-3 h-3 bg-[#0f2544] rounded-full"></div>
-                    )}
-                  </div>
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-4">₹130<span className="text-base text-gray-500">/mo</span></div>
-                <ul className="space-y-2 text-sm text-gray-600">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Full script hosting
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Professional evaluation
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Priority visibility
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle size={16} className="text-[#1e3a5f] flex-shrink-0 mt-0.5" />
-                    Advanced analytics
-                  </li>
-                </ul>
-              </button>
-            </div>
-
-            {/* Price Breakdown (Only for Paid) */}
-            {selectedPlan === "paid" && (
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Script Hosting (Monthly)</span>
-                    <span className="font-semibold text-gray-900">₹30.00</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Professional Evaluation</span>
-                    <span className="font-semibold text-gray-900">₹100.00</span>
-                  </div>
-                  <div className="border-t-2 border-gray-200 pt-3 mt-3 flex justify-between">
-                    <span className="font-bold text-gray-900">Total</span>
-                    <span className="font-bold text-xl text-[#0f2544]">₹130.00</span>
-                  </div>
-                </div>
+            <div className="bg-white border-2 border-gray-200 rounded-xl p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-gray-900">Hosting Plan</h3>
+                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs font-semibold">
+                  Free
+                </span>
               </div>
-            )}
+              <p className="text-sm text-gray-600 mt-2">Your script hosting is free with no subscription required.</p>
+            </div>
 
             {/* Legal Agreement */}
             <div>
@@ -1389,7 +1436,7 @@ const WriterOnboarding = () => {
                 disabled={loading || !agreementAccepted || !privacyPolicyAccepted}
                 className="flex-1 bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {loading ? "Processing..." : selectedPlan === "paid" ? "Pay & Publish" : "Complete Setup"}
+                {loading ? "Processing..." : "Complete Setup"}
                 <CheckCircle size={20} />
               </button>
             </div>

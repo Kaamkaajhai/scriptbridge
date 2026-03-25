@@ -1,12 +1,13 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useSearchParams } from "react-router-dom";
 import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, HelpCircle, MessageSquare, CheckCircle, PenLine, BookOpen, ArrowRight, Clock3, XCircle } from "lucide-react";
-import FeaturesShowcase from "../components/FeaturesShowcase";
-import SuccessStories from "../components/SuccessStories";
 import api from "../services/api";
 import BrandLogo from "../components/BrandLogo";
 import { AuthContext } from "../context/AuthContext";
+
+const FeaturesShowcase = lazy(() => import("../components/FeaturesShowcase"));
+const SuccessStories = lazy(() => import("../components/SuccessStories"));
 
 const contactReasons = [
   { value: "doubt", label: "I have a question / doubt", icon: HelpCircle },
@@ -399,7 +400,7 @@ const Landing = () => {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/investor-onboarding"
+                to="/producer-director-onboarding"
                 className="px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
               >
                 Sign Up as Producer
@@ -554,10 +555,14 @@ const Landing = () => {
       </section>
 
       {/* ── Features Showcase ── */}
-      <FeaturesShowcase />
+      <Suspense fallback={<section className="py-20 px-6 bg-[#080e18]" aria-label="Loading features" />}>
+        <FeaturesShowcase />
+      </Suspense>
 
       {/* ── Success Stories ── */}
-      <SuccessStories />
+      <Suspense fallback={<section className="py-20 px-6 bg-[#0a1221]" aria-label="Loading stories" />}>
+        <SuccessStories />
+      </Suspense>
 
       {/* ── How it Works ── */}
       <section className="py-28 px-6 bg-[#0a1221]">

@@ -323,7 +323,6 @@ const Pagination = ({ page, totalPages, onPageChange, isDark }) => {
 // ═══════════════════════════════════════════════
 // Main Admin Dashboard
 // ═══════════════════════════════════════════════
-const ADMIN_CODE = "24062004";
 const BADGE_WATCH_KEYS = ["approvals", "trailers", "pending-investors", "bank-reviews", "queries"];
 
 const formatBadgeCount = (count) => {
@@ -1085,18 +1084,25 @@ const AdminDashboard = () => {
     const handleCodeSubmit = async (e) => {
         e.preventDefault();
         setCodeError("");
-        if (codeInput !== ADMIN_CODE) {
-            setCodeError("Invalid access code");
+        const enteredCode = codeInput.trim();
+        if (!enteredCode) {
+            setCodeError("Access code is required");
             return;
         }
         setCodeLoading(true);
         try {
             // Login as admin — store token ONLY in sessionStorage (does NOT affect user's localStorage session)
-            const { data } = await axios.post(`${API_BASE_URL}/auth/login`, { email: "admin@ckript.com", password: "admin123" });
+            const { data } = await axios.post(`${API_BASE_URL}/auth/login`, {
+                email: "admin@ckript.com",
+                password: "admin123",
+                adminCode: enteredCode,
+            });
             sessionStorage.setItem("admin-session", JSON.stringify(data));
             setAuthorized(true);
-        } catch {
-            setCodeError("Admin login failed. Make sure admin account exists (run: node seedAdmin.js).");
+            setCodeInput("");
+        } catch (error) {
+            const apiMessage = error?.response?.data?.message;
+            setCodeError(apiMessage || "Admin login failed. Admin account may be missing after DB reset.");
         }
         setCodeLoading(false);
     };

@@ -1,0 +1,6 @@
+#!/bin/sh
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" != "yashu" ]; then
+  echo "Commit blocked: only 'yashu' branch can change code." >&2
+  exit 1
+fi

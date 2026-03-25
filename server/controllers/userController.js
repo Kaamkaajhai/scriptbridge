@@ -403,7 +403,7 @@ export const updateUserProfile = async (req, res) => {
       privacyPolicyAccepted,
       privacyPolicyVersion,
       // investor profile fields
-      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange,
+      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
       // bank details
       bankDetails,
       // notification preferences
@@ -449,7 +449,7 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined) {
+    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
       if (subRole !== undefined) user.industryProfile.subRole = normalizeString(subRole);
       if (company !== undefined) user.industryProfile.company = normalizeString(company);
@@ -457,6 +457,14 @@ export const updateUserProfile = async (req, res) => {
       if (imdbUrl !== undefined) user.industryProfile.imdbUrl = normalizeString(imdbUrl);
       if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = normalizeString(linkedInUrl);
       if (otherUrl !== undefined) user.industryProfile.otherUrl = normalizeString(otherUrl);
+      if (socialLinks !== undefined) {
+        if (!user.industryProfile.socialLinks) user.industryProfile.socialLinks = {};
+        user.industryProfile.socialLinks.instagram = normalizeString(socialLinks?.instagram);
+        user.industryProfile.socialLinks.twitter = normalizeString(socialLinks?.twitter);
+        user.industryProfile.socialLinks.website = normalizeString(socialLinks?.website);
+        user.industryProfile.socialLinks.youtube = normalizeString(socialLinks?.youtube);
+        user.industryProfile.socialLinks.facebook = normalizeString(socialLinks?.facebook);
+      }
       if (previousCredits !== undefined) user.industryProfile.previousCredits = normalizeString(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
       user.markModified("industryProfile");

@@ -38,6 +38,14 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
 
+const preloadRouteChunks = [
+  () => import("./layouts/MainLayout"),
+  () => import("./pages/Login"),
+  () => import("./pages/Join"),
+  () => import("./pages/Dashboard"),
+  () => import("./pages/Profile"),
+];
+
 // Handles admin impersonation login via URL parameter
 function AdminLoginHandler({ children }) {
   const [searchParams] = useSearchParams();
@@ -63,6 +71,28 @@ function AdminLoginHandler({ children }) {
 }
 
 function App() {
+  useEffect(() => {
+    const preload = () => {
+      preloadRouteChunks.forEach((loadChunk) => {
+        loadChunk().catch(() => {
+          // Ignore prefetch errors; lazy route loading still works as fallback.
+        });
+      });
+    };
+
+    const idleCallback = window.requestIdleCallback
+      ? window.requestIdleCallback(preload, { timeout: 1200 })
+      : setTimeout(preload, 300);
+
+    return () => {
+      if (window.cancelIdleCallback && typeof idleCallback === "number") {
+        window.cancelIdleCallback(idleCallback);
+      } else {
+        clearTimeout(idleCallback);
+      }
+    };
+  }, []);
+
   return (
     <DarkModeProvider>
       <AuthProvider>
@@ -87,7 +117,8 @@ function App() {
               <Route path="/join" element={<RoleSelection />} />
               <Route path="/signup" element={<Join />} />
               <Route path="/writer-onboarding" element={<WriterOnboarding />} />
-              <Route path="/investor-onboarding" element={<InvestorOnboarding />} />
+              <Route path="/producer-director-onboarding" element={<InvestorOnboarding />} />
+              <Route path="/investor-onboarding" element={<Navigate to="/producer-director-onboarding" replace />} />
               <Route path="/industry-onboarding" element={
                 <PrivateRoute>
                   <MainLayout>

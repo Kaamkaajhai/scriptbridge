@@ -203,7 +203,7 @@ export const join = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  let { email, password } = req.body;
+  let { email, password, adminCode } = req.body;
   try {
     if (!email || !password) {
       return res.status(400).json({ message: "Please provide email and password" });
@@ -217,6 +217,13 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      if (user.role === "admin") {
+        const requiredAdminCode = String(process.env.ADMIN_PANEL_CODE || "24062004").trim();
+        if (String(adminCode || "").trim() !== requiredAdminCode) {
+          return res.status(403).json({ message: "Invalid admin access code" });
+        }
+      }
+
       if (!user.sid) {
         await user.save();
       }
@@ -346,13 +353,21 @@ export const verifyOTP = async (req, res) => {
     // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
 
-    // Investors cannot log in yet — they need admin approval
+    // Investors cannot sign in from login until approved, but they should
+    // still receive a session here to complete onboarding steps.
     if (user.role === "investor") {
+      const { token, expiresAt } = generateToken(user._id);
       return res.json({
-        message: "Email verified successfully! Your account is now pending admin approval. You will be notified once approved.",
+        message: "Email verified successfully! Complete your onboarding while your account is under admin review.",
         pendingApproval: true,
         email: user.email,
         role: user.role,
+        _id: user._id,
+        name: user.name,
+        approvalStatus: user.approvalStatus,
+        approvalNote: user.approvalNote,
+        token,
+        expiresAt,
       });
     }
 

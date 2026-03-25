@@ -16,6 +16,14 @@ export const AuthProvider = ({ children }) => {
     window.location.href = `/?investorReview=${reason}`;
   }, []);
 
+  const isOnInvestorOnboardingPath = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.location.pathname.startsWith("/producer-director-onboarding") ||
+      window.location.pathname.startsWith("/investor-onboarding")
+    );
+  }, []);
+
   // Clear any existing auto-logout timer
   const clearLogoutTimer = useCallback(() => {
     if (logoutTimerRef.current) {
@@ -94,7 +102,11 @@ export const AuthProvider = ({ children }) => {
             expiresAt: data.expiresAt || effectiveExpiry,
           };
 
-          if (refreshedUser?.role === "investor" && ["pending", "rejected"].includes(refreshedUser?.approvalStatus)) {
+          if (
+            refreshedUser?.role === "investor" &&
+            ["pending", "rejected"].includes(refreshedUser?.approvalStatus) &&
+            !isOnInvestorOnboardingPath()
+          ) {
             localStorage.removeItem("user");
             setUser(null);
             redirectInvestorReview(refreshedUser.approvalStatus);

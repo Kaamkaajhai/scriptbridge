@@ -1,10 +1,12 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import compression from "compression";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Server } from "socket.io";
+import User from "./models/User.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,9 +42,64 @@ import {
   authLimiter,
   paymentLimiter,
 } from "./middleware/securityMiddleware.js";
-connectDB().catch((error) => {
-  console.error("Initial database connection failed:", error.message);
-});
+
+const ensureDefaultAdmin = async () => {
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@ckript.com").trim().toLowerCase();
+  const adminPassword = (process.env.ADMIN_PASSWORD || "admin123").trim();
+
+  if (!adminEmail || !adminPassword) {
+    console.warn("Skipping admin bootstrap due to missing ADMIN_EMAIL or ADMIN_PASSWORD.");
+    return;
+  }
+
+  try {
+    const existingAdmin = await User.findOne({ email: adminEmail });
+
+    if (!existingAdmin) {
+      await User.create({
+        name: process.env.ADMIN_NAME || "Admin",
+        email: adminEmail,
+        password: adminPassword,
+        role: "admin",
+        emailVerified: true,
+      });
+      console.log(`Default admin created: ${adminEmail}`);
+      return;
+    }
+
+    let hasChanges = false;
+
+    if (existingAdmin.role !== "admin") {
+      existingAdmin.role = "admin";
+      hasChanges = true;
+    }
+
+    if (!existingAdmin.emailVerified) {
+      existingAdmin.emailVerified = true;
+      hasChanges = true;
+    }
+
+    // Keep admin panel credentials valid when DB resets or password drifts.
+    const passwordMatches = await existingAdmin.matchPassword(adminPassword);
+    if (!passwordMatches) {
+      existingAdmin.password = adminPassword;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      await existingAdmin.save();
+      console.log(`Default admin account synchronized: ${adminEmail}`);
+    }
+  } catch (error) {
+    console.error("Default admin bootstrap failed:", error.message);
+  }
+};
+
+connectDB()
+  .then(() => ensureDefaultAdmin())
+  .catch((error) => {
+    console.error("Database bootstrap failed:", error.message);
+  });
 
 const app = express();
 const isVercel = Boolean(process.env.VERCEL);
@@ -130,6 +187,8 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
+app.use(compression());
+
 // Body parsing middleware
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
@@ -138,7 +197,11 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use("/api", apiLimiter);
 
 // Serve uploaded files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
+  maxAge: "7d",
+  etag: true,
+  lastModified: true,
+}));
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
