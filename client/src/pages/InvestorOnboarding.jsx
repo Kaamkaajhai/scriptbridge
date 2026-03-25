@@ -152,7 +152,6 @@ const InvestorOnboarding = () => {
   const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
   const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
   const agreementRef = useRef(null);
-  const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
 
   useEffect(() => {

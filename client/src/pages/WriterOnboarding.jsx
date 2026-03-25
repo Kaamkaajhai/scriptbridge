@@ -205,7 +205,6 @@ const WriterOnboarding = () => {
   const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
   const agreementRef = useRef(null);
   const [selectedPlan, setSelectedPlan] = useState("free");
-  const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
 
   useEffect(() => {
