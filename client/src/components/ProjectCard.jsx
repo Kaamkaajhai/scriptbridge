@@ -40,6 +40,24 @@ const ProjectCard = ({ project, userName }) => {
   const coverImage   = project?.coverImage || null;
   const initials     = (project?.title || "SC").replace(/[^a-zA-Z0-9 ]/g, "").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "SC";
   const canBookmark  = Boolean(user?._id && project?._id && project?.creator?._id !== user?._id);
+  const spotlightSpend = Number(
+    project?.billing?.spotlightCreditsSpent
+      || project?.billing?.spotlightCreditsChargedAtUpload
+      || project?.promotion?.totalSpotlightCreditsSpent
+      || 0
+  );
+  const hasSpotlightPurchase = spotlightSpend > 0 || Boolean(project?.promotion?.lastSpotlightPurchaseAt);
+  const evaluationSpend = Number(
+    project?.billing?.evaluationCreditsCharged
+      || project?.billing?.evaluationCreditsChargedAtUpload
+      || 0
+  );
+  const trailerSpend = Number(
+    project?.billing?.aiTrailerCreditsCharged
+      || project?.billing?.aiTrailerCreditsChargedAtUpload
+      || 0
+  );
+  const showVerifiedBadge = Boolean(project?.verifiedBadge || project?.promotion?.spotlightActive || hasSpotlightPurchase);
 
   useEffect(() => {
     const ids = user?.favoriteScripts || [];
@@ -123,59 +141,23 @@ const ProjectCard = ({ project, userName }) => {
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
           />
         ) : (
-          /* � Placeholder: cinematic clapperboard � */
           <div className={`absolute inset-0 overflow-hidden flex flex-col items-center justify-center gap-3 ${
-            dark ? "bg-[#070d17]" : "bg-[#eef2fb]"
+            dark ? "bg-gradient-to-br from-[#081527] via-[#0d2a46] to-[#113960]" : "bg-gradient-to-br from-[#dce9f8] via-[#c7dbf3] to-[#b5d0ef]"
           }`}>
-            {/* scanlines */}
-            <div className="absolute inset-0 pointer-events-none" style={{
-              backgroundImage: dark
-                ? "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.016) 3px,rgba(255,255,255,0.016) 4px)"
-                : "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.022) 3px,rgba(0,0,0,0.022) 4px)",
-            }}/>
-            {/* center ambient glow */}
-            <div className={`absolute w-40 h-40 rounded-full blur-3xl pointer-events-none ${
-              dark ? "bg-[#1a5aaa]/20" : "bg-[#90b0f0]/25"
-            }`}/>
-            {/* icon container */}
-            <div className={`relative flex items-center justify-center w-[62px] h-[62px] rounded-[18px] ${
+            <div className={`absolute w-56 h-56 rounded-full border ${dark ? "border-white/10" : "border-[#2f5f90]/18"}`} />
+            <div className={`absolute w-40 h-40 rounded-full border ${dark ? "border-white/14" : "border-[#2f5f90]/28"}`} />
+
+            <div className={`relative flex items-center justify-center w-[92px] h-[92px] rounded-[24px] border backdrop-blur-xl ${
               dark
-                ? "bg-gradient-to-b from-[#121f32] to-[#0b1622] border border-[#1c3654] shadow-[0_0_0_1px_rgba(60,120,220,0.07),0_12px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.05)]"
-                : "bg-gradient-to-b from-white to-[#eaf0ff] border border-[#c4d4ee] shadow-[0_4px_24px_rgba(80,120,210,0.16),inset_0_1px_0_rgba(255,255,255,1)]"
+                ? "bg-[#07203b]/78 border-[#3e6e98]/55 shadow-[0_18px_40px_rgba(4,11,20,0.5)]"
+                : "bg-white/75 border-white shadow-[0_16px_35px_rgba(30,66,110,0.18)]"
             }`}>
-              {/* clapperboard SVG */}
-              <svg viewBox="0 0 48 48" fill="none" className={`w-[34px] h-[34px] ${dark ? "text-[#3d7ac0]" : "text-[#4e6ec0]"}`}>
-                {/* body */}
-                <rect x="6" y="17" width="36" height="24" rx="3" stroke="currentColor" strokeWidth="1.8" fill="currentColor" fillOpacity="0.07"/>
-                {/* top flap */}
-                <rect x="6" y="9" width="36" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" fill="currentColor" fillOpacity="0.16"/>
-                {/* diagonal stripes clipped to flap via nested svg viewport */}
-                <svg x="6" y="9" width="36" height="10" overflow="hidden">
-                  <line x1="2"  y1="-1" x2="-3" y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                  <line x1="8"  y1="-1" x2="3"  y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                  <line x1="14" y1="-1" x2="9"  y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                  <line x1="20" y1="-1" x2="15" y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                  <line x1="26" y1="-1" x2="21" y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                  <line x1="32" y1="-1" x2="27" y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                  <line x1="38" y1="-1" x2="33" y2="12" stroke="currentColor" strokeWidth="2.8" opacity="0.38"/>
-                </svg>
-                {/* hinge pin */}
-                <circle cx="13" cy="9" r="2" fill="currentColor" opacity="0.5"/>
-                <circle cx="35" cy="9" r="2" fill="currentColor" opacity="0.5"/>
-                {/* text lines on body */}
-                <line x1="12" y1="24.5" x2="36" y2="24.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.55"/>
-                <line x1="12" y1="30"   x2="28" y2="30"   stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.3"/>
-                <line x1="12" y1="35.5" x2="22" y2="35.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.18"/>
-                {/* small lens circle bottom-right */}
-                <circle cx="37" cy="33" r="3.5" stroke="currentColor" strokeWidth="1.3" fill="currentColor" fillOpacity="0.07" opacity="0.45"/>
-                <circle cx="37" cy="33" r="1.4" fill="currentColor" opacity="0.35"/>
+              <svg className={`w-8 h-8 ${dark ? "text-white/80" : "text-[#2b557f]"}`} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="16" rx="3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 15l3-3 2.6 2.6L15.5 11 18 13.5" />
+                <circle cx="16.5" cy="8.5" r="1.4" fill="currentColor" stroke="none" />
               </svg>
-              {/* top-left corner accent dot */}
-              <span className={`absolute top-2 left-2 w-1 h-1 rounded-full ${dark ? "bg-[#2a5898]/60" : "bg-[#7090d0]/40"}`}/>
             </div>
-            <span className={`text-[9px] font-bold tracking-[0.22em] uppercase ${
-              dark ? "text-[#1a3456]" : "text-[#b8caee]"
-            }`}>No Cover</span>
           </div>
         )}
 
@@ -192,8 +174,8 @@ const ProjectCard = ({ project, userName }) => {
         <div className="absolute top-3 left-3">
           <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold tracking-[0.13em] uppercase px-2.5 py-1.5 rounded-lg backdrop-blur-sm ${
             dark
-              ? "bg-black/45 text-white/80 border border-white/[0.07]"
-              : "bg-white/80 text-gray-700 border border-gray-200/80 shadow-sm"
+              ? "bg-[#0b2440]/70 text-white/85 border border-[#7ea8d2]/30"
+              : "bg-white/85 text-[#23476c] border border-[#bed2ea]/90 shadow-sm"
           }`}>
             <span className="relative flex h-[6px] w-[6px]">
               <span className={`absolute inline-flex h-full w-full rounded-full opacity-50 ${status.dot} ${project?.status === "published" ? "animate-ping" : ""}`} />
@@ -231,14 +213,16 @@ const ProjectCard = ({ project, userName }) => {
           </div>
         )}
 
-        {/* Premium — bottom-right (above the scrim) */}
-        {project?.premium && (
-          <div className={`absolute bottom-3.5 right-3.5 text-[9px] font-black tracking-[0.12em] uppercase px-2.5 py-[5px] rounded-lg backdrop-blur-sm ${
+        {showVerifiedBadge && (
+          <div className={`absolute bottom-3.5 left-3.5 inline-flex items-center gap-1 text-[9px] font-black tracking-[0.12em] uppercase px-2.5 py-[5px] rounded-lg backdrop-blur-sm ${
             dark
-              ? "bg-amber-500/15 text-amber-300 border border-amber-400/20"
-              : "bg-amber-400/15 text-amber-700 border border-amber-300/50"
+              ? "bg-[#0f2f54]/72 text-white border border-[#8db7e6]/40"
+              : "bg-white/88 text-[#1f4f8d] border border-[#b8d0ec]"
           }`}>
-            Premium
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            Verified
           </div>
         )}
       </div>
