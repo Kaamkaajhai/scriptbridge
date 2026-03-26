@@ -7,6 +7,19 @@ import ProjectCard from "../components/ProjectCard";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
 
+const resolveTrailerUrl = (script) => {
+  const aiTrailerUrl = script?.trailerUrl || "";
+  const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
+
+  let selectedUrl = "";
+  if (script?.trailerSource === "ai" && aiTrailerUrl) selectedUrl = aiTrailerUrl;
+  else if (script?.trailerSource === "uploaded" && uploadedTrailerUrl) selectedUrl = uploadedTrailerUrl;
+  else selectedUrl = aiTrailerUrl || uploadedTrailerUrl || "";
+
+  if (!selectedUrl) return "";
+  return selectedUrl.startsWith("http") ? selectedUrl : `${API_BASE_URL}${selectedUrl}`;
+};
+
 /* ── Icons ─────────────────────────────────────────── */
 const SparklesIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -266,6 +279,7 @@ const AIDemo = ({ script, getImageUrl }) => {
 
 const TrailerModal = ({ script, onClose, getImageUrl }) => {
   const videoRef = useRef(null);
+  const trailerPlaybackUrl = resolveTrailerUrl(script);
   useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handleKey);
@@ -278,7 +292,7 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -286,29 +300,35 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.96, opacity: 0 }}
           transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="relative w-full max-w-3xl rounded-2xl overflow-hidden bg-black shadow-2xl"
+          className="relative w-full max-w-3xl max-h-[88vh] rounded-2xl overflow-hidden bg-[#050b16] shadow-2xl border border-white/20 flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#081426]">
+            <p className="text-sm font-semibold text-white/90">Trailer Preview</p>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-lg border border-white/25 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/20 transition-colors"
+              aria-label="Close trailer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
           {/* Video or AI Demo */}
-          {script.trailerUrl ? (
-            <video
-              ref={videoRef}
-              src={script.trailerUrl.startsWith("http") ? script.trailerUrl : `${API_BASE_URL}${script.trailerUrl}`}
-              controls
-              autoPlay
-              className="w-full aspect-video"
-              poster={script.coverImage ? getImageUrl(script.coverImage) : undefined}
-            />
+          {trailerPlaybackUrl ? (
+            <div className="p-3 overflow-auto bg-[#020812]">
+              <video
+                ref={videoRef}
+                src={trailerPlaybackUrl}
+                controls
+                controlsList="nodownload"
+                autoPlay
+                className="w-full max-h-[calc(88vh-190px)] object-contain rounded-xl border border-white/10 bg-black"
+                poster={script.coverImage ? getImageUrl(script.coverImage) : undefined}
+              />
+            </div>
           ) : (
             <AIDemo script={script} getImageUrl={getImageUrl} />
           )}
@@ -357,6 +377,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
   }, [paused, next]);
 
   const script = SLIDES[current];
+  const trailerPlaybackUrl = resolveTrailerUrl(script);
   const resolveImg = (url) => {
     if (!url) return null;
     return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
@@ -468,7 +489,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
                   </svg>
                   View Project
                 </Link>
-                {script.trailerUrl && (
+                {trailerPlaybackUrl && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onWatchPreview(script); }}
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white rounded-xl text-sm font-bold transition-colors"

@@ -107,7 +107,7 @@ const applySpotlightPackageState = (script, now = new Date()) => {
   };
   script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
-  if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+  if (!script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus)) {
     script.trailerStatus = "requested";
   }
 
@@ -2661,7 +2661,7 @@ export const activateProjectSpotlight = async (req, res) => {
       };
       script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
-      if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+      if (!script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus)) {
         script.trailerStatus = "requested";
       }
 
@@ -3300,16 +3300,31 @@ export const uploadScriptTrailer = async (req, res) => {
     const trailerUrl = result.secure_url;
     script.uploadedTrailerUrl = trailerUrl;
     script.trailerSource = "uploaded";
-    script.trailerStatus = "ready";
-    script.trailerWriterFeedback = {
-      status: "approved",
-      note: "",
-      updatedAt: new Date(),
-    };
+
+    const shouldKeepAiQueue = Boolean(script.services?.aiTrailer && !script.trailerUrl);
+    if (shouldKeepAiQueue) {
+      if (!["requested", "generating"].includes(script.trailerStatus)) {
+        script.trailerStatus = "requested";
+      }
+      script.trailerWriterFeedback = {
+        status: "pending",
+        note: script.trailerWriterFeedback?.note || "",
+        updatedAt: new Date(),
+      };
+    } else {
+      script.trailerStatus = "ready";
+      script.trailerWriterFeedback = {
+        status: "approved",
+        note: "",
+        updatedAt: new Date(),
+      };
+    }
     await script.save();
 
     res.json({
-      message: "Trailer uploaded successfully (free)",
+      message: shouldKeepAiQueue
+        ? "Trailer uploaded successfully. AI trailer request is still active."
+        : "Trailer uploaded successfully (free)",
       trailerUrl,
       trailerSource: "uploaded",
       script
@@ -3337,6 +3352,50 @@ export const requestScriptAITrailer = async (req, res) => {
 
     if (script.trailerStatus === "ready" && script.trailerUrl) {
       return res.status(400).json({ message: "AI trailer is already ready for this script" });
+    }
+
+    const alreadyPaid = Boolean(
+      script.services?.aiTrailer || Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0
+    );
+
+    if (!alreadyPaid) {
+      const user = await User.findById(req.user._id);
+      const requiredCredits = CREDIT_PRICES.AI_TRAILER;
+      const userBalance = user?.credits?.balance || 0;
+
+      if (userBalance < requiredCredits) {
+        return res.status(402).json({
+          message: `Insufficient credits. AI Trailer generation requires ${requiredCredits} credits.`,
+          requiresCredits: true,
+          required: requiredCredits,
+          balance: userBalance,
+          shortfall: requiredCredits - userBalance,
+        });
+      }
+
+      user.credits.balance -= requiredCredits;
+      user.credits.totalSpent += requiredCredits;
+      user.credits.transactions.push({
+        type: "spent",
+        amount: -requiredCredits,
+        description: `AI Trailer generation for "${script.title}"`,
+        reference: `TRAILER-${Date.now().toString(36).toUpperCase()}`,
+        createdAt: new Date(),
+      });
+      await user.save();
+
+      const currentBilling = script.billing || {};
+      script.billing = {
+        ...currentBilling,
+        evaluationCreditsCharged: Number(currentBilling.evaluationCreditsCharged || 0),
+        aiTrailerCreditsCharged: Number(currentBilling.aiTrailerCreditsCharged || 0) + requiredCredits,
+        evaluationCreditsRefunded: Number(currentBilling.evaluationCreditsRefunded || 0),
+        aiTrailerCreditsRefunded: Number(currentBilling.aiTrailerCreditsRefunded || 0),
+        spotlightCreditsSpent: Number(currentBilling.spotlightCreditsSpent || 0),
+        lastSpotlightRefundCredits: Number(currentBilling.lastSpotlightRefundCredits || 0),
+        lastSpotlightActivatedAt: currentBilling.lastSpotlightActivatedAt,
+      };
+      script.markModified("billing");
     }
 
     script.services = {
