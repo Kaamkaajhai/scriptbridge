@@ -486,6 +486,7 @@ export const updateScript = async (req, res) => {
 export const uploadScript = async (req, res) => {
   try {
     const {
+      scriptId,
       title,
       logline,
       format,
@@ -676,9 +677,32 @@ export const uploadScript = async (req, res) => {
       status: "pending_approval" // Requires admin approval before publishing
     };
 
-    // If updating from a draft (if we pass draftId in the future), we could update instead of create.
-    // For now, assume it's a new or finalized creation.
-    const script = await Script.create(scriptData);
+    let script;
+
+    if (scriptId) {
+      const existingDraft = await Script.findById(scriptId);
+
+      if (!existingDraft) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      if (existingDraft.creator.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: "Not authorized to publish this draft" });
+      }
+
+      if (existingDraft.isDeleted) {
+        return res.status(410).json({ message: "This draft was deleted and cannot be published." });
+      }
+
+      if (existingDraft.status !== "draft") {
+        return res.status(409).json({ message: "This project is already submitted." });
+      }
+
+      existingDraft.set(scriptData);
+      script = await existingDraft.save();
+    } else {
+      script = await Script.create(scriptData);
+    }
 
     const invoice = await Invoice.create({
       invoiceNumber,
@@ -3167,8 +3191,19 @@ export const verifyScriptHold = async (req, res) => {
 
 // File filters
 const imageFileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-  if (allowed.includes(file.mimetype)) {
+  const allowed = [
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+    "image/png",
+    "image/x-png",
+    "image/webp",
+    "image/gif",
+  ];
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const extensionAllowed = [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext);
+
+  if (allowed.includes(file.mimetype) || extensionAllowed) {
     cb(null, true);
   } else {
     cb(new Error("Only JPEG, PNG, WebP and GIF images are allowed"), false);
@@ -3194,7 +3229,7 @@ export const uploadThumbnail = multer({
 export const uploadTrailer = multer({
   storage: multer.memoryStorage(),
   fileFilter: videoFileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+  limits: { fileSize: 250 * 1024 * 1024 } // 250MB limit
 });
 
 // ── Upload Thumbnail Controller (Cloudinary) ──
