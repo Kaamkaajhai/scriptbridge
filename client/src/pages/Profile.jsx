@@ -257,6 +257,7 @@ const Profile = () => {
     try {
       await api.delete(`/scripts/${scriptId}`);
       setScripts((prev) => prev.filter((s) => s._id !== scriptId));
+      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: scriptId } }));
     } catch (error) {
       console.error("Delete failed:", error);
     }
@@ -545,7 +546,7 @@ const Profile = () => {
       >
         {/* Cover — clean solid for writers */}
         <div
-          className={`${isWriterUser ? "h-56 sm:h-60" : "h-36 sm:h-44"} rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
+          className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
         >
           {/* Subtle dot pattern — single, no gradients */}
           <div className="absolute inset-0" style={{
@@ -553,13 +554,6 @@ const Profile = () => {
             backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
             backgroundSize: "24px 24px",
           }} />
-          {isWriterUser && (
-            <>
-              <div className={`absolute -left-8 -top-10 w-40 h-40 rounded-full blur-2xl ${dark ? "bg-[#2f5485]/35" : "bg-[#89b8ff]/35"}`} />
-              <div className={`absolute right-8 top-8 w-24 h-24 rounded-full blur-xl ${dark ? "bg-[#6ca6ff]/25" : "bg-white/45"}`} />
-            </>
-          )}
-
           {/* Edit / Follow button */}
           <div className="absolute top-4 right-4 z-10 flex gap-2">
             {isOwnProfile ? (
@@ -593,80 +587,79 @@ const Profile = () => {
 
         {/* Writer-first premium hero */}
         {isWriterUser ? (
-          <div className="px-5 sm:px-8 lg:px-10 pb-7 -mt-20 sm:-mt-24 relative z-20">
-            <div className={`rounded-3xl border backdrop-blur-xl ${t.writerPanel}`}>
-              <div className="p-5 sm:p-7 flex flex-col lg:flex-row lg:items-end gap-5 sm:gap-6">
-                <div className="shrink-0">
-                  {profile.profileImage ? (
-                    <img
-                      src={resolveImage(profile.profileImage)}
-                      alt={profile.name}
-                      className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover ring-[5px] shadow-2xl ring-white/30"
-                    />
-                  ) : (
-                    <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[5px] shadow-2xl ring-white/30 ${t.avatarGrad}`}>
-                      <span className="text-4xl sm:text-5xl font-extrabold text-white/85">
-                        {profile.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
+          <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
+            <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
+              <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="shrink-0">
+                    {profile.profileImage ? (
+                      <img
+                        src={resolveImage(profile.profileImage)}
+                        alt={profile.name}
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                      />
+                    ) : (
+                      <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                        <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
+                          {profile.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="space-y-2.5">
-                    <h1 className={`text-3xl sm:text-4xl font-black tracking-tight leading-none ${t.writerName}`}>
-                      {profile.name}
-                    </h1>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.13em] border ${t.roleBg}`}>
+                      <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                         {profile.role}
                       </span>
                       {profile.writerProfile?.wgaMember && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.13em] border ${t.wgaBadge}`}>WGA</span>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>WGA</span>
                       )}
-                      {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-semibold capitalize border ${t.repBadge}`}>
-                          {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
+                    </div>
+
+                    {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
+                      <p className={`text-[13px] mt-1.5 capitalize ${dark ? "text-white/50" : "text-gray-600"}`}>
+                        {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
+                        {profile.writerProfile?.agencyName ? ` at ${profile.writerProfile.agencyName}` : ""}
+                      </p>
+                    )}
+
+                    {isOwnProfile && (
+                      <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
+                    )}
+
+                    {profile.bio && (
+                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
+                        {profile.bio}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      {memberSince && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          Joined {memberSince}
+                        </span>
+                      )}
+                      {(profile.writerProfile?.genres?.length || 0) > 0 && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          {profile.writerProfile.genres.length} Genres
                         </span>
                       )}
                     </div>
                   </div>
-
-                  <div className="mt-3 space-y-2">
-                    {isOwnProfile && <p className={`text-[13px] font-semibold ${t.email}`}>{profile.email}</p>}
-                    {profile.bio && (
-                      <p className={`text-[14px] leading-relaxed line-clamp-2 ${t.writerPanelSub}`}>
-                        {profile.bio}
-                      </p>
-                    )}
-                  </div>
-
-                  {profile.skills?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3.5">
-                      {profile.skills.slice(0, 8).map((skill, i) => (
-                        <span key={i} className={`px-3 py-1 rounded-full text-[11px] font-semibold border ${t.chip}`}>{skill}</span>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
 
-              <div className="px-5 sm:px-7 pb-5 sm:pb-7">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+                <div className="grid grid-cols-2 gap-2.5 w-full lg:w-[420px]">
                   {[
-                    { value: scripts.length, label: "Projects" },
-                    { value: profile.followers.length, label: "Followers" },
-                    { value: profile.following.length, label: "Following" },
-                    { value: profile.writerProfile?.genres?.length || 0, label: "Genres" },
-                    ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
-                  ].map((s) => (
-                    <div key={s.label} className={`rounded-xl p-3.5 border text-center ${t.writerStatCard}`}>
-                      <p className={`${s.isStr ? "text-[13px]" : "text-[22px]"} font-extrabold tabular-nums ${t.writerStatValue}`}>
-                        {s.value}
-                      </p>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-0.5 ${t.writerStatLabel}`}>
-                        {s.label}
-                      </p>
+                    { label: "Projects", value: scripts.length },
+                    { label: "Followers", value: profile.followers.length },
+                    { label: "Following", value: profile.following.length },
+                    { label: "Genres", value: profile.writerProfile?.genres?.length || 0 },
+                  ].map((item) => (
+                    <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                      <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                     </div>
                   ))}
                 </div>

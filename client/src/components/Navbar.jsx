@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import BuyCreditsModal from "./BuyCreditsModal";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
+import ConfirmDialog from "./ConfirmDialog";
 import {
   Zap, TrendingUp, TrendingDown, ArrowDownLeft, ArrowUpRight,
   Gift, RefreshCw, ShoppingCart, X, Loader2, ChevronRight
@@ -21,6 +22,7 @@ const Navbar = () => {
   const [creditsData, setCreditsData] = useState(null);
   const [creditsLoading, setCreditsLoading] = useState(false);
   const [recentTx, setRecentTx] = useState([]);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const dropdownRef = useRef(null);
   const creditsPanelRef = useRef(null);
@@ -112,6 +114,15 @@ const Navbar = () => {
   const txColor = (type) => {
     if (type === "spent") return dark ? "text-orange-400 bg-orange-400/10" : "text-orange-600 bg-orange-50";
     return dark ? "text-emerald-400 bg-emerald-400/10" : "text-emerald-600 bg-emerald-50";
+  };
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
   };
 
   return (
@@ -285,13 +296,24 @@ const Navbar = () => {
           )}
 
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className={`text-[13px] font-semibold transition-colors ${dark ? "text-gray-500 hover:text-red-400" : "text-gray-500 hover:text-red-600"}`}
           >
             Log out
           </button>
         </div>
       </nav>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Log out"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Log out"
+        cancelText="Cancel"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+        isDarkMode={dark}
+      />
     </>
   );
 };
