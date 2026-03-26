@@ -1807,6 +1807,7 @@ const AdminDashboard = () => {
 
 
     return (
+        <>
         <div className="fixed inset-0 z-[9999] flex flex-col bg-[#060e1a] text-white overflow-hidden">
             {/* ─── Admin Header ─── */}
             <header className="h-14 shrink-0 flex items-center justify-between px-5 border-b border-[#1a3050] bg-[#0b1628]">
@@ -1943,6 +1944,7 @@ const AdminDashboard = () => {
             onCancel={() => setShowLogoutConfirm(false)}
             isDarkMode={true}
         />
+        </>
     );
 };
 
