@@ -1086,6 +1086,25 @@ const CreateProject = () => {
   ];
   const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
   const creditsAfterPublish = creditsBalance - totalServiceCost;
+  const trailerWorkflowHint = services.aiTrailer
+    ? trailerFile
+      ? {
+          tone: "info",
+          title: "Trailer workflow",
+          text: "Your uploaded trailer is used immediately after publish. AI Concept Trailer will replace it only when AI output is approved and ready.",
+        }
+      : {
+          tone: "warn",
+          title: "Trailer workflow",
+          text: "AI Concept Trailer is selected without an uploaded trailer. Your project may show no trailer until the AI trailer is generated.",
+        }
+    : trailerFile
+      ? {
+          tone: "success",
+          title: "Trailer workflow",
+          text: "Your uploaded trailer will be shown in your project after publish.",
+        }
+      : null;
   const publishInvoiceRows = [
     {
       item: "Script Access",
@@ -2417,6 +2436,28 @@ const CreateProject = () => {
                         </button>
                       ))}
                     </div>
+
+                    {trailerWorkflowHint && (
+                      <div className={`mt-4 rounded-xl border px-3.5 py-3 ${trailerWorkflowHint.tone === "warn"
+                        ? dark
+                          ? "bg-amber-500/8 border-amber-400/25"
+                          : "bg-amber-50 border-amber-200"
+                        : trailerWorkflowHint.tone === "success"
+                          ? dark
+                            ? "bg-emerald-500/8 border-emerald-400/20"
+                            : "bg-emerald-50 border-emerald-200"
+                          : dark
+                            ? "bg-blue-500/8 border-blue-400/20"
+                            : "bg-blue-50 border-blue-200"
+                        }`}>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                          {trailerWorkflowHint.title}
+                        </p>
+                        <p className={`text-[12px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                          {trailerWorkflowHint.text}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>

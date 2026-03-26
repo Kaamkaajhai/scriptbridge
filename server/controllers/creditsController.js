@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import CreditPackage from "../models/CreditPackage.js";
 import Transaction from "../models/Transaction.js";
+import Notification from "../models/Notification.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -151,6 +152,30 @@ const getRazorpay = () => {
     });
   }
   return razorpayInstance;
+};
+
+const createCreditPurchaseNotifications = async ({ user, purchase, totalCredits, paymentMethod }) => {
+  const currency = (purchase.currency || "INR").toUpperCase();
+  const amountLabel = `${currency} ${Number(purchase.price || 0).toLocaleString("en-IN")}`;
+
+  const buyerNotification = {
+    user: user._id,
+    type: "purchase",
+    message: `Credits added: ${totalCredits} credits purchased successfully (${purchase.name}) for ${amountLabel}.`,
+  };
+
+  const adminUsers = await User.find({ role: "admin" }).select("_id").lean();
+  const adminNotifications = adminUsers.map((admin) => ({
+    user: admin._id,
+    type: "admin_alert",
+    from: user._id,
+    message: `${user.name || "A writer"} purchased ${totalCredits} credits via ${paymentMethod}.`,
+  }));
+
+  const payload = [buyerNotification, ...adminNotifications];
+  if (payload.length > 0) {
+    await Notification.insertMany(payload);
+  }
 };
 
 // Credit pricing for different services
@@ -309,6 +334,17 @@ export const purchaseCredits = async (req, res) => {
         customCredits: purchase.isCustom ? purchase.credits : undefined,
       }
     });
+
+    try {
+      await createCreditPurchaseNotifications({
+        user,
+        purchase,
+        totalCredits,
+        paymentMethod,
+      });
+    } catch (notificationError) {
+      console.error("Credit purchase notification error:", notificationError.message);
+    }
     
     res.json({
       message: "Credits purchased successfully",
@@ -645,6 +681,17 @@ export const verifyRazorpayPayment = async (req, res) => {
         razorpay_payment_id
       }
     });
+
+    try {
+      await createCreditPurchaseNotifications({
+        user,
+        purchase,
+        totalCredits,
+        paymentMethod: "razorpay",
+      });
+    } catch (notificationError) {
+      console.error("Razorpay credit notification error:", notificationError.message);
+    }
     
     res.json({
       success: true,
