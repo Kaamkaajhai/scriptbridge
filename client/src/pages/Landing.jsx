@@ -408,25 +408,6 @@ const Landing = () => {
             </motion.div>
           </div>
 
-          {/* Lightweight stat strip */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="mt-14 sm:mt-20 pt-8 border-t border-[#151f2e] grid grid-cols-2 md:grid-cols-4 gap-5 sm:gap-8"
-          >
-            {[
-              { number: "1,000+", label: "Scripts Uploaded" },
-              { number: "₹5Cr+", label: "Creator Earnings" },
-              { number: "500+", label: "Deals Matched" },
-              { number: "95%", label: "Satisfaction Rate" },
-            ].map((stat, i) => (
-              <div key={i} className="text-center md:text-left">
-                <p className="text-xl sm:text-2xl font-bold text-white mb-0.5">{stat.number}</p>
-                <p className="text-xs sm:text-sm text-[#4a5a6e]">{stat.label}</p>
-              </div>
-            ))}
-          </motion.div>
         </div>
       </section>
 
