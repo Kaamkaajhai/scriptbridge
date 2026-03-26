@@ -82,7 +82,11 @@ export const getScripts = async (req, res) => {
     try {
         const { search, status, page = 1, limit = 20 } = req.query;
         const filter = {};
-        if (status) filter.status = status;
+        if (status === "deleted") {
+            filter.isDeleted = true;
+        } else if (status) {
+            filter.status = status;
+        }
         if (search) {
             filter.$or = [
                 { sid: { $regex: search, $options: "i" } },

@@ -151,6 +151,7 @@ const Profile = () => {
 
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
+  const [deletedScripts, setDeletedScripts] = useState([]);
   const [purchasedScripts, setPurchasedScripts] = useState([]);
   const [investorStats, setInvestorStats] = useState(null);
   const [bookmarkedScripts, setBookmarkedScripts] = useState([]);
@@ -197,7 +198,8 @@ const Profile = () => {
 
       const { data } = await api.get(`/users/${profileId}`);
       setProfile(data.user);
-      setScripts((data.scripts || []).filter((s) => s.status !== "draft"));
+      setScripts((data.scripts || []).filter((s) => s.status !== "draft" && !s.isDeleted));
+      setDeletedScripts(data.deletedScripts || []);
       setPurchasedScripts(data.purchasedScripts || []);
       setBookmarkedScripts(data.bookmarkedScripts || []);
       setBlockedUsers(Array.isArray(data.user.blockedUsers) ? data.user.blockedUsers : []);
@@ -256,7 +258,16 @@ const Profile = () => {
   const handleDeleteScript = async (scriptId) => {
     try {
       await api.delete(`/scripts/${scriptId}`);
-      setScripts((prev) => prev.filter((s) => s._id !== scriptId));
+      setScripts((prev) => {
+        const deletedScript = prev.find((s) => s._id === scriptId);
+        if (deletedScript) {
+          setDeletedScripts((existing) => [
+            { ...deletedScript, isDeleted: true, deletedAt: new Date().toISOString() },
+            ...existing.filter((s) => s._id !== scriptId),
+          ]);
+        }
+        return prev.filter((s) => s._id !== scriptId);
+      });
       window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: scriptId } }));
     } catch (error) {
       console.error("Delete failed:", error);
@@ -729,15 +740,18 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2.5 w-full lg:w-[360px]">
+                    <div className="grid grid-cols-2 min-[396px]:grid-cols-3 gap-2 w-full lg:w-[360px]">
                       {[
                         { label: "Followers", value: profile.followers.length },
                         { label: "Following", value: profile.following.length },
                         { label: "Purchased", value: investorStats?.scriptsPurchased ?? purchasedScripts.length },
                       ].map((item) => (
-                        <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                        <div
+                          key={item.label}
+                          className={`rounded-xl border px-2.5 min-[396px]:px-3 py-2.5 min-[396px]:py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}
+                        >
                           <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                          <p className={`text-[9px] min-[396px]:text-[10px] font-bold uppercase tracking-[0.09em] min-[396px]:tracking-[0.14em] leading-tight mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                         </div>
                       ))}
                     </div>
@@ -1500,6 +1514,11 @@ const Profile = () => {
                       </svg>
                       Purchased
                     </span>
+                    {script.isDeleted && (
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${dark ? "bg-amber-500/10 text-amber-300 border-amber-400/20" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                        Deleted by creator
+                      </span>
+                    )}
                     {script.price > 0 && (
                       <span className={`text-[12px] font-bold ${dark ? "text-white/30" : "text-gray-400"}`}>{formatCurrency(script.price, "INR")}</span>
                     )}
@@ -1759,6 +1778,61 @@ const Profile = () => {
               </div>
             )}
           </SectionCard>
+
+          {isWriterUser && (
+            <SectionCard
+              dark={dark}
+              title="Deleted Projects"
+              badge={`${deletedScripts.length}`}
+              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>}
+            >
+              {deletedScripts.length === 0 ? (
+                <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>
+                  No deleted projects yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {deletedScripts.map((script) => (
+                    <div
+                      key={script._id}
+                      className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}
+                    >
+                      {script.coverImage ? (
+                        <img
+                          src={resolveImage(script.coverImage)}
+                          alt={script.title}
+                          className="w-10 h-10 rounded-lg object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center ${dark ? "bg-white/[0.06] text-white/40" : "bg-gray-200 text-gray-500"}`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V8.25A2.25 2.25 0 015.25 6h13.5A2.25 2.25 0 0121 8.25v8.25M3 16.5l4.586-4.586a2.25 2.25 0 013.182 0L15 16.146m6 0l-3.586-3.586a2.25 2.25 0 00-3.182 0L12 14.793" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-800"}`}>
+                          {script.title}
+                        </p>
+                        <p className={`text-[11px] mt-0.5 ${dark ? "text-white/30" : "text-gray-500"}`}>
+                          {script.genre || "Unspecified genre"}
+                          {script.format ? ` \u00b7 ${script.format.replace(/_/g, " ")}` : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-red-300/70" : "text-red-600"}`}>
+                          Deleted
+                        </p>
+                        <p className={`text-[11px] ${dark ? "text-white/30" : "text-gray-500"}`}>
+                          {new Date(script.deletedAt || script.updatedAt || script.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          )}
 
           {/* Danger Zone */}
           <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>

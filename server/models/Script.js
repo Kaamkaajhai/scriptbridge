@@ -113,6 +113,9 @@ const scriptSchema = new mongoose.Schema({
   purchaseRequestLockedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   purchaseRequestLockedAt: { type: Date },
   unlockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  purchasedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date },
   // AI Trailer (Text-to-Trailer)
   trailerUrl: { type: String },
   trailerThumbnail: { type: String },

@@ -1,6 +1,8 @@
 import User from "../models/User.js";
 import Post from "../models/Post.js";
 import Script from "../models/Script.js";
+import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
+import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
 import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
@@ -338,24 +340,60 @@ export const getUserProfile = async (req, res) => {
       .sort({ createdAt: -1 });
 
     const scriptQuery = isOwnProfile
-      ? { creator: req.params.id }
+      ? { creator: req.params.id, isDeleted: { $ne: true } }
       : {
           creator: req.params.id,
           status: { $ne: "draft" },
           purchaseRequestLocked: { $ne: true },
+          isDeleted: { $ne: true },
         };
 
     const scripts = await Script.find(scriptQuery)
       .populate("creator", "name profileImage role")
       .sort({ createdAt: -1 });
 
+    const isWriterUser = ["writer", "creator"].includes(user.role);
+
+    let deletedScripts = [];
+    if (isOwnProfile && isWriterUser) {
+      deletedScripts = await Script.find({ creator: req.params.id, isDeleted: true })
+        .populate("creator", "name profileImage role")
+        .select("_id title genre format coverImage logline isDeleted deletedAt createdAt")
+        .sort({ deletedAt: -1, updatedAt: -1 });
+    }
+
     // Fetch scripts purchased by this user (only for own profile or investor/producer viewing)
     const isPro = ["investor", "producer", "director"].includes(user.role);
     let purchasedScripts = [];
     if (isOwnProfile && isPro) {
-      purchasedScripts = await Script.find({ unlockedBy: req.params.id })
+      const [approvedPurchaseScriptIds, convertedOptionScriptIds] = await Promise.all([
+        ScriptPurchaseRequest.distinct("script", { investor: req.params.id, status: "approved" }),
+        ScriptOption.distinct("script", { holder: req.params.id, status: "converted" }),
+      ]);
+
+      const linkedPurchaseScriptIds = [
+        ...approvedPurchaseScriptIds,
+        ...convertedOptionScriptIds,
+      ].filter(Boolean);
+
+      const purchasedQuery = linkedPurchaseScriptIds.length > 0
+        ? {
+            $or: [
+              { unlockedBy: req.params.id },
+              { purchasedBy: req.params.id },
+              { _id: { $in: linkedPurchaseScriptIds } },
+            ],
+          }
+        : {
+            $or: [
+              { unlockedBy: req.params.id },
+              { purchasedBy: req.params.id },
+            ],
+          };
+
+      purchasedScripts = await Script.find(purchasedQuery)
         .populate("creator", "name profileImage role")
-        .select("_id title genre format price coverImage creator premium createdAt logline unlockedBy")
+        .select("_id title genre format price coverImage creator premium createdAt logline unlockedBy purchasedBy isDeleted deletedAt")
         .sort({ createdAt: -1 });
     }
 
@@ -364,6 +402,7 @@ export const getUserProfile = async (req, res) => {
       bookmarkedScripts = await Script.find({
         _id: { $in: user.favoriteScripts },
         status: "published",
+        isDeleted: { $ne: true },
         $or: [
           { purchaseRequestLocked: { $ne: true } },
           { purchaseRequestLockedBy: req.user._id },
@@ -386,7 +425,7 @@ export const getUserProfile = async (req, res) => {
     userObj.blockedByCurrent = blockedByCurrent;
     userObj.blockedByProfile = blockedByProfile;
 
-    res.json({ user: userObj, posts, scripts, purchasedScripts, bookmarkedScripts });
+    res.json({ user: userObj, posts, scripts, deletedScripts, purchasedScripts, bookmarkedScripts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -872,7 +911,7 @@ export const getWatchlist = async (req, res) => {
     const savedScriptIds = user.industryProfile?.savedScripts || [];
 
     // Populate the script details
-    const scripts = await Script.find({ _id: { $in: savedScriptIds } })
+    const scripts = await Script.find({ _id: { $in: savedScriptIds }, isDeleted: { $ne: true } })
       .populate("creator", "name profileImage")
       .sort({ createdAt: -1 });
 

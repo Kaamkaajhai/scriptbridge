@@ -49,6 +49,7 @@ const PUBLIC_SCRIPT_FILTER = {
   status: "published",
   isSold: { $ne: true },
   purchaseRequestLocked: { $ne: true },
+  isDeleted: { $ne: true },
 };
 
 const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
@@ -148,6 +149,30 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
   ];
 };
 
+const hasUserInIdArray = (arr = [], userId) =>
+  Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
+
+const getPurchasedUserIdSet = async (script) => {
+  const approvedPurchaseRequests = await ScriptPurchaseRequest.find({
+    script: script._id,
+    status: "approved",
+  }).select("investor").lean();
+
+  const convertedOptions = await ScriptOption.find({
+    script: script._id,
+    status: "converted",
+  }).select("holder").lean();
+
+  return new Set(
+    [
+      ...(Array.isArray(script.unlockedBy) ? script.unlockedBy.map((id) => id?.toString?.()) : []),
+      ...(Array.isArray(script.purchasedBy) ? script.purchasedBy.map((id) => id?.toString?.()) : []),
+      ...approvedPurchaseRequests.map((row) => row?.investor?.toString?.()),
+      ...convertedOptions.map((row) => row?.holder?.toString?.()),
+    ].filter(Boolean)
+  );
+};
+
 export const extractPdfText = async (req, res) => {
   try {
     if (!req.file) {
@@ -181,6 +206,9 @@ export const saveDraft = async (req, res) => {
       if (!script) return res.status(404).json({ message: "Script not found" });
       if (script.creator.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: "Not authorized" });
+      }
+      if (script.isDeleted) {
+        return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
       }
 
       script.title = title || script.title;
@@ -218,12 +246,14 @@ export const saveDraft = async (req, res) => {
     }
 
     // Otherwise create a new draft
+    const { _id, id, sid, ...safeOtherData } = otherData || {};
+
     const newDraft = await Script.create({
       creator: req.user._id,
       title: title || "Untitled Draft",
       textContent: textContent || "",
       status: "draft",
-      ...otherData
+      ...safeOtherData
     });
 
     res.status(201).json(newDraft);
@@ -239,8 +269,55 @@ export const deleteScript = async (req, res) => {
     if (script.creator.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    await Script.findByIdAndDelete(req.params.id);
-    res.json({ message: "Script deleted" });
+
+    if (script.isDeleted) {
+      return res.json({ message: "Project already deleted", softDeleted: true });
+    }
+
+    const purchasedUserIds = await getPurchasedUserIdSet(script);
+    if (purchasedUserIds.size > 0) {
+      const mergedIds = Array.from(purchasedUserIds).map((id) => new mongoose.Types.ObjectId(id));
+      script.unlockedBy = mergedIds;
+      script.purchasedBy = mergedIds;
+    }
+
+    script.isDeleted = true;
+    script.deletedAt = new Date();
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
+    await script.save();
+
+    console.info("[AUDIT] Script soft deleted", {
+      scriptId: script._id.toString(),
+      scriptSid: script.sid || "",
+      deletedBy: req.user._id.toString(),
+      purchasedUserCount: purchasedUserIds.size,
+      deletedAt: script.deletedAt.toISOString(),
+    });
+
+    await notifyAdminWorkflowEvent({
+      title: "Writer Project Deleted",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project "${script.title}" was deleted by the creator (soft-delete).`,
+      metadata: {
+        scriptId: script._id,
+        scriptSid: script.sid || "",
+        writerId: req.user._id,
+        isDeleted: true,
+        purchasedUserCount: purchasedUserIds.size,
+      },
+    }).catch(() => null);
+
+    return res.json({
+      message: purchasedUserIds.size > 0
+        ? "Project removed from platform listings. Existing buyers retain access."
+        : "Project removed from platform listings.",
+      softDeleted: true,
+      isDeleted: true,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -248,7 +325,7 @@ export const deleteScript = async (req, res) => {
 
 export const getMyDrafts = async (req, res) => {
   try {
-    const drafts = await Script.find({ creator: req.user._id, status: "draft" })
+    const drafts = await Script.find({ creator: req.user._id, status: "draft", isDeleted: { $ne: true } })
       .sort({ updatedAt: -1 })
       .lean();
     res.json(drafts);
@@ -259,7 +336,7 @@ export const getMyDrafts = async (req, res) => {
 
 export const getMyScripts = async (req, res) => {
   try {
-    const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" } })
+    const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" }, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
       .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt")
       .populate("creator", "name profileImage")
@@ -276,6 +353,9 @@ export const updateScript = async (req, res) => {
     if (!script) return res.status(404).json({ message: "Script not found" });
     if (script.creator.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized to edit this script" });
+    }
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
     }
 
     const {
@@ -878,13 +958,27 @@ export const getScriptById = async (req, res) => {
     }
 
     const isOwner = script.creator._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === "admin";
+    let isBuyer = hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
+
+    if (!isBuyer) {
+      const [approvedPurchase, convertedOption] = await Promise.all([
+        ScriptPurchaseRequest.exists({ script: script._id, investor: req.user._id, status: "approved" }),
+        ScriptOption.exists({ script: script._id, holder: req.user._id, status: "converted" }),
+      ]);
+      isBuyer = Boolean(approvedPurchase || convertedOption);
+    }
+
+    // Deleted projects are hidden from writer/public but remain visible to purchasers and admins.
+    if (script.isDeleted && !isAdmin && !isBuyer) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
     if (script.status === "draft" && !isOwner) {
       return res.status(403).json({ message: "This draft is private" });
     }
 
     // Block access to sold scripts — only allow creator, buyer, and admins
-    const isBuyer = script.unlockedBy?.some(uid => uid.toString() === req.user._id.toString());
-    const isAdmin = req.user.role === "admin";
     if (script.isSold && !isOwner && !isBuyer && !isAdmin) {
       return res.status(403).json({ message: "This script has been purchased and is no longer publicly available" });
     }
@@ -942,7 +1036,7 @@ export const getScriptById = async (req, res) => {
     }
 
     // Check if user has unlocked this script
-    const isUnlocked = script.unlockedBy.includes(req.user._id);
+    const isUnlocked = isBuyer || hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
     const isCreator = script.creator._id.toString() === req.user._id.toString();
     const userRole = req.user.role;
     const isWriter = userRole === 'writer' || userRole === 'creator';
@@ -1003,6 +1097,9 @@ export const unlockScript = async (req, res) => {
   try {
     const script = await Script.findById(req.body.scriptId);
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     // Only investors, producers, directors, and industry professionals can unlock
     const allowedRoles = ['investor', 'producer', 'director', 'industry', 'professional'];
@@ -1017,8 +1114,12 @@ export const unlockScript = async (req, res) => {
       return res.status(400).json({ message: "You already have access to your own script" });
     }
 
-    if (!script.unlockedBy.includes(req.user._id)) {
+    if (!hasUserInIdArray(script.unlockedBy, req.user._id) && !hasUserInIdArray(script.purchasedBy, req.user._id)) {
       script.unlockedBy.push(req.user._id);
+      script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+      if (!hasUserInIdArray(script.purchasedBy, req.user._id)) {
+        script.purchasedBy.push(req.user._id);
+      }
       script.isSold = true; // hide from all public listings once purchased
       await script.save();
 
@@ -1052,12 +1153,15 @@ export const requestScriptPurchase = async (req, res) => {
 
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     if (script.creator._id.toString() === req.user._id.toString()) {
       return res.status(400).json({ message: "You cannot purchase your own script." });
     }
 
-    if (script.unlockedBy.some((uid) => uid.toString() === req.user._id.toString())) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({ message: "You already have access to this script." });
     }
 
@@ -1200,6 +1304,9 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     const script = purchaseRequest.script;
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and cannot be approved for new purchase." });
+    }
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
@@ -1291,8 +1398,12 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     // Grant access to the script
-    if (!script.unlockedBy.some((uid) => uid.toString() === investor._id.toString())) {
+    if (!hasUserInIdArray(script.unlockedBy, investor._id)) {
       script.unlockedBy.push(investor._id);
+    }
+    script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+    if (!hasUserInIdArray(script.purchasedBy, investor._id)) {
+      script.purchasedBy.push(investor._id);
     }
 
     script.isSold = true;
@@ -1522,12 +1633,12 @@ export const getMyPurchaseRequests = async (req, res) => {
 
     if (isWriterRole) {
       requests = await ScriptPurchaseRequest.find({ writer: req.user._id })
-        .populate("script", "title price thumbnailUrl")
+        .populate("script", "title price thumbnailUrl isDeleted deletedAt")
         .populate("investor", "name profileImage role")
         .sort({ createdAt: -1 });
     } else if (isInvestorRole) {
       requests = await ScriptPurchaseRequest.find({ investor: req.user._id })
-        .populate("script", "title price thumbnailUrl creator")
+        .populate("script", "title price thumbnailUrl creator isDeleted deletedAt")
         .populate("writer", "name profileImage role")
         .sort({ createdAt: -1 });
     } else {
@@ -1549,6 +1660,9 @@ export const holdScript = async (req, res) => {
     const script = await Script.findById(scriptId);
 
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available." });
+    }
     if (script.holdStatus === "held") {
       return res.status(400).json({ message: "This script is already on hold by another party" });
     }
@@ -1724,7 +1838,7 @@ export const getFeaturedScripts = async (req, res) => {
     const ids = ranked.map((s) => s._id);
 
     // Step 2: fetch full documents with populated creator (preserving sort order)
-    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } }).populate(
+    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true }, isDeleted: { $ne: true } }).populate(
       "creator",
       "name profileImage role"
     );
@@ -2248,9 +2362,12 @@ export const createScriptPurchaseOrder = async (req, res) => {
     if (!script) {
       return res.status(404).json({ message: "Script not found" });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     // Check if already purchased
-    if (script.unlockedBy.includes(req.user._id)) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({ message: "You have already purchased this script" });
     }
 
@@ -2674,9 +2791,15 @@ export const verifyScriptPurchase = async (req, res) => {
         success: false
       });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({
+        message: "This project was deleted by creator and is no longer available for new purchases.",
+        success: false,
+      });
+    }
 
     // Check if already unlocked
-    if (script.unlockedBy.includes(req.user._id)) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({
         message: "Script already purchased",
         success: false

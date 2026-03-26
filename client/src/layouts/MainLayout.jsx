@@ -647,7 +647,7 @@ const MainLayout = ({ children }) => {
         <div className="order-2 sm:order-3 ml-auto flex items-center gap-1 sm:gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 relative z-[95] shrink-0">
           <button
             onClick={() => navigate("/search")}
-            className={`sm:hidden min-[640px]:max-[690px]:flex max-[376px]:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`sm:hidden min-[640px]:max-[690px]:flex max-[299px]:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
               isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100"
             }`}
             aria-label="Open search"
@@ -660,7 +660,7 @@ const MainLayout = ({ children }) => {
 
           <button
             onClick={toggleDarkMode}
-            className={`max-[376px]:hidden w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`max-[299px]:hidden w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
               isDarkMode ? "text-amber-300 hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
             }`}
             aria-label="Toggle dark mode"

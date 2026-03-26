@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import Post from "../models/Post.js";
 import Script from "../models/Script.js";
 import ScriptOption from "../models/ScriptOption.js";
+import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import Audition from "../models/Audition.js";
 import Notification from "../models/Notification.js";
 
@@ -29,7 +30,7 @@ export const getDashboardStats = async (req, res) => {
 
       // Aggregate script stats in one query instead of loading every script doc
       Script.aggregate([
-        { $match: { creator: userId } },
+        { $match: { creator: userId, isDeleted: { $ne: true } } },
         {
           $group: {
             _id: null,
@@ -60,7 +61,7 @@ export const getDashboardStats = async (req, res) => {
         .populate("user", "name profileImage")
         .lean(),
 
-      Script.find({ creator: userId })
+      Script.find({ creator: userId, isDeleted: { $ne: true } })
         .sort({ views: -1 })
         .limit(5)
         .select("title views unlockedBy scriptScore trailerStatus holdStatus genre")
@@ -123,7 +124,7 @@ export const getDashboardReviews = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const scripts = await Script.find({ creator: userId, status: "published" })
+    const scripts = await Script.find({ creator: userId, status: "published", isDeleted: { $ne: true } })
       .select("title scriptScore platformScore views unlockedBy genre price holdStatus trailerStatus createdAt")
       .sort({ createdAt: -1 });
 
@@ -295,13 +296,45 @@ export const getInvestorDashboard = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    const totalInvested = allDeals.reduce((sum, d) => sum + d.fee, 0);
+    // Approved purchase requests are the primary close path for script sales.
+    const approvedPurchaseRequests = await ScriptPurchaseRequest.find({
+      investor: userId,
+      status: "approved",
+    })
+      .populate({
+        path: "script",
+        select: "title genre contentType creator coverImage",
+        populate: { path: "creator", select: "name profileImage" },
+      })
+      .sort({ updatedAt: -1 });
+
+    // Fallback for legacy purchase flows where request records may be missing.
+    const purchasedSummary = await Script.aggregate([
+      { $match: { unlockedBy: userId } },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          totalSpent: { $sum: { $ifNull: ["$price", 0] } },
+        },
+      },
+    ]);
+    const purchasedScriptsCount = purchasedSummary[0]?.count || 0;
+    const purchasedScriptsSpent = purchasedSummary[0]?.totalSpent || 0;
+
+    const optionInvested = allDeals.reduce((sum, d) => sum + Number(d.fee || 0), 0);
+    const requestInvested = approvedPurchaseRequests.reduce((sum, r) => sum + Number(r.amount || r.frozenAmount || 0), 0);
+    const resolvedPurchaseInvested = requestInvested > 0 ? requestInvested : purchasedScriptsSpent;
+    const totalInvested = optionInvested + resolvedPurchaseInvested;
     const activeDealsCount = allDeals.filter(d => d.status === "active").length;
-    const convertedDealsCount = allDeals.filter(d => d.status === "converted").length;
+    const optionConvertedDealsCount = allDeals.filter(d => d.status === "converted" || d.convertedToSale === true).length;
+    const resolvedConvertedDeals = approvedPurchaseRequests.length > 0 ? approvedPurchaseRequests.length : purchasedScriptsCount;
+    const convertedDealsCount = optionConvertedDealsCount + resolvedConvertedDeals;
+    const totalDealsCount = allDeals.length + resolvedConvertedDeals;
     const successfulProjects = convertedDealsCount; // Successful projects = converted deals
 
     // Count scripts purchased by this investor
-    const scriptsPurchased = await Script.countDocuments({ unlockedBy: userId });
+    const scriptsPurchased = purchasedScriptsCount;
 
     // Scripts viewed recently
     const recentViews = await Script.find({ _id: { $in: viewedScriptIds.slice(-20) } })
@@ -316,6 +349,7 @@ export const getInvestorDashboard = async (req, res) => {
       adminApproved: true,
       isSold: { $ne: true },
       purchaseRequestLocked: { $ne: true },
+      isDeleted: { $ne: true },
       "scriptScore.overall": { $exists: true },
       holdStatus: "available",
     })
@@ -333,6 +367,7 @@ export const getInvestorDashboard = async (req, res) => {
       holdStatus: "available",
       isSold: { $ne: true },
       purchaseRequestLocked: { $ne: true },
+      isDeleted: { $ne: true },
     };
     if (prefGenres.length > 0) {
       prefQuery.genre = { $in: prefGenres };
@@ -363,12 +398,13 @@ export const getInvestorDashboard = async (req, res) => {
       .limit(5);
 
     // Platform-wide stats (gives investor a market pulse)
-    const totalPlatformScripts = await Script.countDocuments({ status: "published", adminApproved: true, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } });
+    const totalPlatformScripts = await Script.countDocuments({ status: "published", adminApproved: true, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true }, isDeleted: { $ne: true } });
     const newThisWeek = await Script.countDocuments({
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
       purchaseRequestLocked: { $ne: true },
+      isDeleted: { $ne: true },
       createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
     });
     const availableScripts = await Script.countDocuments({
@@ -376,6 +412,7 @@ export const getInvestorDashboard = async (req, res) => {
       adminApproved: true,
       isSold: { $ne: true },
       purchaseRequestLocked: { $ne: true },
+      isDeleted: { $ne: true },
       holdStatus: "available",
     });
 
@@ -385,7 +422,7 @@ export const getInvestorDashboard = async (req, res) => {
         activeHolds: activeDealsCount,
         convertedDeals: convertedDealsCount,
         totalInvested,
-        totalDeals: allDeals.length,
+        totalDeals: totalDealsCount,
         avgViewedScore,
         followingCount: user.following?.length || 0,
         followersCount: user.followers?.length || 0,

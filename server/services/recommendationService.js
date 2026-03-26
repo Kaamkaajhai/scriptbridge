@@ -380,6 +380,7 @@ export const buildInvestorFeed = async (userId) => {
     status: "published",
     isSold: { $ne: true },
     purchaseRequestLocked: { $ne: true },
+    isDeleted: { $ne: true },
   })
     .populate("creator", "name profileImage role")
     .sort({ createdAt: -1 })

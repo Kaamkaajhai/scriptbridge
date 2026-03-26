@@ -50,6 +50,7 @@ export const recordScriptView = async (req, res) => {
     const { scriptId } = req.body;
     const script = await Script.findById(scriptId);
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) return res.status(404).json({ message: "Script not found" });
 
     // Increment view count
     script.views += 1;
@@ -95,6 +96,7 @@ export const swipeScript = async (req, res) => {
     if (action === "like") {
       const script = await Script.findById(scriptId).populate("creator", "name");
       if (!script) return res.status(404).json({ message: "Script not found" });
+      if (script.isDeleted) return res.status(404).json({ message: "Script not found" });
 
       const user = await User.findById(req.user._id);
 
@@ -151,7 +153,7 @@ async function getMatchesForProfessional(user, page, limit) {
   const skip = (page - 1) * limit;
   
   // Build match query based on preferences
-  const query = { holdStatus: "available", isSold: { $ne: true } };
+  const query = { holdStatus: "available", isSold: { $ne: true }, isDeleted: { $ne: true } };
   
   if (user.preferences.genres?.length > 0) {
     query.genre = { $in: user.preferences.genres };
@@ -196,7 +198,7 @@ async function getMatchesForProfessional(user, page, limit) {
 
 async function getMatchesForCreator(user, page, limit) {
   // Find producers/investors who match the creator's scripts
-  const myScripts = await Script.find({ creator: user._id });
+  const myScripts = await Script.find({ creator: user._id, isDeleted: { $ne: true } });
   const myGenres = [...new Set(myScripts.map(s => s.genre).filter(Boolean))];
 
   const professionals = await User.find({
@@ -217,6 +219,7 @@ async function getMatchesForActor(user, page, limit) {
     "roles.0": { $exists: true },
     holdStatus: "available",
     isSold: { $ne: true },
+    isDeleted: { $ne: true },
   }).populate("creator", "name profileImage");
 
   const matchedRoles = [];
