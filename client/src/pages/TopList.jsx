@@ -277,13 +277,13 @@ const TopList = () => {
         className="mb-5"
       >
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-2 flex-wrap max-[395px]:w-full max-[395px]:items-stretch">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide max-[395px]:overflow-visible max-[395px]:flex-wrap">
               {SORT_TABS.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 whitespace-nowrap border ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 max-[395px]:px-3 max-[395px]:py-1.5 rounded-xl text-[13px] max-[395px]:text-[12px] font-semibold transition-all duration-200 whitespace-nowrap border ${
                     sortBy === tab.key ? t.sortActive : t.sortIdle
                   }`}
                 >
@@ -297,7 +297,7 @@ const TopList = () => {
 
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border max-[395px]:w-full max-[395px]:justify-center ${
                 filtersOpen || activeFilterCount > 0 ? t.filterBtnActive : t.filterBtn
               }`}
             >

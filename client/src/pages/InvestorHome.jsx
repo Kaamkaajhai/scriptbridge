@@ -54,17 +54,11 @@ const Fade = ({ children, delay = 0, className = "" }) => (
 );
 
 /* ══════════════════════════════════════════════
-   SECTION HEADER — label + count + "See all"
+  SECTION HEADER — label + count
 ══════════════════════════════════════════════ */
-const SectionHead = ({ icon, title, count, sub, to, dark }) => (
-  <div className="flex items-end justify-between mb-5">
+const SectionHead = ({ title, count, sub, dark }) => (
+  <div className="mb-5">
     <div className="flex items-center gap-2.5">
-      {icon && (
-        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm
-          ${dark ? "bg-white/[0.05]" : "bg-gray-50 border border-gray-100"}`}>
-          {icon}
-        </span>
-      )}
       <div>
         <div className="flex items-center gap-2">
           <h2 className={`text-[15px] font-bold tracking-tight
@@ -79,16 +73,6 @@ const SectionHead = ({ icon, title, count, sub, to, dark }) => (
         {sub && <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-600" : "text-gray-400"}`}>{sub}</p>}
       </div>
     </div>
-    {to && (
-      <Link to={to}
-        className={`text-[11px] font-semibold flex items-center gap-0.5 transition-all hover:gap-1
-          ${dark ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"}`}>
-        See all
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </Link>
-    )}
   </div>
 );
 
@@ -389,19 +373,19 @@ const InvestorHome = () => {
 
             </Fade>
 
-            <Fade delay={0.05} className="mt-3 flex flex-wrap items-center gap-2">
+            <Fade delay={0.05} className="mt-3 flex flex-wrap items-center gap-2 max-[380px]:gap-1.5">
               {quickStats.map((item) => (
                 <span
                   key={item.label}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 border text-[10px] ${dark ? "bg-white/[0.03] border-white/[0.1] text-gray-300" : "bg-gray-50 border-gray-200 text-gray-600"}`}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 border text-[10px] max-[340px]:text-[9px] max-[340px]:px-1.5 max-[340px]:py-[3px] ${dark ? "bg-white/[0.03] border-white/[0.1] text-gray-300" : "bg-gray-50 border-gray-200 text-gray-600"}`}
                 >
-                  <strong className={`text-[11px] ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</strong>
+                  <strong className={`text-[11px] max-[340px]:text-[10px] ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</strong>
                   {item.label}
                 </span>
               ))}
               <Link
                 to="/mandates"
-                className={`ml-auto px-3 py-1.5 rounded-md border text-[11px] font-semibold transition-colors ${dark ? "border-white/[0.14] text-gray-200 hover:bg-white/[0.05]" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+                className={`ml-auto px-3 py-1.5 rounded-md border text-[11px] font-semibold transition-colors max-[380px]:ml-0 max-[380px]:w-full max-[380px]:text-center ${dark ? "border-white/[0.14] text-gray-200 hover:bg-white/[0.05]" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
               >
                 Mandate
               </Link>
@@ -409,19 +393,19 @@ const InvestorHome = () => {
 
             {!loading && feed?.detectedGenres?.length > 0 && (
               <Fade delay={0.08} className="mt-2.5">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`text-[8px] font-bold uppercase tracking-[0.2em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Focus</span>
+                <div className="flex items-center gap-1.5 flex-wrap max-[340px]:gap-1">
+                  <span className={`text-[8px] font-bold uppercase tracking-[0.2em] max-[340px]:basis-full ${dark ? "text-gray-500" : "text-gray-400"}`}>Focus</span>
                   {feed.detectedGenres.slice(0, 6).map((g) => (
                     <span
                       key={g}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] border ${dark ? "bg-white/[0.04] border-white/[0.1] text-gray-300" : "bg-white border-gray-200 text-gray-600"}`}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] max-[340px]:text-[9px] max-[340px]:px-1.5 border ${dark ? "bg-white/[0.04] border-white/[0.1] text-gray-300" : "bg-white border-gray-200 text-gray-600"}`}
                     >
                       <span className="capitalize">{g}</span>
                     </span>
                   ))}
                   <Link
                     to="/mandates"
-                    className={`text-[10px] font-semibold ${dark ? "text-gray-300 hover:text-gray-100" : "text-gray-700 hover:text-gray-900"}`}
+                    className={`text-[10px] font-semibold max-[340px]:basis-full max-[340px]:mt-0.5 ${dark ? "text-gray-300 hover:text-gray-100" : "text-gray-700 hover:text-gray-900"}`}
                   >
                     Edit focus
                   </Link>
@@ -458,11 +442,9 @@ const InvestorHome = () => {
                 <Fade key={genre} delay={0.05 + idx * 0.06}>
                   <section className={`rounded-2xl p-5 sm:p-6 ${panel}`}>
                     <SectionHead
-                      icon={getGenreIcon(genre)}
                       title={genre}
                       count={scripts.length}
                       sub={idx === 0 ? "Top profile matches" : null}
-                      to="/search"
                       dark={dark}
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -477,13 +459,8 @@ const InvestorHome = () => {
                 <Fade delay={0.15}>
                   <section className={`rounded-2xl p-5 sm:p-6 ${panel}`}>
                     <SectionHead
-                      icon={
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-                          <path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-                        </svg>
-                      }
                       title="Matched For You" count={matched.length}
-                      sub="Based on your profile, genres, and activity" to="/search" dark={dark} />
+                      sub="Based on your profile, genres, and activity" dark={dark} />
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {matched.map((s, i) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
                     </div>

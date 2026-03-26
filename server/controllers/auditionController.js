@@ -147,6 +147,7 @@ export const getAvailableRoles = async (req, res) => {
       holdStatus: "available",
       isSold: { $ne: true },
       purchaseRequestLocked: { $ne: true },
+      isDeleted: { $ne: true },
     };
     if (genre) query.genre = genre;
     if (contentType) query.contentType = contentType;
