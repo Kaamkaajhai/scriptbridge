@@ -227,29 +227,29 @@ const InvestorOnboarding = () => {
     e.preventDefault();
     setError("");
     setEmailError("");
-    
+
     // Trim and sanitize email
     const sanitizedEmail = accountData.email.trim().toLowerCase();
-    
+
     // Validate email
     if (!isValidEmail(sanitizedEmail)) {
       setEmailError("Please enter a valid email address (e.g., user@example.com)");
       return;
     }
-    
+
     // Validate password
     const passwordCheck = validatePassword(accountData.password);
     if (!Object.values(passwordCheck).every(Boolean)) {
       setError("Password does not meet all requirements");
       return;
     }
-    
+
     // Check password confirmation
     if (accountData.password !== accountData.confirmPassword) {
       setError("Passwords do not match");
       return;
     }
-    
+
     setLoading(true);
     try {
       const response = await join({
@@ -258,7 +258,7 @@ const InvestorOnboarding = () => {
         password: accountData.password,
         role: "investor",
       });
-      
+
       // Check if OTP verification is required
       if (response?.requiresVerification) {
         setUserEmail(sanitizedEmail);
@@ -267,7 +267,7 @@ const InvestorOnboarding = () => {
         // Direct login (shouldn't happen with new flow)
         setCurrentStep(2);
       }
-      
+
       setError("");
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
@@ -432,11 +432,10 @@ const InvestorOnboarding = () => {
     <button
       type="button"
       onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-        active
+      className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${active
           ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
           : "bg-white text-gray-500 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-[#1e3a5f]"
-      }`}
+        }`}
     >
       {label}
     </button>
@@ -445,9 +444,9 @@ const InvestorOnboarding = () => {
   // Show OTP verification screen if needed
   if (showOTPVerification) {
     return (
-      <OTPVerification 
-        email={userEmail} 
-        onSuccess={handleOTPSuccess} 
+      <OTPVerification
+        email={userEmail}
+        onSuccess={handleOTPSuccess}
         onBack={handleBackToSignup}
       />
     );
@@ -472,13 +471,12 @@ const InvestorOnboarding = () => {
             <div key={step.num} className="flex items-center">
               <div className="flex flex-col items-center gap-1.5">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                    currentStep > step.num
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${currentStep > step.num
                       ? "bg-[#1e3a5f] border-[#1e3a5f] text-white"
                       : currentStep === step.num
-                      ? "bg-white border-[#1e3a5f] text-[#1e3a5f]"
-                      : "bg-white border-gray-200 text-gray-300"
-                  }`}
+                        ? "bg-white border-[#1e3a5f] text-[#1e3a5f]"
+                        : "bg-white border-gray-200 text-gray-300"
+                    }`}
                 >
                   {currentStep > step.num ? <CheckCircle size={14} /> : step.num}
                 </div>
@@ -677,7 +675,7 @@ const InvestorOnboarding = () => {
 
                     <button
                       type="button"
-                      onClick={async () => { await api.post("/onboarding/send-verification").catch(() => {}); }}
+                      onClick={async () => { await api.post("/onboarding/send-verification").catch(() => { }); }}
                       className="w-full text-sm text-gray-400 hover:text-[#1e3a5f] font-semibold transition-colors"
                     >
                       Resend code

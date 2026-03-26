@@ -269,7 +269,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget && !purchasing) onClose();
         }}
@@ -284,7 +284,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className={`relative w-full max-w-4xl max-h-[90vh] rounded-2xl border overflow-hidden flex flex-col ${
+          className={`relative w-full max-w-4xl max-h-[94vh] sm:max-h-[90vh] rounded-2xl border overflow-hidden flex flex-col ${
             dark
               ? "bg-[#0c1525] border-white/[0.08]"
               : "bg-white border-gray-200"
@@ -320,36 +320,36 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
 
           {/* ─── Header ─────────────────────────────── */}
           <div
-            className={`px-6 py-5 border-b flex items-center justify-between shrink-0 ${
+            className={`px-4 sm:px-6 py-4 sm:py-5 border-b flex items-start sm:items-center justify-between gap-3 shrink-0 ${
               dark
                 ? "border-white/[0.06] bg-gradient-to-r from-blue-600/5 to-purple-600/5"
                 : "border-gray-100 bg-gradient-to-r from-blue-50/50 to-purple-50/30"
             }`}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0">
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
                   dark
                     ? "bg-gradient-to-br from-blue-500/20 to-purple-500/20"
                     : "bg-gradient-to-br from-blue-100 to-purple-100"
                 }`}
               >
                 <CreditCard
-                  className={`w-5 h-5 ${
+                  className={`w-4 h-4 sm:w-5 sm:h-5 ${
                     dark ? "text-blue-400" : "text-blue-600"
                   }`}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2
-                  className={`text-xl font-black ${
+                  className={`text-lg sm:text-xl font-black leading-tight ${
                     dark ? "text-white" : "text-gray-900"
                   }`}
                 >
                   Buy Credits
                 </h2>
                 <p
-                  className={`text-xs mt-0.5 ${
+                  className={`text-[11px] sm:text-xs mt-0.5 ${
                     dark ? "text-white/40" : "text-gray-500"
                   }`}
                 >
@@ -360,18 +360,18 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
             <button
               onClick={onClose}
               disabled={purchasing}
-              className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 transition-all ${
                 dark
                   ? "hover:bg-white/10 text-white/40 hover:text-white/70"
                   : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"
               } disabled:opacity-40`}
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
 
           {/* ─── Content ────────────────────────────── */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
                 <Loader2
@@ -701,24 +701,24 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
 
           {/* ─── Footer ─────────────────────────────── */}
           <div
-            className={`px-6 py-4 border-t flex items-center justify-between shrink-0 ${
+            className={`px-3 sm:px-6 py-3 sm:py-4 border-t flex items-center justify-between max-[450px]:flex-col max-[450px]:items-stretch gap-3 shrink-0 ${
               dark
                 ? "border-white/[0.06] bg-white/[0.02]"
                 : "border-gray-100 bg-gray-50/50"
             }`}
           >
-            <div>
+            <div className="max-[450px]:w-full">
               {(selectedPackage || useCustomCredits) && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-[450px]:justify-between max-[450px]:flex-wrap">
                   <span
-                    className={`text-sm ${
+                    className={`text-sm max-[340px]:text-[13px] ${
                       dark ? "text-white/40" : "text-gray-500"
                     }`}
                   >
                     Total:
                   </span>
                   <span
-                    className={`text-lg font-black ${
+                    className={`text-lg max-[340px]:text-base font-black tabular-nums ${
                       dark ? "text-white" : "text-gray-900"
                     }`}
                   >
@@ -729,7 +729,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                     ).toLocaleString("en-IN")}
                   </span>
                   <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+                    className={`text-xs max-[340px]:text-[10px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap ${
                       dark
                         ? "bg-blue-500/10 text-blue-400"
                         : "bg-blue-50 text-blue-600"
@@ -745,11 +745,11 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 max-[450px]:w-full">
               <button
                 onClick={onClose}
                 disabled={purchasing}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`px-5 max-[340px]:px-3 py-2.5 rounded-xl text-sm max-[340px]:text-[13px] font-semibold transition-all max-[450px]:flex-1 ${
                   dark
                     ? "bg-white/[0.05] text-white/60 hover:bg-white/[0.10]"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -769,7 +769,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                       parsedCustomCredits < customMin ||
                       parsedCustomCredits > customMax))
                 }
-                className="px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                className="px-6 max-[340px]:px-3 py-2.5 rounded-xl text-sm max-[340px]:text-[13px] font-bold flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm whitespace-nowrap max-[450px]:flex-1"
               >
                 {purchasing ? (
                   <>
@@ -779,7 +779,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 ) : (
                   <>
                     Pay Now
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4 max-[340px]:hidden" />
                   </>
                 )}
               </motion.button>

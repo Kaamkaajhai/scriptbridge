@@ -103,11 +103,6 @@ const ScriptCard = ({ script, index = 0 }) => {
                     + Featured
                   </span>
                 )}
-                {script.premium && (
-                  <span className="inline-flex items-center gap-1 px-2 py-[3px] rounded-md text-[9px] font-bold tracking-wide uppercase bg-amber-500 text-white">
-                    Premium
-                  </span>
-                )}
               </div>
               {/* Right: rating */}
               {rating > 0 && (

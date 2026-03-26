@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../services/api";
@@ -151,6 +151,7 @@ const Profile = () => {
 
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
+  const [deletedScripts, setDeletedScripts] = useState([]);
   const [purchasedScripts, setPurchasedScripts] = useState([]);
   const [investorStats, setInvestorStats] = useState(null);
   const [bookmarkedScripts, setBookmarkedScripts] = useState([]);
@@ -184,45 +185,35 @@ const Profile = () => {
   const [sendingVerificationCode, setSendingVerificationCode] = useState(false);
   const [verifyingEmailCode, setVerifyingEmailCode] = useState(false);
   const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const isFetchingProfileRef = useRef(false);
+  const bookmarkRefreshTimerRef = useRef(null);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [id]);
+  const fetchProfile = useCallback(async ({ silent = false } = {}) => {
+    const profileId = id || currentUser?._id;
+    if (!profileId || isFetchingProfileRef.current) return;
 
-  useEffect(() => {
-    const isOwnView = !id || id === currentUser?._id;
-    if (!isOwnView) return undefined;
-    const refreshBookmarks = () => fetchProfile();
-    window.addEventListener("bookmarkUpdated", refreshBookmarks);
-    return () => window.removeEventListener("bookmarkUpdated", refreshBookmarks);
-  }, [id, currentUser?._id]);
-
-  const handleDeleteScript = async (scriptId) => {
     try {
-      await api.delete(`/scripts/${scriptId}`);
-      setScripts((prev) => prev.filter((s) => s._id !== scriptId));
-    } catch (error) {
-      console.error("Delete failed:", error);
-    }
-  };
+      isFetchingProfileRef.current = true;
+      if (!silent) setLoading(true);
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.get(`/users/${id || currentUser._id}`);
+      const { data } = await api.get(`/users/${profileId}`);
       setProfile(data.user);
-      setScripts((data.scripts || []).filter((s) => s.status !== "draft"));
+      setScripts((data.scripts || []).filter((s) => s.status !== "draft" && !s.isDeleted));
+      setDeletedScripts(data.deletedScripts || []);
       setPurchasedScripts(data.purchasedScripts || []);
       setBookmarkedScripts(data.bookmarkedScripts || []);
       setBlockedUsers(Array.isArray(data.user.blockedUsers) ? data.user.blockedUsers : []);
       setIsBlockedByCurrent(Boolean(data.user.blockedByCurrent));
       setBlockedByProfile(Boolean(data.user.blockedByProfile));
       setIsFollowing(
-        data.user.followers.some((f) => f._id === currentUser._id)
+        data.user.followers.some((f) => f._id === currentUser?._id)
       );
 
-      // Fetch investor stats if viewing an investor profile
-      if (["investor", "producer", "director"].includes(data.user.role)) {
+      // Fetch investor stats only when current user is also investor-side to avoid noisy role-mismatch calls.
+      if (
+        ["investor", "producer", "director"].includes(data.user.role) &&
+        ["investor", "producer", "director"].includes(currentUser?.role)
+      ) {
         try {
           const { data: dashData } = await api.get("/dashboard/investor");
           setInvestorStats(dashData.stats);
@@ -233,7 +224,53 @@ const Profile = () => {
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
-      setLoading(false);
+      isFetchingProfileRef.current = false;
+      if (!silent) setLoading(false);
+    }
+  }, [id, currentUser?._id, currentUser?.role]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    const isOwnView = !id || id === currentUser?._id;
+    if (!isOwnView) return undefined;
+
+    const refreshBookmarks = () => {
+      if (bookmarkRefreshTimerRef.current) {
+        clearTimeout(bookmarkRefreshTimerRef.current);
+      }
+      bookmarkRefreshTimerRef.current = setTimeout(() => {
+        fetchProfile({ silent: true });
+      }, 250);
+    };
+
+    window.addEventListener("bookmarkUpdated", refreshBookmarks);
+    return () => {
+      window.removeEventListener("bookmarkUpdated", refreshBookmarks);
+      if (bookmarkRefreshTimerRef.current) {
+        clearTimeout(bookmarkRefreshTimerRef.current);
+      }
+    };
+  }, [id, currentUser?._id, fetchProfile]);
+
+  const handleDeleteScript = async (scriptId) => {
+    try {
+      await api.delete(`/scripts/${scriptId}`);
+      setScripts((prev) => {
+        const deletedScript = prev.find((s) => s._id === scriptId);
+        if (deletedScript) {
+          setDeletedScripts((existing) => [
+            { ...deletedScript, isDeleted: true, deletedAt: new Date().toISOString() },
+            ...existing.filter((s) => s._id !== scriptId),
+          ]);
+        }
+        return prev.filter((s) => s._id !== scriptId);
+      });
+      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: scriptId } }));
+    } catch (error) {
+      console.error("Delete failed:", error);
     }
   };
 
@@ -520,7 +557,7 @@ const Profile = () => {
       >
         {/* Cover — clean solid for writers */}
         <div
-          className={`${isWriterUser ? "h-56 sm:h-60" : "h-36 sm:h-44"} rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
+          className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
         >
           {/* Subtle dot pattern — single, no gradients */}
           <div className="absolute inset-0" style={{
@@ -528,13 +565,6 @@ const Profile = () => {
             backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
             backgroundSize: "24px 24px",
           }} />
-          {isWriterUser && (
-            <>
-              <div className={`absolute -left-8 -top-10 w-40 h-40 rounded-full blur-2xl ${dark ? "bg-[#2f5485]/35" : "bg-[#89b8ff]/35"}`} />
-              <div className={`absolute right-8 top-8 w-24 h-24 rounded-full blur-xl ${dark ? "bg-[#6ca6ff]/25" : "bg-white/45"}`} />
-            </>
-          )}
-
           {/* Edit / Follow button */}
           <div className="absolute top-4 right-4 z-10 flex gap-2">
             {isOwnProfile ? (
@@ -568,80 +598,79 @@ const Profile = () => {
 
         {/* Writer-first premium hero */}
         {isWriterUser ? (
-          <div className="px-5 sm:px-8 lg:px-10 pb-7 -mt-20 sm:-mt-24 relative z-20">
-            <div className={`rounded-3xl border backdrop-blur-xl ${t.writerPanel}`}>
-              <div className="p-5 sm:p-7 flex flex-col lg:flex-row lg:items-end gap-5 sm:gap-6">
-                <div className="shrink-0">
-                  {profile.profileImage ? (
-                    <img
-                      src={resolveImage(profile.profileImage)}
-                      alt={profile.name}
-                      className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl object-cover ring-[5px] shadow-2xl ring-white/30"
-                    />
-                  ) : (
-                    <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[5px] shadow-2xl ring-white/30 ${t.avatarGrad}`}>
-                      <span className="text-4xl sm:text-5xl font-extrabold text-white/85">
-                        {profile.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
+          <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
+            <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
+              <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="shrink-0">
+                    {profile.profileImage ? (
+                      <img
+                        src={resolveImage(profile.profileImage)}
+                        alt={profile.name}
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                      />
+                    ) : (
+                      <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                        <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
+                          {profile.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="space-y-2.5">
-                    <h1 className={`text-3xl sm:text-4xl font-black tracking-tight leading-none ${t.writerName}`}>
-                      {profile.name}
-                    </h1>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.13em] border ${t.roleBg}`}>
+                      <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                         {profile.role}
                       </span>
                       {profile.writerProfile?.wgaMember && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.13em] border ${t.wgaBadge}`}>WGA</span>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>WGA</span>
                       )}
-                      {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-semibold capitalize border ${t.repBadge}`}>
-                          {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
+                    </div>
+
+                    {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
+                      <p className={`text-[13px] mt-1.5 capitalize ${dark ? "text-white/50" : "text-gray-600"}`}>
+                        {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
+                        {profile.writerProfile?.agencyName ? ` at ${profile.writerProfile.agencyName}` : ""}
+                      </p>
+                    )}
+
+                    {isOwnProfile && (
+                      <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
+                    )}
+
+                    {profile.bio && (
+                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
+                        {profile.bio}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      {memberSince && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          Joined {memberSince}
+                        </span>
+                      )}
+                      {(profile.writerProfile?.genres?.length || 0) > 0 && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          {profile.writerProfile.genres.length} Genres
                         </span>
                       )}
                     </div>
                   </div>
-
-                  <div className="mt-3 space-y-2">
-                    {isOwnProfile && <p className={`text-[13px] font-semibold ${t.email}`}>{profile.email}</p>}
-                    {profile.bio && (
-                      <p className={`text-[14px] leading-relaxed line-clamp-2 ${t.writerPanelSub}`}>
-                        {profile.bio}
-                      </p>
-                    )}
-                  </div>
-
-                  {profile.skills?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3.5">
-                      {profile.skills.slice(0, 8).map((skill, i) => (
-                        <span key={i} className={`px-3 py-1 rounded-full text-[11px] font-semibold border ${t.chip}`}>{skill}</span>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
 
-              <div className="px-5 sm:px-7 pb-5 sm:pb-7">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+                <div className="grid grid-cols-2 gap-2.5 w-full lg:w-[420px]">
                   {[
-                    { value: scripts.length, label: "Projects" },
-                    { value: profile.followers.length, label: "Followers" },
-                    { value: profile.following.length, label: "Following" },
-                    { value: profile.writerProfile?.genres?.length || 0, label: "Genres" },
-                    ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
-                  ].map((s) => (
-                    <div key={s.label} className={`rounded-xl p-3.5 border text-center ${t.writerStatCard}`}>
-                      <p className={`${s.isStr ? "text-[13px]" : "text-[22px]"} font-extrabold tabular-nums ${t.writerStatValue}`}>
-                        {s.value}
-                      </p>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-0.5 ${t.writerStatLabel}`}>
-                        {s.label}
-                      </p>
+                    { label: "Projects", value: scripts.length },
+                    { label: "Followers", value: profile.followers.length },
+                    { label: "Following", value: profile.following.length },
+                    { label: "Genres", value: profile.writerProfile?.genres?.length || 0 },
+                  ].map((item) => (
+                    <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                      <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                     </div>
                   ))}
                 </div>
@@ -711,15 +740,18 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2.5 w-full lg:w-[360px]">
+                    <div className="grid grid-cols-2 min-[396px]:grid-cols-3 gap-2 w-full lg:w-[360px]">
                       {[
                         { label: "Followers", value: profile.followers.length },
                         { label: "Following", value: profile.following.length },
                         { label: "Purchased", value: investorStats?.scriptsPurchased ?? purchasedScripts.length },
                       ].map((item) => (
-                        <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                        <div
+                          key={item.label}
+                          className={`rounded-xl border px-2.5 min-[396px]:px-3 py-2.5 min-[396px]:py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}
+                        >
                           <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                          <p className={`text-[9px] min-[396px]:text-[10px] font-bold uppercase tracking-[0.09em] min-[396px]:tracking-[0.14em] leading-tight mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                         </div>
                       ))}
                     </div>
@@ -789,7 +821,7 @@ const Profile = () => {
 
 
       {/* â”€â”€â”€â”€â”€â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {[
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
           ...(isOwnProfile ? [{ key: "bookmarks", label: "Bookmarks", count: profile.favoriteScripts?.length || bookmarkedScripts.length }] : []),
@@ -803,7 +835,7 @@ const Profile = () => {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border ${activeTab === tab.key
+            className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border shrink-0 max-[585px]:px-3 max-[585px]:py-2 max-[585px]:text-[12px] max-[350px]:text-[11px] ${activeTab === tab.key
               ? dark
                 ? "bg-[#1c2b42] text-white border-[#314765]"
                 : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
@@ -812,7 +844,7 @@ const Profile = () => {
                 : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900"
               }`}
           >
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center justify-center gap-1.5 min-w-0">
               {tab.label}
               {tab.count !== undefined && (
                 <span
@@ -869,7 +901,7 @@ const Profile = () => {
               </p>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
+            <div className={`grid grid-cols-1 min-[460px]:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
               {scripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -910,7 +942,7 @@ const Profile = () => {
               <p className={`text-[13px] max-w-xs mx-auto ${t.emptyP}`}>Bookmark projects from cards or project pages to quickly access them here.</p>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
+            <div className={`grid grid-cols-1 min-[460px]:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
               {bookmarkedScripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -1482,6 +1514,11 @@ const Profile = () => {
                       </svg>
                       Purchased
                     </span>
+                    {script.isDeleted && (
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${dark ? "bg-amber-500/10 text-amber-300 border-amber-400/20" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                        Deleted by creator
+                      </span>
+                    )}
                     {script.price > 0 && (
                       <span className={`text-[12px] font-bold ${dark ? "text-white/30" : "text-gray-400"}`}>{formatCurrency(script.price, "INR")}</span>
                     )}
@@ -1742,6 +1779,61 @@ const Profile = () => {
             )}
           </SectionCard>
 
+          {isWriterUser && (
+            <SectionCard
+              dark={dark}
+              title="Deleted Projects"
+              badge={`${deletedScripts.length}`}
+              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>}
+            >
+              {deletedScripts.length === 0 ? (
+                <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>
+                  No deleted projects yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {deletedScripts.map((script) => (
+                    <div
+                      key={script._id}
+                      className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}
+                    >
+                      {script.coverImage ? (
+                        <img
+                          src={resolveImage(script.coverImage)}
+                          alt={script.title}
+                          className="w-10 h-10 rounded-lg object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center ${dark ? "bg-white/[0.06] text-white/40" : "bg-gray-200 text-gray-500"}`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V8.25A2.25 2.25 0 015.25 6h13.5A2.25 2.25 0 0121 8.25v8.25M3 16.5l4.586-4.586a2.25 2.25 0 013.182 0L15 16.146m6 0l-3.586-3.586a2.25 2.25 0 00-3.182 0L12 14.793" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-800"}`}>
+                          {script.title}
+                        </p>
+                        <p className={`text-[11px] mt-0.5 ${dark ? "text-white/30" : "text-gray-500"}`}>
+                          {script.genre || "Unspecified genre"}
+                          {script.format ? ` \u00b7 ${script.format.replace(/_/g, " ")}` : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-red-300/70" : "text-red-600"}`}>
+                          Deleted
+                        </p>
+                        <p className={`text-[11px] ${dark ? "text-white/30" : "text-gray-500"}`}>
+                          {new Date(script.deletedAt || script.updatedAt || script.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          )}
+
           {/* Danger Zone */}
           <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>
             <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-red-500/15 bg-red-500/[0.03]" : "border-red-100 bg-red-50/40"}`}>
@@ -1931,11 +2023,10 @@ const Profile = () => {
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          {/* Transactions Overview */}
-          <Transactions dark={dark} />
-
-          {/* Bank Details */}
-          {isWriter(profile.role) && <BankDetails dark={dark} />}
+          <Transactions
+            dark={dark}
+            middleContent={isWriter(profile.role) ? <BankDetails dark={dark} /> : null}
+          />
         </motion.div>
       )}
 

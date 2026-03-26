@@ -223,7 +223,7 @@ const TopList = () => {
         <div className={`h-8 w-40 rounded-xl animate-pulse mb-2 ${dark ? "bg-[#162236]" : "bg-gray-100"}`} />
         <div className={`h-4 w-64 rounded-lg animate-pulse ${dark ? "bg-[#1a2e47]" : "bg-gray-50"}`} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-5">
         {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} dark={dark} />)}
       </div>
     </div>
@@ -239,31 +239,31 @@ const TopList = () => {
         transition={{ duration: 0.4, ease }}
         className="mb-6"
       >
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div>
+        <div className="flex flex-col sm:flex-row min-[420px]:max-[640px]:flex-row sm:items-end min-[420px]:max-[640px]:items-end sm:justify-between min-[420px]:max-[640px]:justify-between gap-4 min-[420px]:max-[640px]:gap-3">
+          <div className="min-w-0">
             <div className="flex items-center gap-2.5 mb-1">
               <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#1e3a5f] to-[#3a7bd5]" />
               <h1 className={`text-2xl font-extrabold tracking-tight ${t.header}`}>Top List</h1>
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             </div>
-            <p className={`text-[13px] font-medium ml-[18px] ${t.sub}`}>{activeTab.desc}</p>
+            <p className={`text-[13px] min-[420px]:max-[640px]:text-[12px] font-medium ml-[18px] min-[420px]:max-[640px]:ml-[14px] ${t.sub}`}>{activeTab.desc}</p>
           </div>
 
           {/* Summary badges */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Scripts</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${t.statValue}`}>{scripts.length}</span>
+          <div className="flex items-center gap-2 min-[420px]:max-[640px]:gap-1.5 flex-wrap min-[420px]:max-[640px]:justify-end shrink-0">
+            <div className={`flex items-center gap-1.5 min-[420px]:max-[640px]:gap-1 px-3 min-[420px]:max-[640px]:px-2.5 py-1.5 min-[420px]:max-[640px]:py-1 rounded-xl border ${t.stat}`}>
+              <span className={`text-[11px] min-[420px]:max-[640px]:text-[10px] font-semibold ${t.statLabel}`}>Scripts</span>
+              <span className={`text-[14px] min-[420px]:max-[640px]:text-[13px] font-extrabold tabular-nums ${t.statValue}`}>{scripts.length}</span>
             </div>
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${t.stat}`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Top</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${t.statValue}`}>{topScore.toLocaleString()}</span>
+            <div className={`flex items-center gap-1.5 min-[420px]:max-[640px]:gap-1 px-3 min-[420px]:max-[640px]:px-2.5 py-1.5 min-[420px]:max-[640px]:py-1 rounded-xl border ${t.stat}`}>
+              <span className={`text-[11px] min-[420px]:max-[640px]:text-[10px] font-semibold ${t.statLabel}`}>Top</span>
+              <span className={`text-[14px] min-[420px]:max-[640px]:text-[13px] font-extrabold tabular-nums ${t.statValue}`}>{topScore.toLocaleString()}</span>
             </div>
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+            <div className={`flex items-center gap-1.5 min-[420px]:max-[640px]:gap-1 px-3 min-[420px]:max-[640px]:px-2.5 py-1.5 min-[420px]:max-[640px]:py-1 rounded-xl border ${
               dark ? "bg-white/[0.04] border-[#1a2e47]" : "bg-gray-50 border-transparent"
             }`}>
-              <span className={`text-[11px] font-semibold ${t.statLabel}`}>Avg</span>
-              <span className={`text-[14px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-500"}`}>{avgMetric.toLocaleString()}</span>
+              <span className={`text-[11px] min-[420px]:max-[640px]:text-[10px] font-semibold ${t.statLabel}`}>Avg</span>
+              <span className={`text-[14px] min-[420px]:max-[640px]:text-[13px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-500"}`}>{avgMetric.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -277,13 +277,13 @@ const TopList = () => {
         className="mb-5"
       >
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-2 flex-wrap max-[395px]:w-full max-[395px]:items-stretch">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide max-[395px]:overflow-visible max-[395px]:flex-wrap">
               {SORT_TABS.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setSortBy(tab.key)}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 whitespace-nowrap border ${
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 max-[395px]:px-3 max-[395px]:py-1.5 rounded-xl text-[13px] max-[395px]:text-[12px] font-semibold transition-all duration-200 whitespace-nowrap border ${
                     sortBy === tab.key ? t.sortActive : t.sortIdle
                   }`}
                 >
@@ -297,7 +297,7 @@ const TopList = () => {
 
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border max-[395px]:w-full max-[395px]:justify-center ${
                 filtersOpen || activeFilterCount > 0 ? t.filterBtnActive : t.filterBtn
               }`}
             >
@@ -417,7 +417,7 @@ const TopList = () => {
           )}
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-5">
           {scripts.map((script, index) => {
             const rank = index + 1;
             return (

@@ -155,8 +155,8 @@ const getRazorpay = () => {
 
 // Credit pricing for different services
 export const CREDIT_PRICES = {
-  AI_EVALUATION: 10,        // 10 credits for AI script evaluation
-  AI_TRAILER: 15,           // 15 credits for AI trailer generation
+  AI_EVALUATION: 50,        // 50 credits for AI script evaluation
+  AI_TRAILER: 120,          // 120 credits for AI trailer generation
   SCRIPT_ANALYSIS: 5,       // 5 credits for basic analysis
   PREMIUM_REPORT: 20,       // 20 credits for premium report
   CONSULTATION: 50,         // 50 credits for consultation booking

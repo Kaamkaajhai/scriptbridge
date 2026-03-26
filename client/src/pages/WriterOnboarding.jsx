@@ -1461,23 +1461,48 @@ const WriterOnboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] pt-2 pb-8 px-4">
+    <div className="min-h-screen bg-[#f0f4f8] pt-2 pb-8 px-3 sm:px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-3">
+        <div className="text-center mb-4 sm:mb-3">
           <div className="flex items-center justify-center mb-1">
-            <div className="w-20 h-20 bg-[#f0f4f8] rounded-xl flex items-center justify-center">
-              <FileText className="text-black" size={40} strokeWidth={1.5} />
+            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#f0f4f8] rounded-xl flex items-center justify-center">
+              <FileText className="text-black" size={32} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-sm text-gray-600">Writer Onboarding</p>
+          <p className="text-sm sm:text-base text-gray-600 font-medium">Writer Onboarding</p>
         </div>
         
         {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="grid grid-cols-4 gap-2 sm:hidden">
+            {steps.map((step) => {
+              const isActive = currentStep === step.num;
+              const isComplete = currentStep > step.num;
+
+              return (
+                <div key={step.num} className="flex flex-col items-center gap-1">
+                  <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition text-[11px] font-semibold ${
+                    isComplete
+                      ? 'bg-[#1e3a5f] border-[#1e3a5f] text-white'
+                      : isActive
+                        ? 'bg-[#0f2544] border-[#0f2544] text-white'
+                        : 'bg-white border-gray-300 text-gray-400'
+                  }`}>
+                    {isComplete ? '✓' : step.num}
+                  </div>
+                  <span className={`text-[11px] font-semibold ${
+                    isComplete || isActive ? 'text-[#0a1628]' : 'text-gray-400'
+                  }`}>
+                    {step.title}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden sm:flex items-center justify-between">
             {steps.map((step, index) => {
-              const Icon = step.icon;
               const isActive = currentStep === step.num;
               const isComplete = currentStep > step.num;
               
@@ -1500,7 +1525,7 @@ const WriterOnboarding = () => {
                     </div>
                   </div>
                   {index < steps.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-4 ${
+                    <div className={`flex-1 h-0.5 mx-2 md:mx-4 ${
                       isComplete ? 'bg-[#1e3a5f]' : 'bg-gray-300'
                     }`} />
                   )}
@@ -1517,7 +1542,7 @@ const WriterOnboarding = () => {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100"
+          className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 border border-gray-100"
         >
           {renderStep()}
         </motion.div>

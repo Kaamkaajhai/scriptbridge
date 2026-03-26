@@ -57,7 +57,7 @@ export const sendMessage = async (req, res) => {
       const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
       if (!hasPurchased) {
         return res.status(403).json({
-          message: "Messaging is locked. An investor must first purchase a script from the writer.",
+          message: "Messaging is locked until an investor purchases a script from this writer.",
           code: "PURCHASE_REQUIRED",
         });
       }
@@ -228,7 +228,7 @@ export const checkCanMessage = async (req, res) => {
     if (!hasPurchased)
       return res.json({
         allowed: false,
-        reason: "An investor must purchase a project from the writer to unlock messaging.",
+        reason: "Messaging unlocks only after an investor purchases a project from this writer.",
         code: "PURCHASE_REQUIRED",
       });
 

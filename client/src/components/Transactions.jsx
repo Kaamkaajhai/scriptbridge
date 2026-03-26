@@ -15,13 +15,14 @@ import {
   CreditCard,
   RefreshCw,
   Award,
-  FileText
+  FileText,
+  ChevronDown
 } from "lucide-react";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { formatCurrency, formatCredits } from "../utils/currency";
 
-const Transactions = ({ dark }) => {
+const Transactions = ({ dark, middleContent = null }) => {
   const { user } = useContext(AuthContext);
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState(null);
@@ -32,6 +33,7 @@ const Transactions = ({ dark }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [expandedTransactionId, setExpandedTransactionId] = useState(null);
   const isWriter = ["creator", "writer"].includes(user?.role);
   
   useEffect(() => {
@@ -267,6 +269,8 @@ const Transactions = ({ dark }) => {
         </div>
       </motion.div>
 
+      {middleContent}
+
       {/* Transactions List */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -277,10 +281,10 @@ const Transactions = ({ dark }) => {
         }`}
       >
         {/* Header */}
-        <div className={`px-6 py-5 border-b ${
+        <div className={`px-4 sm:px-6 py-4 sm:py-5 border-b ${
           dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-200 bg-gray-50/50"
         }`}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                 dark ? "bg-white/[0.07]" : "bg-gray-100"
@@ -288,7 +292,7 @@ const Transactions = ({ dark }) => {
                 <FileText className={`w-5 h-5 ${dark ? "text-white/70" : "text-gray-600"}`} />
               </div>
               <div>
-                <h3 className={`text-lg font-bold ${dark ? "text-white" : "text-gray-900"}`}>
+                <h3 className={`text-base sm:text-lg font-bold ${dark ? "text-white" : "text-gray-900"}`}>
                   Transaction History
                 </h3>
                 <p className={`text-xs ${dark ? "text-white/40" : "text-gray-500"}`}>
@@ -299,7 +303,7 @@ const Transactions = ({ dark }) => {
               </div>
             </div>
             <button
-              className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all ${
+              className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
                 dark
                   ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -331,7 +335,7 @@ const Transactions = ({ dark }) => {
             <select
               value={filter}
               onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }}
-              className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+              className={`w-full sm:w-auto px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 dark
                   ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20"
                   : "bg-white border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
@@ -380,14 +384,18 @@ const Transactions = ({ dark }) => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`px-6 py-4 hover:bg-white/[0.02] transition-colors cursor-pointer ${
+                  className={`px-4 sm:px-6 py-4 hover:bg-white/[0.02] transition-colors cursor-pointer ${
                     dark ? "" : "hover:bg-gray-50"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
-                      {/* Icon */}
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  <button
+                    type="button"
+                    onClick={() => setExpandedTransactionId(prev => prev === transaction._id ? null : transaction._id)}
+                    aria-expanded={expandedTransactionId === transaction._id}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
                         transaction.amount >= 0
                           ? dark
                             ? "bg-green-500/10 text-green-400"
@@ -399,58 +407,93 @@ const Transactions = ({ dark }) => {
                         {getTransactionIcon(transaction.type)}
                       </div>
 
-                      {/* Details */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className={`text-sm font-bold truncate ${
-                            dark ? "text-white" : "text-gray-900"
-                          }`}>
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <p className={`text-sm font-bold leading-snug whitespace-normal break-words sm:truncate ${dark ? "text-white" : "text-gray-900"}`}>
                             {transaction.description}
                           </p>
-                          <span className={`px-2 py-0.5 rounded-md text-xs font-semibold capitalize flex items-center gap-1 ${
-                            getStatusColor(transaction.status)
-                          }`}>
+                          <span className={`shrink-0 px-2 py-0.5 rounded-md text-xs font-semibold capitalize flex items-center gap-1 ${getStatusColor(transaction.status)}`}>
                             {getStatusIcon(transaction.status)}
                             {transaction.status}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3">
+
+                        <div className="sm:hidden">
+                          <p className={`text-xs ${dark ? "text-white/40" : "text-gray-500"}`}>
+                            {formatDate(transaction.createdAt)}
+                          </p>
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <p className={`text-sm font-black ${
+                              transaction.amount >= 0
+                                ? dark ? "text-green-400" : "text-green-600"
+                                : dark ? "text-red-400" : "text-red-600"
+                            }`}>
+                              {transaction.amount >= 0 ? "+" : "-"}
+                              {formatCurrency(Math.abs(transaction.amount), transaction.currency || "INR")}
+                            </p>
+                            <ChevronDown className={`w-4 h-4 transition-transform ${dark ? "text-white/40" : "text-gray-400"} ${expandedTransactionId === transaction._id ? "rotate-180" : ""}`} />
+                          </div>
+                        </div>
+
+                        <div className="hidden sm:flex flex-wrap items-center gap-2 sm:gap-3">
                           <p className={`text-xs ${dark ? "text-white/40" : "text-gray-500"}`}>
                             {formatDate(transaction.createdAt)}
                           </p>
                           {transaction.reference && (
                             <>
                               <span className={dark ? "text-white/20" : "text-gray-300"}>•</span>
-                              <p className={`text-xs font-mono ${
-                                dark ? "text-white/30" : "text-gray-400"
-                              }`}>
+                              <p className={`text-xs font-mono ${dark ? "text-white/30" : "text-gray-400"} truncate max-w-[180px] sm:max-w-none`}>
                                 {transaction.reference}
                               </p>
                             </>
                           )}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Amount */}
-                    <div className="text-right ml-4">
-                      <p className={`text-lg font-black ${
-                        transaction.amount >= 0
-                          ? dark ? "text-green-400" : "text-green-600"
-                          : dark ? "text-red-400" : "text-red-600"
-                      }`}>
-                        {transaction.amount >= 0 ? "+" : "-"}
-                        {formatCurrency(Math.abs(transaction.amount), transaction.currency || "INR")}
-                      </p>
-                      {transaction.paymentMethod && (
-                        <p className={`text-xs capitalize mt-0.5 ${
-                          dark ? "text-white/30" : "text-gray-400"
+                      <div className="hidden sm:block shrink-0 text-right ml-2">
+                        <p className={`text-base sm:text-lg font-black ${
+                          transaction.amount >= 0
+                            ? dark ? "text-green-400" : "text-green-600"
+                            : dark ? "text-red-400" : "text-red-600"
                         }`}>
-                          via {transaction.paymentMethod.replace("_", " ")}
+                          {transaction.amount >= 0 ? "+" : "-"}
+                          {formatCurrency(Math.abs(transaction.amount), transaction.currency || "INR")}
                         </p>
-                      )}
+                        {transaction.paymentMethod && (
+                          <p className={`hidden sm:block text-xs capitalize mt-0.5 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                            via {transaction.paymentMethod.replace("_", " ")}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {expandedTransactionId === transaction._id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="sm:hidden overflow-hidden"
+                      >
+                        <div className={`mt-3 ml-[60px] rounded-lg border px-3 py-2 space-y-1.5 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-gray-50 border-gray-200"}`}>
+                          <p className={`text-xs ${dark ? "text-white/45" : "text-gray-600"}`}>
+                            Type: <span className={`font-semibold ${dark ? "text-white/70" : "text-gray-800"}`}>{transaction.type}</span>
+                          </p>
+                          {transaction.paymentMethod && (
+                            <p className={`text-xs capitalize ${dark ? "text-white/45" : "text-gray-600"}`}>
+                              Method: <span className={`font-semibold ${dark ? "text-white/70" : "text-gray-800"}`}>{transaction.paymentMethod.replace("_", " ")}</span>
+                            </p>
+                          )}
+                          {transaction.reference && (
+                            <p className={`text-xs font-mono break-all ${dark ? "text-white/45" : "text-gray-600"}`}>
+                              Ref: {transaction.reference}
+                            </p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -459,7 +502,7 @@ const Transactions = ({ dark }) => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className={`px-6 py-4 border-t flex items-center justify-between ${
+          <div className={`px-4 sm:px-6 py-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
             dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-200 bg-gray-50/50"
           }`}>
             <p className={`text-sm ${dark ? "text-white/50" : "text-gray-600"}`}>

@@ -3,6 +3,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import axios from "axios";
 import { jsPDF } from "jspdf";
 import BrandLogo from "../components/BrandLogo";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { formatCurrency } from "../utils/currency";
 
 const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
@@ -441,6 +442,7 @@ const AdminDashboard = () => {
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
@@ -1108,6 +1110,11 @@ const AdminDashboard = () => {
     };
 
     const handleLogout = () => {
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = () => {
+        setShowLogoutConfirm(false);
         sessionStorage.removeItem("admin-session");
         setAuthorized(false);
         previousAlertSummaryRef.current = null;
@@ -1800,6 +1807,7 @@ const AdminDashboard = () => {
 
 
     return (
+        <>
         <div className="fixed inset-0 z-[9999] flex flex-col bg-[#060e1a] text-white overflow-hidden">
             {/* ─── Admin Header ─── */}
             <header className="h-14 shrink-0 flex items-center justify-between px-5 border-b border-[#1a3050] bg-[#0b1628]">
@@ -1925,6 +1933,18 @@ const AdminDashboard = () => {
             {rejectModal && <RejectInvestorModal investor={rejectModal} onClose={() => setRejectModal(null)} onConfirm={handleRejectInvestor} />}
 
         </div>
+
+        <ConfirmDialog
+            open={showLogoutConfirm}
+            title="Exit admin mode"
+            message="Are you sure you want to log out from admin mode?"
+            confirmText="Exit"
+            cancelText="Cancel"
+            onConfirm={confirmLogout}
+            onCancel={() => setShowLogoutConfirm(false)}
+            isDarkMode={true}
+        />
+        </>
     );
 };
 

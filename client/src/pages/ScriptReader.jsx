@@ -155,7 +155,6 @@ const ScriptReader = () => {
             <div className="flex flex-wrap gap-2 mb-4">
               {script.genre && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-gray-500"}`}>{script.genre}</span>}
               {script.contentType && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-white/[0.06] text-gray-300" : "bg-gray-100 text-gray-500"}`}>{script.contentType.replace(/_/g, " ")}</span>}
-              {script.premium && <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${dark ? "bg-amber-500/20 border border-amber-500/30 text-amber-300" : "bg-amber-50 border border-amber-200/60 text-amber-600"}`}>Premium</span>}
             </div>
 
             {/* Title */}

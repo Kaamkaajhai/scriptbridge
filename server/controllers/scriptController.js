@@ -49,6 +49,7 @@ const PUBLIC_SCRIPT_FILTER = {
   status: "published",
   isSold: { $ne: true },
   purchaseRequestLocked: { $ne: true },
+  isDeleted: { $ne: true },
 };
 
 const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
@@ -83,6 +84,61 @@ const isSpotlightActive = (script, now = new Date()) => {
   return Boolean(endAt && new Date(endAt) >= now);
 };
 
+const shouldAutoSyncUploadSpotlight = (script, now = new Date()) => {
+  if (!script) return false;
+  if (script.status !== "published") return false;
+  if (isSpotlightActive(script, now)) return false;
+  if (script.promotion?.lastSpotlightPurchaseAt) return false;
+  return Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
+};
+
+const applySpotlightPackageState = (script, now = new Date()) => {
+  const spotlightEndsAt = new Date(now.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  const chargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+
+  script.premium = true;
+  script.isFeatured = true;
+  script.verifiedBadge = true;
+  script.services = {
+    hosting: true,
+    evaluation: true,
+    aiTrailer: true,
+    spotlight: true,
+  };
+  script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+
+  if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+    script.trailerStatus = "requested";
+  }
+
+  script.promotion = {
+    spotlightActive: true,
+    pendingSpotlightActivation: false,
+    spotlightStartAt: now,
+    spotlightEndAt: spotlightEndsAt,
+    lastSpotlightPurchaseAt: now,
+    totalSpotlightCreditsSpent: Math.max(
+      Number(script.promotion?.totalSpotlightCreditsSpent || 0),
+      chargedAtUpload,
+      PROJECT_SPOTLIGHT_ACTIVATION_CREDITS
+    ),
+  };
+
+  script.billing = {
+    ...(script.billing || {}),
+    spotlightCreditsSpent: Math.max(
+      Number(script.billing?.spotlightCreditsSpent || 0),
+      chargedAtUpload,
+      PROJECT_SPOTLIGHT_ACTIVATION_CREDITS
+    ),
+    lastSpotlightActivatedAt: now,
+  };
+
+  script.markModified("services");
+  script.markModified("promotion");
+  script.markModified("billing");
+};
+
 const getBlockedUserIdsForViewer = async (viewerId) => {
   if (!viewerId) return [];
   const currentUser = await User.findById(viewerId).select("blockedUsers").lean();
@@ -91,6 +147,30 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
     ...(currentUser?.blockedUsers || []),
     ...usersWhoBlockedCurrent.map((u) => u._id),
   ];
+};
+
+const hasUserInIdArray = (arr = [], userId) =>
+  Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
+
+const getPurchasedUserIdSet = async (script) => {
+  const approvedPurchaseRequests = await ScriptPurchaseRequest.find({
+    script: script._id,
+    status: "approved",
+  }).select("investor").lean();
+
+  const convertedOptions = await ScriptOption.find({
+    script: script._id,
+    status: "converted",
+  }).select("holder").lean();
+
+  return new Set(
+    [
+      ...(Array.isArray(script.unlockedBy) ? script.unlockedBy.map((id) => id?.toString?.()) : []),
+      ...(Array.isArray(script.purchasedBy) ? script.purchasedBy.map((id) => id?.toString?.()) : []),
+      ...approvedPurchaseRequests.map((row) => row?.investor?.toString?.()),
+      ...convertedOptions.map((row) => row?.holder?.toString?.()),
+    ].filter(Boolean)
+  );
 };
 
 export const extractPdfText = async (req, res) => {
@@ -126,6 +206,9 @@ export const saveDraft = async (req, res) => {
       if (!script) return res.status(404).json({ message: "Script not found" });
       if (script.creator.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: "Not authorized" });
+      }
+      if (script.isDeleted) {
+        return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
       }
 
       script.title = title || script.title;
@@ -163,12 +246,14 @@ export const saveDraft = async (req, res) => {
     }
 
     // Otherwise create a new draft
+    const { _id, id, sid, ...safeOtherData } = otherData || {};
+
     const newDraft = await Script.create({
       creator: req.user._id,
       title: title || "Untitled Draft",
       textContent: textContent || "",
       status: "draft",
-      ...otherData
+      ...safeOtherData
     });
 
     res.status(201).json(newDraft);
@@ -184,8 +269,55 @@ export const deleteScript = async (req, res) => {
     if (script.creator.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    await Script.findByIdAndDelete(req.params.id);
-    res.json({ message: "Script deleted" });
+
+    if (script.isDeleted) {
+      return res.json({ message: "Project already deleted", softDeleted: true });
+    }
+
+    const purchasedUserIds = await getPurchasedUserIdSet(script);
+    if (purchasedUserIds.size > 0) {
+      const mergedIds = Array.from(purchasedUserIds).map((id) => new mongoose.Types.ObjectId(id));
+      script.unlockedBy = mergedIds;
+      script.purchasedBy = mergedIds;
+    }
+
+    script.isDeleted = true;
+    script.deletedAt = new Date();
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
+    await script.save();
+
+    console.info("[AUDIT] Script soft deleted", {
+      scriptId: script._id.toString(),
+      scriptSid: script.sid || "",
+      deletedBy: req.user._id.toString(),
+      purchasedUserCount: purchasedUserIds.size,
+      deletedAt: script.deletedAt.toISOString(),
+    });
+
+    await notifyAdminWorkflowEvent({
+      title: "Writer Project Deleted",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project "${script.title}" was deleted by the creator (soft-delete).`,
+      metadata: {
+        scriptId: script._id,
+        scriptSid: script.sid || "",
+        writerId: req.user._id,
+        isDeleted: true,
+        purchasedUserCount: purchasedUserIds.size,
+      },
+    }).catch(() => null);
+
+    return res.json({
+      message: purchasedUserIds.size > 0
+        ? "Project removed from platform listings. Existing buyers retain access."
+        : "Project removed from platform listings.",
+      softDeleted: true,
+      isDeleted: true,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -193,7 +325,7 @@ export const deleteScript = async (req, res) => {
 
 export const getMyDrafts = async (req, res) => {
   try {
-    const drafts = await Script.find({ creator: req.user._id, status: "draft" })
+    const drafts = await Script.find({ creator: req.user._id, status: "draft", isDeleted: { $ne: true } })
       .sort({ updatedAt: -1 })
       .lean();
     res.json(drafts);
@@ -204,7 +336,7 @@ export const getMyDrafts = async (req, res) => {
 
 export const getMyScripts = async (req, res) => {
   try {
-    const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" } })
+    const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" }, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
       .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt")
       .populate("creator", "name profileImage")
@@ -221,6 +353,9 @@ export const updateScript = async (req, res) => {
     if (!script) return res.status(404).json({ message: "Script not found" });
     if (script.creator.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized to edit this script" });
+    }
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
     }
 
     const {
@@ -275,6 +410,7 @@ export const updateScript = async (req, res) => {
         hosting: services.hosting ?? script.services?.hosting ?? true,
         evaluation: services.evaluation ?? script.services?.evaluation ?? false,
         aiTrailer: services.aiTrailer ?? script.services?.aiTrailer ?? false,
+        spotlight: services.spotlight ?? script.services?.spotlight ?? false,
       };
       script.markModified("services");
     }
@@ -292,39 +428,56 @@ export const updateScript = async (req, res) => {
     script.status = "pending_approval";
     await script.save();
 
-    if (!wasPendingApproval) {
-      await notifyAdminWorkflowEvent({
-        title: "Writer Project Submitted For Approval",
-        section: "approvals",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          writerEmail: req.user.email || "",
-          source: "update-script",
-        },
-      });
-    }
-
-    if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
-      await notifyAdminWorkflowEvent({
-        title: "AI Trailer Approval Request",
-        section: "trailers",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          trailerStatus: script.trailerStatus,
-          source: "update-script",
-        },
-      });
-    }
-
     res.json(script);
+
+    // Non-critical notifications run after response to reduce submit latency.
+    (async () => {
+      const tasks = [];
+
+      if (!wasPendingApproval) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "Writer Project Submitted For Approval",
+            section: "approvals",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              writerEmail: req.user.email || "",
+              source: "update-script",
+            },
+          })
+        );
+      }
+
+      if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "AI Trailer Approval Request",
+            section: "trailers",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              trailerStatus: script.trailerStatus,
+              source: "update-script",
+            },
+          })
+        );
+      }
+
+      if (tasks.length) {
+        const results = await Promise.allSettled(tasks);
+        const rejected = results.filter((r) => r.status === "rejected");
+        if (rejected.length > 0) {
+          console.error(`[updateScript] ${rejected.length} post-submit notification task(s) failed`);
+        }
+      }
+    })();
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -388,6 +541,7 @@ export const uploadScript = async (req, res) => {
     let creditsRequired = 0;
     if (services?.evaluation) creditsRequired += CREDIT_PRICES.AI_EVALUATION;
     if (services?.aiTrailer) creditsRequired += CREDIT_PRICES.AI_TRAILER;
+    if (services?.spotlight) creditsRequired += PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
 
     const creator = await User.findById(req.user._id);
     if (!creator) {
@@ -435,6 +589,16 @@ export const uploadScript = async (req, res) => {
         });
       }
 
+      if (services?.spotlight) {
+        creator.credits.transactions.push({
+          type: "spent",
+          amount: -PROJECT_SPOTLIGHT_ACTIVATION_CREDITS,
+          description: `Project Spotlight package for "${title}"`,
+          reference: `SPOTUP-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: new Date()
+        });
+      }
+
       await creator.save();
       creditsBalanceAfter = creator.credits?.balance || 0;
     }
@@ -475,18 +639,27 @@ export const uploadScript = async (req, res) => {
       services: services ? {
         hosting: services.hosting !== undefined ? services.hosting : true,
         evaluation: services.evaluation || false,
-        aiTrailer: services.aiTrailer || false
-      } : { hosting: true, evaluation: false, aiTrailer: false },
+        aiTrailer: services.aiTrailer || false,
+        spotlight: services.spotlight || false,
+      } : { hosting: true, evaluation: false, aiTrailer: false, spotlight: false },
       billing: {
         evaluationCreditsCharged: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
         aiTrailerCreditsCharged: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        spotlightCreditsChargedAtUpload: services?.spotlight ? PROJECT_SPOTLIGHT_ACTIVATION_CREDITS : 0,
         evaluationCreditsChargedAtUpload: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
         aiTrailerCreditsChargedAtUpload: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
         evaluationCreditsRefunded: 0,
         aiTrailerCreditsRefunded: 0,
-        spotlightCreditsSpent: 0,
+        spotlightCreditsSpent: services?.spotlight ? PROJECT_SPOTLIGHT_ACTIVATION_CREDITS : 0,
         lastSpotlightRefundCredits: 0,
       },
+      promotion: services?.spotlight
+        ? {
+            spotlightActive: false,
+            pendingSpotlightActivation: true,
+            totalSpotlightCreditsSpent: PROJECT_SPOTLIGHT_ACTIVATION_CREDITS,
+          }
+        : undefined,
       evaluationStatus: services?.evaluation ? "requested" : "none",
 
       // Legal compliance
@@ -507,37 +680,6 @@ export const uploadScript = async (req, res) => {
     // For now, assume it's a new or finalized creation.
     const script = await Script.create(scriptData);
 
-    await notifyAdminWorkflowEvent({
-      title: "Writer Project Submitted For Approval",
-      section: "approvals",
-      actorId: req.user._id,
-      scriptId: script._id,
-      message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
-      metadata: {
-        scriptId: script._id,
-        writerId: req.user._id,
-        writerEmail: creator.email || "",
-        aiTrailerRequested: Boolean(services?.aiTrailer),
-        source: "upload-script",
-      },
-    });
-
-    if (services?.aiTrailer) {
-      await notifyAdminWorkflowEvent({
-        title: "AI Trailer Approval Request",
-        section: "trailers",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          trailerStatus: script.trailerStatus,
-          source: "upload-script",
-        },
-      });
-    }
-
     const invoice = await Invoice.create({
       invoiceNumber,
       invoiceDate,
@@ -553,6 +695,7 @@ export const uploadScript = async (req, res) => {
         hosting: services?.hosting !== undefined ? services.hosting : true,
         evaluation: Boolean(services?.evaluation),
         aiTrailer: Boolean(services?.aiTrailer),
+        spotlight: Boolean(services?.spotlight),
         trailerUpload: !services?.aiTrailer,
       },
       totalCreditsRequired: creditsRequired,
@@ -583,56 +726,6 @@ export const uploadScript = async (req, res) => {
       ],
     });
 
-    const generatedInvoicePdf = await generateAndSaveInvoicePdf({
-      invoice,
-      creatorName: creator.name,
-      creatorEmail: creator.email,
-      creatorSid: creator?.sid,
-      scriptTitle: script.title,
-      scriptSid: script?.sid,
-    });
-    if (generatedInvoicePdf.relativePath) {
-      invoice.pdfPath = generatedInvoicePdf.relativePath;
-    }
-    invoice.pdfGeneratedAt = new Date();
-    await invoice.save();
-
-    // --- Async Service Processing ---
-    // TODO: Implement these async workflows:
-
-    // 1. If hosting: Start subscription timer (30 days)
-    if (services?.hosting) {
-      // TODO: Create/Update Subscription document
-      console.log(`[SERVICE] Hosting activated for script ${script._id}`);
-    }
-
-    // 2. If evaluation: Create job ticket for Reader Portal
-    if (services?.evaluation) {
-      // TODO: Create evaluation job in a Queue or Job collection
-      console.log(`[SERVICE] Evaluation requested for script ${script._id}`);
-      // Example: await createEvaluationJob(script._id, req.user._id);
-    }
-
-    // 3. If aiTrailer: Trigger AI video generation
-    if (services?.aiTrailer) {
-      // TODO: Send request to AI Video API (Runway/HeyGen/OpenAI)
-      console.log(`[SERVICE] AI Trailer generation started for script ${script._id}`);
-      console.log(`Logline: ${logline}`);
-      console.log(`Genre: ${classification?.primaryGenre}`);
-      console.log(`Tones: ${classification?.tones?.join(', ')}`);
-
-      // Example async call:
-      // generateAITrailer({
-      //   scriptId: script._id,
-      //   logline,
-      //   genre: classification.primaryGenre,
-      //   tones: classification.tones
-      // }).catch(err => {
-      //   // Update script.trailerStatus = 'failed'
-      //   console.error('AI Trailer generation failed:', err);
-      // });
-    }
-
     // Return the created script with invoice metadata
     res.status(201).json({
       ...script.toObject(),
@@ -642,6 +735,83 @@ export const uploadScript = async (req, res) => {
         pdfPath: invoice.pdfPath,
       },
     });
+
+    // Run non-critical tasks post-response to keep submit API fast.
+    (async () => {
+      const tasks = [
+        notifyAdminWorkflowEvent({
+          title: "Writer Project Submitted For Approval",
+          section: "approvals",
+          actorId: req.user._id,
+          scriptId: script._id,
+          message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
+          metadata: {
+            scriptId: script._id,
+            writerId: req.user._id,
+            writerEmail: creator.email || "",
+            aiTrailerRequested: Boolean(services?.aiTrailer),
+            source: "upload-script",
+          },
+        }),
+      ];
+
+      if (services?.aiTrailer) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "AI Trailer Approval Request",
+            section: "trailers",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              trailerStatus: script.trailerStatus,
+              source: "upload-script",
+            },
+          })
+        );
+      }
+
+      tasks.push(
+        (async () => {
+          const generatedInvoicePdf = await generateAndSaveInvoicePdf({
+            invoice,
+            creatorName: creator.name,
+            creatorEmail: creator.email,
+            creatorSid: creator?.sid,
+            scriptTitle: script.title,
+            scriptSid: script?.sid,
+          });
+          if (generatedInvoicePdf.relativePath) {
+            invoice.pdfPath = generatedInvoicePdf.relativePath;
+          }
+          invoice.pdfGeneratedAt = new Date();
+          await invoice.save();
+        })()
+      );
+
+      // --- Async Service Processing ---
+      // TODO: Implement these async workflows:
+      if (services?.hosting) {
+        console.log(`[SERVICE] Hosting activated for script ${script._id}`);
+      }
+      if (services?.evaluation) {
+        console.log(`[SERVICE] Evaluation requested for script ${script._id}`);
+      }
+      if (services?.aiTrailer) {
+        console.log(`[SERVICE] AI Trailer generation started for script ${script._id}`);
+        console.log(`Logline: ${logline}`);
+        console.log(`Genre: ${classification?.primaryGenre}`);
+        console.log(`Tones: ${classification?.tones?.join(', ')}`);
+      }
+
+      const results = await Promise.allSettled(tasks);
+      const rejected = results.filter((r) => r.status === "rejected");
+      if (rejected.length > 0) {
+        console.error(`[uploadScript] ${rejected.length} post-submit task(s) failed`);
+      }
+    })();
   } catch (error) {
     console.error("Script upload error:", error);
     res.status(500).json({ message: error.message });
@@ -781,14 +951,34 @@ export const getScriptById = async (req, res) => {
 
     if (!script) return res.status(404).json({ message: "Script not found" });
 
+    const now = new Date();
+    if (shouldAutoSyncUploadSpotlight(script, now)) {
+      applySpotlightPackageState(script, now);
+      await script.save();
+    }
+
     const isOwner = script.creator._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === "admin";
+    let isBuyer = hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
+
+    if (!isBuyer) {
+      const [approvedPurchase, convertedOption] = await Promise.all([
+        ScriptPurchaseRequest.exists({ script: script._id, investor: req.user._id, status: "approved" }),
+        ScriptOption.exists({ script: script._id, holder: req.user._id, status: "converted" }),
+      ]);
+      isBuyer = Boolean(approvedPurchase || convertedOption);
+    }
+
+    // Deleted projects are hidden from writer/public but remain visible to purchasers and admins.
+    if (script.isDeleted && !isAdmin && !isBuyer) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
     if (script.status === "draft" && !isOwner) {
       return res.status(403).json({ message: "This draft is private" });
     }
 
     // Block access to sold scripts — only allow creator, buyer, and admins
-    const isBuyer = script.unlockedBy?.some(uid => uid.toString() === req.user._id.toString());
-    const isAdmin = req.user.role === "admin";
     if (script.isSold && !isOwner && !isBuyer && !isAdmin) {
       return res.status(403).json({ message: "This script has been purchased and is no longer publicly available" });
     }
@@ -846,7 +1036,7 @@ export const getScriptById = async (req, res) => {
     }
 
     // Check if user has unlocked this script
-    const isUnlocked = script.unlockedBy.includes(req.user._id);
+    const isUnlocked = isBuyer || hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
     const isCreator = script.creator._id.toString() === req.user._id.toString();
     const userRole = req.user.role;
     const isWriter = userRole === 'writer' || userRole === 'creator';
@@ -907,6 +1097,9 @@ export const unlockScript = async (req, res) => {
   try {
     const script = await Script.findById(req.body.scriptId);
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     // Only investors, producers, directors, and industry professionals can unlock
     const allowedRoles = ['investor', 'producer', 'director', 'industry', 'professional'];
@@ -921,8 +1114,12 @@ export const unlockScript = async (req, res) => {
       return res.status(400).json({ message: "You already have access to your own script" });
     }
 
-    if (!script.unlockedBy.includes(req.user._id)) {
+    if (!hasUserInIdArray(script.unlockedBy, req.user._id) && !hasUserInIdArray(script.purchasedBy, req.user._id)) {
       script.unlockedBy.push(req.user._id);
+      script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+      if (!hasUserInIdArray(script.purchasedBy, req.user._id)) {
+        script.purchasedBy.push(req.user._id);
+      }
       script.isSold = true; // hide from all public listings once purchased
       await script.save();
 
@@ -956,12 +1153,15 @@ export const requestScriptPurchase = async (req, res) => {
 
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     if (script.creator._id.toString() === req.user._id.toString()) {
       return res.status(400).json({ message: "You cannot purchase your own script." });
     }
 
-    if (script.unlockedBy.some((uid) => uid.toString() === req.user._id.toString())) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({ message: "You already have access to this script." });
     }
 
@@ -1104,6 +1304,9 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     const script = purchaseRequest.script;
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and cannot be approved for new purchase." });
+    }
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
@@ -1195,8 +1398,12 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     // Grant access to the script
-    if (!script.unlockedBy.some((uid) => uid.toString() === investor._id.toString())) {
+    if (!hasUserInIdArray(script.unlockedBy, investor._id)) {
       script.unlockedBy.push(investor._id);
+    }
+    script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+    if (!hasUserInIdArray(script.purchasedBy, investor._id)) {
+      script.purchasedBy.push(investor._id);
     }
 
     script.isSold = true;
@@ -1426,12 +1633,12 @@ export const getMyPurchaseRequests = async (req, res) => {
 
     if (isWriterRole) {
       requests = await ScriptPurchaseRequest.find({ writer: req.user._id })
-        .populate("script", "title price thumbnailUrl")
+        .populate("script", "title price thumbnailUrl isDeleted deletedAt")
         .populate("investor", "name profileImage role")
         .sort({ createdAt: -1 });
     } else if (isInvestorRole) {
       requests = await ScriptPurchaseRequest.find({ investor: req.user._id })
-        .populate("script", "title price thumbnailUrl creator")
+        .populate("script", "title price thumbnailUrl creator isDeleted deletedAt")
         .populate("writer", "name profileImage role")
         .sort({ createdAt: -1 });
     } else {
@@ -1453,6 +1660,9 @@ export const holdScript = async (req, res) => {
     const script = await Script.findById(scriptId);
 
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available." });
+    }
     if (script.holdStatus === "held") {
       return res.status(400).json({ message: "This script is already on hold by another party" });
     }
@@ -1628,7 +1838,7 @@ export const getFeaturedScripts = async (req, res) => {
     const ids = ranked.map((s) => s._id);
 
     // Step 2: fetch full documents with populated creator (preserving sort order)
-    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } }).populate(
+    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true }, isDeleted: { $ne: true } }).populate(
       "creator",
       "name profileImage role"
     );
@@ -2152,9 +2362,12 @@ export const createScriptPurchaseOrder = async (req, res) => {
     if (!script) {
       return res.status(404).json({ message: "Script not found" });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     // Check if already purchased
-    if (script.unlockedBy.includes(req.user._id)) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({ message: "You have already purchased this script" });
     }
 
@@ -2252,6 +2465,12 @@ export const activateProjectSpotlight = async (req, res) => {
         throw error;
       }
 
+      if (script.services?.spotlight && script.promotion?.pendingSpotlightActivation && script.status !== "published") {
+        const error = new Error("Spotlight is already purchased for this project and will auto-activate after admin approval.");
+        error.statusCode = 409;
+        throw error;
+      }
+
       if (script.status !== "published") {
         const error = new Error("Publish the project before activating spotlight");
         error.statusCode = 400;
@@ -2272,9 +2491,27 @@ export const activateProjectSpotlight = async (req, res) => {
       const now = new Date();
 
       const spotlightCurrentlyActive = isSpotlightActive(script, now);
-      const spotlightCreditsRequired = spotlightCurrentlyActive
-        ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
-        : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+      let spotlightChargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+      if (!spotlightChargedAtUpload) {
+        const uploadInvoice = await Invoice.findOne({ script: script._id, creator: req.user._id })
+          .sort({ createdAt: -1 })
+          .session(session)
+          .lean();
+        if (uploadInvoice?.services?.spotlight) {
+          spotlightChargedAtUpload = PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+        }
+      }
+
+      const hasUnusedUploadSpotlightPayment =
+        !spotlightCurrentlyActive &&
+        spotlightChargedAtUpload > 0 &&
+        !script.promotion?.lastSpotlightPurchaseAt;
+
+      const spotlightCreditsRequired = hasUnusedUploadSpotlightPayment
+        ? 0
+        : spotlightCurrentlyActive
+          ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
+          : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
       isExtensionPurchase = spotlightCurrentlyActive;
       spotlightCreditsCharged = spotlightCreditsRequired;
 
@@ -2376,15 +2613,17 @@ export const activateProjectSpotlight = async (req, res) => {
       const extensionStart = currentEnd && currentEnd > now ? currentEnd : now;
       endAt = new Date(extensionStart.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
-      user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
-      user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
-      user.credits.transactions.push({
-        type: "spent",
-        amount: -spotlightCreditsRequired,
-        description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
-        reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
-        createdAt: now,
-      });
+      if (spotlightCreditsRequired > 0) {
+        user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
+        user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
+        user.credits.transactions.push({
+          type: "spent",
+          amount: -spotlightCreditsRequired,
+          description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
+          reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: now,
+        });
+      }
       await user.save({ session });
 
       script.premium = true;
@@ -2394,6 +2633,7 @@ export const activateProjectSpotlight = async (req, res) => {
         hosting: true,
         evaluation: true,
         aiTrailer: true,
+        spotlight: true,
       };
       script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
@@ -2404,6 +2644,7 @@ export const activateProjectSpotlight = async (req, res) => {
       const previousSpent = script.promotion?.totalSpotlightCreditsSpent || 0;
       script.promotion = {
         spotlightActive: true,
+        pendingSpotlightActivation: false,
         spotlightStartAt: now,
         spotlightEndAt: endAt,
         lastSpotlightPurchaseAt: now,
@@ -2412,6 +2653,7 @@ export const activateProjectSpotlight = async (req, res) => {
       script.billing = {
         evaluationCreditsCharged: evaluationCharged,
         aiTrailerCreditsCharged: aiTrailerCharged,
+        spotlightCreditsChargedAtUpload: spotlightChargedAtUpload,
         evaluationCreditsChargedAtUpload: evaluationChargedAtUpload,
         aiTrailerCreditsChargedAtUpload: aiTrailerChargedAtUpload,
         evaluationCreditsRefunded: evaluationRefunded,
@@ -2425,28 +2667,30 @@ export const activateProjectSpotlight = async (req, res) => {
       script.markModified("billing");
       await script.save({ session });
 
-      await Transaction.create([
-        {
-          user: req.user._id,
-          type: "debit",
-          amount: -spotlightCreditsRequired,
-          currency: "INR",
-          status: "completed",
-          description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
-          reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
-          paymentMethod: "wallet",
-          relatedScript: script._id,
-          metadata: {
-            package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
-            isExtension: spotlightCurrentlyActive,
-            includesVerifiedBadge: true,
-            includesFreeEvaluation: true,
-            includesFreeAITrailer: true,
-            featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
-            spotlightEndAt: endAt.toISOString(),
+      if (spotlightCreditsRequired > 0) {
+        await Transaction.create([
+          {
+            user: req.user._id,
+            type: "debit",
+            amount: -spotlightCreditsRequired,
+            currency: "INR",
+            status: "completed",
+            description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
+            reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
+            paymentMethod: "wallet",
+            relatedScript: script._id,
+            metadata: {
+              package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
+              isExtension: spotlightCurrentlyActive,
+              includesVerifiedBadge: true,
+              includesFreeEvaluation: true,
+              includesFreeAITrailer: true,
+              featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
+              spotlightEndAt: endAt.toISOString(),
+            },
           },
-        },
-      ], { session });
+        ], { session });
+      }
     });
 
     await notifyAdminWorkflowEvent({
@@ -2547,9 +2791,15 @@ export const verifyScriptPurchase = async (req, res) => {
         success: false
       });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({
+        message: "This project was deleted by creator and is no longer available for new purchases.",
+        success: false,
+      });
+    }
 
     // Check if already unlocked
-    if (script.unlockedBy.includes(req.user._id)) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({
         message: "Script already purchased",
         success: false
@@ -3058,6 +3308,7 @@ export const requestScriptAITrailer = async (req, res) => {
       hosting: script.services?.hosting ?? true,
       evaluation: script.services?.evaluation ?? false,
       aiTrailer: true,
+      spotlight: script.services?.spotlight ?? false,
     };
     script.trailerStatus = "requested";
     script.trailerWriterFeedback = {

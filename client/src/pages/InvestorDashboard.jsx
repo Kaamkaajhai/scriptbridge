@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
-import { getInvestorPitches } from "../services/scriptPitchService";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 
@@ -52,6 +51,12 @@ const InvestorDashboard = () => {
   const mandates = profile?.mandates || {};
   const firstName = user?.name?.split(" ")[0] || "Investor";
   const walletBalance = wallet?.balance ?? wallet?.wallet?.balance ?? 0;
+  const closedDealsCount = Math.max(
+    Number(stats.convertedDeals || 0),
+    Number(stats.scriptsPurchased || 0),
+    Number(stats.successfulProjects || 0)
+  );
+  const totalDealsCount = Math.max(Number(stats.totalDeals || 0), closedDealsCount);
 
   /* ── Loading ─────────────────────────────────────────────── */
   if (loading) {
@@ -76,8 +81,7 @@ const InvestorDashboard = () => {
 
         {/* ─────────────── HEADER ─────────────── */}
         <Fade>
-          <div className={`rounded-2xl border p-6 sm:p-8 mb-6
-            ${dark ? "bg-[#0a1628] border-[#162240]" : "bg-white border-gray-100"}`}>
+          <div className="rounded-2xl p-6 sm:p-8 mb-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-extrabold select-none shrink-0
@@ -93,25 +97,6 @@ const InvestorDashboard = () => {
                     {profile.company ? `${profile.jobTitle || "Investor"} at ${profile.company}` : "Your deal flow & market intelligence"}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <Link to="/search"
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold border transition-colors
-                    ${dark
-                      ? "border-white/[0.08] text-gray-300 hover:bg-white/[0.04]"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                  </svg>
-                  Browse Scripts
-                </Link>
-                <Link to="/mandates"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1e3a5f] hover:bg-[#162d4a] text-white text-[13px] font-semibold transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
-                  </svg>
-                  My Mandates
-                </Link>
               </div>
             </div>
           </div>
@@ -164,20 +149,13 @@ const InvestorDashboard = () => {
 
         {/* ─────────────── TAB BAR ─────────────── */}
         <Fade delay={0.06}>
-          <div className={`mb-6 flex items-center gap-1 p-1 rounded-xl w-fit
-            ${dark ? "bg-[#0a1628] border border-[#162240]" : "bg-gray-50 border border-gray-100"}`}>
+          <div className="mb-6 max-[640px]:overflow-x-auto max-[640px]:pb-1 [scrollbar-width:none] [-ms-overflow-style:none] max-[640px]:[&::-webkit-scrollbar]:hidden">
+            <div className={`flex items-center gap-1 p-1 rounded-xl w-fit max-[640px]:w-max max-[640px]:min-w-max
+              ${dark ? "bg-[#0a1628] border border-[#162240]" : "bg-gray-50 border border-gray-100"}`}>
             {[
               {
                 key: "overview", label: "Overview",
                 d: "M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
-              },
-              {
-                key: "discover", label: "Discover",
-                d: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
-              },
-              {
-                key: "pitches", label: "Pitches",
-                d: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
               },
               {
                 key: "finance", label: "Finance",
@@ -185,16 +163,17 @@ const InvestorDashboard = () => {
               },
             ].map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-semibold transition-all shrink-0 whitespace-nowrap
                   ${activeTab === tab.key
                     ? dark ? "bg-[#151f2e] text-gray-300" : "bg-white text-[#1e3a5f] shadow-sm"
                     : dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-600"}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d={tab.d} />
                 </svg>
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="inline text-[12px] max-[360px]:text-[11px]">{tab.label}</span>
               </button>
             ))}
+            </div>
           </div>
         </Fade>
 
@@ -350,7 +329,7 @@ const InvestorDashboard = () => {
                         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dark ? "bg-amber-500" : "bg-amber-600"}`} />
                         <div className="flex-1">
                           <p className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-gray-500" : "text-gray-400"}`}>Deals</p>
-                          <p className={`text-sm font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-900"}`}>{stats.totalDeals || 0}</p>
+                          <p className={`text-sm font-extrabold tabular-nums ${dark ? "text-white" : "text-gray-900"}`}>{totalDealsCount}</p>
                         </div>
                       </div>
                     </div>
@@ -367,7 +346,7 @@ const InvestorDashboard = () => {
                   <div className="mt-5 space-y-4">
                     {(() => {
                       const viewed = stats.totalViewed || 0;
-                      const closed = stats.convertedDeals || 0;
+                      const closed = closedDealsCount;
                       const invested = stats.totalInvested || 0;
                       const maxVal = Math.max(viewed, 1);
                       const conversionRate = viewed > 0 ? ((closed / viewed) * 100).toFixed(1) : "0.0";
@@ -474,62 +453,6 @@ const InvestorDashboard = () => {
                 </div>
               </Card>
 
-            </motion.div>
-          )}
-
-          {/* ═══ DISCOVER ═══ */}
-          {activeTab === "discover" && (
-            <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-
-              {/* Top Rated */}
-              {data?.topRated?.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>Top Rated Scripts</h3>
-                      <p className={`text-[11px] font-medium ${dark ? "text-gray-600" : "text-gray-400"}`}>Highest AI-scored on platform</p>
-                    </div>
-                    <Link to="/search" className={`text-[11px] font-semibold ${dark ? "text-gray-300 hover:text-gray-200" : "text-[#1e3a5f] hover:text-[#162d4a]"}`}>View all →</Link>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {data.topRated.map((script, idx) => (
-                      <ScriptMiniCard key={script._id} script={script} dark={dark} idx={idx} navigate={navigate} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Matched For You */}
-              {data?.matchedScripts?.length > 0 ? (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>Matched For You</h3>
-                      <p className={`text-[11px] font-medium ${dark ? "text-gray-600" : "text-gray-400"}`}>Based on your mandates &amp; preferences</p>
-                    </div>
-                    <Link to="/mandates" className={`text-[11px] font-semibold ${dark ? "text-gray-300 hover:text-gray-200" : "text-[#1e3a5f] hover:text-[#162d4a]"}`}>Edit mandates →</Link>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {data.matchedScripts.map((script, idx) => (
-                      <ScriptMiniCard key={script._id} script={script} dark={dark} idx={idx} navigate={navigate} />
-                    ))}
-                  </div>
-                </div>
-              ) : !data?.topRated?.length ? (
-                <EmptySection dark={dark}
-                  iconD="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-                  title="Set Up Your Mandates"
-                  sub="Configure your preferences to get personalised recommendations"
-                  cta={{ label: "Set Mandates", to: "/mandates" }} />
-              ) : null}
-
-            </motion.div>
-          )}
-
-          {/* ═══ PITCHES ═══ */}
-          {activeTab === "pitches" && (
-            <motion.div key="pitches" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              <PitchesTab dark={dark} />
             </motion.div>
           )}
 
@@ -715,7 +638,7 @@ const InvestorDashboard = () => {
                     iconBg={dark ? "bg-indigo-500/10" : "bg-indigo-50"}
                     iconColor={dark ? "text-indigo-400" : "text-indigo-600"}
                     title="Option Deals"
-                    action={<span className={`text-xs font-bold px-2 py-1 rounded-lg ${dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-50 text-gray-500"}`}>{stats.totalDeals || 0} total</span>} />
+                    action={<span className={`text-xs font-bold px-2 py-1 rounded-lg ${dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-50 text-gray-500"}`}>{totalDealsCount} total</span>} />
                   <div className="mt-4 space-y-2">
                     {data.recentDeals.map(deal => {
                       const statusColor =
@@ -806,23 +729,6 @@ const EmptySmall = ({ dark, text, cta }) => (
   </div>
 );
 
-const EmptySection = ({ dark, iconD, title, sub, cta }) => (
-  <div className={`text-center py-16 rounded-2xl border ${dark ? "bg-[#0a1628] border-[#162240]" : "bg-white border-gray-100"}`}>
-    <div className={`w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
-      <svg className={`w-7 h-7 ${dark ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d={iconD} />
-      </svg>
-    </div>
-    <h3 className={`text-lg font-bold mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>{title}</h3>
-    <p className={`text-sm mb-5 max-w-sm mx-auto ${dark ? "text-gray-500" : "text-gray-400"}`}>{sub}</p>
-    {cta && (
-      <Link to={cta.to} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl text-sm font-semibold transition-colors">
-        {cta.label}
-      </Link>
-    )}
-  </div>
-);
-
 /* ── Script mini section (overview cards) ─────────────────── */
 const ScriptSection = ({ dark, navigate, title, sub, iconBg, iconColor, iconD, scripts, seeAllTo, matched, fill }) => (
   <Card dark={dark} className="p-5">
@@ -886,128 +792,5 @@ const ScriptSection = ({ dark, navigate, title, sub, iconBg, iconColor, iconD, s
     </div>
   </Card>
 );
-
-/* ── Script mini card (discover grid) ─────────────────────── */
-const ScriptMiniCard = ({ script, dark, idx, navigate }) => {
-  const score = script.scriptScore?.overall;
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: idx * 0.04, duration: 0.25 }}
-      onClick={() => navigate(`/script/${script._id}`)}
-      className={`group rounded-2xl border overflow-hidden cursor-pointer transition-all hover:-translate-y-1
-        ${dark ? "bg-[#0a1628] border-[#162240] hover:border-[#1d3350]" : "bg-white border-gray-100 hover:shadow-lg"}`}>
-      <div className={`relative h-32 overflow-hidden ${dark ? "bg-[#0f1e35]" : "bg-gray-50"}`}>
-        {script.coverImage
-          ? <img src={script.coverImage} alt={script.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          : <div className="absolute inset-0 flex items-center justify-center">
-            <svg className={`w-10 h-10 ${dark ? "text-white/[0.04]" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>
-          </div>
-        }
-        {score && (
-          <div className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[11px] font-bold
-            ${score >= 80 ? "bg-emerald-600 text-white" : score >= 60 ? "bg-[#1e3a5f] text-white" : "bg-gray-600 text-white"}`}>
-            {score}
-          </div>
-        )}
-        {script.trailerStatus === "ready" && (
-          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-black/60 text-white flex items-center gap-1">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-            Trailer
-          </div>
-        )}
-      </div>
-      <div className="p-3.5">
-        <h4 className={`text-sm font-bold truncate mb-1 group-hover:text-[#1e3a5f] transition-colors ${dark ? "text-gray-100" : "text-gray-900"}`}>
-          {script.title}
-        </h4>
-        {script.logline && (
-          <p className={`text-[11px] leading-relaxed line-clamp-2 mb-2.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>{script.logline}</p>
-        )}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            {script.genre && (
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-50 text-gray-500"}`}>
-                {script.genre}
-              </span>
-            )}
-          </div>
-          <span className={`text-[10px] font-medium ${dark ? "text-gray-600" : "text-gray-400"}`}>
-            {script.views || 0} views
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-/* ── PitchesTab ────────────────────────────────────────────── */
-const PitchesTab = ({ dark }) => {
-  const [pitches, setPitches] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPitches = async () => {
-      try {
-        const data = await getInvestorPitches();
-        setPitches(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPitches();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className={`w-8 h-8 border-[3px] rounded-full animate-spin ${dark ? "border-gray-700 border-t-purple-400" : "border-gray-200 border-t-purple-600"}`} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {pitches.length === 0 ? (
-        <EmptySmall dark={dark} text="No pitches received yet." />
-      ) : (
-        pitches.map(pitch => (
-          <div key={pitch._id} className={`p-5 rounded-2xl border ${dark ? "bg-[#0a1628] border-[#162240]" : "bg-white border-gray-100 shadow-sm"}`}>
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h4 className={`font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>{pitch.script?.title || "Unknown Script"}</h4>
-                <p className={`text-sm mt-0.5 ${dark ? "text-gray-400" : "text-gray-500"}`}>Pitched by {pitch.writer?.name || "Unknown Writer"}</p>
-              </div>
-              <span className={`text-xs font-bold px-2.5 py-1.5 rounded-lg capitalize tracking-wide ${
-                pitch.status === 'pending' ? (dark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600') :
-                pitch.status === 'approved' ? (dark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
-                pitch.status === 'rejected' ? (dark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600') :
-                (dark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600')
-              }`}>
-                {pitch.status}
-              </span>
-            </div>
-            {pitch.note && (
-              <div className={`mt-4 p-4 rounded-xl text-sm leading-relaxed ${dark ? "bg-white/[0.03] text-gray-300 border border-white/[0.04]" : "bg-gray-50 text-gray-700 border border-gray-100"}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Pitch Note</p>
-                {pitch.note}
-              </div>
-            )}
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              {pitch.script && (
-                <Link to={`/script/${pitch.script._id}`} className={`text-[13px] px-5 py-2.5 rounded-xl font-bold transition-all border ${dark ? "border-white/[0.1] hover:bg-white/[0.05] text-white" : "border-gray-200 hover:bg-gray-50 text-gray-800"}`}>
-                  View Script
-                </Link>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-};
 
 export default InvestorDashboard;

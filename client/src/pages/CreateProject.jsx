@@ -20,6 +20,7 @@ import { formatCurrency } from "../utils/currency";
 import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
 
 const DRAFT_ENDPOINT = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api/scripts/draft`;
+const LOCAL_WORKING_DRAFT_KEY = "create-project-working-draft-v1";
 
 /* -- Constants --------------------------------------- */
 const formats = [
@@ -53,7 +54,7 @@ const settingOptions = [
   "Big City", "Wilderness", "Ocean/Sea", "Desert", "Medieval", "Future",
 ];
 const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
-const SERVICE_PRICES = { hosting: 0, evaluation: 10, aiTrailer: 15 };
+const SERVICE_PRICES = { hosting: 0, evaluation: 50, aiTrailer: 120, spotlight: 310 };
 const THUMBNAIL_ASPECT = 3 / 4;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
@@ -408,6 +409,7 @@ const CreateProject = () => {
   const [grammarNotes, setGrammarNotes] = useState([]);
   const lastDraftSignatureRef = useRef("");
   const autoSaveInFlightRef = useRef(false);
+  const localDraftHydratedRef = useRef(false);
 
   // Grammar credit confirmation + undo/keep
   const GRAMMAR_COST = 5;
@@ -602,7 +604,7 @@ const CreateProject = () => {
   const renderPageMarkers = () => Array.from({ length: Math.max(estimatedPages, 1) }, (_, pageIndex) => (
     <div
       key={pageIndex}
-      className="absolute left-3 flex items-center justify-center"
+      className="absolute left-3 flex items-center justify-center max-[1200px]:hidden"
       style={{ top: pageIndex * 1122 + 48, height: 28 }}
     >
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-[#0d1520] text-gray-600 border border-[#182840]" : "bg-white text-gray-400 border border-gray-300 shadow-sm"}`}>
@@ -617,19 +619,17 @@ const CreateProject = () => {
   const [classification, setClassification] = useState({ tones: [], themes: [], settings: [] });
 
   // Step 4: Services & Legal
-  const [services, setServices] = useState({ hosting: true, evaluation: false, aiTrailer: false });
+  const [services, setServices] = useState({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
   const [legal, setLegal] = useState({ agreedToTerms: false });
   const [creditsBalance, setCreditsBalance] = useState(0);
 
   // Step 4: Script pricing
-  const PRICE_PRESETS = [5, 10, 15, 25, 50];
-  const PLATFORM_FEE = 0.2; // 20%
+  const PLATFORM_FEE = 0.05; // 5%
   const [isPremium, setIsPremium] = useState(false);
   const [scriptPrice, setScriptPrice] = useState(10);
-  const [customPriceInput, setCustomPriceInput] = useState("");
-  const [useCustomPrice, setUseCustomPrice] = useState(false);
-  const effectivePrice = isPremium ? (useCustomPrice ? Number(customPriceInput) || 0 : scriptPrice) : 0;
-  const writerEarns = Math.round(effectivePrice * (1 - PLATFORM_FEE) * 100) / 100;
+  const effectivePrice = isPremium ? Number(scriptPrice) || 0 : 0;
+  const platformFeeAmount = Math.round(effectivePrice * PLATFORM_FEE * 100) / 100;
+  const writerEarns = Math.round((effectivePrice - platformFeeAmount) * 100) / 100;
   const FORMAT_PRICE_GUIDE = {
     feature: { label: "Feature Film", min: 15, max: 50, suggest: 25 },
     tv_1hour: { label: "TV 1-Hour", min: 10, max: 30, suggest: 15 },
@@ -646,7 +646,7 @@ const CreateProject = () => {
       TextStyle, Color, Underline,
       Placeholder.configure({ placeholder: "Start writing your script here...  e.g.  INT. LIVING ROOM - DAY" }),
     ],
-    editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[1056px] px-16 py-14 ${dark ? "prose-invert" : ""}` } },
+    editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[1056px] px-16 max-[1200px]:px-10 py-14 max-[1200px]:py-12 max-[640px]:px-6 max-[520px]:px-4 max-[420px]:px-3 max-[640px]:py-10 text-[15px] max-[520px]:text-[14px] leading-[1.65] ${dark ? "prose-invert" : ""}` } },
     onUpdate: ({ editor }) => {
       const t = editor.getText();
       setWordCount(t.split(/\s+/).filter(Boolean).length);
@@ -790,6 +790,84 @@ const CreateProject = () => {
       }
     }
   }, [buildDraftPayload, editor, fetchDrafts, getDraftSignature, hasMeaningfulDraft]);
+
+  const clearLocalWorkingDraft = useCallback(() => {
+    try {
+      localStorage.removeItem(LOCAL_WORKING_DRAFT_KEY);
+    } catch {
+      // Ignore localStorage failures in private mode/restricted environments.
+    }
+  }, []);
+
+  const restoreLocalWorkingDraft = useCallback(() => {
+    if (!editor || localDraftHydratedRef.current || draftId) return;
+
+    localDraftHydratedRef.current = true;
+    try {
+      const raw = localStorage.getItem(LOCAL_WORKING_DRAFT_KEY);
+      if (!raw) return;
+
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== "object") return;
+      if (data.userId && user?._id && data.userId !== user._id) return;
+
+      if (typeof data.title === "string") {
+        setTitle(data.title);
+      }
+
+      if (typeof data.textContent === "string" && data.textContent.trim()) {
+        editor.commands.setContent(data.textContent);
+      }
+
+      if (typeof data.step === "number" && data.step >= 1 && data.step <= 5) {
+        setStep(data.step);
+      }
+
+      if (typeof data.scriptId === "string" && data.scriptId.trim()) {
+        setScriptId(data.scriptId);
+      }
+    } catch {
+      // Ignore invalid/stale local snapshots.
+    }
+  }, [draftId, editor, user?._id]);
+
+  useEffect(() => {
+    restoreLocalWorkingDraft();
+  }, [restoreLocalWorkingDraft]);
+
+  useEffect(() => {
+    if (!editor || draftId) return;
+
+    const html = editor.getHTML();
+    const plainText = String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const trimmedTitle = title.trim();
+    const hasContent = Boolean(trimmedTitle || plainText.length >= 10);
+
+    if (!hasContent) {
+      clearLocalWorkingDraft();
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          LOCAL_WORKING_DRAFT_KEY,
+          JSON.stringify({
+            userId: user?._id || null,
+            scriptId: scriptId || null,
+            title,
+            textContent: html,
+            step,
+            updatedAt: Date.now(),
+          })
+        );
+      } catch {
+        // Ignore localStorage write failures.
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [charCount, clearLocalWorkingDraft, draftId, editor, scriptId, step, title, user?._id, wordCount]);
 
   // Debounced autosave while typing title/content.
   useEffect(() => {
@@ -949,11 +1027,11 @@ const CreateProject = () => {
       if (!Number.isFinite(minAge) || !Number.isFinite(maxAge)) {
         return true;
       }
-      return minAge >= maxAge;
+      return maxAge < minAge;
     });
 
     if (invalidIndex >= 0) {
-      return `Role ${invalidIndex + 1}: Min age must be less than max age.`;
+      return `Role ${invalidIndex + 1}: Max age must be greater than or equal to min age.`;
     }
 
     return "";
@@ -963,12 +1041,16 @@ const CreateProject = () => {
       const arr = prev[cat]; return { ...prev, [cat]: arr.includes(val) ? arr.filter(v => v !== val) : arr.length < 3 ? [...arr, val] : arr };
     });
   };
-  const calculateTotal = () => (services.evaluation ? SERVICE_PRICES.evaluation : 0) + (services.aiTrailer ? SERVICE_PRICES.aiTrailer : 0);
+  const calculateTotal = () =>
+    (services.evaluation ? SERVICE_PRICES.evaluation : 0)
+    + (services.aiTrailer ? SERVICE_PRICES.aiTrailer : 0)
+    + (services.spotlight ? SERVICE_PRICES.spotlight : 0);
   const totalServiceCost = calculateTotal();
   const selectedPublishServices = [
     { key: "hosting", name: "Hosting & Discovery", price: 0, enabled: true, desc: "Listed in the marketplace for discovery" },
-    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader" },
+    { key: "spotlight", name: "Activate Spotlight", price: SERVICE_PRICES.spotlight, enabled: services.spotlight, desc: "Priority visibility boost in marketplace placements" },
     { key: "aiTrailer", name: "AI Concept Trailer", price: SERVICE_PRICES.aiTrailer, enabled: services.aiTrailer, desc: "60-second cinematic concept trailer" },
+    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader" },
   ];
   const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
   const creditsAfterPublish = creditsBalance - totalServiceCost;
@@ -978,6 +1060,12 @@ const CreateProject = () => {
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
       type: "Revenue Setting",
       amount: isPremium ? formatCurrency(effectivePrice) : "Free",
+    },
+    {
+      item: `Platform Fee (${Math.round(PLATFORM_FEE * 100)}%)`,
+      detail: isPremium ? "Charged by platform per premium purchase" : "No platform fee on free access",
+      type: "Platform Fee",
+      amount: isPremium ? formatCurrency(platformFeeAmount) : formatCurrency(0),
     },
     {
       item: "Optional Services",
@@ -1100,7 +1188,7 @@ const CreateProject = () => {
               max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
             },
           })),
-        services: { hosting: services.hosting, evaluation: services.evaluation, aiTrailer: services.aiTrailer },
+        services: { hosting: services.hosting, evaluation: services.evaluation, aiTrailer: services.aiTrailer, spotlight: services.spotlight },
         legal: {
           agreedToTerms: legal.agreedToTerms,
           timestamp: new Date().toISOString(),
@@ -1112,6 +1200,7 @@ const CreateProject = () => {
       };
       const { data } = await api.post("/scripts/upload", payload);
       if (scriptId) { try { await api.delete(`/scripts/${scriptId}`); } catch { } }
+      clearLocalWorkingDraft();
       await offerInvoiceActions(data?.invoice);
       navigate("/dashboard");
     } catch (err) { setError(err.response?.data?.message || "Failed to publish."); } finally { setLoading(false); }
@@ -1234,10 +1323,10 @@ const CreateProject = () => {
     : dark ? "bg-white/[0.05] text-gray-400 hover:bg-white/[0.08] border border-[#1d3350]" : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"}`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-4">
+    <div className="max-w-5xl mx-auto px-4 max-[380px]:px-2.5 py-4 overflow-x-hidden">
       {/* -- Header -------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/dashboard")} className={`p-2 rounded-xl transition ${dark ? "hover:bg-white/[0.06] text-gray-400" : "hover:bg-gray-100 text-gray-400"}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -1247,9 +1336,9 @@ const CreateProject = () => {
               <p className={`text-xs mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Write, classify, and publish your script - all in one place</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-[640px]:w-full max-[640px]:flex-wrap max-[640px]:justify-between max-[380px]:gap-1.5">
             <button onClick={() => setShowDrafts(!showDrafts)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${dark
+              className={`flex items-center gap-2 px-4 max-[380px]:px-3 py-2 max-[380px]:py-1.5 rounded-xl text-xs font-semibold border transition-all ${dark
                 ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
               Drafts {drafts.length > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${dark ? "bg-white/[0.08]" : "bg-gray-100"}`}>{drafts.length}</span>}
@@ -1265,30 +1354,30 @@ const CreateProject = () => {
 
         {/* -- Step Indicator -- */}
         <div className={`mt-5 rounded-2xl border p-4 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
-          <div className="flex items-center">
+          <div className="flex items-center max-[640px]:grid max-[640px]:grid-cols-5 max-[640px]:gap-1.5">
             {STEPS.map((s, i) => (
-              <div key={s.num} className="flex items-center flex-1">
+              <div key={s.num} className="flex items-center flex-1 min-w-0 max-[640px]:flex-col max-[640px]:items-stretch max-[640px]:gap-1">
                 <button
                   onClick={() => s.num < step && setStep(s.num)}
                   disabled={s.num > step}
-                  className={`flex items-center gap-2.5 transition-all ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
+                  className={`flex items-center gap-2.5 transition-all max-[640px]:flex-col max-[640px]:gap-1 max-[640px]:justify-center ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
                 >
-                  <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
+                  <span className={`w-8 h-8 max-[640px]:w-7 max-[640px]:h-7 rounded-xl flex items-center justify-center text-xs max-[640px]:text-[11px] font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
                       : step > s.num ? dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
                         : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-200 text-gray-400"
                     }`}>
                     {step > s.num ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> : s.num}
                   </span>
-                  <div className="hidden sm:block text-left">
-                    <p className={`text-xs font-bold leading-none ${step === s.num ? dark ? "text-white" : "text-gray-900"
+                  <div className="text-left max-[640px]:text-center max-[420px]:hidden">
+                    <p className={`text-xs max-[640px]:text-[10px] font-bold max-[640px]:font-semibold leading-none truncate ${step === s.num ? dark ? "text-white" : "text-gray-900"
                         : step > s.num ? dark ? "text-emerald-400" : "text-emerald-700"
                           : dark ? "text-gray-600" : "text-gray-400"
                       }`}>{s.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${dark ? "text-gray-700" : "text-gray-400"}`}>{s.desc}</p>
+                    <p className={`text-[10px] mt-0.5 max-[640px]:hidden ${dark ? "text-gray-700" : "text-gray-400"}`}>{s.desc}</p>
                   </div>
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div className={`flex-1 h-[2px] mx-3 rounded-full ${step > s.num ? dark ? "bg-emerald-500/40" : "bg-emerald-300" : dark ? "bg-white/[0.06]" : "bg-gray-200"
+                  <div className={`flex-1 h-[2px] mx-3 max-[640px]:hidden rounded-full ${step > s.num ? dark ? "bg-emerald-500/40" : "bg-emerald-300" : dark ? "bg-white/[0.06]" : "bg-gray-200"
                     }`} />
                 )}
               </div>
@@ -1304,7 +1393,7 @@ const CreateProject = () => {
             <div className={`${cardCls} p-4`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>My Drafts</h3>
-                <button onClick={() => { setScriptId(null); setTitle(""); editor?.commands.clearContent(); setShowDrafts(false); setStep(1); }}
+                <button onClick={() => { setScriptId(null); setTitle(""); editor?.commands.clearContent(); clearLocalWorkingDraft(); setShowDrafts(false); setStep(1); }}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${dark ? "text-gray-400 hover:bg-white/[0.06]" : "text-gray-500 hover:bg-gray-100"}`}>+ New Draft</button>
               </div>
               {loadingDrafts ? <div className="flex gap-3">{[1, 2, 3].map(i => <div key={i} className={`h-16 flex-1 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-100"}`} />)}</div>
@@ -1464,9 +1553,9 @@ const CreateProject = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={{ type: "spring", damping: 22, stiffness: 300 }}
-            className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2"
+            className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 max-[420px]:left-2 max-[420px]:right-2 max-[420px]:bottom-3 max-[420px]:translate-x-0"
           >
-            <div className={`rounded-2xl shadow-2xl px-5 py-3.5 flex items-center gap-4 min-w-[340px] max-w-[520px] ${
+            <div className={`rounded-2xl shadow-2xl px-5 py-3.5 flex items-center gap-4 min-w-[340px] max-w-[520px] w-full max-[420px]:min-w-0 max-[420px]:max-w-none max-[420px]:px-3 max-[420px]:py-2.5 max-[420px]:gap-2.5 max-[420px]:flex-col max-[420px]:items-stretch ${
               dark
                 ? "bg-[#0c1424] border border-white/[0.12] shadow-black/60"
                 : "bg-white border border-gray-200 shadow-gray-300/40"
@@ -1495,7 +1584,7 @@ const CreateProject = () => {
               <button
                 type="button"
                 onClick={handleGrammarUndo}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 max-[420px]:w-full ${
                   dark
                     ? "text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-400/40"
                     : "text-amber-600 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300"
@@ -1511,7 +1600,7 @@ const CreateProject = () => {
               <button
                 type="button"
                 onClick={handleGrammarKeep}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 max-[420px]:w-full ${
                   dark
                     ? "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-400/40"
                     : "text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
@@ -1692,32 +1781,32 @@ const CreateProject = () => {
             <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-white border-gray-200 shadow-sm"}`}>
 
               {/* -- Top Bar: title + save -- */}
-              <div className={`flex items-center gap-3 px-5 py-3 border-b ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
+              <div className={`flex items-center gap-3 px-5 max-[380px]:px-3 py-3 border-b max-[860px]:flex-col max-[860px]:items-stretch ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
                 <div className="flex-1 min-w-0">
                   <input
                     type="text"
                     value={title}
                     onChange={e => { setTitle(e.target.value); setSaved(false); }}
                     placeholder="Untitled Script"
-                    className={`w-full text-base font-bold bg-transparent outline-none truncate ${dark ? "text-gray-100 placeholder:text-gray-700" : "text-gray-900 placeholder:text-gray-300"}`}
+                    className={`w-full text-base max-[520px]:text-[15px] font-bold bg-transparent outline-none truncate ${dark ? "text-gray-100 placeholder:text-gray-700" : "text-gray-900 placeholder:text-gray-300"}`}
                   />
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {saving && <span className={`flex items-center gap-1.5 text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving...</span>}
-                  {saved && !saving && <span className={`flex items-center gap-1 text-xs ${dark ? "text-emerald-400" : "text-emerald-600"}`}><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
+                <div className="flex items-center gap-2 shrink-0 max-[860px]:w-full max-[860px]:grid max-[860px]:grid-cols-3 max-[860px]:gap-2 max-[419px]:grid-cols-1 max-[380px]:gap-1.5">
+                  {saving && <span className={`flex items-center gap-1.5 text-xs max-[860px]:col-span-3 max-[419px]:col-span-1 ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving...</span>}
+                  {saved && !saving && <span className={`flex items-center gap-1 text-xs max-[860px]:col-span-3 max-[419px]:col-span-1 ${dark ? "text-emerald-400" : "text-emerald-600"}`}><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
                   <button onClick={() => handleSave(false)} disabled={saving}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
+                    className={`px-3 py-1.5 max-[520px]:py-2 rounded-lg text-xs font-semibold border transition max-[860px]:w-full ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
                     Save Draft
                   </button>
                   <button
                     onClick={handleDownloadMainContentPdf}
                     disabled={saving}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}
+                    className={`px-3 py-1.5 max-[520px]:py-2 rounded-lg text-xs font-semibold border transition max-[860px]:w-full ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}
                   >
                     Download PDF
                   </button>
                   <button onClick={handleGrammarClick} disabled={grammarLoading || saving}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-40 ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 max-[520px]:py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 max-[860px]:w-full ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
                     {grammarLoading ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Fixing...</> : <>AI Fix Grammar <span className={`text-[9px] px-1 py-0.5 rounded ${dark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>{GRAMMAR_COST}cr</span></>}
                   </button>
                 </div>
@@ -1727,7 +1816,7 @@ const CreateProject = () => {
               <EditorToolbar editor={editor} dark={dark} />
 
               {/* -- Page Gutter + Document Canvas -- */}
-              <div className={`relative overflow-y-auto max-h-[72vh] ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`}
+              <div className={`relative overflow-y-auto overflow-x-auto max-[1200px]:overflow-x-hidden max-h-[72vh] ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`}
                 style={{ backgroundImage: dark ? "radial-gradient(circle, #1a2a3a 1px, transparent 1px)" : "radial-gradient(circle, #c8cdd5 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
 
                 {/* Page number gutter labels */}
@@ -1736,10 +1825,10 @@ const CreateProject = () => {
                 </div>
 
                 {/* The actual page(s) */}
-                <div className="flex flex-col items-center gap-0 py-8 px-14">
+                <div className="flex flex-col items-center max-[1200px]:items-start gap-0 py-8 max-[580px]:py-4 px-14 max-[1200px]:px-2 max-[380px]:px-1">
                   <div
-                    className={`relative w-full shadow-2xl ${dark ? "bg-[#111827]" : "bg-white"}`}
-                    style={{ maxWidth: 760, minHeight: Math.max(estimatedPages, 1) * 1056 + "px" }}>
+                    className={`relative w-full max-w-[760px] max-[1200px]:max-w-none shadow-2xl ${dark ? "bg-[#111827]" : "bg-white"}`}
+                    style={{ minHeight: Math.max(estimatedPages, 1) * 1056 + "px" }}>
 
                     {/* Page break lines */}
                     {Array.from({ length: Math.max(estimatedPages - 1, 0) }).map((_, i) => (
@@ -1962,116 +2051,53 @@ const CreateProject = () => {
               </div>
 
               {/* Media Uploads */}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                {/* Thumbnail Upload */}
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
-                    Script Thumbnail <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
-                  </label>
-                  {!thumbnailFile ? (
-                    <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
-                      <ImageIcon className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
-                      <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
-                      <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
-                      <input
-                        ref={thumbnailInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={(e) => {
-                          handleThumbnailSelect(e.target.files?.[0]);
-                          e.target.value = "";
-                        }}
-                        className="hidden"
-                      />
-                    </div>
-                  ) : (
-                    <div className={`border rounded-xl p-3 flex items-center gap-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
-                      <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
-                        <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB - Cover ready</p>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openThumbnailEditor(thumbnailFile)}
-                          className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
-                        >
-                          Adjust
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setThumbnailFile(null);
-                            setError("");
-                          }}
-                          className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  )}
+              <div className={`rounded-2xl border p-4 sm:p-5 ${dark ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
+                <div className="mb-4">
+                  <h3 className={`text-sm font-semibold ${dark ? "text-white" : "text-[#1e3a5f]"}`}>Visual Assets</h3>
+                  <p className={`text-xs mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Add a cover image and trailer to improve profile quality and discovery.</p>
                 </div>
 
-                {/* Trailer Upload */}
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
-                    Trailer Video <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
-                  </label>
-                  <input
-                    ref={trailerInputRef}
-                    type="file"
-                    accept="video/mp4,video/mpeg,video/quicktime,video/webm,video/x-m4v"
-                    onChange={(e) => {
-                      handleTrailerSelect(e.target.files?.[0]);
-                      e.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-
-                  {!trailerFile ? (
-                    <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
-                      <Film className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
-                      <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
-                      <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
-                      <p className={`text-[10px] mt-1 ${dark ? "text-gray-600" : "text-gray-400"}`}>Best results: 1080p+, H.264/H.265</p>
-                    </div>
-                  ) : (
-                    <div className={`border rounded-xl p-3 space-y-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
-                      <div className="relative overflow-hidden rounded-lg">
-                        <video
-                          src={trailerPreviewUrl}
-                          controls
-                          preload="metadata"
-                          className="w-full h-44 object-contain bg-black"
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                  {/* Thumbnail Upload */}
+                  <div className={`rounded-2xl border p-4 ${dark ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                      Script Thumbnail <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                    </label>
+                    {!thumbnailFile ? (
+                      <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                        <ImageIcon className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
+                        <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
+                        <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
+                        <input
+                          ref={thumbnailInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => {
+                            handleThumbnailSelect(e.target.files?.[0]);
+                            e.target.value = "";
+                          }}
+                          className="hidden"
                         />
                       </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
-                          <CheckCircle2 className="w-6 h-6 text-green-500" />
-                        </div>
+                    ) : (
+                      <div className={`border rounded-xl p-3 flex items-center gap-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                        <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
-                          <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>
-                            {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
-                            {trailerMetaLoading ? " - reading video info..." : trailerMeta ? ` - ${formatDuration(trailerMeta.duration)} - ${trailerMeta.width}x${trailerMeta.height}` : ""}
-                          </p>
-                          <p className={`text-[10px] mt-1 ${dark ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
+                          <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
+                          <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB - Cover ready</p>
                         </div>
                         <div className="flex flex-col gap-1.5">
                           <button
                             type="button"
-                            onClick={() => trailerInputRef.current?.click()}
+                            onClick={() => openThumbnailEditor(thumbnailFile)}
                             className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
                           >
-                            Replace
+                            Adjust
                           </button>
                           <button
                             type="button"
                             onClick={() => {
-                              setTrailerFile(null);
+                              setThumbnailFile(null);
                               setError("");
                             }}
                             className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
@@ -2080,8 +2106,77 @@ const CreateProject = () => {
                           </button>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  {/* Trailer Upload */}
+                  <div className={`rounded-2xl border p-4 ${dark ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                      Trailer Video <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                    </label>
+                    <input
+                      ref={trailerInputRef}
+                      type="file"
+                      accept="video/mp4,video/mpeg,video/quicktime,video/webm,video/x-m4v"
+                      onChange={(e) => {
+                        handleTrailerSelect(e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+
+                    {!trailerFile ? (
+                      <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                        <Film className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
+                        <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
+                        <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
+                      </div>
+                    ) : (
+                      <div className={`border rounded-xl p-3 space-y-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                        <div className="relative overflow-hidden rounded-lg">
+                          <video
+                            src={trailerPreviewUrl}
+                            controls
+                            preload="metadata"
+                            className="w-full h-44 object-contain bg-black"
+                          />
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-6 h-6 text-green-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
+                            <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>
+                              {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
+                              {trailerMetaLoading ? " - reading video info..." : trailerMeta ? ` - ${formatDuration(trailerMeta.duration)} - ${trailerMeta.width}x${trailerMeta.height}` : ""}
+                            </p>
+                            <p className={`text-[10px] mt-1 ${dark ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => trailerInputRef.current?.click()}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
+                            >
+                              Replace
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTrailerFile(null);
+                                setError("");
+                              }}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2118,57 +2213,49 @@ const CreateProject = () => {
                     <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
                   </div>
 
-                  <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
-                    <div className="flex items-start justify-between gap-4">
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 space-y-4 min-[420px]:space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-start min-[460px]:justify-between">
                       <div>
-                        <h3 className={`text-base font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
-                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
+                        <h3 className={`text-[15px] min-[420px]:text-base font-bold mt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
+                        <p className={`text-[11px] min-[420px]:text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
                       </div>
-                      <div className={`px-3 py-2 rounded-xl text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                      <div className={`w-full min-[460px]:w-auto px-3 py-2 rounded-xl text-left min-[460px]:text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
                         <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-gray-500" : "text-gray-400"}`}>Current Plan</p>
                         <p className={`text-sm font-bold mt-1 ${isPremium ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-blue-300" : "text-blue-700"}`}>{isPremium ? "Premium Access" : "Free Public Access"}</p>
                       </div>
                     </div>
 
-                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 p-1.5 rounded-2xl ${dark ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
+                    <div className={`grid grid-cols-1 min-[446px]:grid-cols-2 gap-2.5 min-[420px]:gap-3 p-1.5 rounded-2xl ${dark ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
                       <button type="button" onClick={() => setIsPremium(false)}
-                        className={`text-left rounded-xl px-4 py-4 border transition-all ${!isPremium
+                        className={`text-left rounded-xl px-3.5 min-[420px]:px-4 py-3.5 min-[420px]:py-4 border transition-all ${!isPremium
                           ? dark ? "bg-[#122338] border-[#24456b] text-white shadow-lg shadow-black/20" : "bg-[#1e3a5f] border-[#1e3a5f] text-white shadow-sm"
                           : dark ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
                         }`}>
-                        <div className="flex items-center gap-2.5 mb-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${!isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-blue-50"}`}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        <div className="flex items-center gap-2 min-[420px]:gap-2.5">
+                          <div className={`w-8 h-8 min-[420px]:w-9 min-[420px]:h-9 rounded-xl flex items-center justify-center ${!isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-blue-50"}`}>
+                            <svg className="w-3.5 h-3.5 min-[420px]:w-4 min-[420px]:h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
                           <div>
-                            <p className="text-sm font-bold">Free Access</p>
-                            <p className={`text-[11px] ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
+                            <p className="text-[15px] min-[420px]:text-sm font-bold">Free Access</p>
+                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
                           </div>
                         </div>
-                        <ul className={`space-y-1.5 text-[12px] leading-relaxed ${!isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
-                          <li>Anyone can read the full script</li>
-                          <li>Good for early audience growth</li>
-                        </ul>
                       </button>
 
                       <button type="button" onClick={() => setIsPremium(true)}
-                        className={`text-left rounded-xl px-4 py-4 border transition-all ${isPremium
+                        className={`text-left rounded-xl px-3.5 min-[420px]:px-4 py-3.5 min-[420px]:py-4 border transition-all ${isPremium
                           ? dark ? "bg-emerald-600/15 border-emerald-500/40 text-white shadow-lg shadow-black/20" : "bg-emerald-600 border-emerald-600 text-white shadow-sm"
                           : dark ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
                         }`}>
-                        <div className="flex items-center gap-2.5 mb-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-emerald-50"}`}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        <div className="flex items-center gap-2 min-[420px]:gap-2.5">
+                          <div className={`w-8 h-8 min-[420px]:w-9 min-[420px]:h-9 rounded-xl flex items-center justify-center ${isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-emerald-50"}`}>
+                            <svg className="w-3.5 h-3.5 min-[420px]:w-4 min-[420px]:h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
                           <div>
-                            <p className="text-sm font-bold">Premium Access</p>
-                            <p className={`text-[11px] ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
+                            <p className="text-[15px] min-[420px]:text-sm font-bold">Premium Access</p>
+                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
                           </div>
                         </div>
-                        <ul className={`space-y-1.5 text-[12px] leading-relaxed ${isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
-                          <li>You set the main script price investors pay</li>
-                          <li>Best for monetization-ready scripts</li>
-                        </ul>
                       </button>
                     </div>
 
@@ -2182,50 +2269,19 @@ const CreateProject = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {FORMAT_PRICE_GUIDE[formData.format] && (
-                          <div className={`flex items-start gap-2.5 px-4 py-3 rounded-xl ${dark ? "bg-amber-500/10 border border-amber-500/20 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
-                            <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
-                            <div className="text-[12px] leading-relaxed">
-                              <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
-                              <p className="mt-0.5">Use ₹${FORMAT_PRICE_GUIDE[formData.format].min}-₹${FORMAT_PRICE_GUIDE[formData.format].max}. Recommended start: ₹${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
-                            </div>
-                          </div>
-                        )}
-
                         <div>
-                          <p className={`text-[11px] font-bold uppercase tracking-[0.16em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose Price</p>
-                          <div className="flex flex-wrap gap-2">
-                            {PRICE_PRESETS.map(p => (
-                              <button key={p} type="button"
-                                onClick={() => { setScriptPrice(p); setUseCustomPrice(false); setCustomPriceInput(""); }}
-                                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${!useCustomPrice && scriptPrice === p
-                                  ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                  : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
-                                }`}>
-                                ₹{p}
-                              </button>
-                            ))}
-                            <button type="button"
-                              onClick={() => { setUseCustomPrice(true); setCustomPriceInput(String(scriptPrice)); }}
-                              className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${useCustomPrice
-                                ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
-                              }`}>
-                              Custom
-                            </button>
-                          </div>
-                        </div>
-
-                        {useCustomPrice && (
                           <div className={`rounded-xl p-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
-                            <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Custom Price</label>
+                            <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Set Price</label>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                               <div className="relative w-full sm:w-40">
                                 <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>₹</span>
                                 <input
                                   type="number" min="1" max="500" step="1"
-                                  value={customPriceInput}
-                                  onChange={e => setCustomPriceInput(e.target.value)}
+                                  value={scriptPrice}
+                                  onChange={(e) => {
+                                    const normalized = String(e.target.value || "").replace(/^0+(?=\d)/, "");
+                                    setScriptPrice(Number(normalized) || 0);
+                                  }}
                                   placeholder="0"
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
@@ -2233,7 +2289,7 @@ const CreateProject = () => {
                               <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
                             </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2249,40 +2305,51 @@ const CreateProject = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 min-[416px]:space-y-3">
                       {[
                         { key: "hosting", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" /></svg>, name: "Hosting & Discovery", price: "FREE", desc: "Marketplace listing and public discovery", locked: true },
-                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses" },
+                        { key: "spotlight", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.75.75 0 011.04 0l1.838 1.783a.75.75 0 00.384.2l2.53.36a.75.75 0 01.607.51l.806 2.435a.75.75 0 00.286.37l2.108 1.498a.75.75 0 010 1.227l-2.108 1.498a.75.75 0 00-.286.37l-.806 2.435a.75.75 0 01-.607.51l-2.53.36a.75.75 0 00-.384.2l-1.838 1.783a.75.75 0 01-1.04 0l-1.838-1.783a.75.75 0 00-.384-.2l-2.53-.36a.75.75 0 01-.607-.51l-.806-2.435a.75.75 0 00-.286-.37L2.92 11.882a.75.75 0 010-1.227L5.028 9.157a.75.75 0 00.286-.37l.806-2.435a.75.75 0 01.607-.51l2.53-.36a.75.75 0 00.384-.2L11.48 3.5z" /></svg>, name: "Activate Spotlight", price: `${SERVICE_PRICES.spotlight} credits`, desc: "Verified badge, evaluation + trailer service, and featured top placement" },
                         { key: "aiTrailer", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>, name: "AI Concept Trailer", price: `${SERVICE_PRICES.aiTrailer} credits`, desc: "60-second cinematic teaser", badge: "BETA" },
+                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses" },
                       ].map((service) => (
                         <button
                           key={service.key}
                           type="button"
                           onClick={() => !service.locked && setServices((current) => ({ ...current, [service.key]: !current[service.key] }))}
-                          className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${service.locked
+                          className={`w-full text-left rounded-2xl border px-3.5 min-[416px]:px-4 py-3.5 min-[416px]:py-4 transition-all ${service.locked
                             ? dark ? "border-[#22405f] bg-[#0e2032] cursor-default" : "border-blue-100 bg-blue-50/70 cursor-default"
                             : services[service.key]
                               ? dark ? "border-[#2b5d8f] bg-[#122338]" : "border-[#1e3a5f]/25 bg-[#1e3a5f]/[0.05]"
                               : dark ? "border-[#182840] hover:border-[#22405f] hover:bg-white/[0.02]" : "border-gray-200 hover:border-gray-300 hover:bg-white"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${services[service.key] || service.locked ? dark ? "bg-white/[0.08] text-white" : "bg-white text-[#1e3a5f]" : dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+                          <div className="flex items-start gap-2.5 min-[416px]:gap-3">
+                            <div className={`w-9 h-9 min-[416px]:w-10 min-[416px]:h-10 rounded-xl flex items-center justify-center shrink-0 ${services[service.key] || service.locked ? dark ? "bg-white/[0.08] text-white" : "bg-white text-[#1e3a5f]" : dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
                               {service.icon}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
-                                {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
-                                {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 min-[416px]:gap-2">
+                                    <h4 className={`text-[13px] min-[416px]:text-sm font-bold leading-tight ${dark ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
+                                    {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
+                                    {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                                  </div>
+                                </div>
+                                <div className="hidden min-[416px]:block text-right shrink-0">
+                                  <p className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
+                                  {!service.locked && (
+                                    <p className={`text-[11px] mt-1 ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
+                                  )}
+                                </div>
                               </div>
-                              <p className={`text-[12px] mt-1 ${dark ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
-                              {!service.locked && (
-                                <p className={`text-[11px] mt-1 ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
-                              )}
+                              <p className={`text-[12px] mt-1.5 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
+                              <div className="mt-2 min-[416px]:hidden flex items-center justify-between gap-2">
+                                <p className={`text-[13px] font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
+                                {!service.locked && (
+                                  <p className={`text-[11px] ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </button>
@@ -2351,27 +2418,31 @@ const CreateProject = () => {
               </div>
 
               <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
-                <div className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+                <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
                   <span>Invoice Item</span>
                   <span>Type</span>
                   <span className="text-right">Amount</span>
                 </div>
                 <div>
                   {publishInvoiceRows.map((row) => (
-                    <div key={row.item} className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                    <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
                       <div>
                         <p className={`font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
                         <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
                       </div>
-                      <div className="pt-0.5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
+                      <div className="pt-0.5 max-[520px]:pt-0">
+                        <span className={`inline-flex whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
                           ? dark ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                          : row.type === "Revenue Setting"
+                            ? dark ? "bg-indigo-500/14 text-indigo-300" : "bg-indigo-100 text-indigo-700"
+                          : row.type === "Platform Fee"
+                            ? dark ? "bg-amber-500/12 text-amber-300" : "bg-amber-100 text-amber-700"
                           : row.type === "Future Earnings"
                             ? dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
                             : dark ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
                           }`}>{row.type}</span>
                       </div>
-                      <p className={`text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
+                      <p className={`text-left min-[521px]:text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
                     </div>
                   ))}
                 </div>

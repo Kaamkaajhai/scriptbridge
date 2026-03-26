@@ -416,17 +416,19 @@ const Writers = () => {
             </div>
 
             {/* Sort tabs */}
-            <div className={`flex items-center gap-0.5 p-1 rounded-lg border overflow-x-auto ${tk.tabWrap}`}>
-              {SORT_TABS.map((tab) => (
-                <button key={tab.key} onClick={() => setSortBy(tab.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-[11px] font-semibold transition-all whitespace-nowrap ${sortBy === tab.key ? tk.tabOn : tk.tabOff}`}
-                >
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
-                  </svg>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
+            <div className={`rounded-lg border max-[518px]:w-full max-[518px]:overflow-x-auto max-[518px]:pb-1 [scrollbar-width:none] [-ms-overflow-style:none] max-[518px]:[&::-webkit-scrollbar]:hidden ${tk.tabWrap}`}>
+              <div className="flex items-center gap-0.5 p-1 w-max min-w-max">
+                {SORT_TABS.map((tab) => (
+                  <button key={tab.key} onClick={() => setSortBy(tab.key)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-[11px] max-[518px]:text-[10px] font-semibold transition-all whitespace-nowrap shrink-0 ${sortBy === tab.key ? tk.tabOn : tk.tabOff}`}
+                  >
+                    <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
+                    </svg>
+                    <span className="inline">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -447,7 +449,7 @@ const Writers = () => {
           {loading ? (
             /* ── Initial load: full skeleton grid ── */
             <motion.div key="sk" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5"
+              className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 gap-3.5"
             >
               {Array.from({ length: 9 }).map((_, i) => <SkeletonCard key={i} dark={dark} />)}
             </motion.div>
@@ -484,7 +486,7 @@ const Writers = () => {
               {/* Top 3 */}
               {top3.length === 3 && (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-3.5">
+                  <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-3.5">
                     {top3.map((w, i) => <WriterCard key={w._id} writer={w} rank={i + 1} sortBy={sortBy} dark={dark} />)}
                   </div>
                   {rest.length > 0 && (
@@ -499,7 +501,7 @@ const Writers = () => {
 
               {/* Rest */}
               {rest.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   {rest.map((w, i) => (
                     <WriterCard key={w._id} writer={w} rank={isFiltered ? i + 1 : i + 4} sortBy={sortBy} dark={dark} />
                   ))}

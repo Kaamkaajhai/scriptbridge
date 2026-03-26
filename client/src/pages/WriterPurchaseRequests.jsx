@@ -238,7 +238,7 @@ export default function WriterPurchaseRequests() {
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 max-[380px]:px-3 max-[340px]:px-2.5 py-8">
 
         {/* ── Header ── */}
         <div className="mb-8">
@@ -273,16 +273,16 @@ export default function WriterPurchaseRequests() {
         )}
 
         {/* ── Filter Tabs ── */}
-        <div className={`flex gap-1 p-1 rounded-xl mb-6 w-fit ${t.filterBar}`}>
+        <div className={`flex gap-1 p-1 rounded-xl mb-6 w-fit max-[380px]:w-full max-[380px]:grid max-[380px]:grid-cols-2 ${t.filterBar}`}>
           {STATUS_FILTERS.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${filter === f ? t.filterActive : t.filterIdle}`}
+              className={`inline-flex items-center justify-center px-4 max-[380px]:px-2.5 py-1.5 max-[380px]:py-2 rounded-lg text-sm max-[380px]:text-[12px] font-medium capitalize transition-all whitespace-nowrap max-[380px]:w-full ${filter === f ? t.filterActive : t.filterIdle}`}
             >
               {f === "rejected" ? "Declined" : f.charAt(0).toUpperCase() + f.slice(1)}
               {f === "pending" && stats.pending > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center bg-amber-500 text-white text-xs rounded-full w-4 h-4 font-bold">
+                <span className="ml-1.5 inline-flex items-center justify-center bg-amber-500 text-white text-xs max-[380px]:text-[10px] rounded-full w-4 h-4 max-[380px]:w-3.5 max-[380px]:h-3.5 font-bold">
                   {stats.pending}
                 </span>
               )}
@@ -456,6 +456,21 @@ export default function WriterPurchaseRequests() {
                             </svg>
                             Decline
                           </button>
+                        </div>
+                      )}
+
+                      {/* Writer: approved -> message investor */}
+                      {isWriter && req.status === "approved" && req.investor?._id && (
+                        <div className="mt-3">
+                          <Link
+                            to={`/messages?recipientId=${req.investor._id}&recipientName=${encodeURIComponent(req.investor?.name || "Investor")}&recipientRole=investor`}
+                            className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${t.viewLink}`}
+                          >
+                            Message Investor
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
                         </div>
                       )}
 
