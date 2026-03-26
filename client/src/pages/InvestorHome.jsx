@@ -273,13 +273,7 @@ const ScriptPoster = ({ script, idx = 0, rank, dark }) => {
 
           {/* Top-right: PRO or PICK */}
           <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-            {script.premium && (
-              <span className="px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider rounded-md
-                bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 shadow">
-                PRO
-              </span>
-            )}
-            {script.isFeatured && !script.premium && (
+            {script.isFeatured && (
               <span className="px-1.5 py-0.5 text-[8px] font-extrabold tracking-wider rounded-md
                 bg-gradient-to-r from-violet-500 to-violet-600 text-white shadow">
                 ★

@@ -37,7 +37,15 @@ const ScriptDetail = () => {
   const [rejectNoteModal, setRejectNoteModal] = useState(null); // { id, investorName }
   const [rejectNoteText, setRejectNoteText] = useState("");
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [notice, setNotice] = useState(null); // { type: "success" | "error", message: string }
   const viewStartRef = useRef(Date.now());
+  const noticeTimerRef = useRef(null);
+
+  const showNotice = (message, type = "success") => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    setNotice({ type, message });
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 4500);
+  };
 
   /* ── Handlers ─────────────────────────────────────────── */
 
@@ -141,6 +149,12 @@ const ScriptDetail = () => {
         .catch(() => null);
     };
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const favoriteIds = user?.favoriteScripts || [];
@@ -383,10 +397,11 @@ const ScriptDetail = () => {
       const refunded = Number(data?.package?.creditsRefunded || 0);
       const refundNote = refunded > 0 ? ` Refunded ${refunded} AI trailer credits based on spotlight policy.` : "";
       const isExtension = Boolean(data?.package?.isExtension);
-      alert(
+      showNotice(
         isExtension
           ? `Project Spotlight extended: featured top placement is extended for 1 month.${refundNote}`
-          : `Project Spotlight activated: verified badge is now permanent, free evaluation started, AI trailer queued (2-3 business days), and featured top placement is live for 1 month.${refundNote}`
+          : `Project Spotlight activated: verified badge is now permanent, free evaluation started, AI trailer queued (2-3 business days), and featured top placement is live for 1 month.${refundNote}`,
+        "success"
       );
     } catch (err) {
       const status = err?.response?.status;
@@ -398,7 +413,7 @@ const ScriptDetail = () => {
         message = "Unable to reach backend. Please check API URL/server status.";
       }
 
-      alert(message);
+      showNotice(message, "error");
     } finally {
       setSpotlightLoading(false);
     }
@@ -659,6 +674,32 @@ const ScriptDetail = () => {
 
   return (
     <div className={`min-h-screen ${t.page}`}>
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-5 right-5 z-[120] max-w-md"
+          >
+            <div className={`rounded-2xl border shadow-2xl px-4 py-3 backdrop-blur-md ${notice.type === "success" ? (isDarkMode ? "bg-emerald-500/15 border-emerald-400/30 text-emerald-100" : "bg-emerald-50 border-emerald-200 text-emerald-900") : (isDarkMode ? "bg-rose-500/15 border-rose-400/30 text-rose-100" : "bg-rose-50 border-rose-200 text-rose-900")}`}>
+              <div className="flex items-start gap-3">
+                <span className={`mt-0.5 w-2.5 h-2.5 rounded-full shrink-0 ${notice.type === "success" ? "bg-emerald-400" : "bg-rose-400"}`} />
+                <p className="text-sm font-medium leading-relaxed">{notice.message}</p>
+                <button
+                  onClick={() => setNotice(null)}
+                  className={`ml-1 text-xs font-semibold transition-colors ${isDarkMode ? "text-white/70 hover:text-white" : "text-gray-500 hover:text-gray-800"}`}
+                  aria-label="Close notification"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -730,11 +771,6 @@ const ScriptDetail = () => {
 
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-wrap gap-2">
-                {script.premium && (
-                  <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold">
-                    &#9733; Premium
-                  </span>
-                )}
                 {script.verifiedBadge && (
                   <span
                     className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 p-[1.5px] shadow-[0_8px_20px_rgba(30,64,175,0.45)]"
