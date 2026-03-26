@@ -5,6 +5,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
 import BuyCreditsModal from "../components/BuyCreditsModal";
 import BrandLogo from "../components/BrandLogo";
+import ConfirmDialog from "../components/ConfirmDialog";
 import api from "../services/api";
 
 const MainLayout = ({ children }) => {
@@ -29,6 +30,7 @@ const MainLayout = ({ children }) => {
   const [creditsBalance, setCreditsBalance] = useState(0);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [sidebarToggleToken, setSidebarToggleToken] = useState(0);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -365,6 +367,17 @@ const MainLayout = ({ children }) => {
     navigate("/purchase-requests");
   };
 
+  const handleLogout = () => {
+    setDropdownOpen(false);
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    navigate("/login");
+  };
+
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
@@ -591,7 +604,7 @@ const MainLayout = ({ children }) => {
 
           <button
             onClick={() => navigate("/dashboard")}
-            className="order-1 shrink-0 flex items-center rounded-lg px-1 py-1"
+            className="order-1 shrink-0 flex items-center rounded-lg px-1 py-1 lg:hidden"
             aria-label="Go to dashboard"
             title="Dashboard"
           >
@@ -868,7 +881,7 @@ const MainLayout = ({ children }) => {
                 </button>
 
                 <div className={`border-t my-1 ${isDarkMode ? "border-[#1c2a3a]" : "border-gray-100"}`}></div>
-                <button onClick={() => { logout(); navigate("/login"); }}
+                <button onClick={handleLogout}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-red-400" : "text-gray-500 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -889,6 +902,17 @@ const MainLayout = ({ children }) => {
         </div>
       </main>
     </div>
+
+    <ConfirmDialog
+      open={showLogoutConfirm}
+      title="Log out"
+      message="Are you sure you want to log out of your account?"
+      confirmText="Log out"
+      cancelText="Cancel"
+      onConfirm={confirmLogout}
+      onCancel={() => setShowLogoutConfirm(false)}
+      isDarkMode={isDarkMode}
+    />
     </>
   );
 };

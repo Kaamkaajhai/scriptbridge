@@ -1086,7 +1086,7 @@ const InvestorOnboarding = () => {
               </motion.div>
             )}
 
-          </AnimatePresence>
+          </AnimatePresence> 
         </div>
       </div>
     </div>

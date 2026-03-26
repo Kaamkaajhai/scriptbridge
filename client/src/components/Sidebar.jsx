@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
+import ConfirmDialog from "./ConfirmDialog";
 
 const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
@@ -19,6 +20,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
   const [watchlist, setWatchlist] = useState([]); // NEW for Producers
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (mobileToggleToken > 0) {
@@ -49,7 +51,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
         fetchMyScripts();
       }
     }
-  }, [user]);
+  }, [user, isIndustry, isReader, location.pathname]);
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -57,20 +59,21 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
 
   // Re-fetch scripts whenever one is deleted anywhere in the app
   useEffect(() => {
-    const onScriptDeleted = () => {
+    const onScriptDeleted = (event) => {
+      const deletedId = event?.detail?.id;
+      if (deletedId) {
+        setMyScripts((prev) => prev.filter((s) => s._id !== deletedId));
+      }
       if (!isIndustry && !isReader) fetchMyScripts();
     };
     window.addEventListener("scriptDeleted", onScriptDeleted);
     return () => window.removeEventListener("scriptDeleted", onScriptDeleted);
-  }, [isIndustry]);
+  }, [isIndustry, isReader]);
 
   const fetchMyScripts = async () => {
     try {
-      const { data } = await api.get("/scripts");
-      const mine = data.filter(
-        (s) => (s.creator?._id === user?._id || s.creator === user?._id) && s.status !== "draft"
-      );
-      setMyScripts(mine);
+      const { data } = await api.get("/scripts/mine");
+      setMyScripts((Array.isArray(data) ? data : []).filter((s) => s.status !== "draft"));
     } catch { setMyScripts([]); }
   };
 
@@ -84,7 +87,15 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
     }
   };
 
-  const handleLogout = () => { logout(); navigate("/login"); };
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    navigate("/login");
+  };
 
   const isActive = (path) => {
     if (location.pathname === path) return true;
@@ -434,6 +445,17 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
           );
         })}
       </nav>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Log out"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Log out"
+        cancelText="Cancel"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+        isDarkMode={isDarkMode}
+      />
     </>
   );
 };

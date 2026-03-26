@@ -980,19 +980,6 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && (
-                      <button
-                        onClick={() => navigate(`/upload?edit=${script._id}`)}
-                        className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${t.btnSec}`}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                        Edit &amp; Republish
-                      </button>
-                    )}
-
                     {/* Purchase / Request Button for non-owners */}
                     {!isOwner && script.canPurchase && !script.isUnlocked && (
                       script.myPendingRequest ? (
