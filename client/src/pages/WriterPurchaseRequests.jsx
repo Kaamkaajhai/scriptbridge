@@ -431,11 +431,11 @@ export default function WriterPurchaseRequests() {
 
                       {/* Writer actions on pending */}
                       {isWriter && req.status === "pending" && (
-                        <div className="flex items-center gap-2 mt-4">
+                        <div className="flex items-center gap-2 mt-4 max-[380px]:flex-wrap">
                           <button
                             onClick={() => handleApprove(req._id)}
                             disabled={actionLoading === req._id}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60"
+                            className="flex items-center gap-1.5 px-4 py-2 max-[380px]:px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm max-[340px]:text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-60 max-[380px]:flex-1 max-[380px]:justify-center"
                           >
                             {actionLoading === req._id ? (
                               <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -449,7 +449,7 @@ export default function WriterPurchaseRequests() {
                           <button
                             onClick={() => setRejectModal({ id: req._id, scriptTitle: req.script?.title, investorName: req.investor?.name })}
                             disabled={actionLoading === req._id}
-                            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 ${t.declineBtn}`}
+                            className={`flex items-center gap-1.5 px-4 py-2 max-[380px]:px-3 text-sm max-[340px]:text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-60 max-[380px]:flex-1 max-[380px]:justify-center ${t.declineBtn}`}
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

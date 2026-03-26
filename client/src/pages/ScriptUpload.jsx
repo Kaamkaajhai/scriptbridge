@@ -1056,9 +1056,7 @@ const ScriptUpload = () => {
           mediaTasks.push((async () => {
             const thumbnailFormData = new FormData();
             thumbnailFormData.append("thumbnail", thumbnailFile);
-            await api.post(`/scripts/${targetScriptId}/upload-thumbnail`, thumbnailFormData, {
-              headers: { "Content-Type": "multipart/form-data" },
-            });
+            await api.post(`/scripts/${targetScriptId}/upload-thumbnail`, thumbnailFormData);
           })());
         }
 
@@ -1066,9 +1064,7 @@ const ScriptUpload = () => {
           mediaTasks.push((async () => {
             const trailerFormData = new FormData();
             trailerFormData.append("trailer", trailerFile);
-            await api.post(`/scripts/${targetScriptId}/upload-trailer`, trailerFormData, {
-              headers: { "Content-Type": "multipart/form-data" },
-            });
+            await api.post(`/scripts/${targetScriptId}/upload-trailer`, trailerFormData);
           })());
         }
 
@@ -1095,10 +1091,6 @@ const ScriptUpload = () => {
         // Refresh credits balance after successful upload
         const { data: creditsData } = await api.get("/credits/balance");
         setCreditsBalance(creditsData.balance || 0);
-        // Delete the draft now that it's published
-        if (scriptId) {
-          try { await api.delete(`/scripts/${scriptId}`); } catch { /* ok */ }
-        }
         await offerInvoiceDownload(newScriptId);
         navigate("/dashboard");
       }

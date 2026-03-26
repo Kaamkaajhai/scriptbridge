@@ -57,6 +57,7 @@ const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
 const SERVICE_PRICES = { hosting: 0, evaluation: 50, aiTrailer: 120, spotlight: 310 };
 const THUMBNAIL_ASPECT = 3 / 4;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
+const MAX_THUMBNAIL_SOURCE_SIZE = 25 * 1024 * 1024;
 const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
 
 const createImage = (url) => new Promise((resolve, reject) => {
@@ -77,7 +78,7 @@ const getRotatedSize = (width, height, rotation) => {
   };
 };
 
-const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
+const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0, outputType = "image/jpeg", jpegQuality = 0.92) => {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -113,7 +114,8 @@ const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
   );
 
   return new Promise((resolve) => {
-    cropCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
+    const quality = outputType === "image/jpeg" ? jpegQuality : undefined;
+    cropCanvas.toBlob((blob) => resolve(blob), outputType, quality);
   });
 };
 
@@ -440,6 +442,8 @@ const CreateProject = () => {
   const [thumbnailRotation, setThumbnailRotation] = useState(0);
   const [thumbnailCropPixels, setThumbnailCropPixels] = useState(null);
   const [thumbnailApplying, setThumbnailApplying] = useState(false);
+  const [thumbnailSourceName, setThumbnailSourceName] = useState("thumbnail");
+  const [thumbnailSourceType, setThumbnailSourceType] = useState("image/jpeg");
 
   const resetThumbnailEditor = useCallback(() => {
     setIsThumbnailEditorOpen(false);
@@ -460,12 +464,14 @@ const CreateProject = () => {
       setError("Please select an image file for thumbnail.");
       return;
     }
-    if (file.size > MAX_THUMBNAIL_SIZE) {
-      setError("Thumbnail must be an image under 5MB.");
+    if (file.size > MAX_THUMBNAIL_SOURCE_SIZE) {
+      setError("Thumbnail source image is too large. Please choose an image under 25MB.");
       return;
     }
 
     setError("");
+    setThumbnailSourceName(file.name || "thumbnail");
+    setThumbnailSourceType(file.type || "image/jpeg");
     const sourceUrl = URL.createObjectURL(file);
     setThumbnailSourceUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -491,20 +497,46 @@ const CreateProject = () => {
 
     setThumbnailApplying(true);
     try {
-      const croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation);
+      const preferredType = ["image/png", "image/webp", "image/gif", "image/jpeg", "image/jpg"].includes(thumbnailSourceType)
+        ? thumbnailSourceType.replace("image/jpg", "image/jpeg")
+        : "image/jpeg";
+
+      let outputType = preferredType;
+      let croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, outputType);
+
+      if (!croppedBlob && outputType !== "image/jpeg") {
+        outputType = "image/jpeg";
+        croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, outputType);
+      }
+
       if (!croppedBlob) throw new Error("thumbnail-processing-failed");
+
+      if (croppedBlob.size > MAX_THUMBNAIL_SIZE && outputType !== "image/jpeg") {
+        outputType = "image/jpeg";
+        croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, outputType, 0.9);
+      }
+
+      if (croppedBlob?.size > MAX_THUMBNAIL_SIZE && outputType === "image/jpeg") {
+        for (let quality = 0.82; quality >= 0.6; quality -= 0.08) {
+          const retryBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, "image/jpeg", quality);
+          if (retryBlob) croppedBlob = retryBlob;
+          if (croppedBlob?.size <= MAX_THUMBNAIL_SIZE) break;
+        }
+      }
+
       if (croppedBlob.size > MAX_THUMBNAIL_SIZE) {
-        setError("Processed thumbnail exceeds 5MB. Reduce zoom/area and retry.");
+        setError("Processed thumbnail is still above 5MB. Crop a smaller area and retry.");
         return;
       }
 
-      const baseName = (thumbnailFile?.name || "thumbnail").replace(/\.[^/.]+$/, "");
-      const processedFile = new File([croppedBlob], `${baseName}-cover.jpg`, { type: "image/jpeg" });
+      const baseName = (thumbnailSourceName || "thumbnail").replace(/\.[^/.]+$/, "");
+      const ext = outputType === "image/png" ? "png" : outputType === "image/webp" ? "webp" : outputType === "image/gif" ? "gif" : "jpg";
+      const processedFile = new File([croppedBlob], `${baseName}-cover.${ext}`, { type: outputType });
       setThumbnailFile(processedFile);
       setError("");
       resetThumbnailEditor();
-    } catch {
-      setError("Could not process thumbnail. Please try another image.");
+    } catch (err) {
+      setError(err?.message || "Could not process thumbnail. Please try another image.");
     } finally {
       setThumbnailApplying(false);
     }
@@ -1158,6 +1190,35 @@ const CreateProject = () => {
   const handleNext = () => { if (validateStep(step) && step < 5) { setStep(step + 1); setError(""); } };
   const handleBack = () => { if (step > 1) { setStep(step - 1); setError(""); } };
 
+  const uploadSelectedProjectMedia = async (targetScriptId) => {
+    if (!targetScriptId) return;
+
+    const tasks = [];
+
+    if (thumbnailFile) {
+      const thumbnailFormData = new FormData();
+      thumbnailFormData.append("thumbnail", thumbnailFile);
+      tasks.push(api.post(`/scripts/${targetScriptId}/upload-thumbnail`, thumbnailFormData));
+    }
+
+    if (trailerFile) {
+      const trailerFormData = new FormData();
+      trailerFormData.append("trailer", trailerFile);
+      tasks.push(api.post(`/scripts/${targetScriptId}/upload-trailer`, trailerFormData));
+    }
+
+    if (tasks.length === 0) return;
+
+    const results = await Promise.allSettled(tasks);
+    const failed = results.find((result) => result.status === "rejected");
+
+    if (failed?.status === "rejected") {
+      const reason = failed.reason;
+      const message = reason?.response?.data?.message || reason?.message || "Failed to upload project media.";
+      throw new Error(message);
+    }
+  };
+
   // Publish
   const handlePublish = async () => {
     if (!validateStep(4)) return;
@@ -1199,11 +1260,12 @@ const CreateProject = () => {
         ...(scriptId ? { scriptId } : {}),
       };
       const { data } = await api.post("/scripts/upload", payload);
-      if (scriptId) { try { await api.delete(`/scripts/${scriptId}`); } catch { } }
+      await uploadSelectedProjectMedia(data?._id);
+
       clearLocalWorkingDraft();
       await offerInvoiceActions(data?.invoice);
       navigate("/dashboard");
-    } catch (err) { setError(err.response?.data?.message || "Failed to publish."); } finally { setLoading(false); }
+    } catch (err) { setError(err.response?.data?.message || err.message || "Failed to publish."); } finally { setLoading(false); }
   };
 
   const escapeHtml = (str = "") =>

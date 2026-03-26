@@ -1955,7 +1955,7 @@ const ScriptDetail = () => {
                         ) : (
                           <div className="space-y-3">
                             {pendingRequests.map((pr) => (
-                              <div key={pr._id} className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${t.inset}`}>
+                              <div key={pr._id} className={`rounded-xl border px-4 py-3 flex items-center max-[380px]:items-stretch max-[380px]:flex-col gap-3 ${t.inset}`}>
                                 {pr.investor?.profileImage ? (
                                   <img src={pr.investor.profileImage} alt={pr.investor.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                                 ) : (
@@ -1971,18 +1971,18 @@ const ScriptDetail = () => {
                                     {new Date(pr.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                   </p>
                                 </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
+                                <div className="flex items-center gap-2 flex-shrink-0 max-[380px]:w-full max-[380px]:flex-wrap">
                                   <button
                                     onClick={() => handleApproveRequest(pr._id)}
                                     disabled={pendingReqActionId === pr._id}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50 max-[380px]:flex-1 max-[380px]:text-center"
                                   >
                                     {pendingReqActionId === pr._id ? "..." : "Approve"}
                                   </button>
                                   <button
                                     onClick={() => setRejectNoteModal({ id: pr._id, investorName: pr.investor?.name })}
                                     disabled={pendingReqActionId === pr._id}
-                                    className="px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50 max-[380px]:flex-1 max-[380px]:text-center"
                                   >
                                     Decline
                                   </button>

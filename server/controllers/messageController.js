@@ -17,15 +17,60 @@ const detectFileType = (mimetype = "") => {
   return "document";
 };
 
-export const uploadMessageAttachment = multer({
+const isAllowedAttachmentMime = (mimetype = "") => {
+  if (!mimetype) return false;
+  if (mimetype.startsWith("image/")) return true;
+  if (mimetype.startsWith("video/")) return true;
+  if (mimetype.startsWith("audio/")) return true;
+
+  const allowedDocs = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/x-zip-compressed",
+  ]);
+
+  return allowedDocs.has(mimetype);
+};
+
+const rawUploadMessageAttachment = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (isAllowedAttachmentMime(file?.mimetype)) return cb(null, true);
+    return cb(new Error("Unsupported file type. Please upload image, video, audio, PDF, Office, text, CSV, or ZIP files."));
+  },
 }).single("file");
+
+export const uploadMessageAttachment = (req, res, next) => {
+  rawUploadMessageAttachment(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "Attachment is too large. Maximum size is 25MB." });
+      }
+      return res.status(400).json({ message: err.message || "Attachment upload failed." });
+    }
+
+    return res.status(400).json({ message: err.message || "Attachment upload failed." });
+  });
+};
 
 const buildChatId = (idA, idB) => {
   const sorted = [idA.toString(), idB.toString()].sort();
   return `${sorted[0]}_${sorted[1]}`;
 };
+
+const hasBlockedUser = (blockedUsers = [], userId) =>
+  blockedUsers?.some((id) => id?.toString() === userId?.toString());
 
 /* ── Send a message ─────────────────────────────────────────── */
 export const sendMessage = async (req, res) => {
@@ -34,11 +79,22 @@ export const sendMessage = async (req, res) => {
     if (!receiverId) return res.status(400).json({ message: "receiverId is required." });
     if (!text?.trim() && !fileUrl) return res.status(400).json({ message: "Message cannot be empty." });
 
-    const sender = req.user;
-    const receiver = await User.findById(receiverId).select("role name");
+    const sender = await User.findById(req.user._id).select("_id role blockedUsers");
+    if (!sender) return res.status(404).json({ message: "Sender not found." });
+
+    const receiver = await User.findById(receiverId).select("_id role name blockedUsers");
     if (!receiver) return res.status(404).json({ message: "Recipient not found." });
 
-    const chatId = buildChatId(sender._id, receiverId);
+    const blockedBySender = hasBlockedUser(sender.blockedUsers, receiver._id);
+    const blockedByReceiver = hasBlockedUser(receiver.blockedUsers, sender._id);
+    if (blockedBySender || blockedByReceiver) {
+      return res.status(403).json({
+        message: "Messaging is unavailable because one of you has blocked the other.",
+        code: "USER_BLOCKED",
+      });
+    }
+
+    const chatId = buildChatId(sender._id, receiver._id);
     const existingMessageCount = await Message.countDocuments({ chatId });
 
     if (existingMessageCount === 0) {
@@ -208,11 +264,24 @@ export const checkCanMessage = async (req, res) => {
     const user = req.user;
     const { targetId } = req.params;
 
-    const targetUser = await User.findById(targetId).select("role");
+    const currentUser = await User.findById(user._id).select("_id role blockedUsers");
+    if (!currentUser) return res.status(404).json({ message: "User not found." });
+
+    const targetUser = await User.findById(targetId).select("_id role blockedUsers");
     if (!targetUser) return res.status(404).json({ message: "User not found." });
 
-    const isUserInvestor = user.role === "investor";
-    const isUserWriter = ["writer", "creator"].includes(user.role);
+    const blockedByCurrent = hasBlockedUser(currentUser.blockedUsers, targetUser._id);
+    const blockedByTarget = hasBlockedUser(targetUser.blockedUsers, currentUser._id);
+    if (blockedByCurrent || blockedByTarget) {
+      return res.json({
+        allowed: false,
+        reason: "Messaging is unavailable because one of you has blocked the other.",
+        code: "USER_BLOCKED",
+      });
+    }
+
+    const isUserInvestor = currentUser.role === "investor";
+    const isUserWriter = ["writer", "creator"].includes(currentUser.role);
     
     const isTargetInvestor = targetUser.role === "investor";
     const isTargetWriter = ["writer", "creator"].includes(targetUser.role);
