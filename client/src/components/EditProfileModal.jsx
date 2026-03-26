@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AlertCircle, Building2, Linkedin, IndianRupee, Film, TrendingUp, User, CreditCard, Briefcase, Globe, Target, Heart, BadgeCheck, Sparkles, Clapperboard, Link as LinkIcon } from "lucide-react";
@@ -345,9 +346,9 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     : "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] focus:bg-white transition-colors";
   const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`;
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center z-[1200] p-2 sm:p-4 overflow-y-auto"
       onClick={onClose}
     >
       <motion.div
@@ -355,15 +356,16 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.2 }}
         onClick={(e) => e.stopPropagation()}
-        className={`rounded-xl border w-full overflow-hidden ${dark ? 'bg-[#101e30] border-[#444]' : 'bg-white border-gray-200/80'}`}
-        style={{ maxWidth: isInvestor ? "580px" : "520px", maxHeight: "90vh" }}
+        className={`rounded-xl border w-full overflow-hidden flex flex-col my-2 ${dark ? 'bg-[#101e30] border-[#444]' : 'bg-white border-gray-200/80'}`}
+        style={{ maxWidth: isInvestor ? "580px" : "520px", maxHeight: "calc(100dvh - 16px)" }}
       >
         {/* Header */}
-        <div className={`flex items-center justify-between px-5 py-4 border-b ${dark ? 'border-[#333]' : 'border-gray-100'}`}>
+        <div className={`sticky top-0 z-20 flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b ${dark ? 'bg-[#101e30] border-[#333]' : 'bg-white border-gray-100'}`}>
           <h2 className={`text-base font-bold ${dark ? 'text-gray-100' : 'text-gray-900'}`}>Edit Profile</h2>
           <button
             onClick={onClose}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${dark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors ${dark ? 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.08]' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+            aria-label="Close edit profile"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -373,7 +375,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
         {/* Section Tabs */}
         {sections.length > 1 && (
-          <div className="flex items-center gap-1 px-5 pt-3 pb-2 overflow-x-auto">
+          <div className="flex items-center gap-1 px-4 sm:px-5 pt-3 pb-2 overflow-x-auto">
             {sections.map((s) => (
               <button
                 key={s.key}
@@ -397,7 +399,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(90vh - 130px)" }}>
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto min-h-0" style={{ maxHeight: "calc(100dvh - 150px)" }}>
           {/* === BASIC SECTION === */}
           {activeSection === "basic" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -1035,6 +1037,9 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       </motion.div>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(modalContent, document.body);
 };
 
 export default EditProfileModal;

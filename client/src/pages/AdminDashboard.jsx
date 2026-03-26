@@ -3,6 +3,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import axios from "axios";
 import { jsPDF } from "jspdf";
 import BrandLogo from "../components/BrandLogo";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { formatCurrency } from "../utils/currency";
 
 const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
@@ -323,7 +324,6 @@ const Pagination = ({ page, totalPages, onPageChange, isDark }) => {
 // ═══════════════════════════════════════════════
 // Main Admin Dashboard
 // ═══════════════════════════════════════════════
-const ADMIN_CODE = "24062004";
 const BADGE_WATCH_KEYS = ["approvals", "trailers", "pending-investors", "bank-reviews", "queries"];
 
 const formatBadgeCount = (count) => {
@@ -442,6 +442,7 @@ const AdminDashboard = () => {
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
@@ -1085,23 +1086,35 @@ const AdminDashboard = () => {
     const handleCodeSubmit = async (e) => {
         e.preventDefault();
         setCodeError("");
-        if (codeInput !== ADMIN_CODE) {
-            setCodeError("Invalid access code");
+        const enteredCode = codeInput.trim();
+        if (!enteredCode) {
+            setCodeError("Access code is required");
             return;
         }
         setCodeLoading(true);
         try {
             // Login as admin — store token ONLY in sessionStorage (does NOT affect user's localStorage session)
-            const { data } = await axios.post(`${API_BASE_URL}/auth/login`, { email: "admin@ckript.com", password: "admin123" });
+            const { data } = await axios.post(`${API_BASE_URL}/auth/login`, {
+                email: "admin@ckript.com",
+                password: "admin123",
+                adminCode: enteredCode,
+            });
             sessionStorage.setItem("admin-session", JSON.stringify(data));
             setAuthorized(true);
-        } catch {
-            setCodeError("Admin login failed. Make sure admin account exists (run: node seedAdmin.js).");
+            setCodeInput("");
+        } catch (error) {
+            const apiMessage = error?.response?.data?.message;
+            setCodeError(apiMessage || "Admin login failed. Admin account may be missing after DB reset.");
         }
         setCodeLoading(false);
     };
 
     const handleLogout = () => {
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = () => {
+        setShowLogoutConfirm(false);
         sessionStorage.removeItem("admin-session");
         setAuthorized(false);
         previousAlertSummaryRef.current = null;
@@ -1794,6 +1807,7 @@ const AdminDashboard = () => {
 
 
     return (
+        <>
         <div className="fixed inset-0 z-[9999] flex flex-col bg-[#060e1a] text-white overflow-hidden">
             {/* ─── Admin Header ─── */}
             <header className="h-14 shrink-0 flex items-center justify-between px-5 border-b border-[#1a3050] bg-[#0b1628]">
@@ -1919,6 +1933,18 @@ const AdminDashboard = () => {
             {rejectModal && <RejectInvestorModal investor={rejectModal} onClose={() => setRejectModal(null)} onConfirm={handleRejectInvestor} />}
 
         </div>
+
+        <ConfirmDialog
+            open={showLogoutConfirm}
+            title="Exit admin mode"
+            message="Are you sure you want to log out from admin mode?"
+            confirmText="Exit"
+            cancelText="Cancel"
+            onConfirm={confirmLogout}
+            onCancel={() => setShowLogoutConfirm(false)}
+            isDarkMode={true}
+        />
+        </>
     );
 };
 

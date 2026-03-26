@@ -4,8 +4,9 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
+import ConfirmDialog from "./ConfirmDialog";
 
-const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
+const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const location = useLocation();
@@ -19,6 +20,13 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
   const [watchlist, setWatchlist] = useState([]); // NEW for Producers
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    if (mobileToggleToken > 0) {
+      setMobileOpen((prev) => !prev);
+    }
+  }, [mobileToggleToken]);
 
   const isIndustry = user?.role === 'professional' || user?.role === 'producer' || user?.role === 'investor';
   const isReader = user?.role === 'reader';
@@ -43,7 +51,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
         fetchMyScripts();
       }
     }
-  }, [user]);
+  }, [user, isIndustry, isReader, location.pathname]);
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -51,20 +59,21 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
 
   // Re-fetch scripts whenever one is deleted anywhere in the app
   useEffect(() => {
-    const onScriptDeleted = () => {
+    const onScriptDeleted = (event) => {
+      const deletedId = event?.detail?.id;
+      if (deletedId) {
+        setMyScripts((prev) => prev.filter((s) => s._id !== deletedId));
+      }
       if (!isIndustry && !isReader) fetchMyScripts();
     };
     window.addEventListener("scriptDeleted", onScriptDeleted);
     return () => window.removeEventListener("scriptDeleted", onScriptDeleted);
-  }, [isIndustry]);
+  }, [isIndustry, isReader]);
 
   const fetchMyScripts = async () => {
     try {
-      const { data } = await api.get("/scripts");
-      const mine = data.filter(
-        (s) => (s.creator?._id === user?._id || s.creator === user?._id) && s.status !== "draft"
-      );
-      setMyScripts(mine);
+      const { data } = await api.get("/scripts/mine");
+      setMyScripts((Array.isArray(data) ? data : []).filter((s) => s.status !== "draft"));
     } catch { setMyScripts([]); }
   };
 
@@ -78,7 +87,15 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
     }
   };
 
-  const handleLogout = () => { logout(); navigate("/login"); };
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    navigate("/login");
+  };
 
   const isActive = (path) => {
     if (location.pathname === path) return true;
@@ -142,7 +159,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
 
   const actionItems = isAdmin ? [] : isReader ? [
     { path: "/writer-onboarding", label: "Become a Writer", icon: "M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" },
-    { path: "/investor-onboarding", label: "Become an Investor", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { path: "/producer-director-onboarding", label: "Become a Producer/Director", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
   ] : isIndustry ? [
     { path: "/writers", label: "Browse Writers", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
   ] : [
@@ -198,13 +215,13 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
       <Link
         to={item.path}
         onClick={() => setMobileOpen(false)}
-        className={`group flex items-center gap-3.5 px-4 py-2.5 mx-2 rounded-xl text-[14px] font-semibold transition-all duration-200 relative ${active
+        className={`group flex items-center gap-3 px-4 py-2.5 min-h-[44px] mx-2 rounded-xl text-[14px] font-semibold leading-none transition-all duration-200 relative ${active
           ? isDarkMode ? "bg-[#0d1520] text-white font-bold" : "bg-[#1e3a5f]/[0.07] text-[#1e3a5f] font-bold"
           : isDarkMode ? "text-[#8896a7] hover:bg-[#0d1520] hover:text-white" : "text-gray-500 hover:bg-gray-50/80 hover:text-gray-700"
           }`}
       >
-        <Icon d={item.icon} />
-        <span>{item.label}</span>
+        <Icon d={item.icon} size="w-5 h-5 shrink-0" />
+        <span className="flex-1 min-w-0 truncate leading-none">{item.label}</span>
         {showMessageBadge && (
           <span className="ml-auto inline-flex items-center justify-center min-w-[34px] h-6 px-2 rounded-full bg-[#0f766e] text-white text-[11px] font-extrabold tracking-tight shadow-sm">
             +{unreadMessageCount > 99 ? "99" : unreadMessageCount}
@@ -379,12 +396,14 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
         </div>
       </aside>
 
-      <button onClick={() => setMobileOpen(true)}
-        className={`md:hidden fixed top-4 left-4 z-50 w-9 h-9 border rounded-lg flex items-center justify-center shadow-sm ${isDarkMode ? "bg-[#080e18] border-[#151f2e] text-[#8896a7]" : "bg-white border-gray-200 text-gray-600"}`}>
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+      {showFloatingToggle && (
+        <button onClick={() => setMobileOpen(true)}
+          className={`md:hidden fixed top-4 left-4 z-50 w-9 h-9 border rounded-lg flex items-center justify-center shadow-sm ${isDarkMode ? "bg-[#080e18] border-[#151f2e] text-[#8896a7]" : "bg-white border-gray-200 text-gray-600"}`}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      )}
 
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50">
@@ -426,6 +445,17 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0 }) => {
           );
         })}
       </nav>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Log out"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Log out"
+        cancelText="Cancel"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+        isDarkMode={isDarkMode}
+      />
     </>
   );
 };

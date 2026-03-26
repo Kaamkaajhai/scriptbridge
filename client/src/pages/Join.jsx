@@ -61,6 +61,7 @@ const Join = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMismatch, setPasswordMismatch] = useState(false);
@@ -77,6 +78,7 @@ const Join = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError("");
     setEmailError("");
     
@@ -103,6 +105,8 @@ const Join = () => {
     }
     setPasswordMismatch(false);
     
+    setSubmitting(true);
+
     try {
       const response = await join({
         ...formData,
@@ -124,6 +128,8 @@ const Join = () => {
     } catch (err) {
       const msg = err.response?.data?.message || "Join failed";
       setError(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -283,9 +289,20 @@ const Join = () => {
                 </p>
               )}
             </div>
-            <button type="submit" className="w-full py-3 bg-[#1e3a5f] text-white rounded-xl text-[15px] font-bold hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 mt-1">
-              Create account
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-3 bg-[#1e3a5f] text-white rounded-xl text-[15px] font-bold hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 mt-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm flex items-center justify-center gap-2"
+            >
+              {submitting && (
+                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              )}
+              {submitting ? "Creating account..." : "Create account"}
             </button>
+
+            {submitting && (
+              <p className="text-center text-[12px] text-gray-500 font-medium">Checking details and creating your account...</p>
+            )}
           </form>
 
           <p className="mt-8 text-center text-[14px] text-gray-400 font-medium">

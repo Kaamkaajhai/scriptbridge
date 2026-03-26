@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
+import ProjectCard from "../components/ProjectCard";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
 
@@ -334,7 +335,7 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
 
 /* ── Featured Carousel ─────────────────────────────── */
 const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
-  const SLIDES = scripts.slice(0, 5);
+  const SLIDES = scripts;
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = back
@@ -409,7 +410,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
-                    {script.premium ? "Premium" : "Sponsored"}
+                    Sponsored
                   </span>
                 )}
                 {script.verifiedBadge && (
@@ -467,15 +468,17 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
                   </svg>
                   View Project
                 </Link>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onWatchPreview(script); }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white rounded-xl text-sm font-bold transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5.14v14l11-7-11-7z" />
-                  </svg>
-                  {script.trailerUrl ? "Watch Trailer" : "Quick Preview"}
-                </button>
+                {script.trailerUrl && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onWatchPreview(script); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white rounded-xl text-sm font-bold transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5.14v14l11-7-11-7z" />
+                    </svg>
+                    Watch Trailer
+                  </button>
+                )}
 
                 {/* Creator */}
                 <div className="hidden sm:flex items-center gap-2 ml-auto">
@@ -504,7 +507,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
         {/* Arrow nav */}
         <button
           onClick={(e) => { e.stopPropagation(); prev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 z-10"
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:text-white transition-all duration-200 hover:scale-110 z-10"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -512,7 +515,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); next(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 z-10"
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:text-white transition-all duration-200 hover:scale-110 z-10"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -527,36 +530,6 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
           </div>
         )}
       </div>
-
-      {/* Dot pagination + progress */}
-      <div className={`flex items-center justify-center gap-2 py-3.5 ${dark ? "bg-[#080f1e]" : "bg-gray-50"}`}>
-        {SLIDES.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => goTo(i, i > current ? 1 : -1)}
-            className="relative group"
-          >
-            <div className={`rounded-full transition-all duration-300 ${
-              i === current
-                ? "w-6 h-2.5 bg-[#111111]"
-                : dark
-                  ? "w-2.5 h-2.5 bg-white/20 hover:bg-white/40"
-                  : "w-2.5 h-2.5 bg-gray-300 hover:bg-gray-400"
-            }`} />
-            {/* Auto-progress fill on active dot */}
-            {i === current && !paused && (
-              <motion.div
-                key={`progress-${current}`}
-                className="absolute inset-0 rounded-full bg-blue-400/60 origin-left"
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 5, ease: "linear" }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
-
 
     </div>
   );
@@ -598,98 +571,16 @@ const CardSaveBtn = ({ scriptId, dark }) => {
 /* ── CARD COMPONENTS ── */
 /* ══════════════════════════════════════════════════════════════ */
 
-const SponsoredCard = ({ script, getImageUrl, dark }) => (
-  <Link to={`/scripts/${script._id}`}>
-    <motion.div
-      whileHover={{ y: -6 }}
-      className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 ${
-        dark
-          ? "border-blue-500/25 bg-[#0a1628] hover:shadow-2xl hover:shadow-blue-500/15 hover:border-blue-400/40"
-          : "border-blue-200/60 bg-white hover:shadow-2xl hover:shadow-blue-200/40 hover:border-blue-300"
-      }`}
-    >
-      {/* Cover Image */}
-      <div className="relative h-[320px] overflow-hidden">
-        {script.coverImage && (
-          <img
-            src={getImageUrl(script.coverImage)}
-            alt={script.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        
-        {/* Sponsored Badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl shadow-lg">
-          <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
-          <span className="text-white text-[10px] font-black tracking-[0.1em] uppercase">Sponsored</span>
-        </div>
-
-        {/* Price Tag */}
-        <div className="absolute top-3 right-3">
-          {script.premium ? (
-            <span className="px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg text-[11px] font-black text-white">${script.price}</span>
-          ) : (
-            <span className="px-2.5 py-1 bg-emerald-500/80 backdrop-blur-sm rounded-lg text-[10px] font-bold text-white">Free</span>
-          )}
-        </div>
-
-        {/* Bottom overlay content */}
-        <div className="absolute bottom-0 left-0 right-0 p-5">
-          <h3 className="text-lg font-black text-white leading-tight line-clamp-2 mb-1.5 tracking-tight">
-            {script.title}
-          </h3>
-          {script.genre && (
-            <span className="text-[11px] font-semibold text-white/60">{script.genre}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-5">
-        {script.logline && (
-          <p className={`text-[12px] mb-4 line-clamp-2 leading-relaxed ${dark ? "text-gray-400" : "text-gray-500"}`}>
-            {script.logline}
-          </p>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            {/* Creator avatar */}
-            <div className={`w-7 h-7 rounded-full overflow-hidden flex items-center justify-center ring-1 ${dark ? "ring-white/10 bg-blue-900/30" : "ring-gray-200 bg-blue-50"}`}>
-              {script.creator?.profileImage ? (
-                <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span className={`text-[10px] font-bold ${dark ? "text-blue-400" : "text-blue-600"}`}>{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</span>
-              )}
-            </div>
-            <span className={`text-[12px] font-semibold ${dark ? "text-gray-400" : "text-gray-600"}`}>{script.creator?.name || "Unknown"}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {script.rating && (
-              <div className="flex items-center gap-1">
-                <StarIcon filled />
-                <span className={`text-[12px] font-bold ${dark ? "text-white" : "text-gray-800"}`}>{script.rating.toFixed(1)}</span>
-              </div>
-            )}
-            {script.views && (
-              <div className="flex items-center gap-1">
-                <EyeIcon />
-                <span className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>{script.views.toLocaleString()}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  </Link>
+const SponsoredCard = ({ script }) => (
+  <ProjectCard
+    project={{ ...script, status: script?.status || "published" }}
+    userName={script?.creator?.name}
+  />
 );
 
 // Trending Card (Horizontal Scroll)
 const TrendingCard = ({ script, getImageUrl, dark }) => (
-  <Link to={`/scripts/${script._id}`}>
+  <Link to={`/script/${script._id}`}>
     <motion.div
       whileHover={{ scale: 1.02, y: -4 }}
       className={`group relative overflow-hidden rounded-2xl w-[360px] flex-shrink-0 border transition-all duration-400 ${
@@ -758,47 +649,6 @@ const TrendingCard = ({ script, getImageUrl, dark }) => (
   </Link>
 );
 
-// Newly Promoted Card (Horizontal Scroll)
-const NewlyPromotedCard = ({ script, getImageUrl, dark }) => (
-  <Link to={`/scripts/${script._id}`}>
-    <motion.div
-      whileHover={{ scale: 1.03, y: -3 }}
-      className={`group relative overflow-hidden rounded-2xl w-[240px] flex-shrink-0 ${
-        dark ? "bg-[#0d1e30] border border-[#1a3050] hover:border-violet-400/30" : "bg-white border border-gray-200/60 hover:border-violet-200"
-      } hover:shadow-xl transition-all duration-400`}
-    >
-      <div className="relative aspect-[3/4] overflow-hidden">
-        {script.coverImage && (
-          <img
-            src={getImageUrl(script.coverImage)}
-            alt={script.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        
-        {/* New Badge */}
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2.5 py-1 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl">
-          <svg className={`w-3 h-3 text-violet-400`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span className="text-white text-[10px] font-black tracking-[0.08em]">JUST IN</span>
-        </div>
-
-        {/* Content Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-3.5">
-          <h3 className="text-white font-bold text-[14px] line-clamp-2 mb-1.5 leading-snug">
-            {script.title}
-          </h3>
-          {script.genre && (
-            <span className="text-white/50 text-[11px] font-semibold">
-              {script.genre}
-            </span>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  </Link>
-);
-
 // Horizontal Scroll Container
 const HorizontalScroll = ({ children }) => (
   <div className="relative">
@@ -821,13 +671,14 @@ const FeaturedProjects = () => {
   const [heroScript, setHeroScript] = useState(null);
   const [heroSlides, setHeroSlides] = useState([]);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroDirection, setHeroDirection] = useState(1);
   const [sponsoredScripts, setSponsoredScripts] = useState([]);
   const [trendingPromotions, setTrendingPromotions] = useState([]);
-  const [newlyPromoted, setNewlyPromoted] = useState([]);
   
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewScript, setPreviewScript] = useState(null);  // trailer modal
+  const [showPromoteComingSoon, setShowPromoteComingSoon] = useState(false);
 
   /* Filter state */
   const [selectedGenre, setSelectedGenre] = useState("");
@@ -843,10 +694,17 @@ const FeaturedProjects = () => {
   useEffect(() => {
     if (heroSlides.length <= 1) return;
     const timer = setInterval(() => {
+      setHeroDirection(1);
       setHeroIndex(i => (i + 1) % heroSlides.length);
     }, 5000);
     return () => clearInterval(timer);
   }, [heroSlides.length]);
+
+  const heroSlideVariants = {
+    enter: (dir) => ({ opacity: 0, x: dir > 0 ? 60 : -60 }),
+    center: { opacity: 1, x: 0 },
+    exit: (dir) => ({ opacity: 0, x: dir > 0 ? -60 : 60 }),
+  };
 
   const activeFilterCount = [
     selectedGenre,
@@ -863,6 +721,10 @@ const FeaturedProjects = () => {
     setSelectedPremium("all");
   };
 
+  const handlePromoteClick = () => {
+    setShowPromoteComingSoon(true);
+  };
+
   useEffect(() => {
     fetchFeatured();
   }, [selectedSort, selectedGenre, selectedContentType, selectedBudget, selectedPremium]);
@@ -870,15 +732,13 @@ const FeaturedProjects = () => {
   const fetchFeatured = async () => {
     setLoading(true);
     try {
-      const [featuredRes, trendingRes, recentRes] = await Promise.all([
+      const [featuredRes, trendingRes] = await Promise.all([
         api.get("/scripts/featured"),
-        api.get("/scripts?sort=views&limit=12"),
-        api.get("/scripts?sort=createdAt&limit=8")
+        api.get("/scripts?sort=views&limit=12")
       ]);
 
       let allScripts = featuredRes.data || [];
       const trendingData = trendingRes.data || [];
-      const recentData = recentRes.data || [];
 
       // Separate sponsored/premium scripts
       const sponsored = allScripts.filter(s => s.premium || s.isFeatured);
@@ -886,7 +746,7 @@ const FeaturedProjects = () => {
 
       // Set hero (top sponsored or first featured)
       setHeroScript(sponsored[0] || allScripts[0] || null);
-      setHeroSlides(sponsored.length > 0 ? sponsored.slice(0, 5) : allScripts.slice(0, 5));
+      setHeroSlides(sponsored.length > 0 ? sponsored : allScripts);
 
       // Sponsored section (exclude hero)
       setSponsoredScripts(sponsored.slice(1, 7));
@@ -896,12 +756,6 @@ const FeaturedProjects = () => {
         .filter(s => s.premium || s.isFeatured || (s.views && s.views > 500))
         .slice(0, 8);
       setTrendingPromotions(trending);
-
-      // Newly promoted (recent featured)
-      const recent = recentData
-        .filter(s => s.premium || s.isFeatured)
-        .slice(0, 6);
-      setNewlyPromoted(recent);
 
       setScripts(allScripts);
       const params = new URLSearchParams();
@@ -1007,32 +861,29 @@ const FeaturedProjects = () => {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease }}
-        className="mb-8"
+        className="px-1 sm:px-0 py-2 mb-8"
       >
-        {/* Decorative top accent line */}
-        <div className={`h-[2px] rounded-full mb-6 ${dark ? "bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" : "bg-gradient-to-r from-transparent via-[#1e3a5f]/25 to-transparent"}`} />
-
         <div className="flex items-start justify-between gap-6 mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-4 mb-3">
-              {/* Premium Sparkle Badge */}
-              <div className={`relative p-2.5 rounded-2xl border ${dark ? "bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border-blue-500/20" : "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200/60"}`}>
-                <svg className={`w-6 h-6 ${dark ? "text-blue-400" : "text-[#1e3a5f]"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              <div className={`relative w-10 h-10 rounded-xl border flex items-center justify-center ${
+                dark
+                  ? "bg-[#08203a]/78 border-[#6e98c3]/40"
+                  : "bg-white/82 border-[#c5d8ee]"
+              }`}>
+                <svg className={`w-4 h-4 ${dark ? "text-white/80" : "text-[#24486d]"}`} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="16" rx="3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 15l3-3 2.6 2.6L15.5 11 18 13.5" />
+                  <circle cx="16.5" cy="8.5" r="1.4" fill="currentColor" stroke="none" />
                 </svg>
-                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
+                <div className={`absolute -inset-1.5 rounded-2xl border pointer-events-none ${dark ? "border-white/10" : "border-[#315f8f]/20"}`} />
               </div>
               <div>
-                <div className="flex items-center gap-2.5 mb-1">
-                  <h1 className={`text-3xl sm:text-4xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                    Featured
+                <h1 className={`text-[30px] sm:text-[34px] leading-none font-bold tracking-[-0.02em] ${dark ? "text-white" : "text-[#0f2745]"}`}>
+                    Featured Projects
                   </h1>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.15em] border ${dark ? "bg-amber-500/10 border-amber-400/25 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
-                    Curated
-                  </span>
-                </div>
-                <p className={`text-[14px] font-medium leading-relaxed ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                  Handpicked premium scripts & sponsored projects — elevated visibility for creators
+                <p className={`text-[14px] font-normal leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                  Spotlight scripts and sponsored picks designed for stronger discovery and faster investor reach.
                 </p>
               </div>
             </div>
@@ -1040,25 +891,32 @@ const FeaturedProjects = () => {
 
           {/* Promote Your Project CTA */}
           <button
-            onClick={() => alert("Promotion feature coming soon! Contact support to promote your project.")}
-            className={`group flex items-center gap-2.5 px-6 py-3 rounded-2xl font-bold text-[13px] transition-all duration-300 border whitespace-nowrap ${
+            onClick={handlePromoteClick}
+            className={`group flex items-center gap-2.5 px-5 py-2.5 rounded-[999px] font-semibold text-[13px] transition-all duration-200 whitespace-nowrap border ${
               dark
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-blue-500/30 shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30"
-                : "bg-[#1e3a5f] hover:bg-[#162d4a] text-white border-[#1e3a5f]/80 shadow-lg shadow-[#1e3a5f]/15 hover:shadow-xl hover:shadow-[#1e3a5f]/25"
+                ? "bg-white/8 border-white/20 text-white hover:bg-white/14 hover:border-white/30"
+                : "bg-white border-[#c8d9f0] text-[#15345a] hover:bg-[#f3f8ff] hover:border-[#aac4e6]"
             }`}
           >
-            <svg className="w-4 h-4 transition-transform group-hover:rotate-90 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Promote Your Project
+            Advertise at Top
           </button>
         </div>
+
+        {showPromoteComingSoon && (
+          <div className={`mt-3 rounded-xl border px-4 py-3 text-sm font-semibold ${dark ? "bg-[#0f1d2f] border-[#2a4468] text-[#b6d4ff]" : "bg-[#eef6ff] border-[#c5dcfb] text-[#1e3a5f]"}`}>
+            Feature coming soon. Advertising tools are being prepared.
+          </div>
+        )}
 
       </motion.div>
 
       {/* ══ FEATURED CAROUSEL ══ */}
       {heroSlides.length > 0 && (() => {
         const slide = heroSlides[heroIndex];
+        const useLightFallbackText = !dark && !slide.coverImage;
         return (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1066,14 +924,16 @@ const FeaturedProjects = () => {
             transition={{ duration: 0.5, delay: 0.1, ease }}
             className="mb-8"
           >
-            <div className={`relative overflow-hidden rounded-2xl h-[360px] sm:h-[420px] group border ${dark ? "border-[#23324a] bg-[#0f1726]" : "border-[#d9e4f2] bg-[#f4f8ff]"}`}>
+            <div className={`relative overflow-hidden rounded-2xl h-[300px] sm:h-[360px] group border ${dark ? "border-[#23324a] bg-[#0f1726]" : "border-[#d9e4f2] bg-[#f4f8ff]"}`}>
               {/* Slides */}
-              <AnimatePresence mode="wait">
+              <AnimatePresence custom={heroDirection} mode="wait">
                 <motion.div
                   key={slide._id}
-                  initial={{ opacity: 0, x: 60 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -60 }}
+                  custom={heroDirection}
+                  variants={heroSlideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
                   transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
                   className="absolute inset-0"
                 >
@@ -1085,53 +945,72 @@ const FeaturedProjects = () => {
                       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-transparent" />
                     </>
                   ) : (
-                    <div className={`w-full h-full ${dark ? "bg-gradient-to-br from-[#132136] via-[#1a2d47] to-[#233a5a]" : "bg-gradient-to-br from-[#dde9f8] via-[#cddff4] to-[#b8d1ee]"}`} />
+                    <div className={`relative w-full h-full ${dark ? "bg-[#1a2a3d]" : "bg-[#cfd9e4]"}`}>
+                      <div className={`absolute -top-16 -left-14 w-60 h-60 rounded-full border ${dark ? "border-white/10" : "border-white/45"}`} />
+                      <div className={`absolute -bottom-20 -right-10 w-72 h-72 rounded-full border ${dark ? "border-white/10" : "border-white/45"}`} />
+                      <div className={`absolute top-8 right-16 w-32 h-32 rounded-full border ${dark ? "border-white/10" : "border-white/60"}`} />
+                      <div className={`absolute bottom-8 left-16 w-24 h-24 rounded-full border ${dark ? "border-white/10" : "border-white/60"}`} />
+
+                      <div className="absolute inset-0 flex items-center justify-center px-6">
+                        <div className="relative w-[250px] h-[250px] flex items-center justify-center">
+                          <div className={`absolute w-36 h-36 rounded-full border ${dark ? "border-white/10" : "border-white/70"}`} />
+                          <div className={`absolute w-24 h-24 rounded-full border ${dark ? "border-white/20" : "border-[#1e3a5f]/15"}`} />
+
+                          <div className={`relative w-24 h-24 rounded-3xl border backdrop-blur-xl flex items-center justify-center ${dark ? "bg-[#0a1628]/70 border-white/20 text-white/90" : "bg-white/80 border-white text-[#1e3a5f]"}`}>
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-2.25m-19.5 0v-9A2.25 2.25 0 014.5 4.5h15a2.25 2.25 0 012.25 2.25v9m-19.5 0l3.72-3.72a1.5 1.5 0 012.12 0l1.91 1.91m-2.03 2.03l4.78-4.78a1.5 1.5 0 012.12 0l4.88 4.88M15.75 8.25h.008v.008h-.008V8.25z" />
+                            </svg>
+                          </div>
+
+                          <div className={`absolute -bottom-1 -left-1 w-8 h-8 rounded-full border flex items-center justify-center ${dark ? "bg-[#1e3a5f]/60 border-white/20 text-white/80" : "bg-white border-[#1e3a5f]/20 text-[#1e3a5f]"}`}>
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {/* Content */}
                   <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8">
                     {/* Top badges row */}
                     <div className="absolute top-4 left-4 flex items-center gap-2">
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${dark ? "bg-[#1f4f8d]/85 border-[#5f8fc7]/45" : "bg-[#1f4f8d] border-[#1f4f8d]"}`}>
-                        <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                        <span className="text-white font-black text-[11px] tracking-widest uppercase">{slide.premium ? "Premium Ad" : "Sponsored"}</span>
-                      </div>
-                      {slide.genre && <span className="px-2.5 py-1.5 bg-black/35 backdrop-blur-sm text-white/90 text-[11px] font-semibold rounded-lg border border-white/15">{slide.genre}</span>}
-                    </div>
-
-                    {/* Slide counter top-right */}
-                    <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15">
-                      <span className="text-white/80 text-xs font-semibold">{heroIndex + 1} / {heroSlides.length}</span>
+                      {(slide.verifiedBadge || slide.premium || slide.isFeatured) && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0f2f54]/72 border border-[#8db7e6]/40">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-white/95 font-semibold text-[10px] tracking-[0.15em] uppercase">Verified</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="max-w-3xl">
-                      <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 leading-tight">
+                      <h2 className={`text-[28px] sm:text-[36px] font-semibold mb-2 leading-[1.02] tracking-[-0.01em] ${useLightFallbackText ? "text-[#0f2745]" : "text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.32)]"}`}>
                         {slide.title}
                       </h2>
-                      {slide.logline && (
-                        <p className="text-sm sm:text-base text-gray-200 font-medium mb-4 line-clamp-2">{slide.logline}</p>
+                      {(slide.logline || slide.description || slide.synopsis) && (
+                        <p className={`text-sm sm:text-[15px] font-normal mb-4 line-clamp-2 max-w-2xl ${useLightFallbackText ? "text-[#2d4866]" : "text-white/82"}`}>{slide.logline || slide.description || slide.synopsis}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-2.5 mb-5">
-                        {slide.genre && <span className="px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg text-white text-xs sm:text-sm font-semibold border border-white/20">{slide.genre}</span>}
+                      <div className="flex flex-wrap items-center gap-2 mb-5">
+                        {slide.genre && <span className={`px-3 py-1 backdrop-blur-sm rounded-full text-xs sm:text-[13px] font-medium border ${useLightFallbackText ? "bg-white/70 border-[#b6cbe4] text-[#16395e]" : "bg-white/[0.08] border-white/15 text-white/90"}`}>{slide.genre}</span>}
                         {slide.rating && (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                          <div className={`flex items-center gap-1.5 px-3 py-1 backdrop-blur-sm rounded-full border ${useLightFallbackText ? "bg-white/70 border-[#b6cbe4]" : "bg-white/[0.08] border-white/15"}`}>
                             <StarIcon filled />
-                            <span className="text-white text-xs sm:text-sm font-bold">{slide.rating.toFixed(1)}</span>
+                            <span className={`text-xs sm:text-[13px] font-semibold ${useLightFallbackText ? "text-[#16395e]" : "text-white/95"}`}>{slide.rating.toFixed(1)}</span>
                           </div>
                         )}
                         {slide.views && (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                          <div className={`flex items-center gap-1.5 px-3 py-1 backdrop-blur-sm rounded-full border ${useLightFallbackText ? "bg-white/70 border-[#b6cbe4]" : "bg-white/[0.08] border-white/15"}`}>
                             <EyeIcon />
-                            <span className="text-white text-xs sm:text-sm font-semibold">{slide.views.toLocaleString()} views</span>
+                            <span className={`text-xs sm:text-[13px] font-medium ${useLightFallbackText ? "text-[#16395e]" : "text-white/90"}`}>{slide.views.toLocaleString()} views</span>
                           </div>
                         )}
                       </div>
                       <div className="flex items-center gap-2.5">
-                        <Link to={`/scripts/${slide._id}`} className={`px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base transition-all border ${dark ? "bg-white text-[#0f172a] border-white hover:bg-slate-100" : "bg-[#0f172a] text-white border-[#0f172a] hover:bg-[#1f2937]"}`}>
+                        <Link to={`/script/${slide._id}`} className={`inline-flex items-center gap-2 text-[15px] sm:text-base font-semibold tracking-[0.01em] transition-all duration-200 hover:translate-x-0.5 ${useLightFallbackText ? "text-[#0f2745] hover:text-[#0a1d35]" : "text-white/95 hover:text-white"}`}>
                           View Project →
-                        </Link>
-                        <Link to={`/scripts/${slide._id}`} className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-all border ${dark ? "bg-white/[0.08] border-white/[0.16] text-white hover:bg-white/[0.14]" : "bg-white/90 border-white text-[#0f172a] hover:bg-white"}`}>
-                          Quick Preview
                         </Link>
                       </div>
                     </div>
@@ -1143,34 +1022,26 @@ const FeaturedProjects = () => {
               {heroSlides.length > 1 && (
                 <>
                   <button
-                    onClick={() => setHeroIndex(i => (i - 1 + heroSlides.length) % heroSlides.length)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/35 hover:bg-black/60 backdrop-blur-sm border border-white/20 text-white transition-all"
+                    onClick={() => {
+                      setHeroDirection(-1);
+                      setHeroIndex(i => (i - 1 + heroSlides.length) % heroSlides.length);
+                    }}
+                    className={`absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full transition-all ${useLightFallbackText ? "text-[#15375d]/85 hover:text-[#15375d]" : "text-white/90 hover:text-white"}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                   </button>
                   <button
-                    onClick={() => setHeroIndex(i => (i + 1) % heroSlides.length)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/35 hover:bg-black/60 backdrop-blur-sm border border-white/20 text-white transition-all"
+                    onClick={() => {
+                      setHeroDirection(1);
+                      setHeroIndex(i => (i + 1) % heroSlides.length);
+                    }}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full transition-all ${useLightFallbackText ? "text-[#15375d]/85 hover:text-[#15375d]" : "text-white/90 hover:text-white"}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
                   </button>
                 </>
               )}
 
-              {/* Dot indicators */}
-              {heroSlides.length > 1 && (
-                <div className="absolute bottom-4 right-6 flex items-center gap-2 z-20">
-                  {heroSlides.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setHeroIndex(i)}
-                      className={`transition-all duration-300 rounded-full ${
-                        i === heroIndex ? "w-6 h-2 bg-white" : "w-2 h-2 bg-white/40 hover:bg-white/70"
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
           </motion.div>
         );
@@ -1188,280 +1059,28 @@ const FeaturedProjects = () => {
         >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-blue-500/15 to-indigo-500/10 border-blue-400/20" : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200/60"}`}>
-                <svg className={`w-3.5 h-3.5 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                <span className={`text-[11px] font-black tracking-[0.12em] ${dark ? "text-blue-300" : "text-blue-700"}`}>SPONSORED</span>
-              </div>
               <div>
                 <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Premium Spotlight
+                  Spotlight
                 </h2>
-                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Handpicked promoted projects with premium placement</p>
+                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Handpicked promoted projects with spotlight placement</p>
               </div>
             </div>
-            <Link to="/promote" className={`group flex items-center gap-1.5 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all duration-200 ${
+            <button onClick={handlePromoteClick} className={`group flex items-center gap-1.5 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all duration-200 ${
               dark ? "border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400/35" : "border-[#1e3a5f]/20 text-[#1e3a5f] hover:bg-[#1e3a5f]/[0.05] hover:border-[#1e3a5f]/30"
             }`}>
               <svg className="w-3.5 h-3.5 transition-transform group-hover:rotate-90 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
               Promote yours
-            </Link>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {sponsoredScripts.map((script, idx) => (
-              <SponsoredCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
+              <SponsoredCard key={script._id} script={script} />
             ))}
           </div>
         </motion.div>
       )}
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── TRENDING PROMOTIONS CAROUSEL ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {trendingPromotions.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3, ease }}
-          className="mb-10"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-emerald-500/15 to-teal-500/10 border-emerald-400/20" : "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200/60"}`}>
-                <TrendingIcon />
-                <span className={`text-[11px] font-black tracking-[0.12em] ${dark ? "text-emerald-400" : "text-emerald-700"}`}>TRENDING</span>
-              </div>
-              <div>
-                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Trending Now
-                </h2>
-                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Highest engagement scripts right now</p>
-              </div>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${dark ? "bg-emerald-500/10 border-emerald-400/20 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-700"}`}>
-              🔥 Hot
-            </span>
-          </div>
-
-          <HorizontalScroll>
-            {trendingPromotions.map((script) => (
-              <TrendingCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
-            ))}
-          </HorizontalScroll>
-        </motion.div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── NEWLY PROMOTED CAROUSEL ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {newlyPromoted.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4, ease }}
-          className="mb-10"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-violet-500/15 to-purple-500/10 border-violet-400/20" : "bg-gradient-to-r from-violet-50 to-purple-50 border-violet-200/60"}`}>
-                <svg className={`w-3.5 h-3.5 ${dark ? "text-violet-400" : "text-violet-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span className={`text-[11px] font-black tracking-[0.12em] ${dark ? "text-violet-400" : "text-violet-700"}`}>NEW</span>
-              </div>
-              <div>
-                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Just Launched
-                </h2>
-                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>
-                  Fresh scripts recently promoted by creators
-                </p>
-              </div>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${dark ? "bg-violet-500/10 border-violet-400/20 text-violet-400" : "bg-violet-50 border-violet-200 text-violet-700"}`}>
-              ✨ Fresh
-            </span>
-          </div>
-
-          <HorizontalScroll>
-            {newlyPromoted.map((script) => (
-              <NewlyPromotedCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
-            ))}
-          </HorizontalScroll>
-        </motion.div>
-      )}
-
-      {/* ── Filter bar ── */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, delay: 0.08, ease }}
-        className="mb-6"
-      >
-        {/* Top row — filter toggle + sort + results count */}
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-3">
-            {/* Filter toggle button */}
-            <button
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border ${filtersOpen || activeFilterCount > 0
-                ? "bg-[#111111] text-white border-[#111111] shadow-sm"
-                : dark
-                  ? "bg-white/[0.04] text-gray-300 border-[#444] hover:border-[#555]"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                }`}
-            >
-              <FilterIcon />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 bg-white/20 rounded-md reader-typo-helper font-bold">
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown open={filtersOpen} />
-            </button>
-
-            {/* Active filter tags */}
-            {activeFilterCount > 0 && (
-              <div className="hidden sm:flex items-center gap-2">
-                {selectedGenre && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-[11px] font-bold">
-                    {selectedGenre}
-                    <button onClick={() => setSelectedGenre("")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                {selectedContentType && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-[11px] font-bold">
-                    {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label || selectedContentType}
-                    <button onClick={() => setSelectedContentType("")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                {selectedBudget && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-[11px] font-bold">
-                    {budgetLabel[selectedBudget]} Budget
-                    <button onClick={() => setSelectedBudget("")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                {selectedPremium !== "all" && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-[11px] font-bold">
-                    {selectedPremium === "premium" ? "Premium" : "Free"}
-                    <button onClick={() => setSelectedPremium("all")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                <button
-                  onClick={clearAllFilters}
-                  className="reader-typo-helper font-semibold text-gray-400 hover:text-red-500 transition-colors px-2 py-1"
-                >
-                  Clear all
-                </button>
-              </div>
-            )}
-          </div>
-
-
-        </div>
-
-        {/*  Collapsible filter panel  */}
-        <AnimatePresence>
-          {filtersOpen && (
-            <motion.div
-              ref={filterRef}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-              className="overflow-hidden"
-            >
-              <div className={`${dark ? "bg-[#0a1628] border-[#1a3050]" : "bg-white border-gray-100"} rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 border`}>
-                {/* Sort By */}
-                <FilterSection label="Sort By">
-                  {SORT_OPTIONS.map((opt) => (
-                    <Pill
-                      key={opt.key}
-                      active={selectedSort === opt.key}
-                      onClick={() => setSelectedSort(opt.key)}
-                    >
-                      <span className="flex items-center">{opt.label}</span>
-                    </Pill>
-                  ))}
-                </FilterSection>
-
-                <div className={`border-t ${dark ? "border-[#333]" : "border-gray-100"}`} />
-
-                {/* Genre */}
-                <FilterSection label="Genre">
-                  <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")}>All Genres</Pill>
-                  {GENRES.map((g) => (
-                    <Pill
-                      key={g}
-                      active={selectedGenre === g}
-                      onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)}
-                    >
-                      {g}
-                    </Pill>
-                  ))}
-                </FilterSection>
-
-                <div className={`border-t ${dark ? "border-[#333]" : "border-gray-100"}`} />
-
-                {/* Content Type */}
-                <FilterSection label="Content Type">
-                  <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")}>All Types</Pill>
-                  {CONTENT_TYPES.map((ct) => (
-                    <Pill
-                      key={ct.key}
-                      active={selectedContentType === ct.key}
-                      onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)}
-                    >
-                      {ct.label}
-                    </Pill>
-                  ))}
-                </FilterSection>
-
-                <div className={`border-t ${dark ? "border-[#333]" : "border-gray-100"}`} />
-
-                {/* Budget + Premium row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FilterSection label="Budget Range">
-                    <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")}>Any</Pill>
-                    {BUDGETS.map((b) => (
-                      <Pill
-                        key={b.key}
-                        active={selectedBudget === b.key}
-                        onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)}
-                      >
-                        {b.label}
-                      </Pill>
-                    ))}
-                  </FilterSection>
-
-                  <FilterSection label="Pricing">
-                    {PREMIUM_OPTIONS.map((p) => (
-                      <Pill
-                        key={p.key}
-                        active={selectedPremium === p.key}
-                        onClick={() => setSelectedPremium(p.key)}
-                      >
-                        {p.label}
-                      </Pill>
-                    ))}
-                  </FilterSection>
-                </div>
-
-                {/* Clear All (mobile) */}
-                {activeFilterCount > 0 && (
-                  <div className="flex sm:hidden justify-end pt-2">
-                    <button
-                      onClick={clearAllFilters}
-                      className={`text-[12px] font-semibold transition-colors px-3 py-1.5 rounded-xl ${dark ? "text-red-400 hover:text-red-300 border border-red-500/30 bg-red-500/10" : "text-red-500 hover:text-red-600 border border-red-200 bg-red-50"}`}
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
 
       {/*  Loading  */}
       {loading && (
@@ -1488,17 +1107,7 @@ const FeaturedProjects = () => {
             </svg>
           </div>
           <p className={`text-lg font-black mb-1.5 ${dark ? "text-gray-200" : "text-gray-700"}`}>No Projects Found</p>
-          <p className={`text-[13px] font-medium mb-5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Try adjusting your filters or explore later</p>
-          {activeFilterCount > 0 && (
-            <button
-              onClick={clearAllFilters}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border ${
-                dark ? "bg-white/[0.06] text-white/70 border-white/10 hover:bg-white/10" : "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
-              }`}
-            >
-              Clear all filters
-            </button>
-          )}
+          <p className={`text-[13px] font-medium mb-5 ${dark ? "text-gray-500" : "text-gray-400"}`}>No promoted projects are available right now.</p>
         </motion.div>
       )}
 
@@ -1513,412 +1122,6 @@ const FeaturedProjects = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Hero card (top #1) ── */}
-      {!loading && scripts.length > 0 && (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${selectedSort}-${selectedGenre}-${selectedContentType}-${selectedBudget}-${selectedPremium}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease }}
-          >
-            {/* ── Featured Carousel (top 5) ── */}
-            <FeaturedCarousel
-              scripts={scripts}
-              dark={dark}
-              getImageUrl={getImageUrl}
-              onWatchPreview={setPreviewScript}
-            />
-
-            {/* ── More Promoted Projects Section Header ── */}
-            {scripts.length > 1 && (
-              <>
-                <div className="flex items-center justify-between mb-6 mt-10">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border ${dark ? "bg-gradient-to-r from-blue-500/15 to-indigo-500/10 border-blue-400/20" : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200/60"}`}>
-                      <svg className={`w-3.5 h-3.5 ${dark ? "text-blue-400" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
-                      <span className={`text-[11px] font-black tracking-[0.1em] ${dark ? "text-blue-300" : "text-blue-700"}`}>ALL</span>
-                    </div>
-                    <div>
-                      <h2 className={`text-xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                        All Promoted
-                      </h2>
-                      <p className={`text-[12px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>
-                        Sponsored content & trending scripts
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`px-3 py-1.5 rounded-xl text-[12px] font-bold border ${dark ? "bg-white/[0.04] text-gray-400 border-white/[0.08]" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
-                    {scripts.length - 1} projects
-                  </span>
-                </div>
-
-                {/* ══ MID-PAGE ADVERTISE BANNER ══ */}
-                <div className={`relative rounded-2xl overflow-hidden p-6 sm:p-8 mb-8 flex items-center justify-between flex-wrap gap-6 border ${
-                  dark ? "bg-gradient-to-br from-[#0d1f3a] via-[#101d35] to-[#0a1628] border-blue-500/15" : "bg-gradient-to-br from-[#1a3a6e] via-[#1e4380] to-[#0f2044] border-blue-400/15"
-                }`}>
-                  {/* Background decoration */}
-                  <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-blue-500/[0.06] blur-2xl" />
-                  <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full bg-indigo-500/[0.06] blur-2xl" />
-
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 border border-white/15 rounded-lg backdrop-blur-sm">
-                        <SparklesIcon />
-                        <span className="text-blue-200 font-black text-[11px] tracking-[0.12em] uppercase">Boost Your Reach</span>
-                      </div>
-                    </div>
-                    <p className="text-white font-black text-xl sm:text-2xl tracking-tight leading-tight mb-1">Get in front of 10,000+ readers & investors</p>
-                    <p className="text-white/45 text-[13px] font-medium">Premium placements starting from <span className="text-white/70 font-bold">₹999/month</span> — cancel anytime</p>
-                  </div>
-                  <Link to="/promote" className="relative z-10 group flex items-center gap-2.5 px-7 py-3.5 bg-white text-[#0f2044] rounded-2xl font-black text-[13px] hover:bg-blue-50 transition-all duration-300 shadow-xl shadow-black/20 whitespace-nowrap">
-                    <svg className="w-4 h-4 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-                    Start Promoting
-                  </Link>
-                </div>
-                
-                {/* ── Grid cards (#2+) ── */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-                  {scripts.slice(1).map((script, idx) => {
-                  const rank = rankBadge(idx + 1);
-                  const metric = getFeaturedMetric(script);
-                  const hasCover = !!script.coverImage;
-                  const isHovered = hoveredCard === (script._id || idx);
-                  // Popularity bar relative to top metric
-                  const allMetricVals = scripts.slice(1).map(s => {
-                    const m = getFeaturedMetric(s);
-                    return typeof m.value === "string" ? parseFloat(m.value.replace(/[$,]/g, "")) || 0 : Number(m.value) || 0;
-                  });
-                  const maxMetric = Math.max(...allMetricVals, 1);
-                  const thisVal = typeof metric.value === "string" ? parseFloat(metric.value.replace(/[$,]/g, "")) || 0 : Number(metric.value) || 0;
-                  const popularityPct = Math.round((thisVal / maxMetric) * 100);
-
-                  return (
-                    <motion.div
-                      key={script._id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: Math.min(idx * 0.04, 0.4), duration: 0.3, ease }}
-                      onMouseEnter={() => setHoveredCard(script._id || idx)}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <Link
-                        to={`/script/${script._id}`}
-                        className={`group block rounded-2xl overflow-hidden hover:-translate-y-1.5 transition-all duration-300 shadow-sm hover:shadow-2xl border ${
-                          script.premium || script.isFeatured
-                            ? dark
-                              ? "border-2 border-blue-500/40 bg-gradient-to-br from-[#0a1628] to-[#0d1b2e] hover:border-blue-500/60 hover:shadow-blue-500/20 shadow-blue-500/10"
-                              : "border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-slate-50 hover:border-blue-400 hover:shadow-blue-300/60 shadow-blue-200/40"
-                            : dark
-                            ? `border-[#1a3050] bg-[#080f1e] hover:border-[#2a4570] hover:shadow-blue-500/10`
-                            : `border-gray-100 bg-white hover:border-[#111111]/20 hover:shadow-gray-200/60`
-                        }`}
-                      >
-                        {/* ── Cover Section ── */}
-                        <div className="relative h-[300px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
-                          {hasCover ? (
-                            <>
-                              <img src={getImageUrl(script.coverImage)} alt={script.title} className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-                            </>
-                          ) : (
-                            <>
-                              <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full border border-white/[0.04]" />
-                              <div className="absolute bottom-12 -left-4 w-20 h-20 rounded-full border border-white/[0.03]" />
-                              <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6">
-                                <h4 className="text-lg font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-1.5">{script.title}</h4>
-                                <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed">{script.logline || script.description || script.synopsis || ""}</p>
-                              </div>
-                            </>
-                          )}
-
-                          {/* Sponsored/Premium Badge - Top Left */}
-                          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                            {(script.premium || script.isFeatured) && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-[#1e3a5f] border border-blue-400/50 rounded-lg shadow-lg">
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-[9px] font-black text-white uppercase tracking-wide">
-                                  {script.premium ? "Premium" : "Sponsored"}
-                                </span>
-                              </div>
-                            )}
-                            {script.verifiedBadge && (
-                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 border border-blue-300/60 rounded-lg shadow-lg">
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-[9px] font-black text-white uppercase tracking-wide">Verified</span>
-                              </div>
-                            )}
-                            {rank && (
-                              <div className={`w-7 h-7 ${rank.bg} rounded-lg flex items-center justify-center shadow-lg ring-1 ring-white/10`}>
-                                <span className={`text-[10px] font-extrabold ${rank.text}`}>{rank.label}</span>
-                              </div>
-                            )}
-                            {!rank && !(script.premium || script.isFeatured) && (
-                              <div className="w-7 h-7 bg-black/30 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/15">
-                                <span className="text-[10px] font-bold text-white">#{idx + 2}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Rating badge top-right */}
-                          {script.scriptScore?.overall > 0 && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/10">
-                              <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-[11px] font-bold text-amber-300 tabular-nums">{script.scriptScore.overall}</span>
-                            </div>
-                          )}
-
-                          {/* Price / free tag */}
-                          {script.premium ? (
-                            <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg">
-                              <span className="text-[11px] font-extrabold text-white">${script.price}</span>
-                            </div>
-                          ) : (
-                            <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-emerald-500/80 backdrop-blur-sm rounded-lg">
-                              <span className="text-[10px] font-bold text-white">Free</span>
-                            </div>
-                          )}
-
-                          {/* Genre tag */}
-                          {(script.genre || script.primaryGenre) && (
-                            <span className="absolute bottom-3 left-3 text-[10px] font-bold text-white/90 bg-white/15 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
-                              {script.primaryGenre || script.genre}
-                            </span>
-                          )}
-
-                          {/* Hover overlay */}
-                          <AnimatePresence>
-                            {isHovered && (
-                              <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.18 }}
-                                className="absolute inset-0 bg-[#0a1628]/85 backdrop-blur-sm flex flex-col justify-end p-4 z-20"
-                                onClick={(e) => e.preventDefault()}
-                              >
-                                {/* Preview text */}
-                                {(script.logline || script.description || script.synopsis) && (
-                                  <p className="text-[11px] text-white/70 leading-relaxed line-clamp-3 mb-3">
-                                    {script.logline || script.description || script.synopsis}
-                                  </p>
-                                )}
-                                {/* Action buttons */}
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <CardSaveBtn scriptId={script._id} dark={dark} />
-                                  <button
-                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewScript(script); }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm transition-colors"
-                                  >
-                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M8 5.14v14l11-7-11-7z" />
-                                    </svg>
-                                    {script.trailerUrl ? "Trailer" : "Preview"}
-                                  </button>
-                                  <Link
-                                    to={`/script/${script._id}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-[#111111] hover:bg-[#2a5080] text-white transition-colors"
-                                  >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                                    </svg>
-                                    Details
-                                  </Link>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        {/* ── Info Section ── */}
-                        <div className="p-6">
-                          {/* Title */}
-                          <h3 className={`text-[18px] font-bold leading-snug line-clamp-1 mb-2.5 transition-colors ${
-                            dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"
-                          }`}>
-                            {script.title}
-                          </h3>
-
-                          {/* Popularity bar */}
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className={`text-[9px] font-bold uppercase tracking-widest ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                                {SORT_OPTIONS.find(o => o.key === selectedSort)?.label || "Score"}
-                              </span>
-                              <span className={`text-[11px] font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-700"}`}>
-                                {metric.value}
-                              </span>
-                            </div>
-                            <div className={`h-1 rounded-full overflow-hidden ${dark ? "bg-[#1a3050]" : "bg-gray-100"}`}>
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${popularityPct}%` }}
-                                transition={{ duration: 0.7, delay: idx * 0.04 + 0.2, ease: "easeOut" }}
-                                className="h-full rounded-full bg-gradient-to-r from-[#111111] to-[#3a7bd5]"
-                              />
-                            </div>
-                          </div>
-
-                          <div className={`border-t mb-3 ${dark ? "border-[#1a3050]" : "border-gray-100"}`} />
-
-                          {/* Creator + stats row */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center overflow-hidden ring-1 shrink-0 ${
-                                dark ? "bg-[#111111]/20 ring-[#333]" : "bg-[#111111]/[0.08] ring-gray-100"
-                              }`}>
-                                {script.creator?.profileImage ? (
-                                  <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-[9px] font-bold text-[#111111]">{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</span>
-                                )}
-                              </div>
-                              <span className={`text-[11px] font-semibold truncate ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                                {script.creator?.name || "Unknown"}
-                              </span>
-                            </div>
-
-                            {/* Stats */}
-                            <div className={`flex items-center gap-2.5 shrink-0 ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                              <div className="flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span className="text-[11px] font-semibold">{(script.views || 0).toLocaleString()}</span>
-                              </div>
-                              {script.pageCount && (
-                                <div className="flex items-center gap-1">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                  </svg>
-                                  <span className="text-[11px] font-semibold tabular-nums">{script.pageCount}p</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/*  Info panel  */}
-                        <div className="p-5">
-                          {/* Title */}
-                          <h4 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${dark ? "text-white" : "text-gray-900"}`}>
-                            {script.title}
-                          </h4>
-
-                          {/* Logline / description */}
-                          {(script.logline || script.description || script.synopsis) && (
-                            <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${dark ? "text-white/40" : "text-gray-500"}`}>
-                              {script.logline || script.description || script.synopsis}
-                            </p>
-                          )}
-
-                          {/* Badges row */}
-                          <div className="flex items-center gap-2 flex-wrap mb-4">
-                            {script.genre && (
-                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-                                dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"
-                              }`}>{script.genre}</span>
-                            )}
-                            {script.contentType && (
-                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${
-                                dark ? "bg-white/[0.05] text-white/40 border-white/[0.07]" : "bg-gray-100 text-gray-500 border-gray-200"
-                              }`}>{script.contentType.replace(/_/g, " ")}</span>
-                            )}
-                            {script.budget && (
-                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${
-                                dark ? "bg-white/[0.04] text-white/30 border-white/[0.06]" : "bg-gray-50 text-gray-400 border-gray-100"
-                              }`}>{script.budget} budget</span>
-                            )}
-                          </div>
-
-                          {/* Rank bar */}
-                          <div className="mb-4">
-                            <div className={`flex items-center justify-between mb-1`}>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/25" : "text-gray-400"}`}>
-                                {SORT_OPTIONS.find(s => s.key === selectedSort)?.label || "Rank"}
-                              </span>
-                              <span className={`text-[11px] font-bold tabular-nums ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>
-                                {getRankValue(script)}
-                              </span>
-                            </div>
-                            <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
-                              <div
-                                className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5] transition-all duration-700"
-                                style={{ width: `${getRankBarPct(script)}%` }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Stats row */}
-                          <div className={`flex items-center gap-4 pb-4 mb-4 border-b ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                            <div className={`flex items-center gap-1.5 ${dark ? "text-white/35" : "text-gray-400"}`}>
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              <span className="text-[12px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
-                            </div>
-                            {script.pageCount && (
-                              <div className={`flex items-center gap-1.5 ${dark ? "text-white/35" : "text-gray-400"}`}>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
-                                <span className="text-[12px] font-semibold tabular-nums">{script.pageCount}pp</span>
-                              </div>
-                            )}
-                            {script.scriptScore?.overall > 0 && (
-                              <div className={`ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
-                                dark ? "bg-[#1e3a5f]/15 border-[#1e3a5f]/25" : "bg-[#1e3a5f]/[0.05] border-[#1e3a5f]/10"
-                              }`}>
-                                <svg className={`w-3.5 h-3.5 ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`} fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-                                </svg>
-                                <span className={`text-[12px] font-bold ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>{script.scriptScore.overall}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Creator row + CTA */}
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-full overflow-hidden ring-2 shrink-0 ${dark ? "ring-white/10" : "ring-gray-200"}`}>
-                              {script.creator?.profileImage ? (
-                                <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-bold ${dark ? "bg-[#1e3a5f] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"}`}>
-                                  {script.creator?.name?.charAt(0)?.toUpperCase() || "?"}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-[12px] font-semibold truncate ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.creator?.name || "Unknown"}</p>
-                              <p className={`text-[10px] ${dark ? "text-white/25" : "text-gray-400"}`}>Author</p>
-                            </div>
-                            <span className={`text-[12px] font-bold px-4 py-2 rounded-xl border transition-all group-hover:scale-105 ${
-                              dark
-                                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 group-hover:bg-[#243f6a]"
-                                : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm group-hover:bg-[#162d4a]"
-                            }`}>Read →</span>
-                          </div>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-                </div>
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
-      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
-import { useState, useContext, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useContext, useRef, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import OTPVerification from "../components/OTPVerification";
@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Globe,
   Briefcase,
+  Instagram,
+  Twitter,
   FileText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -47,47 +49,148 @@ const validatePassword = (password) => {
   };
 };
 
+const INVESTOR_ONBOARDING_DRAFT_KEY = "sb-investor-onboarding-draft-v1";
+
+const DEFAULT_ACCOUNT_DATA = {
+  name: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
+
+const DEFAULT_INVESTOR_PROFILE = {
+  subRole: "",
+  jobTitle: "",
+  company: "",
+  investmentRange: "",
+  previousCredits: "",
+  portfolioUrl: "",
+  linkedInUrl: "",
+  imdbUrl: "",
+  instagramUrl: "",
+  twitterUrl: "",
+  facebookUrl: "",
+  youtubeUrl: "",
+  websiteUrl: "",
+  bio: "",
+};
+
+const normalizeUrlInput = (value = "") => value.trim();
+
+const isValidHttpUrl = (value = "") => {
+  if (!value) return true;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const loadInvestorOnboardingDraft = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = window.sessionStorage.getItem(INVESTOR_ONBOARDING_DRAFT_KEY);
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+};
+
+const INVESTOR_TERMS_ROUTE = "/investor-terms";
+const INVESTOR_TERMS_VERSION = "investor-onboarding-v2026-03-24";
+const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
+const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
+
 const InvestorOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const initialDraftRef = useRef(loadInvestorOnboardingDraft());
+  const initialDraft = initialDraftRef.current;
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(() => {
+    const step = Number(initialDraft?.currentStep);
+    return Number.isInteger(step) && step >= 1 && step <= 4 ? step : 1;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [firmNameError, setFirmNameError] = useState("");
+  const [roleFocusError, setRoleFocusError] = useState("");
+  const [jobTitleError, setJobTitleError] = useState("");
+  const [socialLinkError, setSocialLinkError] = useState("");
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
-  const [showOTPVerification, setShowOTPVerification] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  const [showOTPVerification, setShowOTPVerification] = useState(Boolean(initialDraft?.showOTPVerification));
+  const [userEmail, setUserEmail] = useState(initialDraft?.userEmail || "");
 
   // Step 1: Account
-  const [accountData, setAccountData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
+  const [accountData, setAccountData] = useState(() => ({
+    ...DEFAULT_ACCOUNT_DATA,
+    ...(initialDraft?.accountData || {}),
+  }));
 
   // Email Verification (keeping for compatibility, but using OTP now)
-  const [verificationCode, setVerificationCode] = useState("");
-  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
+  const [verificationSent, setVerificationSent] = useState(Boolean(initialDraft?.verificationSent));
 
   // Step 2: Investor Profile
-  const [investorProfile, setInvestorProfile] = useState({
-    company: "",
-    investmentRange: "",
-    linkedInUrl: "",
-    bio: "",
-  });
+  const [investorProfile, setInvestorProfile] = useState(() => ({
+    ...DEFAULT_INVESTOR_PROFILE,
+    ...(initialDraft?.investorProfile || {}),
+  }));
 
   // Step 3: Preferences
-  const [selectedGenres, setSelectedGenres] = useState([]);
-  const [selectedBudgets, setSelectedBudgets] = useState([]);
-  const [selectedFormats, setSelectedFormats] = useState([]);
+  const [selectedGenres, setSelectedGenres] = useState(
+    Array.isArray(initialDraft?.selectedGenres) ? initialDraft.selectedGenres : []
+  );
+  const [selectedFormats, setSelectedFormats] = useState(
+    Array.isArray(initialDraft?.selectedFormats) ? initialDraft.selectedFormats : []
+  );
 
   // Step 4: Legal
-  const [agreementScrolled, setAgreementScrolled] = useState(false);
-  const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
+  const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
   const agreementRef = useRef(null);
+  const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const safeAccountData = {
+      ...accountData,
+      password: "",
+      confirmPassword: "",
+    };
+
+    const draft = {
+      currentStep,
+      showOTPVerification,
+      userEmail,
+      accountData: safeAccountData,
+      verificationCode,
+      verificationSent,
+      investorProfile,
+      selectedGenres,
+      selectedFormats,
+      agreementScrolled,
+      agreementAccepted,
+    };
+
+    window.sessionStorage.setItem(INVESTOR_ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
+  }, [
+    accountData,
+    agreementAccepted,
+    agreementScrolled,
+    currentStep,
+    investorProfile,
+    selectedFormats,
+    selectedGenres,
+    showOTPVerification,
+    userEmail,
+    verificationCode,
+    verificationSent,
+  ]);
 
   const steps = [
     { num: 1, title: "Account" },
@@ -110,11 +213,6 @@ const InvestorOnboarding = () => {
     "Crime", "Documentary", "Historical", "Animation", "Musical",
   ];
 
-  const budgetOptions = [
-    "Micro Budget (< ₹1Cr)", "Low Budget (₹1Cr–₹5Cr)", "Mid Budget (₹5Cr–₹30Cr)",
-    "High Budget (₹30Cr–₹100Cr)", "Tentpole (₹100Cr+)",
-  ];
-
   const formatOptions = [
     "Feature Film", "TV Series", "Limited Series", "Short Film",
     "Web Series", "Documentary", "Animation",
@@ -129,29 +227,29 @@ const InvestorOnboarding = () => {
     e.preventDefault();
     setError("");
     setEmailError("");
-    
+
     // Trim and sanitize email
     const sanitizedEmail = accountData.email.trim().toLowerCase();
-    
+
     // Validate email
     if (!isValidEmail(sanitizedEmail)) {
       setEmailError("Please enter a valid email address (e.g., user@example.com)");
       return;
     }
-    
+
     // Validate password
     const passwordCheck = validatePassword(accountData.password);
     if (!Object.values(passwordCheck).every(Boolean)) {
       setError("Password does not meet all requirements");
       return;
     }
-    
+
     // Check password confirmation
     if (accountData.password !== accountData.confirmPassword) {
       setError("Passwords do not match");
       return;
     }
-    
+
     setLoading(true);
     try {
       const response = await join({
@@ -160,7 +258,7 @@ const InvestorOnboarding = () => {
         password: accountData.password,
         role: "investor",
       });
-      
+
       // Check if OTP verification is required
       if (response?.requiresVerification) {
         setUserEmail(sanitizedEmail);
@@ -169,7 +267,7 @@ const InvestorOnboarding = () => {
         // Direct login (shouldn't happen with new flow)
         setCurrentStep(2);
       }
-      
+
       setError("");
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
@@ -179,16 +277,19 @@ const InvestorOnboarding = () => {
   };
 
   const handleOTPSuccess = (userData) => {
-    // Update auth context with user data
+    // Update auth context with user data/session.
     setUser(userData);
+    if (userData?.token) {
+      localStorage.setItem("user", JSON.stringify(userData));
+    }
     setShowOTPVerification(false);
-    // Move to next step
     setCurrentStep(2);
   };
 
   const handleBackToSignup = () => {
     setShowOTPVerification(false);
     setUserEmail("");
+    setError("");
   };
 
   const handleEmailVerification = async (e) => {
@@ -205,16 +306,68 @@ const InvestorOnboarding = () => {
     }
   };
 
-  // ── Step 2: Investor Profile ───────────────────────────────
+  // ── Step 2: Producer/Director Profile ─────────────────────
   const handleInvestorProfile = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setFirmNameError("");
+    setRoleFocusError("");
+    setJobTitleError("");
+    setSocialLinkError("");
     setError("");
+
+    const sanitizedSubRole = normalizeUrlInput(investorProfile.subRole);
+    if (!sanitizedSubRole) {
+      setRoleFocusError("Role focus is required");
+      return;
+    }
+
+    const sanitizedJobTitle = normalizeUrlInput(investorProfile.jobTitle);
+    if (!sanitizedJobTitle) {
+      setJobTitleError("Job title is required");
+      return;
+    }
+
+    const sanitizedCompany = (investorProfile.company || "").trim();
+    if (!sanitizedCompany) {
+      setFirmNameError("Production house / firm name is required");
+      return;
+    }
+
+    const urlFields = {
+      portfolioUrl: normalizeUrlInput(investorProfile.portfolioUrl),
+      linkedInUrl: normalizeUrlInput(investorProfile.linkedInUrl),
+      imdbUrl: normalizeUrlInput(investorProfile.imdbUrl),
+      instagramUrl: normalizeUrlInput(investorProfile.instagramUrl),
+      twitterUrl: normalizeUrlInput(investorProfile.twitterUrl),
+      facebookUrl: normalizeUrlInput(investorProfile.facebookUrl),
+      youtubeUrl: normalizeUrlInput(investorProfile.youtubeUrl),
+      websiteUrl: normalizeUrlInput(investorProfile.websiteUrl),
+    };
+
+    const invalidUrlEntries = Object.values(urlFields).filter((value) => value && !isValidHttpUrl(value));
+    if (invalidUrlEntries.length > 0) {
+      setSocialLinkError("Please enter valid URLs starting with http:// or https://");
+      return;
+    }
+
+    setLoading(true);
     try {
       await api.put("/users/update", {
+        subRole: sanitizedSubRole,
+        jobTitle: sanitizedJobTitle,
         bio: investorProfile.bio,
-        company: investorProfile.company,
-        linkedInUrl: investorProfile.linkedInUrl,
+        company: sanitizedCompany,
+        previousCredits: normalizeUrlInput(investorProfile.previousCredits),
+        linkedInUrl: urlFields.linkedInUrl,
+        imdbUrl: urlFields.imdbUrl,
+        otherUrl: urlFields.portfolioUrl,
+        socialLinks: {
+          instagram: urlFields.instagramUrl,
+          twitter: urlFields.twitterUrl,
+          facebook: urlFields.facebookUrl,
+          youtube: urlFields.youtubeUrl,
+          website: urlFields.websiteUrl,
+        },
         investmentRange: investorProfile.investmentRange,
       });
       setCurrentStep(3);
@@ -233,7 +386,6 @@ const InvestorOnboarding = () => {
     try {
       await api.put("/users/update", {
         preferredGenres: selectedGenres,
-        preferredBudgets: selectedBudgets,
         preferredFormats: selectedFormats,
       });
       setCurrentStep(4);
@@ -245,25 +397,28 @@ const InvestorOnboarding = () => {
   };
 
   // ── Step 4: Legal & Complete ───────────────────────────────
-  const handleScrollAgreement = () => {
-    const el = agreementRef.current;
-    if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
-      setAgreementScrolled(true);
-    }
-  };
-
   const handleComplete = async () => {
     if (!agreementAccepted) {
       setError("Please accept the agreement to continue");
       return;
     }
+    if (!privacyPolicyAccepted) {
+      setError("Please accept the privacy policy to continue");
+      return;
+    }
     setLoading(true);
     try {
-      await api.put("/users/update", { onboardingComplete: true });
-      navigate("/investor-home");
-    } catch {
-      navigate("/investor-home");
+      await api.put("/users/update", {
+        onboardingComplete: true,
+        privacyPolicyAccepted,
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+      });
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(INVESTOR_ONBOARDING_DRAFT_KEY);
+      }
+      navigate("/?investorReview=pending", { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to complete onboarding");
     } finally {
       setLoading(false);
     }
@@ -277,11 +432,10 @@ const InvestorOnboarding = () => {
     <button
       type="button"
       onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-        active
+      className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${active
           ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
           : "bg-white text-gray-500 border-gray-200 hover:border-[#1e3a5f]/40 hover:text-[#1e3a5f]"
-      }`}
+        }`}
     >
       {label}
     </button>
@@ -290,9 +444,9 @@ const InvestorOnboarding = () => {
   // Show OTP verification screen if needed
   if (showOTPVerification) {
     return (
-      <OTPVerification 
-        email={userEmail} 
-        onSuccess={handleOTPSuccess} 
+      <OTPVerification
+        email={userEmail}
+        onSuccess={handleOTPSuccess}
         onBack={handleBackToSignup}
       />
     );
@@ -308,7 +462,7 @@ const InvestorOnboarding = () => {
               <Users className="text-black" size={40} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-sm text-gray-600">Investor Onboarding</p>
+          <p className="text-sm text-gray-600">Producer/Director Onboarding</p>
         </div>
 
         {/* Steps */}
@@ -317,13 +471,12 @@ const InvestorOnboarding = () => {
             <div key={step.num} className="flex items-center">
               <div className="flex flex-col items-center gap-1.5">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                    currentStep > step.num
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${currentStep > step.num
                       ? "bg-[#1e3a5f] border-[#1e3a5f] text-white"
                       : currentStep === step.num
-                      ? "bg-white border-[#1e3a5f] text-[#1e3a5f]"
-                      : "bg-white border-gray-200 text-gray-300"
-                  }`}
+                        ? "bg-white border-[#1e3a5f] text-[#1e3a5f]"
+                        : "bg-white border-gray-200 text-gray-300"
+                    }`}
                 >
                   {currentStep > step.num ? <CheckCircle size={14} /> : step.num}
                 </div>
@@ -347,7 +500,7 @@ const InvestorOnboarding = () => {
               <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
                   <h2 className="text-xl font-black text-gray-900">Create your account</h2>
-                  <p className="text-gray-400 text-sm font-medium mt-1">Join as an investor and discover projects worth backing</p>
+                  <p className="text-gray-400 text-sm font-medium mt-1">Join as a producer/director and discover projects worth backing</p>
                 </div>
 
                 {!verificationSent ? (
@@ -522,7 +675,7 @@ const InvestorOnboarding = () => {
 
                     <button
                       type="button"
-                      onClick={async () => { await api.post("/onboarding/send-verification").catch(() => {}); }}
+                      onClick={async () => { await api.post("/onboarding/send-verification").catch(() => { }); }}
                       className="w-full text-sm text-gray-400 hover:text-[#1e3a5f] font-semibold transition-colors"
                     >
                       Resend code
@@ -536,26 +689,79 @@ const InvestorOnboarding = () => {
             {currentStep === 2 && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
-                  <h2 className="text-xl font-black text-gray-900">Investor profile</h2>
-                  <p className="text-gray-400 text-sm font-medium mt-1">Tell writers and creators about your investment focus</p>
+                  <h2 className="text-xl font-black text-gray-900">Producer/Director profile</h2>
+                  <p className="text-gray-400 text-sm font-medium mt-1">Tell writers and creators about your production focus</p>
                 </div>
                 <form onSubmit={handleInvestorProfile} className="p-8 space-y-5">
                   <div>
-                    <label className={labelClass}>Company / Fund Name <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
+                    <label className={labelClass}>Role Focus</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <ChipButton
+                        label="Producer"
+                        active={investorProfile.subRole === "producer"}
+                        onClick={() => {
+                          setInvestorProfile({ ...investorProfile, subRole: "producer" });
+                          if (roleFocusError) setRoleFocusError("");
+                        }}
+                      />
+                      <ChipButton
+                        label="Director"
+                        active={investorProfile.subRole === "director"}
+                        onClick={() => {
+                          setInvestorProfile({ ...investorProfile, subRole: "director" });
+                          if (roleFocusError) setRoleFocusError("");
+                        }}
+                      />
+                    </div>
+                    {roleFocusError && (
+                      <p className="mt-1.5 text-xs font-semibold text-red-500">{roleFocusError}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Job Title</label>
                     <div className="relative">
                       <Briefcase size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
                       <input
                         type="text"
-                        placeholder="e.g. Summit Capital Films"
-                        value={investorProfile.company}
-                        onChange={(e) => setInvestorProfile({ ...investorProfile, company: e.target.value })}
-                        className={`${inputClass} pl-10`}
+                        placeholder="e.g. Creative Producer"
+                        value={investorProfile.jobTitle}
+                        onChange={(e) => {
+                          setInvestorProfile({ ...investorProfile, jobTitle: e.target.value });
+                          if (jobTitleError) setJobTitleError("");
+                        }}
+                        className={`${inputClass} pl-10 ${jobTitleError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                        required
                       />
                     </div>
+                    {jobTitleError && (
+                      <p className="mt-1.5 text-xs font-semibold text-red-500">{jobTitleError}</p>
+                    )}
                   </div>
 
                   <div>
-                    <label className={labelClass}>Typical Investment Range</label>
+                    <label className={labelClass}>Production House / Firm Name</label>
+                    <div className="relative">
+                      <Briefcase size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                      <input
+                        type="text"
+                        placeholder="e.g. YATU Productions"
+                        value={investorProfile.company}
+                        onChange={(e) => {
+                          setInvestorProfile({ ...investorProfile, company: e.target.value });
+                          if (firmNameError) setFirmNameError("");
+                        }}
+                        className={`${inputClass} pl-10 ${firmNameError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                        required
+                      />
+                    </div>
+                    {firmNameError && (
+                      <p className="mt-1.5 text-xs font-semibold text-red-500">{firmNameError}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Typical Project Budget Range</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {investmentRanges.map((r) => (
                         <ChipButton
@@ -569,24 +775,146 @@ const InvestorOnboarding = () => {
                   </div>
 
                   <div>
-                    <label className={labelClass}>LinkedIn Profile <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
+                    <label className={labelClass}>Portfolio / Showreel URL <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
                     <div className="relative">
                       <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
                       <input
                         type="url"
-                        placeholder="https://linkedin.com/in/yourname"
-                        value={investorProfile.linkedInUrl}
-                        onChange={(e) => setInvestorProfile({ ...investorProfile, linkedInUrl: e.target.value })}
+                        placeholder="https://yourshowreel.com"
+                        value={investorProfile.portfolioUrl}
+                        onChange={(e) => {
+                          setInvestorProfile({ ...investorProfile, portfolioUrl: e.target.value });
+                          if (socialLinkError) setSocialLinkError("");
+                        }}
                         className={`${inputClass} pl-10`}
                       />
                     </div>
                   </div>
 
                   <div>
+                    <label className={labelClass}>Online Presence <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="relative">
+                        <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://linkedin.com/in/yourname"
+                          value={investorProfile.linkedInUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, linkedInUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+
+                      <div className="relative">
+                        <FileText size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://imdb.com/name/..."
+                          value={investorProfile.imdbUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, imdbUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+
+                      <div className="relative">
+                        <Instagram size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://instagram.com/yourhandle"
+                          value={investorProfile.instagramUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, instagramUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+
+                      <div className="relative">
+                        <Twitter size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://x.com/yourhandle"
+                          value={investorProfile.twitterUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, twitterUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+
+                      <div className="relative sm:col-span-2">
+                        <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://facebook.com/yourpage"
+                          value={investorProfile.facebookUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, facebookUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+
+                      <div className="relative sm:col-span-2">
+                        <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://youtube.com/@yourchannel"
+                          value={investorProfile.youtubeUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, youtubeUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+
+                      <div className="relative sm:col-span-2">
+                        <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="url"
+                          placeholder="https://yourproductionhouse.com"
+                          value={investorProfile.websiteUrl}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, websiteUrl: e.target.value });
+                            if (socialLinkError) setSocialLinkError("");
+                          }}
+                          className={`${inputClass} pl-10`}
+                        />
+                      </div>
+                    </div>
+                    {socialLinkError ? (
+                      <p className="mt-1.5 text-xs font-semibold text-red-500">{socialLinkError}</p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-gray-400">Add as many links as you want. Use full URLs including http:// or https://</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Notable Credits <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
+                    <textarea
+                      rows={3}
+                      placeholder="Share key projects, films, episodes, or awards"
+                      value={investorProfile.previousCredits}
+                      onChange={(e) => setInvestorProfile({ ...investorProfile, previousCredits: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/40 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all bg-gray-50 text-gray-900 placeholder:text-gray-400 resize-none"
+                    />
+                  </div>
+
+                  <div>
                     <label className={labelClass}>Bio <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
                     <textarea
                       rows={3}
-                      placeholder="Brief background on your investment philosophy or experience..."
+                      placeholder="Brief background on your creative and production experience..."
                       value={investorProfile.bio}
                       onChange={(e) => setInvestorProfile({ ...investorProfile, bio: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/40 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all bg-gray-50 text-gray-900 placeholder:text-gray-400 resize-none"
@@ -618,7 +946,7 @@ const InvestorOnboarding = () => {
             {currentStep === 3 && (
               <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
-                  <h2 className="text-xl font-black text-gray-900">Investment preferences</h2>
+                  <h2 className="text-xl font-black text-gray-900">Project preferences</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Help us match you with the right projects</p>
                 </div>
                 <form onSubmit={handlePreferences} className="p-8 space-y-6">
@@ -627,15 +955,6 @@ const InvestorOnboarding = () => {
                     <div className="flex flex-wrap gap-2 mt-2">
                       {genreOptions.map((g) => (
                         <ChipButton key={g} label={g} active={selectedGenres.includes(g)} onClick={() => toggle(selectedGenres, setSelectedGenres, g)} />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>Budget Range</label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {budgetOptions.map((b) => (
-                        <ChipButton key={b} label={b} active={selectedBudgets.includes(b)} onClick={() => toggle(selectedBudgets, setSelectedBudgets, b)} />
                       ))}
                     </div>
                   </div>
@@ -674,51 +993,69 @@ const InvestorOnboarding = () => {
             {currentStep === 4 && (
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
-                  <h2 className="text-xl font-black text-gray-900">Investor Agreement</h2>
+                  <h2 className="text-xl font-black text-gray-900">Producer/Director Agreement</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Please read and accept the terms before accessing the platform</p>
                 </div>
                 <div className="p-8 space-y-5">
-                  {/* Agreement scroll box */}
-                  <div
-                    ref={agreementRef}
-                    onScroll={handleScrollAgreement}
-                    className="h-56 overflow-y-auto border border-gray-100 rounded-xl p-5 bg-gray-50 text-xs text-gray-500 font-medium leading-relaxed space-y-3"
-                  >
-                    <p className="font-black text-gray-700 text-sm">Ckript Investor Platform Agreement</p>
-                    <p>By joining Ckript as an Investor, you agree to the following terms:</p>
-                    <p><strong>1. Platform Use.</strong> This platform is for discovery and connection purposes only. Ckript facilitates introductions between investors and content creators but is not a party to any investment agreement.</p>
-                    <p><strong>2. No Financial Advice.</strong> Nothing on this platform constitutes financial, legal, or investment advice. All investment decisions are made solely at your own discretion and risk.</p>
-                    <p><strong>3. Due Diligence.</strong> You are responsible for conducting your own due diligence on any project or creator before committing funds. Ckript makes no representations about the viability, legality, or returns of any listed project.</p>
-                    <p><strong>4. Confidentiality.</strong> Scripts, synopses, and creative materials accessed through this platform are confidential and may not be shared, reproduced, or distributed without written consent from the rights holder.</p>
-                    <p><strong>5. Data & Privacy.</strong> Your profile information may be visible to creators and industry professionals on the platform. Refer to our Privacy Policy for full details on data handling.</p>
-                    <p><strong>6. Compliance.</strong> You represent that any investment activities conducted through connections made on this platform will comply with all applicable laws and regulations in your jurisdiction.</p>
-                    <p><strong>7. Termination.</strong> Ckript reserves the right to suspend or terminate any account found in violation of these terms or the platform's community standards.</p>
-                    <p className="text-gray-400">Last updated: January 2026</p>
+                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600 space-y-3">
+                    <p className="font-black text-gray-700">Investor Registration Terms and Conditions</p>
+                    <p>
+                      Review the full investor terms on a separate page before you complete registration.
+                    </p>
+                    <Link
+                      to={INVESTOR_TERMS_ROUTE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm"
+                    >
+                      Open Terms & Conditions
+                      <ArrowRight size={14} />
+                    </Link>
+                    <p className="text-xs text-gray-400">Terms version: {INVESTOR_TERMS_VERSION}</p>
                   </div>
 
-                  {!agreementScrolled && (
-                    <p className="text-center text-xs text-gray-400 font-semibold">↓ Scroll to the bottom to accept</p>
-                  )}
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={agreementAccepted}
+                      onChange={(e) => setAgreementAccepted(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                      style={{ accentColor: "#1e3a5f" }}
+                    />
+                    <span className="text-sm font-semibold text-gray-700">
+                      I have read and agree to the Investor Registration Terms and Conditions
+                    </span>
+                  </label>
 
-                  {agreementScrolled && (
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <div
-                        onClick={() => setAgreementAccepted(!agreementAccepted)}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-                          agreementAccepted ? "bg-[#1e3a5f] border-[#1e3a5f]" : "border-gray-300 bg-white"
-                        }`}
-                      >
-                        {agreementAccepted && (
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-sm font-semibold text-gray-700">
-                        I have read and agree to the Investor Platform Agreement
-                      </span>
-                    </label>
-                  )}
+                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600 space-y-3">
+                    <p className="font-black text-gray-700">Registration Privacy Policy</p>
+                    <p>
+                      Review the privacy policy that applies to both writer and investor registrations.
+                    </p>
+                    <Link
+                      to={REGISTRATION_PRIVACY_ROUTE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm"
+                    >
+                      Open Privacy Policy
+                      <ArrowRight size={14} />
+                    </Link>
+                    <p className="text-xs text-gray-400">Privacy policy version: {PRIVACY_POLICY_VERSION}</p>
+                  </div>
+
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={privacyPolicyAccepted}
+                      onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300"
+                      style={{ accentColor: "#1e3a5f" }}
+                    />
+                    <span className="text-sm font-semibold text-gray-700">
+                      I have read and agree to the Privacy Policy
+                    </span>
+                  </label>
 
                   {error && (
                     <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
@@ -735,7 +1072,7 @@ const InvestorOnboarding = () => {
                     <button
                       type="button"
                       onClick={handleComplete}
-                      disabled={!agreementAccepted || loading}
+                      disabled={!agreementAccepted || !privacyPolicyAccepted || loading}
                       className="flex-1 h-11 bg-[#1e3a5f] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#162d4a] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {loading ? "Completing..." : <>

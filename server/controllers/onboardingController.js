@@ -25,6 +25,16 @@ export const updateWriterProfile = async (req, res) => {
         message: "User not found" 
       });
     }
+
+    const nextGender = String(diversity?.gender ?? user.writerProfile?.diversity?.gender ?? "").trim();
+    const nextNationality = String(diversity?.nationality ?? user.writerProfile?.diversity?.nationality ?? "").trim();
+
+    if (!nextGender || !nextNationality) {
+      return res.status(400).json({
+        success: false,
+        message: "Gender and Nationality are required",
+      });
+    }
     
     // Update writer profile
     user.bio = bio || user.bio;
@@ -35,7 +45,15 @@ export const updateWriterProfile = async (req, res) => {
     if (diversity) {
       user.writerProfile.diversity = {
         ...user.writerProfile.diversity,
-        ...diversity
+        ...diversity,
+        gender: nextGender,
+        nationality: nextNationality,
+      };
+    } else {
+      user.writerProfile.diversity = {
+        ...user.writerProfile.diversity,
+        gender: nextGender,
+        nationality: nextNationality,
       };
     }
     
@@ -133,13 +151,30 @@ export const completeOnboarding = async (req, res) => {
       tags,
       plan,
       agreementAccepted,
+      termsVersion,
+      privacyPolicyAccepted,
+      privacyPolicyVersion,
       stripePaymentMethodId
     } = req.body;
+
+    if (plan && !["free", "paid"].includes(plan)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan selection",
+      });
+    }
     
     if (!agreementAccepted) {
       return res.status(400).json({ 
         success: false, 
         message: "You must accept the terms and conditions" 
+      });
+    }
+
+    if (!privacyPolicyAccepted) {
+      return res.status(400).json({
+        success: false,
+        message: "You must accept the privacy policy"
       });
     }
     
@@ -149,6 +184,13 @@ export const completeOnboarding = async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         message: "User not found" 
+      });
+    }
+
+    if (!["creator", "writer"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only writers can complete writer onboarding"
       });
     }
     
@@ -165,6 +207,12 @@ export const completeOnboarding = async (req, res) => {
     user.writerProfile.onboardingComplete = true;
     user.writerProfile.onboardingStep = 4;
     user.writerProfile.plan = plan || "free";
+    user.writerProfile.writerOnboardingTermsAccepted = true;
+    user.writerProfile.writerOnboardingTermsAcceptedAt = new Date();
+    user.writerProfile.writerOnboardingTermsVersion = termsVersion || "writer-onboarding-v1";
+    user.privacyPolicyAccepted = true;
+    user.privacyPolicyAcceptedAt = new Date();
+    user.privacyPolicyVersion = privacyPolicyVersion || "registration-privacy-v1";
     await user.save();
     
     // Create subscription record if paid plan
@@ -176,7 +224,8 @@ export const completeOnboarding = async (req, res) => {
       
       subscription = await Subscription.create({
         user: req.user._id,
-        plan: "pro",
+        // Must match Subscription schema enum values
+        plan: "hosting_plus_evaluation",
         amount: totalAmount,
         status: "pending", // Will be updated after Stripe payment
         billingCycle: "monthly",

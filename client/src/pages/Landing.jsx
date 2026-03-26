@@ -1,12 +1,13 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useSearchParams } from "react-router-dom";
 import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, HelpCircle, MessageSquare, CheckCircle, PenLine, BookOpen, ArrowRight, Clock3, XCircle } from "lucide-react";
-import FeaturesShowcase from "../components/FeaturesShowcase";
-import SuccessStories from "../components/SuccessStories";
 import api from "../services/api";
 import BrandLogo from "../components/BrandLogo";
 import { AuthContext } from "../context/AuthContext";
+
+const FeaturesShowcase = lazy(() => import("../components/FeaturesShowcase"));
+const SuccessStories = lazy(() => import("../components/SuccessStories"));
 
 const contactReasons = [
   { value: "doubt", label: "I have a question / doubt", icon: HelpCircle },
@@ -44,7 +45,7 @@ const ContactSection = () => {
   };
 
   return (
-    <section className="py-28 px-6 bg-[#080e18]">
+    <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#080e18]">
       <div className="max-w-5xl mx-auto">
         {/* Header — left-aligned */}
         <motion.div
@@ -60,7 +61,7 @@ const ContactSection = () => {
           </h2>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-10 items-start">
           {/* Left — reason cards */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -88,9 +89,9 @@ const ContactSection = () => {
               </button>
             ))}
 
-            <div className="mt-3 px-5 py-4 rounded-lg bg-[#0d1520] border border-[#1c2a3a]">
+            <div className="mt-3 px-4 sm:px-5 py-4 rounded-lg bg-[#0d1520] border border-[#1c2a3a]">
               <p className="text-[11px] text-[#4a5a6e] uppercase tracking-widest mb-1">Or email us directly</p>
-              <a href="mailto:info.ckript@gmail.com" className="text-gray-400 text-sm font-medium hover:underline">
+              <a href="mailto:info.ckript@gmail.com" className="text-gray-400 text-sm font-medium hover:underline break-all">
                 info.ckript@gmail.com
               </a>
             </div>
@@ -104,7 +105,7 @@ const ContactSection = () => {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="lg:col-span-3"
           >
-            <div className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-7">
+            <div className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-5 sm:p-7">
               <AnimatePresence mode="wait">
                 {submitted ? (
                   <motion.div
@@ -112,7 +113,7 @@ const ContactSection = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="flex flex-col items-center justify-center text-center py-14 gap-3"
+                    className="flex flex-col items-center justify-center text-center py-10 sm:py-14 gap-3"
                   >
                     <div className="w-14 h-14 rounded-full bg-gray-400/10 flex items-center justify-center mb-1">
                       <CheckCircle className="w-7 h-7 text-gray-400" />
@@ -265,7 +266,7 @@ const Landing = () => {
   };
 
   return (
-    <div className="bg-[#080e18] text-white">
+    <div className="bg-[#080e18] text-white overflow-x-hidden">
 
       <AnimatePresence>
         {showInvestorReviewPopup && reviewStatus && (
@@ -311,11 +312,11 @@ const Landing = () => {
                 </p>
               )}
 
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <a href="mailto:info.ckript@gmail.com" className="text-xs font-semibold text-[#8896a7] hover:text-white transition-colors">
+              <div className="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <a href="mailto:info.ckript@gmail.com" className="text-xs font-semibold text-[#8896a7] hover:text-white transition-colors break-all">
                   Contact: info.ckript@gmail.com
                 </a>
-                <Link to="/login" className="px-4 py-2 rounded-lg bg-white text-[#080e18] text-xs font-bold hover:bg-gray-200 transition-colors" onClick={closeInvestorReviewPopup}>
+                <Link to="/login" className="w-full sm:w-auto text-center px-4 py-2 rounded-lg bg-white text-[#080e18] text-xs font-bold hover:bg-gray-200 transition-colors" onClick={closeInvestorReviewPopup}>
                   Open Login
                 </Link>
               </div>
@@ -326,24 +327,24 @@ const Landing = () => {
 
       {/* ── Navigation ── */}
       <nav className="fixed top-0 w-full z-50 bg-[#080e18]/90 backdrop-blur-sm border-b border-[#151f2e]">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <BrandLogo className="h-10 w-auto" />
-          <div className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
+          <BrandLogo className="h-8 sm:h-10 w-auto" />
+          <div className="flex items-center gap-2 sm:gap-3">
             {user ? (
               <>
-                <Link to="/profile" className="px-5 py-2 text-sm font-medium text-[#8896a7] hover:text-white transition-colors">
+                <Link to="/profile" className="px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium text-[#8896a7] hover:text-white transition-colors whitespace-nowrap">
                   {user?.name || "My Account"}
                 </Link>
-                <Link to="/dashboard" className="px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-sm font-semibold transition-colors">
+                <Link to="/dashboard" className="px-3 sm:px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap">
                   Dashboard
                 </Link>
               </>
             ) : (
               <>
-                <Link to="/login" className="px-5 py-2 text-sm font-medium text-[#8896a7] hover:text-white transition-colors">
+                <Link to="/login" className="px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium text-[#8896a7] hover:text-white transition-colors whitespace-nowrap">
                   Sign In
                 </Link>
-                <Link to="/join" className="px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-sm font-semibold transition-colors">
+                <Link to="/join" className="px-3 sm:px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap">
                   Get Started
                 </Link>
               </>
@@ -353,9 +354,9 @@ const Landing = () => {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="pt-28 pb-24 px-6">
+      <section className="pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="max-w-3xl pt-16 md:pt-24">
+          <div className="max-w-3xl pt-10 sm:pt-14 md:pt-24">
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -369,7 +370,7 @@ const Landing = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-6 tracking-tight"
+              className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 sm:mb-6 tracking-tight"
             >
               Your Ideas Deserve
               <br />
@@ -380,7 +381,7 @@ const Landing = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-lg text-[#8896a7] leading-relaxed mb-10 max-w-xl"
+              className="text-base sm:text-lg text-[#8896a7] leading-relaxed mb-8 sm:mb-10 max-w-xl"
             >
               Ckript connects brilliant creators with producers, directors, and investors who are actively searching for your next big idea. Publish, visualize, and monetize your scripts like never before.
             </motion.p>
@@ -389,48 +390,29 @@ const Landing = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex gap-4 flex-wrap"
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4"
             >
               <Link
                 to="/writer-onboarding"
-                className="px-7 py-3.5 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg font-semibold text-sm transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto justify-center px-7 py-3.5 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg font-semibold text-sm transition-colors flex items-center gap-2"
               >
                 Sign Up as Creator
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/investor-onboarding"
-                className="px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
+                to="/producer-director-onboarding"
+                className="w-full sm:w-auto text-center px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
               >
                 Sign Up as Producer
               </Link>
             </motion.div>
           </div>
 
-          {/* Lightweight stat strip */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="mt-20 pt-8 border-t border-[#151f2e] grid grid-cols-2 md:grid-cols-4 gap-8"
-          >
-            {[
-              { number: "1,000+", label: "Scripts Uploaded" },
-              { number: "₹5Cr+", label: "Creator Earnings" },
-              { number: "500+", label: "Deals Matched" },
-              { number: "95%", label: "Satisfaction Rate" },
-            ].map((stat, i) => (
-              <div key={i}>
-                <p className="text-2xl font-bold text-white mb-0.5">{stat.number}</p>
-                <p className="text-sm text-[#4a5a6e]">{stat.label}</p>
-              </div>
-            ))}
-          </motion.div>
         </div>
       </section>
 
       {/* ── Problem & Solution ── */}
-      <section className="py-28 px-6 bg-[#0a1221]">
+      <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#0a1221]">
         <div className="max-w-6xl mx-auto">
           {/* heading — left aligned */}
           <motion.div
@@ -447,13 +429,13 @@ const Landing = () => {
           </motion.div>
 
           {/* Two problem cards */}
-          <div className="grid md:grid-cols-2 gap-5 mb-6">
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-5 mb-6">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-7"
+              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-5 sm:p-7"
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center shrink-0">
@@ -485,7 +467,7 @@ const Landing = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-7"
+              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-5 sm:p-7"
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center shrink-0">
@@ -554,13 +536,17 @@ const Landing = () => {
       </section>
 
       {/* ── Features Showcase ── */}
-      <FeaturesShowcase />
+      <Suspense fallback={<section className="py-20 px-6 bg-[#080e18]" aria-label="Loading features" />}>
+        <FeaturesShowcase />
+      </Suspense>
 
       {/* ── Success Stories ── */}
-      <SuccessStories />
+      <Suspense fallback={<section className="py-20 px-6 bg-[#0a1221]" aria-label="Loading stories" />}>
+        <SuccessStories />
+      </Suspense>
 
       {/* ── How it Works ── */}
-      <section className="py-28 px-6 bg-[#0a1221]">
+      <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#0a1221]">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -575,7 +561,7 @@ const Landing = () => {
             </h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-4 gap-px bg-[#1c2a3a] rounded-xl overflow-hidden">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[#1c2a3a] rounded-xl overflow-hidden">
             {[
               { step: "01", title: "Upload Your Script", desc: "Present your concept with a compelling summary and let AI generate a visual preview." },
               { step: "02", title: "AI Creates Trailer", desc: "Our AI generates a 30-second visual trailer that helps viewers quickly understand your concept." },
@@ -588,7 +574,7 @@ const Landing = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.08 }}
-                className="bg-[#0d1520] p-7"
+                className="bg-[#0d1520] p-5 sm:p-7"
               >
                 <span className="text-gray-400 text-2xl font-bold mb-4 block">{item.step}</span>
                 <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
@@ -600,7 +586,7 @@ const Landing = () => {
       </section>
 
       {/* ── For All User Types ── */}
-      <section className="py-28 px-6 bg-[#080e18]">
+      <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#080e18]">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -615,7 +601,7 @@ const Landing = () => {
             </h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
             {[
               {
                 icon: PenLine,
@@ -642,7 +628,7 @@ const Landing = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.08 }}
-                className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-7 hover:border-[#2a3a4e] transition-colors"
+                className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-5 sm:p-7 hover:border-[#2a3a4e] transition-colors"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center mb-5">
                   <user.icon className="w-[18px] h-[18px] text-gray-400" />
@@ -667,10 +653,10 @@ const Landing = () => {
       <ContactSection />
 
       {/* ── Footer ── */}
-      <footer className="py-10 px-6 border-t border-[#151f2e]">
+      <footer className="py-8 sm:py-10 px-4 sm:px-6 border-t border-[#151f2e]">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-[#4a5a6e]">&copy; 2026 Ckript. Connecting brilliant ideas with brilliant people.</p>
-          <div className="flex gap-6 text-sm text-[#4a5a6e]">
+          <p className="text-xs sm:text-sm text-[#4a5a6e] text-center sm:text-left">&copy; 2026 Ckript. Connecting brilliant ideas with brilliant people.</p>
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 sm:gap-6 text-xs sm:text-sm text-[#4a5a6e]">
             <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>
             <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms</Link>
             <a href="mailto:info.ckript@gmail.com" className="hover:text-white transition-colors">Contact</a>
