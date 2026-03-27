@@ -112,6 +112,30 @@ const ScriptDetail = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleInvoicePdfAction = async (invoice, action = "open") => {
+    if (!invoice?._id) return;
+
+    const { data } = await api.get(`/invoices/${invoice._id}/pdf`, {
+      params: action === "download" ? { download: 1 } : {},
+      responseType: "blob",
+    });
+
+    const blobUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
+    if (action === "download") {
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${invoice.invoiceNumber || "invoice"}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      return;
+    }
+
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+  };
+
   useEffect(() => {
     fetchScript();
     setCoverError(false);
@@ -275,7 +299,26 @@ const ScriptDetail = () => {
 
     // Show success message
     if (paymentType === "purchase") {
-      alert(paymentData.message || "Payment captured and sent to writer for approval.");
+      const successMessage = paymentData.message || "Payment successful. Full script access unlocked.";
+      const invoiceNumber = paymentData?.invoice?.invoiceNumber;
+      if (invoiceNumber) {
+        const shouldDownload = window.confirm(
+          `${successMessage}\n\nInvoice ${invoiceNumber} was created. Download invoice now?`
+        );
+        if (shouldDownload) {
+          try {
+            await handleInvoicePdfAction(paymentData.invoice, "download");
+          } catch {
+            alert(`Payment successful. Invoice ${invoiceNumber} created, but download failed.`);
+          }
+        }
+
+        if (!shouldDownload) {
+          alert(`${successMessage}\n\nInvoice ${invoiceNumber} is available in your invoice records.`);
+        }
+      } else {
+        alert(successMessage);
+      }
     } else {
       alert(`Hold placed successfully! ${paymentData.message || ""}`);
     }
@@ -482,7 +525,10 @@ const ScriptDetail = () => {
   const handleRequestPurchase = async () => {
     setRequestLoading(true);
     try {
-      await api.post("/scripts/purchase-request", { scriptId: script._id });
+      await api.post("/scripts/purchase-request", {
+        scriptId: script._id,
+        note: "I like your synopsis and I want to buy your project.",
+      });
       setShowRequestModal(false);
       await fetchScript();
     } catch (err) {
@@ -1051,34 +1097,42 @@ const ScriptDetail = () => {
                     {/* Purchase / Request Button for non-owners */}
                     {!isOwner && script.canPurchase && !script.isUnlocked && (
                       script.myPendingRequest ? (
-                        <div className="w-full px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl">
-                          <div className="flex items-center justify-center gap-2 text-amber-700 text-sm font-bold">
-                            <svg className="w-4 h-4 animate-pulse flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Awaiting Writer Approval
+                        script.myPendingRequest?.status === "approved" &&
+                        script.myPendingRequest?.paymentStatus !== "released" &&
+                        Number(script.myPendingRequest?.amount || script.price || 0) > 0 ? (
+                          <div className="space-y-1.5">
+                            <button
+                              onClick={() => {
+                                setPaymentType("purchase");
+                                setShowPurchaseModal(true);
+                              }}
+                              className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
+                            >
+                              {`Pay & Get Full Script — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`}
+                            </button>
+                            <p className="text-[11px] text-amber-700/90 text-center">Payment window: 72 hours after approval.</p>
                           </div>
-                          {script.myPendingRequest?.paymentStatus === "escrow_held" && (
-                            <p className="text-xs text-amber-700/90 text-center mt-1">Payment is secured in escrow.</p>
-                          )}
-                        </div>
+                        ) : (
+                          <div className="w-full px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl">
+                            <div className="flex items-center justify-center gap-2 text-amber-700 text-sm font-bold">
+                              <svg className="w-4 h-4 animate-pulse flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Awaiting Writer Approval
+                            </div>
+                            <p className="text-xs text-amber-700/90 text-center mt-1">You can pay after the writer approves your request.</p>
+                          </div>
+                        )
                       ) : (
                         <button
-                          onClick={() => {
-                            if (script.price > 0) {
-                              setPaymentType("purchase");
-                              setShowPurchaseModal(true);
-                              return;
-                            }
-                            setShowRequestModal(true);
-                          }}
+                          onClick={() => setShowRequestModal(true)}
                           className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                         >
                           <div className="flex items-center justify-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
+                            {script.price > 0 ? `Send Purchase Request — ₹${script.price}` : "Request Access"}
                           </div>
                         </button>
                       )
@@ -1920,7 +1974,7 @@ const ScriptDetail = () => {
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (
                             <div>
-                              <p className={`text-sm mb-4 ${t.muted}`}>For paid scripts, complete checkout first. Your payment is held in escrow until the writer approves.</p>
+                              <p className={`text-sm mb-4 ${t.muted}`}>Send your request first. Once the writer approves, payment is enabled and full access unlocks instantly after successful payment.</p>
                               {script.isUnlocked ? (
                                 <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1929,30 +1983,44 @@ const ScriptDetail = () => {
                                   Access Granted
                                 </div>
                               ) : script.myPendingRequest ? (
-                                <div className="flex flex-col items-center gap-2">
-                                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold">
-                                    <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Request Pending — Awaiting Writer Approval
+                                script.myPendingRequest?.status === "approved" &&
+                                script.myPendingRequest?.paymentStatus !== "released" &&
+                                Number(script.myPendingRequest?.amount || script.price || 0) > 0 ? (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Approved — Complete Payment to Unlock
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setPaymentType("purchase");
+                                        setShowPurchaseModal(true);
+                                      }}
+                                      className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
+                                    >
+                                      {`Pay Now — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`}
+                                    </button>
+                                    <p className={`text-xs ${t.muted}`}>Payment window: 72 hours after approval.</p>
                                   </div>
-                                  {script.myPendingRequest?.paymentStatus === "escrow_held" && (
-                                    <p className={`text-xs ${t.muted}`}>Payment secured in escrow and will auto-settle on writer decision.</p>
-                                  )}
-                                </div>
+                                ) : (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold">
+                                      <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Request Pending — Awaiting Writer Approval
+                                    </div>
+                                    <p className={`text-xs ${t.muted}`}>Payment becomes available after approval.</p>
+                                  </div>
+                                )
                               ) : (
                                 <button
-                                  onClick={() => {
-                                    if (script.price > 0) {
-                                      setPaymentType("purchase");
-                                      setShowPurchaseModal(true);
-                                      return;
-                                    }
-                                    setShowRequestModal(true);
-                                  }}
+                                  onClick={() => setShowRequestModal(true)}
                                   className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                 >
-                                  {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
+                                  {script.price > 0 ? `Send Purchase Request — ₹${script.price}` : "Request Access"}
                                 </button>
                               )}
                             </div>
@@ -2063,13 +2131,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` ₹${script.price} will be held in escrow until the writer reviews your request.`
+                ? ` If the writer approves, you will then be asked to pay ₹${script.price} to unlock full access.`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
               <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Approved = released to writer, rejected = refunded to your original payment method.</p>}
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Request first • Pay after writer approval • Access unlocks immediately after successful payment.</p>}
             </div>
             <button
               onClick={handleRequestPurchase}
@@ -2101,7 +2169,7 @@ const ScriptDetail = () => {
           >
             <h3 className={`text-base font-bold mb-1 ${t.title}`}>Decline Purchase Request</h3>
             <p className={`text-sm mb-4 ${t.muted}`}>
-              Declining <strong>{rejectNoteModal.investorName}</strong>'s request. Their reserved funds will be returned.
+              Declining <strong>{rejectNoteModal.investorName}</strong>'s request. They will be notified that the request was denied.
             </p>
             <label className={`block text-xs font-semibold mb-1 ${t.muted}`}>Reason (optional)</label>
             <textarea

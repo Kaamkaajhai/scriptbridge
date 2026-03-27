@@ -124,8 +124,7 @@ const Credits = () => {
 
   const usagePercent = balance?.totalPurchased > 0
     ? Math.round((balance.totalSpent / balance.totalPurchased) * 100) : 0;
-  const isWriterRole = user?.role === "writer" || user?.role === "creator";
-  const canBuyCredits = !isWriterRole || balance?.canPurchaseCredits !== false;
+  const canBuyCredits = balance?.canPurchaseCredits !== false;
 
   const getCredits = (key, fallback) => pricing?.[key]?.credits ?? fallback;
 
@@ -195,12 +194,6 @@ const Credits = () => {
             Buy Credits
           </motion.button>
         </div>
-
-        {isWriterRole && !canBuyCredits && (
-          <div className={`rounded-xl border px-4 py-3 text-sm ${dark ? "bg-amber-500/10 border-amber-500/20 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
-            {balance?.bankPurchaseMessage || "Submit bank details for admin approval before buying credits."}
-          </div>
-        )}
 
         {/* ── Balance Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

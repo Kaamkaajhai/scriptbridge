@@ -129,9 +129,9 @@ const RazorpayScriptPayment = ({
   if (!isOpen) return null;
 
   const amount = type === "purchase" ? script.price : script.holdFee || 200;
-  const title = type === "purchase" ? "Pay & Request Approval" : "Place Hold";
+  const title = type === "purchase" ? "Pay & Unlock Script" : "Place Hold";
   const description = type === "purchase"
-    ? "Payment is captured securely and held in escrow until the writer approves your request"
+    ? "Writer has approved your request. Complete payment to unlock full script access"
     : "Place a 30-day exclusive hold on this script";
 
   const t = {
@@ -211,7 +211,7 @@ const RazorpayScriptPayment = ({
               )}
               {type === "purchase" && (
                 <p className={`text-xs mt-2 ${t.muted}`}>
-                  One-time payment • Escrow hold now • Writer approval required
+                  One-time payment • Access unlocks immediately after success
                 </p>
               )}
             </div>

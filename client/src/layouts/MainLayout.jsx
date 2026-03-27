@@ -483,7 +483,7 @@ const MainLayout = ({ children }) => {
                     Purchase Approved
                   </p>
                   <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-emerald-100/80" : "text-gray-600"}`}>
-                    {latestApprovedPurchaseNotification.message || "Your purchase request was approved. You now have full script access."}
+                    {latestApprovedPurchaseNotification.message || "Your purchase request was approved. Complete payment (if required) to unlock full script access."}
                   </p>
                 </div>
               </div>
@@ -540,7 +540,7 @@ const MainLayout = ({ children }) => {
                     Purchase Request Declined
                   </p>
                   <p className={`mt-1 text-xs leading-5 ${isDarkMode ? "text-rose-100/80" : "text-gray-600"}`}>
-                    {latestRejectedPurchaseNotification.message || "Your purchase request was declined. Your payment has been refunded."}
+                    {latestRejectedPurchaseNotification.message || "Your purchase request was declined by the writer."}
                   </p>
                 </div>
               </div>

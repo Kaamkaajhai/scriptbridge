@@ -430,17 +430,21 @@ export const sendInvestorRejectionEmail = async (email, name, reason) => {
 };
 
 // Send purchase request email to writer
-export const sendPurchaseRequestEmail = async (writerEmail, writerName, investorName, scriptTitle, amount) => {
+export const sendPurchaseRequestEmail = async (writerEmail, writerName, requesterName, requesterType, scriptTitle, amount, requestNote = "") => {
   try {
     const transporter = createTransporter();
     await transporter.verify();
+
+    const safeRequesterName = String(requesterName || "A buyer").trim();
+    const safeRequesterType = String(requesterType || "Buyer").trim();
+    const safeRequestNote = String(requestNote || "").trim();
 
     const dashboardUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/purchase-requests`;
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
       to: writerEmail,
-      subject: `💰 Purchase Request for "${scriptTitle}" — ckript`,
+      subject: `📩 ${safeRequesterType} Access Request for "${scriptTitle}" — ckript`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -464,14 +468,16 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, investor
             <div class="content">
               <p>Hi <strong>${writerName}</strong>,</p>
               <div><span class="badge">💰 Purchase Request</span></div>
-              <p><strong>${investorName}</strong> is interested in purchasing your script and has submitted a purchase request.</p>
+              <p><strong>${safeRequesterName}</strong> (${safeRequesterType}) wants access to your script and has sent a purchase request to you.</p>
               <div class="info-box">
                 <p style="margin:0"><strong>Script:</strong> ${scriptTitle}</p>
                 <p style="margin:4px 0 0"><strong>Offered Amount:</strong> ₹${amount}</p>
-                <p style="margin:4px 0 0"><strong>Investor:</strong> ${investorName}</p>
+                <p style="margin:4px 0 0"><strong>Requester:</strong> ${safeRequesterName} (${safeRequesterType})</p>
+                ${safeRequestNote ? `<p style="margin:4px 0 0"><strong>Message:</strong> ${safeRequestNote}</p>` : ""}
               </div>
-              <p>Log in to ckript to review this request and choose to <strong>approve</strong> or <strong>decline</strong> the sale.</p>
-              <p>If you approve, the funds will be transferred to your wallet immediately.</p>
+              <p>Please log in to ckript and review this request in your purchase requests panel.</p>
+              <p>To share the full script, approve the request from the platform dashboard. If you decline, access will not be granted.</p>
+              <p>If you approve, the buyer will be asked to complete payment before access is granted.</p>
               <div style="text-align:center">
                 <a href="${dashboardUrl}" class="button">Review Purchase Request</a>
               </div>
@@ -486,7 +492,7 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, investor
         </body>
         </html>
       `,
-      text: `Hi ${writerName},\n\n${investorName} wants to purchase your script "${scriptTitle}" for ₹${amount}.\n\nLog in to review the request: ${dashboardUrl}\n\nThe ckript Team`,
+      text: `Hi ${writerName},\n\n${safeRequesterName} (${safeRequesterType}) wants access to your script "${scriptTitle}" and has sent a purchase request for ₹${amount}.${safeRequestNote ? `\n\nMessage: ${safeRequestNote}` : ""}\n\nPlease review the request on ckript and approve from the dashboard. After approval, the buyer will be asked to pay before access is granted.\n\nReview request: ${dashboardUrl}\n\nThe ckript Team`,
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -498,17 +504,43 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, investor
 };
 
 // Send purchase approved email to investor
-export const sendPurchaseApprovedEmail = async (investorEmail, investorName, writerName, scriptTitle, scriptId = "") => {
+export const sendPurchaseApprovedEmail = async (investorEmail, investorName, writerName, scriptTitle, scriptId = "", options = {}) => {
   try {
     const transporter = createTransporter();
     await transporter.verify();
 
+    const requiresPayment = Boolean(options?.requiresPayment);
+    const amount = Number(options?.amount || 0);
+    const paymentDueAtRaw = options?.paymentDueAt;
+    const paymentDueAt = paymentDueAtRaw ? new Date(paymentDueAtRaw) : null;
+    const deadlineText = paymentDueAt && !Number.isNaN(paymentDueAt.getTime())
+      ? paymentDueAt.toLocaleString("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+      : "";
     const scriptsUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}${scriptId ? `/script/${scriptId}` : '/purchase-requests'}`;
+    const subject = requiresPayment
+      ? `✅ Request Approved — Complete Payment for "${scriptTitle}" — ckript`
+      : `✅ Purchase Approved — "${scriptTitle}" — ckript`;
+    const headerTitle = requiresPayment ? "✅ Request Approved" : "🎉 Purchase Approved!";
+    const badgeText = requiresPayment ? "✅ Approved · Payment Required" : "✅ Approved";
+    const statusText = requiresPayment ? "Awaiting Buyer Payment" : "Access Granted ✅";
+    const ctaLabel = requiresPayment ? "Pay & Unlock Script" : "Open Approved Script";
+    const bodyIntro = requiresPayment
+      ? `Great news! <strong>${writerName}</strong> approved your purchase request. Complete the payment to unlock full script access.`
+      : `Great news! <strong>${writerName}</strong> has approved your purchase request. You now have full access to the script.`;
+    const bodyDetails = requiresPayment
+      ? `<p>Please complete payment${amount > 0 ? ` of <strong>₹${amount.toLocaleString("en-IN")}</strong>` : ""} from the script page to unlock full synopsis and content.</p>${deadlineText ? `<p><strong>Payment deadline:</strong> ${deadlineText}</p>` : ""}`
+      : `<p>You can now view the complete synopsis, full content, and all script details on ckript.</p>`;
+    const textVersion = requiresPayment
+      ? `Hi ${investorName},\n\n${writerName} approved your purchase request for "${scriptTitle}". Please complete payment${amount > 0 ? ` of ₹${amount.toLocaleString("en-IN")}` : ""} to unlock full access.${deadlineText ? `\nPayment deadline: ${deadlineText}` : ""}\n\nContinue: ${scriptsUrl}\n\nThe ckript Team`
+      : `Hi ${investorName},\n\n${writerName} has approved your purchase request for "${scriptTitle}". You now have full access.\n\nOpen script: ${scriptsUrl}\n\nThe ckript Team`;
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
       to: investorEmail,
-      subject: `✅ Purchase Approved — "${scriptTitle}" — ckript`,
+      subject,
       html: `
         <!DOCTYPE html>
         <html>
@@ -527,22 +559,22 @@ export const sendPurchaseApprovedEmail = async (investorEmail, investorName, wri
         <body>
           <div class="container">
             <div class="header">
-              <h1 style="margin:0">🎉 Purchase Approved!</h1>
+              <h1 style="margin:0">${headerTitle}</h1>
             </div>
             <div class="content">
               <p>Hi <strong>${investorName}</strong>,</p>
-              <div><span class="badge">✅ Approved</span></div>
-              <p>Great news! <strong>${writerName}</strong> has approved your purchase request. You now have full access to the script.</p>
+              <div><span class="badge">${badgeText}</span></div>
+              <p>${bodyIntro}</p>
               <div class="info-box">
                 <p style="margin:0"><strong>Script:</strong> ${scriptTitle}</p>
                 <p style="margin:4px 0 0"><strong>Writer:</strong> ${writerName}</p>
-                <p style="margin:4px 0 0"><strong>Status:</strong> Access Granted ✅</p>
+                <p style="margin:4px 0 0"><strong>Status:</strong> ${statusText}</p>
               </div>
-              <p>You can now view the complete synopsis, full content, and all script details on ckript.</p>
+              ${bodyDetails}
               <div style="text-align:center">
-                <a href="${scriptsUrl}" class="button">Open Approved Script</a>
+                <a href="${scriptsUrl}" class="button">${ctaLabel}</a>
               </div>
-              <p>Congratulations on your acquisition,<br/><strong>The ckript Team</strong></p>
+              <p>${requiresPayment ? "Once payment is confirmed, access is granted instantly." : "Congratulations on your acquisition,"}<br/><strong>The ckript Team</strong></p>
             </div>
             <div class="footer">
               <p>© 2026 ckript. All rights reserved.</p>
@@ -552,7 +584,7 @@ export const sendPurchaseApprovedEmail = async (investorEmail, investorName, wri
         </body>
         </html>
       `,
-      text: `Hi ${investorName},\n\n${writerName} has approved your purchase request for "${scriptTitle}". You now have full access.\n\nOpen script: ${scriptsUrl}\n\nThe ckript Team`,
+      text: textVersion,
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -564,11 +596,12 @@ export const sendPurchaseApprovedEmail = async (investorEmail, investorName, wri
 };
 
 // Send purchase rejected email to investor
-export const sendPurchaseRejectedEmail = async (investorEmail, investorName, writerName, scriptTitle, note) => {
+export const sendPurchaseRejectedEmail = async (investorEmail, investorName, writerName, scriptTitle, note, options = {}) => {
   try {
     const transporter = createTransporter();
     await transporter.verify();
 
+    const refundAmount = Number(options?.refundAmount || 0);
     const searchUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/search`;
 
     const mailOptions = {
@@ -606,7 +639,9 @@ export const sendPurchaseRejectedEmail = async (investorEmail, investorName, wri
                 <p style="margin:4px 0 0"><strong>Status:</strong> Declined</p>
               </div>
               ${note ? `<p><strong>Writer's note:</strong></p><div class="note-box">${note}</div>` : ''}
-              <p>Any funds that were reserved for this purchase have been <strong>returned to your wallet</strong>.</p>
+              ${refundAmount > 0
+                ? `<p>Any funds reserved for this request have been <strong>refunded</strong>${refundAmount ? ` (₹${refundAmount.toLocaleString("en-IN")})` : ""}.</p>`
+                : "<p>No payment was collected for this request.</p>"}
               <p>Don't be discouraged — there are many other great scripts available on ckript!</p>
               <div style="text-align:center">
                 <a href="${searchUrl}" class="button">Explore More Scripts</a>
@@ -621,7 +656,7 @@ export const sendPurchaseRejectedEmail = async (investorEmail, investorName, wri
         </body>
         </html>
       `,
-      text: `Hi ${investorName},\n\n${writerName} has declined your purchase request for "${scriptTitle}".\n${note ? `\nWriter's note: ${note}\n` : ''}\nYour reserved funds have been returned to your wallet.\n\nExplore more scripts: ${searchUrl}\n\nThe ckript Team`,
+      text: `Hi ${investorName},\n\n${writerName} has declined your purchase request for "${scriptTitle}".\n${note ? `\nWriter's note: ${note}\n` : ''}\n${refundAmount > 0 ? `Any reserved funds were refunded${refundAmount ? ` (₹${refundAmount.toLocaleString("en-IN")})` : ""}.` : "No payment was collected for this request."}\n\nExplore more scripts: ${searchUrl}\n\nThe ckript Team`,
     };
 
     const info = await transporter.sendMail(mailOptions);
