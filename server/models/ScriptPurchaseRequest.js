@@ -51,6 +51,9 @@ const scriptPurchaseRequestSchema = new mongoose.Schema(
     settledAt: {
       type: Date,
     },
+    paymentDueAt: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected", "cancelled"],

@@ -1,16 +1,16 @@
 import { useState, useEffect, useContext } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ReviewCard from "../components/ReviewCard";
 import ReviewForm from "../components/ReviewForm";
-import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
 import { Film } from "lucide-react";
 
 const ScriptReader = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
   const [script, setScript] = useState(null);
@@ -27,7 +27,6 @@ const ScriptReader = () => {
   const [showContent, setShowContent] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
   const [totalReviewPages, setTotalReviewPages] = useState(1);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
   const resolveImage = (url) => {
     if (!url) return "";
@@ -199,11 +198,11 @@ const ScriptReader = () => {
               </button>
               {script.premium && !isUnlocked && isPro && (
                 <button
-                  onClick={() => setShowPurchaseModal(true)}
+                  onClick={() => navigate(`/script/${script._id}`)}
                   className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                  Unlock – ₹{script.price}
+                  Request to Buy – ₹{script.price}
                 </button>
               )}
               {!isUnlocked && !isPro && !script.isCreator && (
@@ -851,19 +850,6 @@ const ScriptReader = () => {
         )}
       </AnimatePresence>
 
-      {/* Purchase Modal */}
-      {script && (
-        <RazorpayScriptPayment
-          isOpen={showPurchaseModal}
-          onClose={() => setShowPurchaseModal(false)}
-          script={script}
-          type="purchase"
-          onSuccess={async () => {
-            setShowPurchaseModal(false);
-            await fetchScript();
-          }}
-        />
-      )}
     </div>
   );
 };

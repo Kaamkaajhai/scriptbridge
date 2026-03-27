@@ -11,8 +11,8 @@ import {
   sendPurchaseApprovedEmail,
   sendPurchaseRejectedEmail,
 } from "../utils/emailService.js";
-import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { generateAndSaveInvoicePdf } from "../utils/invoicePdf.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { CREDIT_PRICES } from "./creditsController.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
@@ -152,11 +152,169 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
 const hasUserInIdArray = (arr = [], userId) =>
   Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
 
+const getPurchaseRequesterLabel = (user = {}) => {
+  const rawRole = String(user?.industryProfile?.subRole || user?.role || "").trim().toLowerCase();
+  if (rawRole === "producer") return "Producer";
+  if (rawRole === "director") return "Director";
+  if (rawRole === "investor") return "Investor";
+  if (rawRole === "industry" || rawRole === "professional") return "Industry Professional";
+  return "Buyer";
+};
+
+const PURCHASE_INVOICE_PREFIX = "INV-SCP";
+
+const buildScriptPurchaseInvoiceNumber = (paymentId = "") => {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const paymentSuffix = String(paymentId || "").replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase() || Date.now().toString().slice(-8);
+  return `${PURCHASE_INVOICE_PREFIX}-${stamp}-${paymentSuffix}`;
+};
+
+const getSettledPurchaseQuery = (extra = {}) => ({
+  ...extra,
+  status: "approved",
+  $or: [
+    { paymentStatus: "released" },
+    { amount: { $lte: 0 } },
+  ],
+});
+
+const APPROVED_UNPAID_EXPIRY_HOURS = 72;
+const APPROVED_UNPAID_EXPIRY_MS = APPROVED_UNPAID_EXPIRY_HOURS * 60 * 60 * 1000;
+const APPROVED_UNPAID_EXPIRY_NOTE = `Auto-cancelled: buyer did not complete payment within ${APPROVED_UNPAID_EXPIRY_HOURS} hours of approval.`;
+const APPROVED_UNPAID_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+let lastApprovedUnpaidSweepAt = 0;
+
+const getApprovedUnpaidExpiryCutoff = (now = new Date()) =>
+  new Date(now.getTime() - APPROVED_UNPAID_EXPIRY_MS);
+
+const getApprovedPaymentDueAt = (approvedAt = new Date()) =>
+  new Date(new Date(approvedAt).getTime() + APPROVED_UNPAID_EXPIRY_MS);
+
+const getApprovedUnpaidActiveClause = (now = new Date()) => ({
+  status: "approved",
+  paymentStatus: { $ne: "released" },
+  amount: { $gt: 0 },
+  $or: [
+    { paymentDueAt: { $gt: now } },
+    { paymentDueAt: { $exists: false }, updatedAt: { $gt: getApprovedUnpaidExpiryCutoff(now) } },
+  ],
+});
+
+const expireApprovedUnpaidRequests = async ({ scriptId, userId, force = false } = {}) => {
+  const now = new Date();
+  const shouldRunGlobalSweep = !scriptId && !userId;
+  if (shouldRunGlobalSweep && !force && Date.now() - lastApprovedUnpaidSweepAt < APPROVED_UNPAID_SWEEP_INTERVAL_MS) {
+    return;
+  }
+  if (shouldRunGlobalSweep) {
+    lastApprovedUnpaidSweepAt = Date.now();
+  }
+
+  const filters = [
+    { status: "approved" },
+    { paymentStatus: { $ne: "released" } },
+    { amount: { $gt: 0 } },
+    { $or: [{ paymentDueAt: { $exists: false } }, { paymentDueAt: { $lte: now } }] },
+  ];
+  if (scriptId) filters.push({ script: scriptId });
+  if (userId) filters.push({ $or: [{ investor: userId }, { writer: userId }] });
+
+  const requestsToProcess = await ScriptPurchaseRequest.find({ $and: filters })
+    .select("_id script paymentDueAt updatedAt createdAt note")
+    .lean();
+
+  if (requestsToProcess.length === 0) {
+    return;
+  }
+
+  const bulkOps = [];
+  const scriptIdsToCheck = new Set();
+
+  requestsToProcess.forEach((request) => {
+    const approvedAt = request?.updatedAt || request?.createdAt || now;
+    const dueAt = request?.paymentDueAt ? new Date(request.paymentDueAt) : getApprovedPaymentDueAt(approvedAt);
+    const expiresNow = dueAt <= now;
+
+    if (expiresNow) {
+      const existingNote = String(request?.note || "").trim();
+      const nextNote = existingNote.includes(APPROVED_UNPAID_EXPIRY_NOTE)
+        ? existingNote
+        : existingNote
+          ? `${existingNote}\n${APPROVED_UNPAID_EXPIRY_NOTE}`
+          : APPROVED_UNPAID_EXPIRY_NOTE;
+
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: request._id },
+          update: {
+            $set: {
+              status: "cancelled",
+              paymentStatus: "failed",
+              settledAt: now,
+              paymentDueAt: dueAt,
+              note: nextNote,
+            },
+          },
+        },
+      });
+      scriptIdsToCheck.add(request.script.toString());
+      return;
+    }
+
+    if (!request?.paymentDueAt) {
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: request._id },
+          update: {
+            $set: {
+              paymentDueAt: dueAt,
+            },
+          },
+        },
+      });
+    }
+  });
+
+  if (bulkOps.length > 0) {
+    await ScriptPurchaseRequest.bulkWrite(bulkOps);
+  }
+
+  if (scriptId) {
+    scriptIdsToCheck.add(scriptId.toString());
+  }
+
+  const expiryCutoff = getApprovedUnpaidExpiryCutoff(now);
+  for (const sid of scriptIdsToCheck) {
+    const hasActiveRequests = await ScriptPurchaseRequest.exists({
+      script: sid,
+      $or: [
+        { status: "pending" },
+        {
+          status: "approved",
+          paymentStatus: { $ne: "released" },
+          amount: { $gt: 0 },
+          $or: [
+            { paymentDueAt: { $gt: now } },
+            { paymentDueAt: { $exists: false }, updatedAt: { $gt: expiryCutoff } },
+          ],
+        },
+      ],
+    });
+
+    if (!hasActiveRequests) {
+      await Script.findByIdAndUpdate(sid, {
+        purchaseRequestLocked: false,
+        purchaseRequestLockedBy: null,
+        purchaseRequestLockedAt: null,
+      });
+    }
+  }
+};
+
 const getPurchasedUserIdSet = async (script) => {
-  const approvedPurchaseRequests = await ScriptPurchaseRequest.find({
-    script: script._id,
-    status: "approved",
-  }).select("investor").lean();
+  const approvedPurchaseRequests = await ScriptPurchaseRequest.find(
+    getSettledPurchaseQuery({ script: script._id })
+  ).select("investor").lean();
 
   const convertedOptions = await ScriptOption.find({
     script: script._id,
@@ -531,12 +689,8 @@ export const uploadScript = async (req, res) => {
       return res.status(400).json({ message: ageRangeError });
     }
 
-    const invoiceDate = new Date();
-    const invoiceNumber = `INV-${invoiceDate.toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-4)}`;
     const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
     const effectivePrice = isPremiumAccess ? Number(price || 0) : 0;
-    const platformFeeRate = 0.2;
-    const writerEarnsPerSale = Math.round(effectivePrice * (1 - platformFeeRate) * 100) / 100;
 
     // Calculate credits needed for selected services
     let creditsRequired = 0;
@@ -704,61 +858,7 @@ export const uploadScript = async (req, res) => {
       script = await Script.create(scriptData);
     }
 
-    const invoice = await Invoice.create({
-      invoiceNumber,
-      invoiceDate,
-      creator: req.user._id,
-      creatorSid: creator?.sid || "",
-      script: script._id,
-      scriptSid: script?.sid || "",
-      accessType: isPremiumAccess ? "premium" : "free",
-      scriptPrice: effectivePrice,
-      platformFeeRate,
-      writerEarnsPerSale,
-      services: {
-        hosting: services?.hosting !== undefined ? services.hosting : true,
-        evaluation: Boolean(services?.evaluation),
-        aiTrailer: Boolean(services?.aiTrailer),
-        spotlight: Boolean(services?.spotlight),
-        trailerUpload: !services?.aiTrailer,
-      },
-      totalCreditsRequired: creditsRequired,
-      creditsBalanceBefore,
-      creditsBalanceAfter,
-      rows: [
-        {
-          item: "Script Access Model",
-          type: "Configuration",
-          detail: isPremiumAccess ? `Premium access at ₹${effectivePrice}` : "Free public access",
-          amountLabel: "₹0",
-          amountValue: 0,
-        },
-        {
-          item: "Publish Services",
-          type: "Credit Charge",
-          detail: creditsRequired > 0 ? "Paid add-ons selected" : "No paid add-ons selected",
-          amountLabel: `${creditsRequired} cr`,
-          amountValue: creditsRequired,
-        },
-        {
-          item: "Writer Earnings Per Premium Sale",
-          type: "Future Earnings",
-          detail: isPremiumAccess ? `Buyer pays ₹${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
-          amountLabel: isPremiumAccess ? `₹${writerEarnsPerSale}` : "₹0",
-          amountValue: writerEarnsPerSale,
-        },
-      ],
-    });
-
-    // Return the created script with invoice metadata
-    res.status(201).json({
-      ...script.toObject(),
-      invoice: {
-        _id: invoice._id,
-        invoiceNumber: invoice.invoiceNumber,
-        pdfPath: invoice.pdfPath,
-      },
-    });
+    res.status(201).json(script);
 
     // Run non-critical tasks post-response to keep submit API fast.
     (async () => {
@@ -797,24 +897,6 @@ export const uploadScript = async (req, res) => {
         );
       }
 
-      tasks.push(
-        (async () => {
-          const generatedInvoicePdf = await generateAndSaveInvoicePdf({
-            invoice,
-            creatorName: creator.name,
-            creatorEmail: creator.email,
-            creatorSid: creator?.sid,
-            scriptTitle: script.title,
-            scriptSid: script?.sid,
-          });
-          if (generatedInvoicePdf.relativePath) {
-            invoice.pdfPath = generatedInvoicePdf.relativePath;
-          }
-          invoice.pdfGeneratedAt = new Date();
-          await invoice.save();
-        })()
-      );
-
       // --- Async Service Processing ---
       // TODO: Implement these async workflows:
       if (services?.hosting) {
@@ -844,6 +926,8 @@ export const uploadScript = async (req, res) => {
 
 export const getScripts = async (req, res) => {
   try {
+    await expireApprovedUnpaidRequests();
+
     const { genre, contentType, budget, sort, search, premium, minPrice, maxPrice } = req.query;
     const query = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) query.genre = genre;
@@ -969,6 +1053,8 @@ export const getScripts = async (req, res) => {
 
 export const getScriptById = async (req, res) => {
   try {
+    await expireApprovedUnpaidRequests({ scriptId: req.params.id });
+
     const script = await Script.findById(req.params.id)
       .populate("creator", "name profileImage role bio followers")
       .populate("heldBy", "name role");
@@ -987,7 +1073,7 @@ export const getScriptById = async (req, res) => {
 
     if (!isBuyer) {
       const [approvedPurchase, convertedOption] = await Promise.all([
-        ScriptPurchaseRequest.exists({ script: script._id, investor: req.user._id, status: "approved" }),
+        ScriptPurchaseRequest.exists(getSettledPurchaseQuery({ script: script._id, investor: req.user._id })),
         ScriptOption.exists({ script: script._id, holder: req.user._id, status: "converted" }),
       ]);
       isBuyer = Boolean(approvedPurchase || convertedOption);
@@ -1013,13 +1099,18 @@ export const getScriptById = async (req, res) => {
       const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
       const isLockOwner = lockOwnerId && lockOwnerId === req.user._id.toString();
       let hasMyPendingRequest = false;
+      const nowForLockCheck = new Date();
+      const activeApprovedClause = getApprovedUnpaidActiveClause(nowForLockCheck);
 
       if (!isLockOwner && !isOwner && !isAdmin && !isBuyer) {
         hasMyPendingRequest = Boolean(
           await ScriptPurchaseRequest.findOne({
             script: script._id,
             investor: req.user._id,
-            status: "pending",
+            $or: [
+              { status: "pending" },
+              activeApprovedClause,
+            ],
           }).select("_id").lean()
         );
       }
@@ -1077,11 +1168,16 @@ export const getScriptById = async (req, res) => {
     // Check if the viewer has a pending purchase request for this script
     let myPendingRequest = null;
     if (canPurchase && !isUnlocked) {
+      const nowForPendingRequest = new Date();
+      const activeApprovedClause = getApprovedUnpaidActiveClause(nowForPendingRequest);
       myPendingRequest = await ScriptPurchaseRequest.findOne({
         script: script._id,
         investor: req.user._id,
-        status: "pending",
-      }).lean();
+        $or: [
+          { status: "pending" },
+          activeApprovedClause,
+        ],
+      }).sort({ createdAt: -1 }).lean();
     }
 
     // For creators, count how many pending purchase requests exist for this script
@@ -1125,6 +1221,8 @@ export const unlockScript = async (req, res) => {
       return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
     }
 
+    await expireApprovedUnpaidRequests({ scriptId: script._id });
+
     // Only investors, producers, directors, and industry professionals can unlock
     const allowedRoles = ['investor', 'producer', 'director', 'industry', 'professional'];
     if (!allowedRoles.includes(req.user.role)) {
@@ -1165,10 +1263,11 @@ export const unlockScript = async (req, res) => {
 
 // ─── PURCHASE REQUEST WORKFLOW ────────────────────────────────────────────────
 
-// Investor submits a purchase request for a script (funds frozen immediately)
+// Investor submits a purchase request for a script (no upfront payment)
 export const requestScriptPurchase = async (req, res) => {
   try {
     const { scriptId, note } = req.body;
+    const defaultRequestNote = "I like your synopsis and I want to buy your project.";
 
     const allowedRoles = ["investor", "producer", "director", "industry", "professional"];
     if (!allowedRoles.includes(req.user.role)) {
@@ -1189,6 +1288,10 @@ export const requestScriptPurchase = async (req, res) => {
       return res.status(400).json({ message: "You already have access to this script." });
     }
 
+    await expireApprovedUnpaidRequests({ scriptId: script._id });
+    const now = new Date();
+    const activeApprovedClause = getApprovedUnpaidActiveClause(now);
+
     if (script.purchaseRequestLocked) {
       const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
       if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
@@ -1196,12 +1299,16 @@ export const requestScriptPurchase = async (req, res) => {
       }
     }
 
-    // Check for existing pending request
+    // Prevent duplicate active request flows for same investor/script.
     const existing = await ScriptPurchaseRequest.findOne({
       script: scriptId,
       investor: req.user._id,
-      status: "pending",
-    });
+      $or: [
+        { status: "pending" },
+        activeApprovedClause,
+      ],
+    }).sort({ createdAt: -1 });
+
     if (existing) {
       const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
       if (!script.purchaseRequestLocked || lockOwnerId !== req.user._id.toString()) {
@@ -1210,78 +1317,33 @@ export const requestScriptPurchase = async (req, res) => {
         script.purchaseRequestLockedAt = script.purchaseRequestLockedAt || existing.createdAt || new Date();
         await script.save();
       }
+      if (existing.status === "approved" && existing.paymentStatus !== "released" && Number(existing.amount || 0) > 0) {
+        return res.status(400).json({ message: "Your request is already approved. Complete payment to unlock full script access." });
+      }
       return res.status(400).json({ message: "You already have a pending purchase request for this script." });
     }
 
-    const investor = await User.findById(req.user._id);
+    const investor = await User.findById(req.user._id).select("name email role industryProfile.subRole");
     const amount = Number(script.price || 0);
-
-    let frozenAmount = 0;
-    let balanceBefore = 0;
-    let balanceAfter = 0;
-
-    if (amount > 0) {
-      if (!investor.wallet) {
-        investor.wallet = {
-          balance: 0,
-          currency: "INR",
-          pendingBalance: 0,
-          totalEarnings: 0,
-          totalWithdrawals: 0,
-        };
-      }
-
-      if ((investor.wallet.balance || 0) < amount) {
-        return res.status(400).json({
-          message: `Insufficient wallet balance. Add ₹${amount.toLocaleString("en-IN")} to proceed with this purchase request.`,
-        });
-      }
-
-      balanceBefore = investor.wallet.balance || 0;
-      investor.wallet.balance = balanceBefore - amount;
-      investor.wallet.pendingBalance = (investor.wallet.pendingBalance || 0) + amount;
-      balanceAfter = investor.wallet.balance;
-      frozenAmount = amount;
-      await investor.save();
-    }
+    const sanitizedNote = String(note || defaultRequestNote).trim() || defaultRequestNote;
 
     const purchaseRequest = await ScriptPurchaseRequest.create({
       script: scriptId,
       investor: req.user._id,
       writer: script.creator._id,
       amount,
-      frozenAmount,
-      paymentMethod: "wallet",
-      paymentStatus: amount > 0 ? "escrow_held" : "pending",
-      note: note || "",
+      frozenAmount: 0,
+      paymentMethod: "manual",
+      paymentStatus: "pending",
+      note: sanitizedNote,
     });
-
-    if (frozenAmount > 0) {
-      await Transaction.create({
-        user: req.user._id,
-        type: "payment",
-        amount: -frozenAmount,
-        currency: "INR",
-        status: "pending",
-        description: `Escrow hold for purchase request: "${script.title}"`,
-        reference: `PRH-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
-        paymentMethod: "wallet",
-        relatedScript: script._id,
-        balanceBefore,
-        balanceAfter,
-        metadata: {
-          purchaseRequestId: purchaseRequest._id.toString(),
-          stage: "escrow_hold",
-          writerId: script.creator._id.toString(),
-          scriptId: script._id.toString(),
-        },
-      });
-    }
 
     script.purchaseRequestLocked = true;
     script.purchaseRequestLockedBy = req.user._id;
     script.purchaseRequestLockedAt = new Date();
     await script.save();
+
+    const requesterType = getPurchaseRequesterLabel(investor);
 
     // Notify writer in-app
     await Notification.create({
@@ -1289,7 +1351,7 @@ export const requestScriptPurchase = async (req, res) => {
       type: "purchase_request",
       from: req.user._id,
       script: script._id,
-      message: `${investor.name} submitted a purchase request for "${script.title}"${amount > 0 ? ` and escrowed ₹${amount}` : ""}.`,
+      message: `${investor.name} (${requesterType}) requested to buy "${script.title}"${amount > 0 ? ` for ₹${amount.toLocaleString("en-IN")}` : ""}. Request message: "${sanitizedNote}". Review in your dashboard.`,
     });
 
     // Email writer
@@ -1297,13 +1359,15 @@ export const requestScriptPurchase = async (req, res) => {
       script.creator.email,
       script.creator.name,
       investor.name,
+      requesterType,
       script.title,
-      amount
+      amount,
+      sanitizedNote
     ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
 
     res.status(201).json({
       message: amount > 0
-        ? "Purchase request submitted and payment held in escrow."
+        ? "Purchase request sent. Complete payment after writer approval."
         : "Purchase request submitted successfully.",
       purchaseRequest,
     });
@@ -1335,6 +1399,46 @@ export const approveScriptPurchase = async (req, res) => {
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
     const paymentMethod = purchaseRequest.paymentMethod || "wallet";
+    const hasEscrowHold = amountToRelease > 0 && purchaseRequest.paymentStatus === "escrow_held";
+
+    // New request-first flow: approve first, then ask buyer to pay.
+    if (!hasEscrowHold && amountToRelease > 0) {
+      const paymentDueAt = getApprovedPaymentDueAt(new Date());
+      purchaseRequest.status = "approved";
+      purchaseRequest.paymentStatus = "pending";
+      purchaseRequest.paymentMethod = "manual";
+      purchaseRequest.frozenAmount = 0;
+      purchaseRequest.paymentDueAt = paymentDueAt;
+      purchaseRequest.settledAt = undefined;
+      await purchaseRequest.save();
+
+      script.purchaseRequestLocked = true;
+      script.purchaseRequestLockedBy = investor._id;
+      script.purchaseRequestLockedAt = new Date();
+      await script.save();
+
+      await Notification.create({
+        user: investor._id,
+        type: "purchase_approved",
+        from: req.user._id,
+        script: script._id,
+        message: `${writer.name} approved your request for "${script.title}". Please pay ₹${amountToRelease.toLocaleString("en-IN")} within ${APPROVED_UNPAID_EXPIRY_HOURS} hours to unlock full script access.`,
+      });
+
+      sendPurchaseApprovedEmail(
+        investor.email,
+        investor.name,
+        writer.name,
+        script.title,
+        script._id.toString(),
+        { requiresPayment: true, amount: amountToRelease, paymentDueAt }
+      ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
+
+      return res.json({
+        message: "Purchase request approved. Buyer has been notified to complete payment for access.",
+        purchaseRequest,
+      });
+    }
 
     const investorDoc = await User.findById(investor._id);
     if (!investorDoc) {
@@ -1437,7 +1541,8 @@ export const approveScriptPurchase = async (req, res) => {
     await script.save();
 
     purchaseRequest.status = "approved";
-    purchaseRequest.paymentStatus = amountToRelease > 0 ? "released" : purchaseRequest.paymentStatus;
+    purchaseRequest.paymentStatus = "released";
+    purchaseRequest.paymentDueAt = undefined;
     purchaseRequest.settledAt = new Date();
     await purchaseRequest.save();
 
@@ -1456,7 +1561,8 @@ export const approveScriptPurchase = async (req, res) => {
       investor.name,
       writer.name,
       script.title,
-      script._id.toString()
+      script._id.toString(),
+      { requiresPayment: false, amount: amountToRelease }
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
     res.json({
@@ -1488,7 +1594,8 @@ export const rejectScriptPurchase = async (req, res) => {
     const script = purchaseRequest.script;
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
-    const amountToRefund = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const hasEscrowHold = Number(purchaseRequest.frozenAmount || 0) > 0 && purchaseRequest.paymentStatus === "escrow_held";
+    const amountToRefund = hasEscrowHold ? Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0) : 0;
     const paymentMethod = purchaseRequest.paymentMethod || "wallet";
     let gatewayRefundId = "";
 
@@ -1623,7 +1730,7 @@ export const rejectScriptPurchase = async (req, res) => {
       type: "purchase_rejected",
       from: req.user._id,
       script: script._id,
-      message: `${writer.name} declined your purchase request for "${script.title}"${amountToRefund > 0 ? ` and ₹${amountToRefund} was refunded to your wallet` : ""}.`,
+      message: `${writer.name} denied your request to buy "${script.title}"${amountToRefund > 0 ? ` and ₹${amountToRefund} was refunded` : ""}.`,
     });
 
     // Email investor
@@ -1632,13 +1739,14 @@ export const rejectScriptPurchase = async (req, res) => {
       investor.name,
       writer.name,
       script.title,
-      note || ""
+      note || "",
+      { refundAmount: amountToRefund }
     ).catch((err) => console.error("[Purchase] Failed to send rejection email:", err.message));
 
     res.json({
       message: amountToRefund > 0
         ? "Purchase request rejected. Payment was refunded to the investor."
-        : "Purchase request rejected.",
+        : "Purchase request rejected. Buyer was notified.",
       purchaseRequest,
     });
   } catch (error) {
@@ -1649,6 +1757,8 @@ export const rejectScriptPurchase = async (req, res) => {
 // Get purchase requests — writers see incoming requests, investors see their own
 export const getMyPurchaseRequests = async (req, res) => {
   try {
+    await expireApprovedUnpaidRequests({ userId: req.user._id });
+
     const { role } = req.user;
     const isWriterRole = ["writer", "creator"].includes(role);
     const isInvestorRole = ["investor", "producer", "director", "industry", "professional"].includes(role);
@@ -2367,7 +2477,7 @@ export const getTopList = async (req, res) => {
 //  RAZORPAY PAYMENT INTEGRATION FOR SCRIPTS
 // ═══════════════════════════════════════════════════════════
 
-// @desc    Create Razorpay order for script purchase
+// @desc    Create Razorpay order for script purchase after writer approval
 // @route   POST /api/scripts/purchase/create-order
 // @access  Private
 export const createScriptPurchaseOrder = async (req, res) => {
@@ -2392,28 +2502,7 @@ export const createScriptPurchaseOrder = async (req, res) => {
 
     // Check if already purchased
     if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
-      return res.status(400).json({ message: "You have already purchased this script" });
-    }
-
-    if (script.purchaseRequestLocked) {
-      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
-        return res.status(409).json({
-          message: "This script is currently locked by another investor request.",
-        });
-      }
-    }
-
-    const existingPendingRequest = await ScriptPurchaseRequest.findOne({
-      script: scriptId,
-      investor: req.user._id,
-      status: "pending",
-    }).select("_id");
-
-    if (existingPendingRequest) {
-      return res.status(400).json({
-        message: "You already have a pending purchase request for this script.",
-      });
+      return res.status(400).json({ message: "You already have full access to this script." });
     }
 
     // Check if trying to buy own script
@@ -2421,9 +2510,53 @@ export const createScriptPurchaseOrder = async (req, res) => {
       return res.status(400).json({ message: "You cannot purchase your own script" });
     }
 
-    // Create Razorpay order
+    const now = new Date();
+    const activeApprovedClause = getApprovedUnpaidActiveClause(now);
+    const purchaseRequest = await ScriptPurchaseRequest.findOne({
+      script: scriptId,
+      investor: req.user._id,
+      $or: [{ status: "pending" }, activeApprovedClause],
+    }).sort({ createdAt: -1 });
+
+    if (!purchaseRequest) {
+      return res.status(400).json({
+        message: "Send a purchase request first. If approved, payment must be completed within 72 hours.",
+      });
+    }
+
+    if (purchaseRequest.status === "pending") {
+      return res.status(409).json({
+        message: "Your request is still pending writer approval. Payment will unlock after approval.",
+      });
+    }
+
+    if (purchaseRequest.paymentStatus === "released") {
+      return res.status(400).json({
+        message: "Payment is already completed for this approved request.",
+      });
+    }
+
+    const paymentDueAt = purchaseRequest.paymentDueAt
+      ? new Date(purchaseRequest.paymentDueAt)
+      : getApprovedPaymentDueAt(purchaseRequest.updatedAt || purchaseRequest.createdAt || now);
+
+    if (paymentDueAt <= now) {
+      await expireApprovedUnpaidRequests({ scriptId: script._id, force: true });
+      return res.status(410).json({
+        message: "Payment window expired for this approved request. Send a new purchase request.",
+      });
+    }
+
+    const amountToPay = Number(purchaseRequest.amount || script.price || 0);
+    if (amountToPay <= 0) {
+      return res.status(400).json({
+        message: "No payment is required for this request.",
+      });
+    }
+
+    // Create Razorpay order after writer approval
     const options = {
-      amount: Math.round(script.price * 100), // Amount in paise (INR) or cents
+      amount: Math.round(amountToPay * 100),
       currency: "INR",
       receipt: `script_purchase_${Date.now()}`,
       notes: {
@@ -2431,7 +2564,8 @@ export const createScriptPurchaseOrder = async (req, res) => {
         scriptId: scriptId,
         scriptTitle: script.title,
         creatorId: script.creator._id.toString(),
-        type: "script_purchase"
+        purchaseRequestId: purchaseRequest._id.toString(),
+        type: "script_purchase_after_approval",
       }
     };
 
@@ -2446,9 +2580,11 @@ export const createScriptPurchaseOrder = async (req, res) => {
       scriptDetails: {
         id: script._id,
         title: script.title,
-        price: script.price,
+        price: amountToPay,
         creator: script.creator.name
-      }
+      },
+      purchaseRequestId: purchaseRequest._id,
+      paymentDueAt,
     });
   } catch (error) {
     console.error("Razorpay order creation error:", error);
@@ -2766,7 +2902,7 @@ export const activateProjectSpotlight = async (req, res) => {
   }
 };
 
-// @desc    Verify Razorpay payment and unlock script
+// @desc    Verify Razorpay payment for approved request and unlock script
 // @route   POST /api/scripts/purchase/verify-payment
 // @access  Private
 export const verifyScriptPurchase = async (req, res) => {
@@ -2806,7 +2942,7 @@ export const verifyScriptPurchase = async (req, res) => {
       });
     }
 
-    // Payment verified successfully, create escrowed purchase request for writer approval
+    // Payment verified successfully for an already approved purchase request.
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) {
       console.error("Script not found:", scriptId);
@@ -2822,6 +2958,8 @@ export const verifyScriptPurchase = async (req, res) => {
       });
     }
 
+    await expireApprovedUnpaidRequests({ scriptId: script._id });
+
     // Check if already unlocked
     if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({
@@ -2830,111 +2968,294 @@ export const verifyScriptPurchase = async (req, res) => {
       });
     }
 
-    const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-    if (script.purchaseRequestLocked && lockOwnerId !== req.user._id.toString()) {
+    const alreadyReleased = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      investor: req.user._id,
+      status: "approved",
+      paymentStatus: "released",
+    }).select("_id");
+
+    if (alreadyReleased) {
+      const existingInvoice = await Invoice.findOne({
+        creator: req.user._id,
+        script: script._id,
+      })
+        .sort({ createdAt: -1 })
+        .select("_id invoiceNumber pdfPath");
+
+      return res.json({
+        success: true,
+        message: "Payment already completed. Full access is already active.",
+        purchaseRequestId: alreadyReleased._id,
+        invoice: existingInvoice
+          ? {
+              _id: existingInvoice._id,
+              invoiceNumber: existingInvoice.invoiceNumber,
+              pdfPath: existingInvoice.pdfPath || "",
+            }
+          : null,
+      });
+    }
+
+    const pendingRequest = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      investor: req.user._id,
+      status: "pending",
+    }).select("_id");
+
+    if (pendingRequest) {
       return res.status(409).json({
-        message: "This script is currently locked by another investor request.",
+        message: "Your request is still pending writer approval. Complete payment after approval.",
         success: false,
       });
     }
 
-    let purchaseRequest = await ScriptPurchaseRequest.findOne({
+    const now = new Date();
+    const activeApprovedClause = getApprovedUnpaidActiveClause(now);
+    const purchaseRequest = await ScriptPurchaseRequest.findOne({
       script: script._id,
       investor: req.user._id,
-      status: "pending",
+      ...activeApprovedClause,
     });
 
-    if (purchaseRequest && purchaseRequest.paymentStatus === "escrow_held") {
-      return res.json({
-        success: true,
-        message: "Payment already verified. Waiting for writer approval.",
-        purchaseRequestId: purchaseRequest._id,
-      });
-    }
-
-    const amount = Number(script.price || 0);
-
     if (!purchaseRequest) {
-      purchaseRequest = await ScriptPurchaseRequest.create({
-        script: script._id,
-        investor: req.user._id,
-        writer: script.creator._id,
-        amount,
-        frozenAmount: amount,
-        paymentMethod: "razorpay",
-        paymentStatus: amount > 0 ? "escrow_held" : "pending",
-        paymentGatewayOrderId: razorpay_order_id,
-        paymentGatewayPaymentId: razorpay_payment_id,
-        paymentGatewaySignature: razorpay_signature,
+      return res.status(400).json({
+        message: "No approved purchase request found for payment.",
+        success: false,
       });
-    } else {
-      purchaseRequest.amount = amount;
-      purchaseRequest.frozenAmount = amount;
-      purchaseRequest.paymentMethod = "razorpay";
-      purchaseRequest.paymentStatus = amount > 0 ? "escrow_held" : "pending";
-      purchaseRequest.paymentGatewayOrderId = razorpay_order_id;
-      purchaseRequest.paymentGatewayPaymentId = razorpay_payment_id;
-      purchaseRequest.paymentGatewaySignature = razorpay_signature;
-      await purchaseRequest.save();
     }
 
-    const holdReference = `PRH-RZP-${razorpay_payment_id}`;
-    const existingHoldTx = await Transaction.findOne({ reference: holdReference });
-    if (!existingHoldTx && amount > 0) {
-      await Transaction.create({
+    const paymentDueAt = purchaseRequest.paymentDueAt
+      ? new Date(purchaseRequest.paymentDueAt)
+      : getApprovedPaymentDueAt(purchaseRequest.updatedAt || purchaseRequest.createdAt || now);
+
+    if (paymentDueAt <= now) {
+      await expireApprovedUnpaidRequests({ scriptId: script._id, force: true });
+      return res.status(410).json({
+        message: "Payment window expired for this approved request. Send a new purchase request.",
+        success: false,
+      });
+    }
+
+    const amount = Number(purchaseRequest.amount || script.price || 0);
+    if (amount <= 0) {
+      return res.status(400).json({
+        message: "This approved request does not require payment.",
+        success: false,
+      });
+    }
+
+    const paymentReference = `RZP-${razorpay_payment_id}`;
+
+    const [investorDoc, writerDoc] = await Promise.all([
+      User.findById(req.user._id).select("name email sid role industryProfile"),
+      User.findById(purchaseRequest.writer).select("name wallet"),
+    ]);
+
+    if (!writerDoc) {
+      return res.status(404).json({
+        message: "Writer account not found.",
+        success: false,
+      });
+    }
+
+    if (!writerDoc.wallet) {
+      writerDoc.wallet = {
+        balance: 0,
+        currency: "INR",
+        pendingBalance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      };
+    }
+
+    const writerBalanceBefore = writerDoc.wallet.balance || 0;
+    writerDoc.wallet.balance = writerBalanceBefore + amount;
+    writerDoc.wallet.totalEarnings = (writerDoc.wallet.totalEarnings || 0) + amount;
+    await writerDoc.save();
+
+    await Transaction.create([
+      {
         user: req.user._id,
         type: "payment",
         amount: -amount,
         currency: "INR",
-        status: "pending",
-        description: `Escrow hold for purchase request: "${script.title}"`,
-        reference: holdReference,
+        status: "completed",
+        description: `Purchased script after approval: "${script.title}"`,
+        reference: `PRP-RZP-${razorpay_payment_id}`,
         paymentMethod: "razorpay",
         relatedScript: script._id,
         metadata: {
           purchaseRequestId: purchaseRequest._id.toString(),
-          stage: "escrow_hold",
-          writerId: script.creator._id.toString(),
+          writerId: purchaseRequest.writer.toString(),
           scriptId: script._id.toString(),
           razorpay_order_id,
           razorpay_payment_id,
         },
-      });
-    }
+      },
+      {
+        user: purchaseRequest.writer,
+        type: "credit",
+        amount,
+        currency: "INR",
+        status: "completed",
+        description: `Script purchase payout: "${script.title}"`,
+        reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+        paymentMethod: "razorpay",
+        relatedScript: script._id,
+        balanceBefore: writerBalanceBefore,
+        balanceAfter: writerDoc.wallet.balance,
+        metadata: {
+          purchaseRequestId: purchaseRequest._id.toString(),
+          investorId: req.user._id.toString(),
+          scriptId: script._id.toString(),
+          razorpay_order_id,
+          razorpay_payment_id,
+        },
+      },
+    ]);
 
-    script.purchaseRequestLocked = true;
-    script.purchaseRequestLockedBy = req.user._id;
-    script.purchaseRequestLockedAt = new Date();
+    if (!hasUserInIdArray(script.unlockedBy, req.user._id)) {
+      script.unlockedBy.push(req.user._id);
+    }
+    script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+    if (!hasUserInIdArray(script.purchasedBy, req.user._id)) {
+      script.purchasedBy.push(req.user._id);
+    }
+    script.isSold = true;
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
     await script.save();
 
-    const investor = await User.findById(req.user._id).select("name email");
+    purchaseRequest.frozenAmount = amount;
+    purchaseRequest.paymentMethod = "razorpay";
+    purchaseRequest.paymentStatus = "released";
+    purchaseRequest.paymentDueAt = undefined;
+    purchaseRequest.paymentGatewayOrderId = razorpay_order_id;
+    purchaseRequest.paymentGatewayPaymentId = razorpay_payment_id;
+    purchaseRequest.paymentGatewaySignature = razorpay_signature;
+    purchaseRequest.settledAt = new Date();
+    await purchaseRequest.save();
+
+    let purchaseInvoice = await Invoice.findOne({ paymentReference }).select("_id invoiceNumber pdfPath");
+    if (!purchaseInvoice) {
+      try {
+        const buyerLabel = getPurchaseRequesterLabel(investorDoc || req.user);
+        const createdInvoice = await Invoice.create({
+          paymentReference,
+          invoiceNumber: buildScriptPurchaseInvoiceNumber(razorpay_payment_id),
+          invoiceDate: new Date(),
+          creator: req.user._id,
+          creatorSid: investorDoc?.sid || req.user?.sid || "",
+          script: script._id,
+          scriptSid: script?.sid || "",
+          accessType: "premium",
+          scriptPrice: amount,
+          platformFeeRate: 0,
+          writerEarnsPerSale: amount,
+          services: {
+            hosting: false,
+            evaluation: false,
+            aiTrailer: false,
+            trailerUpload: false,
+          },
+          totalCreditsRequired: 0,
+          creditsBalanceBefore: 0,
+          creditsBalanceAfter: 0,
+          rows: [
+            {
+              item: "Script Purchase",
+              type: "Payment",
+              detail: `${buyerLabel} purchased full access for \"${script.title}\".`,
+              amountLabel: `INR ${amount.toFixed(2)}`,
+              amountValue: amount,
+            },
+            {
+              item: "Payment Gateway",
+              type: "Reference",
+              detail: `Razorpay Payment ID: ${razorpay_payment_id}`,
+              amountLabel: "Verified",
+              amountValue: 0,
+            },
+            {
+              item: "Writer Payout",
+              type: "Settlement",
+              detail: `Credited to writer wallet: ${writerDoc.name || "Writer"}`,
+              amountLabel: `INR ${amount.toFixed(2)}`,
+              amountValue: amount,
+            },
+          ],
+        });
+
+        try {
+          const buyerIdentity = investorDoc || req.user;
+          const generatedPdf = await generateAndSaveInvoicePdf({
+            invoice: createdInvoice,
+            creatorName: buyerIdentity?.name,
+            creatorEmail: buyerIdentity?.email,
+            creatorSid: createdInvoice.creatorSid || buyerIdentity?.sid,
+            scriptTitle: script?.title,
+            scriptSid: createdInvoice.scriptSid || script?.sid,
+          });
+
+          if (generatedPdf?.relativePath) {
+            createdInvoice.pdfPath = generatedPdf.relativePath;
+            createdInvoice.pdfGeneratedAt = new Date();
+            await createdInvoice.save();
+          }
+        } catch (pdfError) {
+          console.error("Purchase invoice PDF generation error:", pdfError?.message || pdfError);
+        }
+
+        purchaseInvoice = {
+          _id: createdInvoice._id,
+          invoiceNumber: createdInvoice.invoiceNumber,
+          pdfPath: createdInvoice.pdfPath || "",
+        };
+      } catch (invoiceError) {
+        if (invoiceError?.code === 11000) {
+          const duplicateInvoice = await Invoice.findOne({ paymentReference }).select("_id invoiceNumber pdfPath");
+          purchaseInvoice = duplicateInvoice
+            ? {
+                _id: duplicateInvoice._id,
+                invoiceNumber: duplicateInvoice.invoiceNumber,
+                pdfPath: duplicateInvoice.pdfPath || "",
+              }
+            : null;
+        } else {
+          console.error("Purchase invoice creation error:", invoiceError);
+        }
+      }
+    }
 
     await Notification.create({
-      user: script.creator._id,
-      type: "purchase_request",
-      from: req.user._id,
+      user: req.user._id,
+      type: "purchase_approved",
+      from: purchaseRequest.writer,
       script: script._id,
-      message: `${investor?.name || "An investor"} submitted a paid purchase request for "${script.title}". ₹${amount.toLocaleString("en-IN")} is held in escrow pending your approval.`,
+      message: `Payment successful for "${script.title}". Full script access is now unlocked.`,
     });
 
-    sendPurchaseRequestEmail(
-      script.creator.email,
-      script.creator.name,
-      investor?.name || "Investor",
-      script.title,
-      amount
-    ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
-    
-    console.log("Script purchase payment escrowed:", { scriptId, buyerId: req.user._id, amount });
+    await Notification.create({
+      user: purchaseRequest.writer,
+      type: "purchase",
+      from: req.user._id,
+      script: script._id,
+      message: `${investorDoc?.name || "A buyer"} completed payment for "${script.title}". Payout of ₹${amount.toLocaleString("en-IN")} has been credited to your wallet.`,
+    });
+
+    console.log("Script purchase payment settled:", { scriptId, buyerId: req.user._id, amount });
 
     res.json({
       success: true,
-      message: "Payment received and held in escrow. Request sent to writer for approval.",
+      message: "Payment successful. Full script access granted.",
       purchaseRequest: {
         id: purchaseRequest._id,
         status: purchaseRequest.status,
         paymentStatus: purchaseRequest.paymentStatus,
       },
+      invoice: purchaseInvoice || null,
     });
   } catch (error) {
     console.error("Script purchase verification error:", error);

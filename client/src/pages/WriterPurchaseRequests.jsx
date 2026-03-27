@@ -142,7 +142,7 @@ export default function WriterPurchaseRequests() {
     setActionLoading(requestId);
     try {
       await api.put(`/scripts/purchase-request/${requestId}/approve`);
-      showToast("success", "Purchase approved. Investor access granted and payout settled.");
+      showToast("success", "Request approved. Buyer was notified to complete payment for access.");
       fetchRequests();
     } catch (err) {
       showToast("error", err.response?.data?.message || "Failed to approve request.");
@@ -156,7 +156,7 @@ export default function WriterPurchaseRequests() {
     setActionLoading(rejectModal.id);
     try {
       await api.put(`/scripts/purchase-request/${rejectModal.id}/reject`, { note: rejectNote });
-      showToast("success", "Request declined. Refund processed to the investor.");
+      showToast("success", "Request declined. Buyer has been notified.");
       setRejectModal(null);
       setRejectNote("");
       fetchRequests();
@@ -207,7 +207,7 @@ export default function WriterPurchaseRequests() {
               You are declining{" "}
               <span className={t.modalStrong}>{rejectModal.investorName}</span>'s request for{" "}
               <span className={t.modalStrong}>"{rejectModal.scriptTitle}"</span>.
-              Their reserved funds will be returned automatically.
+              They will be notified that the request was denied.
             </p>
             <label className={`block text-sm font-medium mb-1.5 ${t.modalLabel}`}>
               Reason <span className={t.muted}>(optional)</span>
@@ -422,9 +422,7 @@ export default function WriterPurchaseRequests() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           <p className={`text-xs ${t.noteText}`}>
-                            {req.paymentStatus === "escrow_held"
-                              ? "Payment is secured in escrow and will be settled automatically after your decision."
-                              : "Paid request received and awaiting your decision."}
+                            Payment will be requested from the buyer only after you approve.
                           </p>
                         </div>
                       )}
@@ -474,14 +472,14 @@ export default function WriterPurchaseRequests() {
                         </div>
                       )}
 
-                      {/* Investor: approved → view script */}
+                      {/* Investor: approved -> pay or view */}
                       {!isWriter && req.status === "approved" && (
                         <div className="mt-3">
                           <Link
                             to={`/script/${req.script?._id}`}
                             className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${t.viewLink}`}
                           >
-                            View Script
+                            {req.paymentStatus === "released" || Number(req.amount || 0) <= 0 ? "View Script" : "Complete Payment"}
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>

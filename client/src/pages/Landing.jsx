@@ -5,6 +5,9 @@ import { Film, Zap, Users, TrendingUp, ChevronRight, Mail, Send, Briefcase, Help
 import api from "../services/api";
 import BrandLogo from "../components/BrandLogo";
 import { AuthContext } from "../context/AuthContext";
+import homeImg1 from "../assets/home-img1.jpeg";
+import homeImg2 from "../assets/home-img2.jpeg";
+import homeImg3 from "../assets/home-img3.jpeg";
 
 const FeaturesShowcase = lazy(() => import("../components/FeaturesShowcase"));
 const SuccessStories = lazy(() => import("../components/SuccessStories"));
@@ -356,55 +359,75 @@ const Landing = () => {
       {/* ── Hero ── */}
       <section className="pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="max-w-3xl pt-10 sm:pt-14 md:pt-24">
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-              className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-5"
-            >
-              The Future of Script Discovery
-            </motion.p>
+          <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-8 lg:gap-12 items-center">
+            <div className="max-w-3xl pt-10 sm:pt-14 md:pt-24">
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4 }}
+                className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-5"
+              >
+                The Future of Script Discovery
+              </motion.p>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 sm:mb-6 tracking-tight"
-            >
-              Your Ideas Deserve
-              <br />
-              <span className="text-gray-400">More Than Rejection</span>
-            </motion.h1>
+              <motion.h1
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 sm:mb-6 tracking-tight"
+              >
+                Your Ideas Deserve
+                <br />
+                <span className="text-gray-400">More Than Rejection</span>
+              </motion.h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-base sm:text-lg text-[#8896a7] leading-relaxed mb-8 sm:mb-10 max-w-xl"
-            >
-              Ckript connects brilliant creators with producers, directors, and investors who are actively searching for your next big idea. Publish, visualize, and monetize your scripts like never before.
-            </motion.p>
+              <motion.p
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="text-base sm:text-lg text-[#8896a7] leading-relaxed mb-8 sm:mb-10 max-w-xl"
+              >
+                Ckript connects brilliant creators with producers, directors, and investors who are actively searching for your next big idea. Publish, visualize, and monetize your scripts like never before.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="flex flex-col sm:flex-row gap-3 sm:gap-4"
+              >
+                <Link
+                  to="/writer-onboarding"
+                  className="w-full sm:w-auto justify-center px-7 py-3.5 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg font-semibold text-sm transition-colors flex items-center gap-2"
+                >
+                  Sign Up as Creator
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  to="/producer-director-onboarding"
+                  className="w-full sm:w-auto text-center px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
+                >
+                  Sign Up as Producer
+                </Link>
+              </motion.div>
+            </div>
 
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex flex-col sm:flex-row gap-3 sm:gap-4"
+              transition={{ duration: 0.55, delay: 0.2 }}
+              className="relative lg:mt-20"
             >
-              <Link
-                to="/writer-onboarding"
-                className="w-full sm:w-auto justify-center px-7 py-3.5 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg font-semibold text-sm transition-colors flex items-center gap-2"
-              >
-                Sign Up as Creator
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                to="/producer-director-onboarding"
-                className="w-full sm:w-auto text-center px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
-              >
-                Sign Up as Producer
-              </Link>
+              <div className="absolute -top-8 -left-6 h-28 w-28 rounded-full bg-[#4f6379]/25 blur-2xl" />
+              <div className="absolute -bottom-10 -right-6 h-36 w-36 rounded-full bg-[#28374b]/40 blur-2xl" />
+              <div className="relative rounded-2xl bg-[#0d1520] p-2 sm:p-3 shadow-[0_20px_50px_rgba(0,0,0,0.45)]">
+                <img
+                  src={homeImg1}
+                  alt="Landing visual showcase"
+                  className="w-full h-[320px] sm:h-[420px] object-cover rounded-xl"
+                  loading="eager"
+                />
+              </div>
             </motion.div>
           </div>
 
@@ -426,6 +449,24 @@ const Landing = () => {
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight">
               The Problem We Solve
             </h2>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45 }}
+            className="mb-8 rounded-2xl overflow-hidden bg-[#0d1520]"
+          >
+            <div className="relative">
+              <img
+                src={homeImg2}
+                alt="Problem section visual"
+                className="w-full h-60 sm:h-72 lg:h-80 object-cover"
+                loading="lazy"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a1221]/55 via-transparent to-transparent" />
+            </div>
           </motion.div>
 
           {/* Two problem cards */}
@@ -548,38 +589,91 @@ const Landing = () => {
       {/* ── How it Works ── */}
       <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#0a1221]">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="max-w-lg mb-16"
-          >
-            <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Process</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              How It Works in 4 Simple Steps
-            </h2>
-          </motion.div>
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,560px)] gap-8 lg:gap-12 items-center mb-12 sm:mb-14">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="max-w-2xl"
+            >
+              <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Process</p>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                How It Works in 4 Simple Steps
+              </h2>
+              <p className="mt-4 text-base text-[#8896a7] leading-relaxed max-w-xl">
+                A clearly defined flow from script submission to revenue. Every step is designed to reduce friction,
+                speed up discovery, and improve decision quality for both creators and buyers.
+              </p>
+            </motion.div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[#1c2a3a] rounded-xl overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45, delay: 0.1 }}
+              className="rounded-2xl overflow-hidden bg-[#0d1520] shadow-[0_24px_60px_rgba(2,8,20,0.55)]"
+            >
+              <img
+                src={homeImg3}
+                alt="How it works visual"
+                className="w-full h-56 sm:h-64 lg:h-80 object-cover"
+                loading="lazy"
+              />
+            </motion.div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {[
-              { step: "01", title: "Upload Your Script", desc: "Present your concept with a compelling summary and let AI generate a visual preview." },
-              { step: "02", title: "AI Creates Trailer", desc: "Our AI generates a 30-second visual trailer that helps viewers quickly understand your concept." },
-              { step: "03", title: "Get Smart Matched", desc: "The platform's algorithm connects creators with producers and investors interested in their genre." },
-              { step: "04", title: "Unlock & Earn", desc: "Producers pay to access the full script, and creators receive their earnings instantly." }
+              {
+                step: "01",
+                stage: "Submission",
+                title: "Upload Your Script",
+                desc: "Present your concept with a concise summary, key details, and genre metadata.",
+                icon: PenLine
+              },
+              {
+                step: "02",
+                stage: "AI Visualization",
+                title: "AI Creates Trailer",
+                desc: "Generate a sharp 30-second visual trailer that communicates tone and premise quickly.",
+                icon: Film
+              },
+              {
+                step: "03",
+                stage: "Matching",
+                title: "Get Smart Matched",
+                desc: "Our algorithm prioritizes relevant producers and investors based on creative fit.",
+                icon: Users
+              },
+              {
+                step: "04",
+                stage: "Monetization",
+                title: "Unlock & Earn",
+                desc: "Buyers unlock full scripts, and creators receive fast, transparent payouts.",
+                icon: TrendingUp
+              }
             ].map((item, index) => (
-              <motion.div
+              <motion.article
                 key={index}
                 initial={{ opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: index * 0.08 }}
-                className="bg-[#0d1520] p-5 sm:p-7"
+                className="group relative overflow-hidden rounded-2xl border border-[#1c2a3a] bg-[#0d1520] p-5 sm:p-6 hover:border-[#2a3a4e] transition-colors"
               >
-                <span className="text-gray-400 text-2xl font-bold mb-4 block">{item.step}</span>
-                <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-gray-400 text-2xl font-bold leading-none">{item.step}</span>
+                  <span className="inline-flex items-center rounded-full border border-[#2a3a4e] px-3 py-1 text-[10px] font-semibold tracking-[0.12em] uppercase text-[#8896a7]">
+                    {item.stage}
+                  </span>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center mb-4">
+                  <item.icon className="w-5 h-5 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
                 <p className="text-sm text-[#8896a7] leading-relaxed">{item.desc}</p>
-              </motion.div>
+              </motion.article>
             ))}
           </div>
         </div>

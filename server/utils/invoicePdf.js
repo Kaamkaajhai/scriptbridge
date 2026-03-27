@@ -1,20 +1,12 @@
 import fs from "fs";
-import os from "os";
 import path from "path";
+import { Writable } from "stream";
 import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const localUploadsDir = path.join(__dirname, "..", "uploads", "invoices");
-const isServerlessRuntime = Boolean(
-  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT
-);
-const uploadsDir = process.env.INVOICE_PDF_DIR
-  ? path.resolve(process.env.INVOICE_PDF_DIR)
-  : isServerlessRuntime
-    ? path.join(process.env.TMPDIR || os.tmpdir(), "scriptbridge", "invoices")
-    : localUploadsDir;
 const logoCandidates = [
   path.join(__dirname, "..", "..", "client", "public", "cklogo-nobg.png"),
   path.join(__dirname, "..", "..", "client", "public", "cklogo.png"),
@@ -42,25 +34,23 @@ export const generateAndSaveInvoicePdf = async ({
     throw new Error("Invoice details are required to generate PDF");
   }
 
-  fs.mkdirSync(uploadsDir, { recursive: true });
-
   const safeInvoiceNumber = String(invoice.invoiceNumber).replace(/[^a-zA-Z0-9-_]/g, "_");
-  const filename = `${safeInvoiceNumber}-${invoice._id}.pdf`;
-  const absolutePath = path.join(uploadsDir, filename);
-  const relativePath = uploadsDir === localUploadsDir ? `/uploads/invoices/${filename}` : "";
   const logoPath = pickLogoPath();
   const resolvedCreatorSid = creatorSid || invoice.creatorSid || "-";
   const resolvedScriptSid = scriptSid || invoice.scriptSid || "-";
 
-  await new Promise((resolve, reject) => {
+  const pdfBuffer = await new Promise((resolve, reject) => {
+    const chunks = [];
     const doc = new PDFDocument({ size: "A4", margin: 48 });
-    const stream = fs.createWriteStream(absolutePath);
-
-    stream.on("finish", resolve);
-    stream.on("error", reject);
     doc.on("error", reject);
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
 
-    doc.pipe(stream);
+    doc.pipe(new Writable({
+      write(_chunk, _enc, cb) {
+        cb();
+      },
+    }));
 
     const pageWidth = doc.page.width;
     const left = 48;
@@ -178,5 +168,18 @@ export const generateAndSaveInvoicePdf = async ({
     doc.end();
   });
 
-  return { absolutePath, relativePath };
+  const uploadResult = await uploadToCloudinary(pdfBuffer, {
+    folder: "scriptbridge/invoices",
+    resource_type: "raw",
+    public_id: `invoice-${safeInvoiceNumber}-${invoice._id}`,
+    originalFilename: `${safeInvoiceNumber}.pdf`,
+    mimeType: "application/pdf",
+  });
+
+  return {
+    absolutePath: "",
+    relativePath: uploadResult.secure_url,
+    secureUrl: uploadResult.secure_url,
+    publicId: uploadResult.public_id,
+  };
 };

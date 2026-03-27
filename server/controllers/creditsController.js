@@ -54,35 +54,6 @@ const isValidCustomCredits = (value) =>
 
 const getBankPurchaseEligibility = (user) => {
   const reviewStatus = user?.bankDetailsReview?.status || "not_submitted";
-  const hasActiveBankDetails = Boolean(user?.bankDetails?.accountNumber);
-  const requiresReview = ["writer", "creator"].includes(user?.role);
-
-  if (!requiresReview) {
-    return { allowed: true, reviewStatus, message: "" };
-  }
-
-  if (reviewStatus !== "approved" || !hasActiveBankDetails) {
-    if (reviewStatus === "pending") {
-      return {
-        allowed: false,
-        reviewStatus,
-        message: "Your bank details are under admin review. Credit purchase is enabled after approval.",
-      };
-    }
-    if (reviewStatus === "rejected") {
-      return {
-        allowed: false,
-        reviewStatus,
-        message: "Your bank details review was rejected. Please update and resubmit bank details.",
-      };
-    }
-    return {
-      allowed: false,
-      reviewStatus,
-      message: "Please submit bank details for admin approval before buying credits.",
-    };
-  }
-
   return { allowed: true, reviewStatus, message: "" };
 };
 

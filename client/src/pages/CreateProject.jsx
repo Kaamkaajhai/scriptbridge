@@ -165,7 +165,7 @@ const STEPS = [
   { num: 2, label: "Details", desc: "Genre & media" },
   { num: 3, label: "Classify", desc: "Tones & themes" },
   { num: 4, label: "Publish", desc: "Pricing & services" },
-  { num: 5, label: "Review", desc: "Final review & invoice" },
+  { num: 5, label: "Review", desc: "Final review" },
 ];
 
 /* -- Toolbar Icon Button ---------------------------- */
@@ -1105,7 +1105,7 @@ const CreateProject = () => {
           text: "Your uploaded trailer will be shown in your project after publish.",
         }
       : null;
-  const publishInvoiceRows = [
+  const publishSummaryRows = [
     {
       item: "Script Access",
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
@@ -1131,42 +1131,6 @@ const CreateProject = () => {
       amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
     },
   ];
-
-  const handleInvoicePdfAction = async (invoiceId, invoiceNo, action = "open") => {
-    const { data } = await api.get(`/invoices/${invoiceId}/pdf`, {
-      params: action === "download" ? { download: 1 } : {},
-      responseType: "blob",
-    });
-    const blobUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
-
-    if (action === "download") {
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `${invoiceNo || "invoice"}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-      return;
-    }
-
-    window.open(blobUrl, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
-  };
-
-  const offerInvoiceActions = async (invoice) => {
-    if (!invoice?._id) return;
-
-    const shouldOpen = window.confirm("Project submitted for admin approval. Open your saved invoice PDF now?");
-    if (shouldOpen) {
-      await handleInvoicePdfAction(invoice._id, invoice.invoiceNumber, "open");
-    }
-
-    const shouldDownload = window.confirm("Download this invoice PDF as well?");
-    if (shouldDownload) {
-      await handleInvoicePdfAction(invoice._id, invoice.invoiceNumber, "download");
-    }
-  };
 
   const publishReviewItems = [
     { label: "Format", value: formats.find((item) => item.value === formData.format)?.label || "Not selected" },
@@ -1282,7 +1246,6 @@ const CreateProject = () => {
       await uploadSelectedProjectMedia(data?._id);
 
       clearLocalWorkingDraft();
-      await offerInvoiceActions(data?.invoice);
       navigate("/dashboard");
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to publish."); } finally { setLoading(false); }
   };
@@ -2517,17 +2480,17 @@ const CreateProject = () => {
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
               <div>
                 <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Final Review</h2>
-                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and submission details, then submit your project for admin review.</p>
+                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate submission details, then submit your project for admin review.</p>
               </div>
 
               <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
                 <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
-                  <span>Invoice Item</span>
+                  <span>Summary Item</span>
                   <span>Type</span>
                   <span className="text-right">Amount</span>
                 </div>
                 <div>
-                  {publishInvoiceRows.map((row) => (
+                  {publishSummaryRows.map((row) => (
                     <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
                       <div>
                         <p className={`font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
@@ -2604,7 +2567,7 @@ const CreateProject = () => {
                 className="w-full py-3.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white shadow-md">
                 {loading ? "Submitting..." : "Submit for Approval"}
               </button>
-              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing, services, and invoice settings.</p>
+              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing and services.</p>
             </div>
           </motion.div>
         )}
