@@ -95,22 +95,32 @@ export const sendMessage = async (req, res) => {
     if (existingMessageCount === 0) {
       const isInvestor = sender.role === "investor";
       const isWriter = ["writer", "creator"].includes(sender.role);
+      const isAdmin = sender.role === "admin";
       const isReceiverInvestor = receiver.role === "investor";
       const isReceiverWriter = ["writer", "creator"].includes(receiver.role);
+      const isReceiverAdmin = receiver.role === "admin";
 
-      if (!((isInvestor && isReceiverWriter) || (isWriter && isReceiverInvestor))) {
-        return res.status(403).json({ message: "Conversations can only be started between writers and investors." });
-      }
+      const isAdminWriterConversation =
+        (isAdmin && isReceiverWriter) ||
+        (isReceiverAdmin && isWriter);
 
-      const investorId = isInvestor ? sender._id : receiverId;
-      const writerId = isWriter ? sender._id : receiverId;
+      if (isAdminWriterConversation) {
+        // Admin can initiate direct discussions with writers for workflow coordination.
+      } else {
+        if (!((isInvestor && isReceiverWriter) || (isWriter && isReceiverInvestor))) {
+          return res.status(403).json({ message: "Conversations can only be started between writers and investors." });
+        }
 
-      const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
-      if (!hasPurchased) {
-        return res.status(403).json({
-          message: "Messaging is locked until an investor purchases a script from this writer.",
-          code: "PURCHASE_REQUIRED",
-        });
+        const investorId = isInvestor ? sender._id : receiverId;
+        const writerId = isWriter ? sender._id : receiverId;
+
+        const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
+        if (!hasPurchased) {
+          return res.status(403).json({
+            message: "Messaging is locked until an investor purchases a script from this writer.",
+            code: "PURCHASE_REQUIRED",
+          });
+        }
       }
     }
 
@@ -278,9 +288,19 @@ export const checkCanMessage = async (req, res) => {
 
     const isUserInvestor = currentUser.role === "investor";
     const isUserWriter = ["writer", "creator"].includes(currentUser.role);
+    const isUserAdmin = currentUser.role === "admin";
     
     const isTargetInvestor = targetUser.role === "investor";
     const isTargetWriter = ["writer", "creator"].includes(targetUser.role);
+    const isTargetAdmin = targetUser.role === "admin";
+
+    const isAdminWriterConversation =
+      (isUserAdmin && isTargetWriter) ||
+      (isTargetAdmin && isUserWriter);
+
+    if (isAdminWriterConversation) {
+      return res.json({ allowed: true });
+    }
 
     if (!((isUserInvestor && isTargetWriter) || (isUserWriter && isTargetInvestor))) {
          return res.json({ allowed: false, reason: "Conversations are only between investors and writers." });

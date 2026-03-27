@@ -460,10 +460,14 @@ const ScriptDetail = () => {
       const refunded = Number(data?.package?.creditsRefunded || 0);
       const refundNote = refunded > 0 ? ` Refunded ${refunded} AI trailer credits based on spotlight policy.` : "";
       const isExtension = Boolean(data?.package?.isExtension);
+      const spotlightScript = data?.script || {};
+      const spotlightHasAnyTrailer = Boolean(spotlightScript.trailerUrl || spotlightScript.uploadedTrailerUrl);
+      const spotlightQueuedAiTrailer =
+        ["requested", "generating"].includes(spotlightScript.trailerStatus) && !spotlightHasAnyTrailer;
       showNotice(
         isExtension
           ? `Project Spotlight extended: featured top placement is extended for 1 month.${refundNote}`
-          : `Project Spotlight activated: verified badge is now permanent, free evaluation started, AI trailer queued (2-3 business days), and featured top placement is live for 1 month.${refundNote}`,
+          : `Project Spotlight activated: verified badge is now permanent, free evaluation started${spotlightQueuedAiTrailer ? ", AI trailer queued (2-3 business days)" : ""}, and featured top placement is live for 1 month.${refundNote}`,
         "success"
       );
     } catch (err) {
@@ -1171,7 +1175,7 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && !script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus) && (
+                    {isOwner && !hasTrailer && !["requested", "generating"].includes(script.trailerStatus) && (
                       <button
                         onClick={handleGenerateTrailer}
                         disabled={trailerLoading}
@@ -1186,7 +1190,7 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
-                    {["requested", "generating"].includes(script.trailerStatus) && (
+                    {["requested", "generating"].includes(script.trailerStatus) && !hasTrailer && (
                       <div className={`w-full px-4 py-3 rounded-xl text-xs font-bold text-center border flex flex-col items-center justify-center gap-1.5 ${t.inset}`}>
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 border-2 rounded-full animate-spin ${isDarkMode ? "border-neutral-600 border-t-amber-400" : "border-gray-300 border-t-amber-500"}`} />

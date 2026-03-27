@@ -683,6 +683,15 @@ export const sendAdminWorkflowAlertEmail = async ({ title, section, message, met
     const safeTitle = String(title || "Admin Workflow Alert").trim();
     const safeSection = String(section || "admin").trim();
     const safeMessage = String(message || "A new admin workflow item was created.").trim();
+    const normalizedSection = safeSection.toLowerCase();
+    const trailerRelated =
+      normalizedSection.includes("trailer") ||
+      `${safeTitle} ${safeMessage}`.toLowerCase().includes("trailer");
+
+    // Do not send trailer-related alerts to the company inbox alias requested by the user.
+    if (companyEmail === "info.ckript@gmail.com" && trailerRelated) {
+      return { success: true, skipped: true, reason: "trailer-alert-blocked-for-company-email" };
+    }
 
     const rows = Object.entries(metadata || {})
       .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")

@@ -6,7 +6,8 @@ import BrandLogo from "../components/BrandLogo";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { formatCurrency } from "../utils/currency";
 
-const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
+const API_BASE_URL = `${API_ORIGIN}/api`;
 
 // Admin-specific API — uses admin token from sessionStorage, separate from user session
 const adminApi = axios.create({ baseURL: API_BASE_URL });
@@ -35,6 +36,7 @@ const TABS = [
     { key: "scores", label: "Scores", icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" },
     { key: "approvals", label: "Approvals", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
     { key: "trailers", label: "AI Trailers", icon: "M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" },
+    { key: "messages", label: "Messages", icon: "M7.5 8.25h9m-9 3h6m-9 9h12A2.25 2.25 0 0018.75 18V6A2.25 2.25 0 0016.5 3.75h-9A2.25 2.25 0 005.25 6v12A2.25 2.25 0 007.5 20.25z" },
     { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
     { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
@@ -346,6 +348,7 @@ const SEARCH_PLACEHOLDER_BY_TAB = {
     scores: "Search scores...",
     approvals: "Search approvals...",
     trailers: "Search AI trailers...",
+    messages: "Search writer messages...",
     "pending-investors": "Search investor requests...",
     "bank-reviews": "Search bank review requests...",
     queries: "Search queries...",
@@ -366,6 +369,36 @@ const formatExportDate = (value) => {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
 };
+
+const buildChatId = (id1, id2) => {
+    const [a, b] = [String(id1), String(id2)].sort();
+    return `${a}_${b}`;
+};
+
+const resolveMediaUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `${API_ORIGIN}${url}`;
+};
+
+const formatFileSize = (bytes = 0) => {
+    const size = Number(bytes || 0);
+    if (!size) return "0 B";
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
+
+const getMessagePreview = (msg) =>
+    msg?.text ||
+    (msg?.fileType === "video"
+        ? "Trailer Video"
+        : msg?.fileType === "image"
+            ? "Image"
+            : msg?.fileUrl
+                ? "File"
+                : "Sent a message");
 
 const writePdfSections = ({ fileName, title, sections }) => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -439,6 +472,20 @@ const AdminDashboard = () => {
     const [exportingCurrent, setExportingCurrent] = useState(false);
     const [exportingAll, setExportingAll] = useState(false);
     const [globalResults, setGlobalResults] = useState(EMPTY_GLOBAL_RESULTS);
+    const [adminConversations, setAdminConversations] = useState([]);
+    const [messageUsers, setMessageUsers] = useState([]);
+    const [activeMessageUser, setActiveMessageUser] = useState(null);
+    const [activeMessageChatId, setActiveMessageChatId] = useState("");
+    const [messageList, setMessageList] = useState([]);
+    const [messageText, setMessageText] = useState("");
+    const [messagesLoading, setMessagesLoading] = useState(false);
+    const [messageAttachment, setMessageAttachment] = useState(null);
+    const [uploadingMessageAttachment, setUploadingMessageAttachment] = useState(false);
+    const messageFileInputRef = useRef(null);
+    const messageListEndRef = useRef(null);
+    const trailerFileInputRef = useRef(null);
+    const [trailerUploadTargetScript, setTrailerUploadTargetScript] = useState(null);
+    const [uploadingTrailerScriptId, setUploadingTrailerScriptId] = useState("");
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
@@ -494,6 +541,7 @@ const AdminDashboard = () => {
     const sourcePendingInvestors = isGlobalSearchMode ? globalResults.pendingInvestors : pendingInvestors;
     const sourceBankReviews = isGlobalSearchMode ? globalResults.bankReviews : bankReviews;
     const sourceContacts = isGlobalSearchMode ? globalResults.contacts : contacts;
+    const sourceMessageUsers = messageUsers;
 
     const filteredUsers = sourceUsers.filter((u) => matchesSearch(u.name, u.email, u.role, u.sid));
     const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, s.creator?.name));
@@ -502,6 +550,7 @@ const AdminDashboard = () => {
     const filteredPendingInvestors = sourcePendingInvestors.filter((inv) => matchesSearch(inv.name, inv.email, inv.createdAt));
     const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
     const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
+    const filteredMessageUsers = sourceMessageUsers.filter((u) => matchesSearch(u.name, u.email, u.sid));
 
     const buildCurrentSectionPayload = () => {
         switch (activeTab) {
@@ -564,6 +613,11 @@ const AdminDashboard = () => {
                     title: `Queries (${contacts.length})`,
                     lines: contacts.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
                 };
+            case "messages":
+                return {
+                    title: `Admin Messages (${messageUsers.length})`,
+                    lines: messageUsers.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | SID: ${u.sid || "-"}`),
+                };
             default:
                 return { title: "Section", lines: ["No records"] };
         }
@@ -590,6 +644,76 @@ const AdminDashboard = () => {
     const fetchList = async (url, key) => {
         const { data } = await adminApi.get(url);
         return key ? (data?.[key] || []) : data;
+    };
+
+    const fetchMessagesDirectory = async ({ silent = false } = {}) => {
+        if (!authorized) return;
+        if (!silent) setMessagesLoading(true);
+
+        try {
+            const [conversationsRes, writersRes, creatorsRes] = await Promise.all([
+                adminApi.get("/messages/conversations"),
+                adminApi.get("/admin/users?role=writer&page=1&limit=1000"),
+                adminApi.get("/admin/users?role=creator&page=1&limit=1000"),
+            ]);
+
+            const writerConversations = (conversationsRes.data || []).filter((conv) => ["writer", "creator"].includes(conv?.user?.role));
+            const writerMap = new Map();
+
+            [...(writersRes.data?.users || []), ...(creatorsRes.data?.users || [])].forEach((user) => {
+                if (user?._id) writerMap.set(String(user._id), user);
+            });
+
+            writerConversations.forEach((conv) => {
+                if (conv?.user?._id && !writerMap.has(String(conv.user._id))) {
+                    writerMap.set(String(conv.user._id), conv.user);
+                }
+            });
+
+            const conversationByUserId = new Map(
+                writerConversations
+                    .filter((conv) => conv?.user?._id)
+                    .map((conv) => [String(conv.user._id), conv])
+            );
+
+            const writersWithConversation = Array.from(writerMap.values())
+                .map((user) => ({
+                    ...user,
+                    conversation: conversationByUserId.get(String(user._id)) || null,
+                }))
+                .sort((a, b) => {
+                    const aTs = a.conversation?.timestamp ? new Date(a.conversation.timestamp).getTime() : 0;
+                    const bTs = b.conversation?.timestamp ? new Date(b.conversation.timestamp).getTime() : 0;
+                    if (aTs !== bTs) return bTs - aTs;
+                    return String(a.name || "").localeCompare(String(b.name || ""));
+                });
+
+            setAdminConversations(writerConversations);
+            setMessageUsers(writersWithConversation);
+            setTotalPages(1);
+            setTotal(writersWithConversation.length);
+
+            if (activeMessageUser?._id) {
+                const selectedUserId = String(activeMessageUser._id);
+                const refreshedSelectedUser = writersWithConversation.find((user) => String(user._id) === selectedUserId);
+                if (refreshedSelectedUser) {
+                    setActiveMessageUser(refreshedSelectedUser);
+                }
+
+                const refreshedConversation = writerConversations.find((conv) => String(conv?.user?._id) === selectedUserId);
+                const nextChatId = refreshedConversation?.chatId || "";
+                if (nextChatId !== activeMessageChatId) {
+                    setActiveMessageChatId(nextChatId);
+                }
+            }
+        } catch (err) {
+            console.error("Admin message directory fetch error:", err);
+            if (!silent) {
+                showToast("Failed to load messages", "error");
+            }
+        } finally {
+            if (!silent) setMessagesLoading(false);
+        }
     };
 
     const handleDownloadWholeDashboardPdf = async () => {
@@ -782,6 +906,10 @@ const AdminDashboard = () => {
                     setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
+                case "messages": {
+                    await fetchMessagesDirectory();
+                    break;
+                }
                 case "pending-investors": {
                     const { data } = await adminApi.get(`/admin/investors/pending?page=${page}`);
                     setPendingInvestors(data.investors); setTotalPages(data.totalPages); setTotal(data.total);
@@ -806,6 +934,7 @@ const AdminDashboard = () => {
                 showToast("Session expired. Please re-enter the access code.", "error");
             }
         }
+        setMessagesLoading(false);
         await fetchAlertSummary({ silent: true });
         setLoading(false);
     };
@@ -914,6 +1043,146 @@ const AdminDashboard = () => {
         return () => clearInterval(interval);
     }, [authorized]);
 
+    useEffect(() => {
+        if (!authorized || activeTab !== "messages") return;
+
+        const interval = setInterval(async () => {
+            await fetchMessagesDirectory({ silent: true });
+            if (activeMessageChatId) {
+                await fetchMessagesForChat(activeMessageChatId, { silent: true });
+            }
+        }, 4000);
+
+        return () => clearInterval(interval);
+    }, [authorized, activeTab, activeMessageChatId, activeMessageUser?._id]);
+
+    useEffect(() => {
+        if (!authorized || activeTab !== "messages" || !activeMessageChatId) return;
+        fetchMessagesForChat(activeMessageChatId, { silent: true });
+    }, [authorized, activeTab, activeMessageChatId]);
+
+    useEffect(() => {
+        if (activeTab !== "messages") return;
+        messageListEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, [activeTab, activeMessageChatId, messageList]);
+
+    const fetchMessagesForChat = async (chatId, { silent = false } = {}) => {
+        if (!chatId) {
+            setMessageList([]);
+            return;
+        }
+        if (!silent) setMessagesLoading(true);
+        try {
+            const { data } = await adminApi.get(`/messages/${chatId}`);
+            setMessageList(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Admin messages fetch error:", err);
+            if (!silent) showToast("Failed to load messages", "error");
+            setMessageList([]);
+        } finally {
+            if (!silent) setMessagesLoading(false);
+        }
+    };
+
+    const openWriterConversation = async (writerUser) => {
+        if (!writerUser?._id) return;
+
+        const writerId = String(writerUser._id);
+        const existingConversation = adminConversations.find((conv) => String(conv?.user?._id) === writerId);
+
+        setActiveTab("messages");
+        setActiveMessageUser(writerUser);
+        setMessageText("");
+        setMessageAttachment(null);
+        if (messageFileInputRef.current) messageFileInputRef.current.value = "";
+
+        if (existingConversation?.chatId) {
+            setActiveMessageChatId(existingConversation.chatId);
+            await fetchMessagesForChat(existingConversation.chatId);
+            return;
+        }
+
+        setActiveMessageChatId("");
+        setMessageList([]);
+    };
+
+    const handlePickMessageAttachment = () => {
+        if (!activeMessageUser || uploadingMessageAttachment) return;
+        messageFileInputRef.current?.click();
+    };
+
+    const handleAdminAttachmentChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingMessageAttachment(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const { data } = await adminApi.post("/messages/upload", formData);
+            setMessageAttachment(data || null);
+        } catch (err) {
+            console.error("Admin attachment upload error:", err);
+            showToast(err?.response?.data?.message || "Failed to upload attachment", "error");
+            if (messageFileInputRef.current) messageFileInputRef.current.value = "";
+        } finally {
+            setUploadingMessageAttachment(false);
+        }
+    };
+
+    const handleSendAdminMessage = async () => {
+        if (!activeMessageUser?._id) return;
+
+        const trimmedText = messageText.trim();
+        const attachmentPayload = messageAttachment
+            ? {
+                fileUrl: messageAttachment.fileUrl,
+                fileType: messageAttachment.fileType,
+                fileName: messageAttachment.fileName,
+                fileSize: messageAttachment.fileSize,
+            }
+            : {};
+
+        if (!trimmedText && !attachmentPayload.fileUrl) return;
+
+        try {
+            const { data: saved } = await adminApi.post("/messages/send", {
+                receiverId: activeMessageUser._id,
+                text: trimmedText,
+                ...attachmentPayload,
+            });
+
+            setMessageText("");
+            setMessageAttachment(null);
+            if (messageFileInputRef.current) messageFileInputRef.current.value = "";
+            setMessageList((prev) => [...prev, saved]);
+
+            const nextChatId = saved?.chatId || activeMessageChatId || buildChatId(saved?.sender?._id, activeMessageUser._id);
+            if (nextChatId) setActiveMessageChatId(nextChatId);
+            const previewText = getMessagePreview(saved);
+
+            setAdminConversations((prev) => {
+                const conversation = {
+                    chatId: nextChatId,
+                    user: activeMessageUser,
+                    lastMessage: previewText,
+                    timestamp: saved?.createdAt || new Date().toISOString(),
+                    unreadCount: 0,
+                };
+                const rest = prev.filter((conv) => conv.chatId !== conversation.chatId);
+                return [conversation, ...rest];
+            });
+
+            setMessageUsers((prev) => {
+                const withoutCurrent = prev.filter((u) => String(u._id) !== String(activeMessageUser._id));
+                return [{ ...activeMessageUser, conversation: { chatId: nextChatId, timestamp: saved?.createdAt || new Date().toISOString(), lastMessage: previewText, unreadCount: 0 } }, ...withoutCurrent];
+            });
+        } catch (err) {
+            console.error("Admin send message error:", err);
+            showToast(err?.response?.data?.message || "Failed to send message", "error");
+        }
+    };
+
     // ─── Action handlers (all use adminApi) ───
     const handleApprove = async (id) => {
         try {
@@ -953,22 +1222,27 @@ const AdminDashboard = () => {
 
     const handleTrailerApprove = async (script) => {
         const isRegeneration = script?.trailerWriterFeedback?.status === "revision_requested";
-        const trailerUrl = window.prompt(isRegeneration
-            ? "Paste regenerated AI trailer video URL (required):"
-            : "Paste AI trailer video URL (required):");
-        if (trailerUrl === null) return;
-
-        const trimmedTrailerUrl = trailerUrl.trim();
+        const trimmedTrailerUrl = String(script?.trailerUrl || "").trim();
         if (!trimmedTrailerUrl) {
-            showToast("Trailer URL is required", "error");
+            if (!script?.creator?._id) {
+                showToast("No trailer URL available for this script", "error");
+                return;
+            }
+
+            const draft = isRegeneration
+                ? `Hi ${script.creator?.name || "writer"}, please review this updated trailer for "${script?.title || "this script"}".\nTrailer URL: `
+                : `Hi ${script.creator?.name || "writer"}, your trailer for "${script?.title || "this script"}" is ready.\nTrailer URL: `;
+
+            await openWriterConversation(script.creator);
+            setMessageText(draft);
+            showToast("No trailer URL on script. Send trailer URL/file from Admin Messages.", "info");
             return;
         }
 
-        const trailerThumbnail = window.prompt("Paste trailer thumbnail URL (optional):") || "";
-        const defaultCaption = isRegeneration
-            ? `We've regenerated your AI trailer for \"${script?.title || "this script"}\". Please review this updated version.`
-            : "";
-        const caption = window.prompt("Message caption to writer (optional):", defaultCaption) || "";
+        const trailerThumbnail = script?.trailerThumbnail || "";
+        const caption = isRegeneration
+            ? `We've updated your AI trailer for \"${script?.title || "this script"}\". Please review this version.`
+            : `Your AI trailer for \"${script?.title || "this script"}\" is ready.`;
 
         try {
             await adminApi.put(`/admin/scripts/${script._id}/trailer-approve`, {
@@ -984,6 +1258,46 @@ const AdminDashboard = () => {
             console.error(err);
             const msg = err?.response?.data?.message || (isRegeneration ? "Failed to regenerate trailer" : "Failed to approve trailer");
             showToast(msg, "error");
+        }
+    };
+
+    const handleOpenTrailerUpload = (script) => {
+        if (!script?._id || uploadingTrailerScriptId) return;
+        setTrailerUploadTargetScript(script);
+        if (trailerFileInputRef.current) {
+            trailerFileInputRef.current.value = "";
+            trailerFileInputRef.current.click();
+        }
+    };
+
+    const handleAdminTrailerFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !trailerUploadTargetScript?._id) return;
+
+        const scriptId = trailerUploadTargetScript._id;
+        setUploadingTrailerScriptId(scriptId);
+
+        try {
+            const formData = new FormData();
+            formData.append("trailer", file);
+
+            const { data } = await adminApi.post(`/admin/scripts/${scriptId}/upload-trailer`, formData);
+
+            if (data?.script?._id) {
+                setScripts((prev) => prev.map((s) => (String(s._id) === String(data.script._id) ? { ...s, ...data.script } : s)));
+            }
+
+            showToast(data?.message || "Trailer uploaded and published successfully");
+            if (activeTab === "trailers") {
+                fetchData(search);
+            }
+        } catch (err) {
+            console.error("Admin trailer upload error:", err);
+            showToast(err?.response?.data?.message || "Failed to upload trailer", "error");
+        } finally {
+            setUploadingTrailerScriptId("");
+            setTrailerUploadTargetScript(null);
+            if (trailerFileInputRef.current) trailerFileInputRef.current.value = "";
         }
     };
 
@@ -1493,18 +1807,15 @@ const AdminDashboard = () => {
                 const regenerationRequests = filteredScripts.filter((s) => s.trailerWriterFeedback?.status === "revision_requested");
                 return (
                     <div>
+                        <input
+                            ref={trailerFileInputRef}
+                            type="file"
+                            accept="video/*"
+                            className="hidden"
+                            onChange={handleAdminTrailerFileChange}
+                        />
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Requests<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
-                        </div>
-                        <div className={`rounded-2xl border p-5 mb-5 ${isDark ? "bg-gradient-to-r from-purple-500/5 to-blue-500/5 border-purple-500/20" : "bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200/40"}`}>
-                            <div className="flex items-center gap-3 mb-2">
-                                <Icon d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-purple-600"}`} />
-                                <h3 className={`text-sm font-bold ${isDark ? "text-purple-300" : "text-purple-800"}`}>AI Trailer Generation</h3>
-                            </div>
-                            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                                This section shows projects that requested AI-generated trailers. The AI generation pipeline will be connected later.
-                                For now, you can review requests, send the first trailer, and regenerate a better version when a writer asks for changes.
-                            </p>
                         </div>
                         {regenerationRequests.length > 0 && (
                             <div className={`rounded-2xl border p-5 mb-5 ${isDark ? "bg-amber-500/5 border-amber-500/20" : "bg-amber-50 border-amber-200/60"}`}>
@@ -1526,8 +1837,7 @@ const AdminDashboard = () => {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => handleTrailerApprove(script)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/10" : "text-amber-700 hover:bg-amber-100"}`}>Regenerate AI Trailer</button>
-                                                <a href={`/messages`} target="_blank" rel="noreferrer" className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? "text-blue-300 hover:text-blue-200 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50"}`}>Open Messages</a>
+                                                <button onClick={() => openWriterConversation(script.creator)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? "text-blue-300 hover:text-blue-200 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50"}`}>Write Message</button>
                                             </div>
                                         </div>
                                     ))}
@@ -1545,11 +1855,18 @@ const AdminDashboard = () => {
                                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>writer requested changes</span>
                                     )}
                                     {s.trailerStatus !== "ready" && (
-                                        <button onClick={() => handleTrailerApprove(s)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${s.trailerWriterFeedback?.status === "revision_requested"
-                                            ? isDark ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/10" : "text-amber-700 hover:bg-amber-100"
-                                            : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
-                                            }`}>{s.trailerWriterFeedback?.status === "revision_requested" ? "Regenerate AI Trailer" : "Send Trailer"}</button>
+                                        <button onClick={() => handleTrailerApprove(s)} className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isDark ? "text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10" : "text-emerald-700 hover:bg-emerald-100"}`}>Send Trailer</button>
                                     )}
+                                    <button
+                                        onClick={() => handleOpenTrailerUpload(s)}
+                                        disabled={uploadingTrailerScriptId === String(s._id)}
+                                        className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${uploadingTrailerScriptId === String(s._id)
+                                            ? isDark ? "text-gray-500 bg-white/[0.03]" : "text-gray-400 bg-gray-100"
+                                            : isDark ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/10" : "text-amber-700 hover:bg-amber-100"
+                                            }`}
+                                    >
+                                        {uploadingTrailerScriptId === String(s._id) ? "Uploading..." : "Add Trailer"}
+                                    </button>
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
                                 </div>
                             )}
@@ -1557,6 +1874,190 @@ const AdminDashboard = () => {
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
+
+            case "messages": {
+                const selectedWriterId = String(activeMessageUser?._id || "");
+                const selectedConversation = adminConversations.find((conv) => String(conv?.user?._id) === selectedWriterId);
+
+                return (
+                    <div>
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
+                                Admin Messages
+                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                                    ({hasSearch ? filteredMessageUsers.length : messageUsers.length})
+                                </span>
+                            </h2>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <div className={`lg:col-span-1 h-[240px] sm:h-[280px] lg:h-[calc(100vh-240px)] lg:min-h-[520px] lg:max-h-[760px] rounded-2xl border flex flex-col overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                <div className={`px-4 py-3 border-b ${isDark ? "border-[#1a3050]" : "border-gray-100"}`}>
+                                    <p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Writers</p>
+                                </div>
+                                <div className="flex-1 overflow-y-auto">
+                                    {messagesLoading && filteredMessageUsers.length === 0 ? (
+                                        <p className={`px-4 py-5 text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Loading conversations...</p>
+                                    ) : filteredMessageUsers.length === 0 ? (
+                                        <p className={`px-4 py-5 text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No writers found.</p>
+                                    ) : (
+                                        filteredMessageUsers.map((writer) => {
+                                            const isSelected = String(writer._id) === selectedWriterId;
+                                            const conversation = writer.conversation;
+                                            return (
+                                                <button
+                                                    key={writer._id}
+                                                    onClick={() => openWriterConversation(writer)}
+                                                    className={`w-full text-left px-4 py-3 border-b transition-colors ${isDark ? "border-[#1a3050]" : "border-gray-100"} ${isSelected ? (isDark ? "bg-blue-500/10" : "bg-blue-50") : (isDark ? "hover:bg-white/[0.03]" : "hover:bg-gray-50")}`}
+                                                >
+                                                    <p className={`text-sm font-semibold ${isDark ? "text-gray-100" : "text-gray-800"}`}>{writer.name || "Unknown"}</p>
+                                                    <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>{writer.email || "No email"}</p>
+                                                    {conversation?.lastMessage && (
+                                                        <p className={`text-xs mt-1 truncate ${isDark ? "text-gray-500" : "text-gray-500"}`}>{conversation.lastMessage}</p>
+                                                    )}
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={`lg:col-span-2 h-[62vh] sm:h-[66vh] lg:h-[calc(100vh-240px)] lg:min-h-[520px] lg:max-h-[760px] rounded-2xl border flex flex-col overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                {!activeMessageUser ? (
+                                    <div className="flex-1 py-20 flex items-center justify-center px-6 text-center">
+                                        <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Select a writer to start or continue a trailer discussion.</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className={`px-4 py-3 border-b ${isDark ? "border-[#1a3050]" : "border-gray-100"}`}>
+                                            <p className={`text-sm font-bold ${isDark ? "text-gray-100" : "text-gray-800"}`}>{activeMessageUser.name || "Writer"}</p>
+                                            <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                                                {activeMessageUser.email || "No email"}
+                                                {selectedConversation?.timestamp ? ` • Last active ${new Date(selectedConversation.timestamp).toLocaleString()}` : ""}
+                                            </p>
+                                        </div>
+
+                                        <div className="p-4 space-y-3 flex-1 min-h-0 overflow-y-auto">
+                                            {messagesLoading ? (
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Loading thread...</p>
+                                            ) : messageList.length === 0 ? (
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No messages yet. Send the first message to start this conversation.</p>
+                                            ) : (
+                                                messageList.map((msg) => {
+                                                    const isWriterMessage = String(msg?.sender?._id || "") === String(activeMessageUser._id || "");
+                                                    return (
+                                                        <div key={msg._id} className={`flex ${isWriterMessage ? "justify-start" : "justify-end"}`}>
+                                                            <div className={`max-w-[80%] px-3 py-2 rounded-xl ${isWriterMessage ? (isDark ? "bg-[#132744] text-gray-100" : "bg-gray-100 text-gray-800") : (isDark ? "bg-blue-500/20 text-blue-100" : "bg-blue-50 text-blue-900")}`}>
+                                                                {msg.fileUrl && msg.fileType === "image" ? (
+                                                                    <div className="space-y-2">
+                                                                        <img src={resolveMediaUrl(msg.fileUrl)} alt="attachment" className="max-w-full rounded-xl" />
+                                                                        {msg.text ? <p className="text-sm whitespace-pre-wrap">{msg.text}</p> : null}
+                                                                    </div>
+                                                                ) : msg.fileUrl && msg.fileType === "video" ? (
+                                                                    <div className="space-y-2">
+                                                                        <video src={resolveMediaUrl(msg.fileUrl)} controls preload="metadata" className="w-full rounded-xl max-h-72" />
+                                                                        <a href={resolveMediaUrl(msg.fileUrl)} target="_blank" rel="noreferrer" className={`text-xs underline ${isDark ? "text-blue-200" : "text-blue-700"}`}>Open video in new tab</a>
+                                                                        {msg.text ? <p className="text-sm whitespace-pre-wrap">{msg.text}</p> : null}
+                                                                    </div>
+                                                                ) : msg.fileUrl ? (
+                                                                    <div className="space-y-2">
+                                                                        <div className={`rounded-lg px-2.5 py-2 ${isWriterMessage ? (isDark ? "bg-[#0b1426]" : "bg-white") : (isDark ? "bg-blue-900/25" : "bg-blue-100/60")}`}>
+                                                                            <p className="text-xs font-semibold truncate">{msg.fileName || "Attachment"}</p>
+                                                                            <p className={`text-[10px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{formatFileSize(msg.fileSize)}</p>
+                                                                            <a href={resolveMediaUrl(msg.fileUrl)} target="_blank" rel="noreferrer" className={`inline-block mt-1 text-xs underline ${isDark ? "text-blue-200" : "text-blue-700"}`}>Open file</a>
+                                                                        </div>
+                                                                        {msg.text ? <p className="text-sm whitespace-pre-wrap">{msg.text}</p> : null}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-sm whitespace-pre-wrap">{msg.text || "(attachment)"}</p>
+                                                                )}
+                                                                <p className={`text-[11px] mt-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>{msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}</p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                            <div ref={messageListEndRef} />
+                                        </div>
+
+                                        <div className={`p-3 border-t ${isDark ? "border-[#1a3050]" : "border-gray-100"}`}>
+                                            {messageAttachment && (
+                                                <div className={`mb-2 rounded-xl border px-3 py-2 flex items-center justify-between ${isDark ? "border-[#1a3050] bg-[#132744]" : "border-gray-200 bg-gray-50"}`}>
+                                                    <div>
+                                                        <p className={`text-xs font-semibold ${isDark ? "text-gray-100" : "text-gray-800"}`}>{messageAttachment.fileName || "Attachment"}</p>
+                                                        <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{messageAttachment.fileType || "file"} • {formatFileSize(messageAttachment.fileSize)}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setMessageAttachment(null);
+                                                            if (messageFileInputRef.current) messageFileInputRef.current.value = "";
+                                                        }}
+                                                        className={`text-xs font-bold px-2 py-1 rounded-lg ${isDark ? "text-red-300 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            <input
+                                                ref={messageFileInputRef}
+                                                type="file"
+                                                className="hidden"
+                                                onChange={handleAdminAttachmentChange}
+                                            />
+
+                                            <div className={`rounded-2xl border p-2 flex items-center gap-2 ${isDark ? "bg-[#0b1628] border-[#1a3050]" : "bg-gray-50 border-gray-200"}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={handlePickMessageAttachment}
+                                                    disabled={uploadingMessageAttachment || !activeMessageUser}
+                                                    className={`w-12 h-12 shrink-0 rounded-full inline-flex items-center justify-center transition-colors ${uploadingMessageAttachment || !activeMessageUser ? (isDark ? "bg-[#122540] text-gray-500" : "bg-gray-200 text-gray-400") : (isDark ? "bg-[#10233f] text-gray-200 hover:bg-[#153156]" : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-100")}`}
+                                                    title={uploadingMessageAttachment ? "Uploading..." : "Attach file"}
+                                                >
+                                                    {uploadingMessageAttachment ? (
+                                                        <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v4m0 8v4m8-8h-4M8 12H4m12.364-5.657l-2.828 2.828M10.464 13.536l-2.828 2.828m0-9.9l2.828 2.828m5.072 5.072l2.828 2.828" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 01-7.78-7.78l9.19-9.19a3.5 3.5 0 114.95 4.95l-9.19 9.19a1.5 1.5 0 01-2.12-2.12l8.49-8.49" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+
+                                                <textarea
+                                                    rows={1}
+                                                    value={messageText}
+                                                    onChange={(e) => setMessageText(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" && !e.shiftKey) {
+                                                            e.preventDefault();
+                                                            handleSendAdminMessage();
+                                                        }
+                                                    }}
+                                                    placeholder="Reply with text or attach file..."
+                                                    className={`flex-1 resize-none h-12 rounded-xl px-4 py-3 text-base border focus:outline-none focus:ring-2 ${isDark ? "bg-[#061327] border-[#204777] text-gray-100 placeholder:text-[#5c7190] focus:ring-blue-500/30" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:ring-blue-200"}`}
+                                                />
+                                                <button
+                                                    onClick={handleSendAdminMessage}
+                                                    disabled={uploadingMessageAttachment || (!messageText.trim() && !messageAttachment)}
+                                                    className={`w-12 h-12 shrink-0 rounded-full inline-flex items-center justify-center transition-colors ${(!uploadingMessageAttachment && (messageText.trim() || messageAttachment)) ? (isDark ? "bg-[#10233f] text-blue-200 hover:bg-[#153156]" : "bg-blue-600 text-white hover:bg-blue-700") : (isDark ? "bg-[#122540] text-gray-500" : "bg-gray-200 text-gray-400")}`}
+                                                    title="Send message"
+                                                >
+                                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M22 2L11 13" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M22 2L15 22 11 13 2 9 22 2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
 
             case "pending-investors":
                 return (
