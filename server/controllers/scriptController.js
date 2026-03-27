@@ -92,6 +92,18 @@ const shouldAutoSyncUploadSpotlight = (script, now = new Date()) => {
   return Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
 };
 
+const isAdminUploadedTrailer = (script) => {
+  const hasUploadedTrailer = Boolean(script?.uploadedTrailerUrl && script?.trailerSource === "uploaded");
+  if (!hasUploadedTrailer) return false;
+  return (script?.trailerWriterFeedback?.note || "").trim() === "Trailer uploaded by admin";
+};
+
+const shouldQueueSpotlightAiTrailer = (script) => {
+  const hasAiTrailer = Boolean(script?.trailerUrl);
+  if (hasAiTrailer) return false;
+  return !isAdminUploadedTrailer(script);
+};
+
 const applySpotlightPackageState = (script, now = new Date()) => {
   const spotlightEndsAt = new Date(now.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
   const chargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
@@ -107,7 +119,7 @@ const applySpotlightPackageState = (script, now = new Date()) => {
   };
   script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
-  if (!script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus)) {
+  if (shouldQueueSpotlightAiTrailer(script) && !["requested", "generating"].includes(script.trailerStatus)) {
     script.trailerStatus = "requested";
   }
 
@@ -2797,7 +2809,7 @@ export const activateProjectSpotlight = async (req, res) => {
       };
       script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
-      if (!script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus)) {
+      if (shouldQueueSpotlightAiTrailer(script) && !["requested", "generating"].includes(script.trailerStatus)) {
         script.trailerStatus = "requested";
       }
 

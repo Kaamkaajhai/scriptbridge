@@ -94,28 +94,51 @@ const Messages = () => {
   const inputRef = useRef(null);
   const typingTimerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const activeChatRef = useRef(null);
 
   const isWriter = user && ["writer", "creator"].includes(user.role);
   const isInvestor = user && user.role === "investor";
 
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
   /* ── Socket setup ────────────────────────────────────────── */
   useEffect(() => {
+    if (!user?._id) return;
+
     const sock = io(API_ORIGIN);
     setSocket(sock);
 
     sock.on("receive-message", (msg) => {
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === msg._id)) return prev;
-        return [...prev, msg];
+      const currentChat = activeChatRef.current;
+      const senderId = msg?.sender?._id || msg?.sender;
+      const isMine = senderId?.toString() === user?._id?.toString();
+      const isActiveThread = currentChat?.chatId === msg?.chatId;
+
+      // Only append directly to the currently open thread.
+      if (isActiveThread) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+      }
+
+      // Refresh conversation preview/unread and keep the updated chat at top.
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.chatId === msg.chatId);
+        if (index === -1) return prev;
+
+        const current = prev[index];
+        const updated = {
+          ...current,
+          lastMessage: getMessagePreview(msg),
+          timestamp: msg.createdAt || new Date().toISOString(),
+          unreadCount: isMine || isActiveThread ? 0 : (current.unreadCount || 0) + 1,
+        };
+
+        return [updated, ...prev.filter((_, i) => i !== index)];
       });
-      // Update conversation last message
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.chatId === msg.chatId
-            ? { ...c, lastMessage: getMessagePreview(msg), timestamp: msg.createdAt || new Date() }
-            : c
-        )
-      );
     });
 
     sock.on("user-typing", ({ chatId, userId }) => {
@@ -134,8 +157,7 @@ const Messages = () => {
 
     loadConversations();
     return () => sock.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?._id]);
 
   /* Re-listen when activeChat changes */
   useEffect(() => {
@@ -194,31 +216,51 @@ const Messages = () => {
   }, [searchQuery, conversations]);
 
   /* ── Load conversations ─────────────────────────────────── */
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const { data } = await api.get("/messages/conversations");
-      setConversations(data);
-      setFilteredConvs(data);
+      const next = Array.isArray(data) ? data : [];
+      setConversations(next);
+
+      // Keep active chat metadata fresh (name/avatar/role/timestamp/unread).
+      const activeId = activeChatRef.current?.chatId;
+      if (activeId) {
+        const refreshed = next.find((c) => c.chatId === activeId);
+        if (refreshed) {
+          setActiveChat((curr) => (curr ? { ...curr, ...refreshed } : curr));
+        }
+      }
     } catch {
-      setConversations([]);
-      setFilteredConvs([]);
+      if (!silent) {
+        setConversations([]);
+        setFilteredConvs([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   /* ── Load messages ──────────────────────────────────────── */
-  const loadMessages = async (chatId) => {
-    setMessagesLoading(true);
+  const loadMessages = useCallback(async (chatId, { silent = false } = {}) => {
+    if (!chatId) return;
+    if (!silent) setMessagesLoading(true);
     try {
       const { data } = await api.get(`/messages/${chatId}`);
-      setMessages(data);
+      const next = Array.isArray(data) ? data : [];
+      setMessages((prev) => {
+        const sameLength = prev.length === next.length;
+        const sameFirst = prev[0]?._id === next[0]?._id;
+        const sameLast = prev[prev.length - 1]?._id === next[next.length - 1]?._id;
+        if (sameLength && sameFirst && sameLast) return prev;
+        return next;
+      });
     } catch {
-      setMessages([]);
+      if (!silent) setMessages([]);
     } finally {
-      setMessagesLoading(false);
+      if (!silent) setMessagesLoading(false);
     }
-  };
+  }, []);
 
   /* ── Select conversation ────────────────────────────────── */
   const handleSelectChat = useCallback((conv) => {
@@ -232,7 +274,22 @@ const Messages = () => {
       prev.map((c) => (c.chatId === conv.chatId ? { ...c, unreadCount: 0 } : c))
     );
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+  }, [loadMessages]);
+
+  // Silent background sync so investors/writers see updates without refresh.
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const interval = setInterval(async () => {
+      await loadConversations({ silent: true });
+      const activeId = activeChatRef.current?.chatId;
+      if (activeId) {
+        await loadMessages(activeId, { silent: true });
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [user?._id, loadConversations, loadMessages]);
 
   /* ── Send message ───────────────────────────────────────── */
   const sendTextMessage = async (textToSend, extraPayload = {}) => {

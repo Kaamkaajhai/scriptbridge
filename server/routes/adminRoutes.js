@@ -19,6 +19,8 @@ import {
     scoreScript,
     getTrailerRequests,
     approveTrailer,
+    uploadAdminTrailerFile,
+    uploadTrailerAsAdmin,
     loginAsUser,
     getScriptDetail,
     getPendingInvestors,
@@ -56,6 +58,7 @@ router.put("/scripts/:id/approve", approveScript);
 router.put("/scripts/:id/reject", rejectScript);
 router.put("/scripts/:id/score", scoreScript);
 router.put("/scripts/:id/trailer-approve", approveTrailer);
+router.post("/scripts/:id/upload-trailer", uploadAdminTrailerFile, uploadTrailerAsAdmin);
 
 // Payments
 router.get("/payments", getPayments);

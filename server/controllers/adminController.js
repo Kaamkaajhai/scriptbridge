@@ -6,6 +6,8 @@ import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
 import ContactSubmission from "../models/ContactSubmission.js";
 import jwt from "jsonwebtoken";
+import multer from "multer";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 import { sendInvestorApprovalEmail, sendInvestorRejectionEmail } from "../utils/emailService.js";
 
 const buildChatId = (idA, idB) => {
@@ -16,6 +18,55 @@ const buildChatId = (idA, idB) => {
 const maskAccountNumber = (accountNumber = "") => {
     if (!accountNumber) return "";
     return `****${String(accountNumber).slice(-4)}`;
+};
+
+const isAdminUploadedTrailer = (script) => {
+    const hasUploadedTrailer = Boolean(script?.uploadedTrailerUrl && script?.trailerSource === "uploaded");
+    if (!hasUploadedTrailer) return false;
+    return (script?.trailerWriterFeedback?.note || "").trim() === "Trailer uploaded by admin";
+};
+
+const shouldQueueSpotlightAiTrailer = (script) => {
+    const hasAiTrailer = Boolean(script?.trailerUrl);
+    if (hasAiTrailer) return false;
+    return !isAdminUploadedTrailer(script);
+};
+
+const getAdminTrailerRequestFilter = () => ({
+    "services.aiTrailer": true,
+    $or: [
+        { trailerStatus: { $in: ["requested", "generating"] } },
+        {
+            trailerUrl: { $in: [null, ""] },
+            trailerSource: "uploaded",
+            uploadedTrailerUrl: { $exists: true, $nin: [null, ""] },
+            "trailerWriterFeedback.note": { $ne: "Trailer uploaded by admin" },
+        },
+    ],
+});
+
+const rawUploadAdminTrailer = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 250 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file?.mimetype?.startsWith("video/")) return cb(null, true);
+        return cb(new Error("Only video files are allowed for trailer upload."));
+    },
+}).single("trailer");
+
+export const uploadAdminTrailerFile = (req, res, next) => {
+    rawUploadAdminTrailer(req, res, (err) => {
+        if (!err) return next();
+
+        if (err instanceof multer.MulterError) {
+            if (err.code === "LIMIT_FILE_SIZE") {
+                return res.status(413).json({ message: "Trailer must be 250MB or smaller." });
+            }
+            return res.status(400).json({ message: err.message || "Trailer upload failed." });
+        }
+
+        return res.status(400).json({ message: err.message || "Trailer upload failed." });
+    });
 };
 
 // ─── Dashboard Stats ───
@@ -381,7 +432,7 @@ export const approveScript = async (req, res) => {
                 spotlight: true,
             };
             script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
-            if (!script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus)) {
+            if (shouldQueueSpotlightAiTrailer(script) && !["requested", "generating"].includes(script.trailerStatus)) {
                 script.trailerStatus = "requested";
             }
             const previousSpent = Number(script.promotion?.totalSpotlightCreditsSpent || 0);
@@ -481,10 +532,7 @@ export const scoreScript = async (req, res) => {
 export const getTrailerRequests = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
-        const filter = {
-            "services.aiTrailer": true,
-            trailerStatus: { $in: ["requested", "generating"] },
-        };
+        const filter = getAdminTrailerRequestFilter();
         const total = await Script.countDocuments(filter);
         const scripts = await Script.find(filter)
             .populate("creator", "name email role profileImage")
@@ -543,6 +591,68 @@ export const approveTrailer = async (req, res) => {
         res.json({ message: "Trailer approved and sent to writer via message", script });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+export const uploadTrailerAsAdmin = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No trailer file provided" });
+        }
+
+        const script = await Script.findById(req.params.id).populate("creator", "_id name");
+        if (!script) return res.status(404).json({ message: "Script not found" });
+
+        const uploadResult = await uploadToCloudinary(req.file.buffer, {
+            folder: "scriptbridge/trailers",
+            resource_type: "video",
+            public_id: `admin-trailer-${script._id}-${Date.now()}`,
+        });
+
+        const trailerUrl = uploadResult?.secure_url;
+        if (!trailerUrl) {
+            return res.status(500).json({ message: "Trailer upload failed" });
+        }
+
+        script.uploadedTrailerUrl = trailerUrl;
+        script.trailerSource = "uploaded";
+        script.trailerStatus = "ready";
+        script.trailerWriterFeedback = {
+            status: "approved",
+            note: "Trailer uploaded by admin",
+            updatedAt: new Date(),
+        };
+        await script.save();
+
+        const writerId = script.creator?._id || script.creator;
+        if (writerId) {
+            await Notification.create({
+                user: writerId,
+                type: "trailer_ready",
+                from: req.user._id,
+                script: script._id,
+                message: `Admin uploaded a trailer for "${script.title}". It is now visible on your script page.`,
+            });
+
+            await Message.create({
+                chatId: buildChatId(req.user._id, writerId),
+                sender: req.user._id,
+                receiver: writerId,
+                script: script._id,
+                text: `Admin uploaded a trailer for "${script.title}" and made it visible to all viewers.`,
+                fileUrl: trailerUrl,
+                fileType: "video",
+                fileName: `${script.title} - Trailer`,
+            });
+        }
+
+        return res.json({
+            message: "Trailer uploaded and published successfully",
+            trailerUrl,
+            script,
+        });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
     }
 };
 
@@ -883,10 +993,7 @@ export const getAdminAlertSummary = async (req, res) => {
             Script.countDocuments({ "platformScore.overall": { $exists: true, $ne: null } }),
             Script.countDocuments({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } }),
             Script.countDocuments({ status: "pending_approval" }),
-            Script.countDocuments({
-                "services.aiTrailer": true,
-                trailerStatus: { $in: ["requested", "generating"] },
-            }),
+            Script.countDocuments(getAdminTrailerRequestFilter()),
             User.countDocuments({ role: "investor", approvalStatus: "pending" }),
             User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsReview.status": "pending" }),
             User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsSecurity.isLocked": true }),
