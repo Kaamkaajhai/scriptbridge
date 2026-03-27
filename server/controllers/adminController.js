@@ -381,7 +381,7 @@ export const approveScript = async (req, res) => {
                 spotlight: true,
             };
             script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
-            if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+            if (!script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus)) {
                 script.trailerStatus = "requested";
             }
             const previousSpent = Number(script.promotion?.totalSpotlightCreditsSpent || 0);
@@ -761,6 +761,20 @@ export const approveBankDetailReview = async (req, res) => {
         user.bankDetailsReview.adminNote = note ? String(note).trim() : "Approved";
 
         await user.save();
+
+        try {
+            await Notification.create({
+                user: user._id,
+                type: "admin_alert",
+                from: req.user?._id,
+                message: note
+                    ? `Your bank details were approved. Admin note: ${String(note).trim()}`
+                    : "Your bank details were approved. You can now purchase credits.",
+            });
+        } catch (notificationError) {
+            console.error("Bank approval notification failed:", notificationError.message);
+        }
+
         res.json({ message: "Bank details approved and activated" });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -783,6 +797,20 @@ export const rejectBankDetailReview = async (req, res) => {
         user.bankDetailsReview.adminNote = note ? String(note).trim() : "Rejected by admin";
 
         await user.save();
+
+        try {
+            await Notification.create({
+                user: user._id,
+                type: "admin_alert",
+                from: req.user?._id,
+                message: note
+                    ? `Your bank details were rejected. Admin note: ${String(note).trim()}`
+                    : "Your bank details were rejected. Please update and resubmit your details.",
+            });
+        } catch (notificationError) {
+            console.error("Bank rejection notification failed:", notificationError.message);
+        }
+
         res.json({ message: "Bank details request rejected" });
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -286,11 +286,31 @@ const ScriptDetail = () => {
   };
 
   const handleGenerateTrailer = async () => {
+    if (!script?._id || trailerLoading) return;
     setTrailerLoading(true);
     try {
-      await api.post("/ai/generate-trailer", { scriptId: script._id });
-      await fetchScript();
-      alert("✅ Trailer request received! Your AI trailer will be ready in approximately 2 business days. We\'ll notify you once it\'s live.");
+      const { data } = await api.post(`/scripts/${script._id}/request-ai-trailer`, { note: "" });
+
+      // Immediately reflect queue state in UI while preserving uploaded trailer visibility.
+      setScript((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          services: {
+            ...(prev.services || {}),
+            aiTrailer: true,
+          },
+          trailerStatus: "requested",
+          trailerWriterFeedback: {
+            status: "pending",
+            note: prev.trailerWriterFeedback?.note || "",
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      });
+
+      await fetchScript({ silent: true });
+      alert(data?.message || "✅ AI trailer request received! Your uploaded trailer will remain visible while AI trailer is in queue.");
     } catch (err) {
       alert(err.response?.data?.message || "Failed to generate trailer");
     } finally {
@@ -631,7 +651,16 @@ const ScriptDetail = () => {
   const isOwner = script.creator?._id === user?._id;
   const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
-  const trailerSourceUrl = script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl;
+  const trailerSourceUrl = (() => {
+    const aiTrailerUrl = script?.trailerUrl || "";
+    const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
+
+    if (script?.trailerSource === "ai" && aiTrailerUrl) return aiTrailerUrl;
+    if (script?.trailerSource === "uploaded" && uploadedTrailerUrl) return uploadedTrailerUrl;
+
+    // Fallback for legacy/incomplete records where trailerSource is not synced.
+    return aiTrailerUrl || uploadedTrailerUrl || "";
+  })();
   const hasTrailer = Boolean(trailerSourceUrl);
   const heroImage = hasTrailer ? (script.trailerThumbnail || script.coverImage) : null;
   const showCoverPlaceholder = !hasTrailer || !heroImage || coverError;
@@ -639,6 +668,9 @@ const ScriptDetail = () => {
   const spotlightActive = Boolean(spotlightEndsAt && spotlightEndsAt >= new Date());
   const spotlightPendingApproval = Boolean(script?.promotion?.pendingSpotlightActivation && script?.status !== "published");
   const spotlightPaidAtUpload = Number(script?.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
+  const spotlightIncludesAiTrailer = Boolean(
+    spotlightActive || spotlightPendingApproval || spotlightPaidAtUpload || script?.services?.spotlight
+  );
   const hasEvaluationService = Boolean(script?.services?.evaluation);
   const evaluationRequestedAtMs = script?.evaluationRequestedAt
     ? new Date(script.evaluationRequestedAt).getTime()
@@ -1085,14 +1117,18 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && !script.trailerUrl && !script.uploadedTrailerUrl && !["requested", "generating", "ready"].includes(script.trailerStatus) && (
+                    {isOwner && !script.trailerUrl && !["requested", "generating"].includes(script.trailerStatus) && (
                       <button
                         onClick={handleGenerateTrailer}
                         disabled={trailerLoading}
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
                       >
                         <Film size={14} />
-                        {trailerLoading ? "Submitting request..." : "Generate AI Trailer — 120 credits"}
+                        {trailerLoading
+                          ? "Submitting request..."
+                          : spotlightIncludesAiTrailer
+                          ? "Generate Included AI Trailer"
+                          : "Generate AI Trailer - 120 credits"}
                       </button>
                     )}
 
@@ -1955,7 +1991,7 @@ const ScriptDetail = () => {
                         ) : (
                           <div className="space-y-3">
                             {pendingRequests.map((pr) => (
-                              <div key={pr._id} className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${t.inset}`}>
+                              <div key={pr._id} className={`rounded-xl border px-4 py-3 flex items-center max-[380px]:items-stretch max-[380px]:flex-col gap-3 ${t.inset}`}>
                                 {pr.investor?.profileImage ? (
                                   <img src={pr.investor.profileImage} alt={pr.investor.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                                 ) : (
@@ -1971,18 +2007,18 @@ const ScriptDetail = () => {
                                     {new Date(pr.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                   </p>
                                 </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
+                                <div className="flex items-center gap-2 flex-shrink-0 max-[380px]:w-full max-[380px]:flex-wrap">
                                   <button
                                     onClick={() => handleApproveRequest(pr._id)}
                                     disabled={pendingReqActionId === pr._id}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50 max-[380px]:flex-1 max-[380px]:text-center"
                                   >
                                     {pendingReqActionId === pr._id ? "..." : "Approve"}
                                   </button>
                                   <button
                                     onClick={() => setRejectNoteModal({ id: pr._id, investorName: pr.investor?.name })}
                                     disabled={pendingReqActionId === pr._id}
-                                    className="px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50 max-[380px]:flex-1 max-[380px]:text-center"
                                   >
                                     Decline
                                   </button>
@@ -2096,21 +2132,31 @@ const ScriptDetail = () => {
 
       {/* Trailer modal */}
       {showTrailer && hasTrailer && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTrailer(false)}>
-          <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-end mb-2">
-              <button onClick={() => setShowTrailer(false)} className="w-8 h-8 rounded-lg bg-white/10 text-white/80 hover:text-white flex items-center justify-center transition">
-                &#10005;
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[160] p-4" onClick={() => setShowTrailer(false)}>
+          <div className="max-w-4xl w-full max-h-[88vh] rounded-2xl border border-white/20 bg-[#050b16] shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.03]">
+              <p className="text-sm font-semibold text-white/90">Trailer Preview</p>
+              <button
+                onClick={() => setShowTrailer(false)}
+                className="w-9 h-9 rounded-lg border border-white/25 bg-white/10 text-white/85 hover:text-white hover:bg-white/15 transition flex items-center justify-center"
+                aria-label="Close trailer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            <div className="rounded-xl overflow-hidden ring-1 ring-white/10">
+            <div className="p-3 overflow-auto">
+              <div className="rounded-xl overflow-hidden ring-1 ring-white/15 border border-white/10">
               <video
                 src={resolveImage(trailerSourceUrl)}
                 poster={script.trailerThumbnail ? resolveImage(script.trailerThumbnail) : undefined}
                 controls
+                controlsList="nodownload"
                 autoPlay
-                className="w-full"
+                className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
               />
+              </div>
             </div>
           </div>
         </div>
@@ -2135,7 +2181,7 @@ const ScriptDetail = () => {
               <p className={`text-sm mb-1 text-center ${t.muted}`}>
                 &ldquo;<span className={`font-semibold ${t.sub}`}>{script.title}</span>&rdquo; will be removed from your profile and all listings.
               </p>
-              <p className={`text-xs text-center mb-6 ${t.label}`}>Uploaded files are kept in storage. This action cannot be undone.</p>
+              <p className={`text-xs text-center mb-6 ${t.label}`}>This action cannot be undone.</p>
               <div className="flex gap-3">
                 <button onClick={() => setShowDeleteModal(false)} disabled={deleteLoading}
                   className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 border ${t.btnSec}`}>

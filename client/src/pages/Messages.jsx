@@ -335,9 +335,7 @@ const Messages = () => {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const { data } = await api.post("/messages/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const { data } = await api.post("/messages/upload", formData);
       setAttachment(data);
     } catch (err) {
       setSendError(err.response?.data?.message || "Failed to upload attachment.");

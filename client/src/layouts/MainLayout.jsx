@@ -585,30 +585,30 @@ const MainLayout = ({ children }) => {
       />
 
       {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] border-b px-3 sm:px-6 lg:px-8 py-2 sm:py-0 z-[90] ${
+      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] border-b px-3 max-[378px]:px-2.5 max-[340px]:px-2 sm:px-6 lg:px-8 py-2 sm:py-0 z-[90] ${
         isDarkMode ? "bg-[#080e18]/95 border-[#151f2e] backdrop-blur-xl" : "glass-strong border-gray-200/60"
       }`}>
-        <div className="flex flex-wrap min-[640px]:max-[690px]:flex-nowrap items-center gap-2 sm:gap-3 min-[640px]:max-[690px]:gap-2 min-h-16">
+        <div className="flex flex-nowrap items-center gap-2 max-[378px]:gap-1.5 max-[340px]:gap-1 sm:gap-3 min-[640px]:max-[690px]:gap-2 min-h-14 sm:min-h-16">
           <button
             onClick={() => setSidebarToggleToken((v) => v + 1)}
-            className={`md:hidden order-1 w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`md:hidden order-1 w-9 h-9 max-[378px]:w-8 max-[378px]:h-8 shrink-0 flex items-center justify-center rounded-xl transition-all duration-200 ${
               isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-500 hover:text-[#1e3a5f] hover:bg-gray-100"
             }`}
             aria-label="Open sidebar"
             title="Open sidebar"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-5 h-5 max-[378px]:w-[18px] max-[378px]:h-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
           <button
             onClick={() => navigate("/dashboard")}
-            className="order-1 shrink-0 flex items-center rounded-lg px-1 py-1 lg:hidden"
+            className="order-1 shrink min-w-0 max-w-[120px] max-[378px]:max-w-[92px] max-[340px]:max-w-[84px] flex items-center rounded-lg px-1 py-1 lg:hidden"
             aria-label="Go to dashboard"
             title="Dashboard"
           >
-            <BrandLogo className="h-8 sm:h-9 w-auto" />
+            <BrandLogo className="h-8 sm:h-9 max-[378px]:h-7 max-[340px]:h-6 w-auto max-w-full" />
           </button>
 
           {/* Search */}
@@ -644,23 +644,23 @@ const MainLayout = ({ children }) => {
         </form>
 
         {/* Right side: notification + user menu */}
-        <div className="order-2 sm:order-3 ml-auto flex items-center gap-1 sm:gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 relative z-[95] shrink-0">
+        <div className="order-2 sm:order-3 ml-auto flex items-center gap-1 max-[378px]:gap-0.5 sm:gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 relative z-[95] shrink-0">
           <button
             onClick={() => navigate("/search")}
-            className={`sm:hidden min-[640px]:max-[690px]:flex max-[299px]:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`sm:hidden min-[640px]:max-[690px]:flex max-[299px]:hidden w-9 h-9 max-[378px]:w-8 max-[378px]:h-8 flex items-center justify-center rounded-xl transition-all duration-200 ${
               isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100"
             }`}
             aria-label="Open search"
             title="Search"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+            <svg className="w-5 h-5 max-[378px]:w-[18px] max-[378px]:h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
 
           <button
             onClick={toggleDarkMode}
-            className={`max-[299px]:hidden w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+            className={`max-[299px]:hidden w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 ${
               isDarkMode ? "text-amber-300 hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
             }`}
             aria-label="Toggle dark mode"
@@ -680,10 +680,10 @@ const MainLayout = ({ children }) => {
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
-              className={`relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center rounded-xl transition-all duration-200 ${
+              className={`relative w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 ${
                 isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
               }`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <svg className="w-5 h-5 max-[378px]:w-[18px] max-[378px]:h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
               {unreadCount > 0 && (
@@ -832,18 +832,18 @@ const MainLayout = ({ children }) => {
           {user?.role !== "investor" && (
             <button
               onClick={() => setShowBuyCredits(true)}
-              className={`group flex items-center gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 px-2.5 md:px-3.5 min-[640px]:max-[690px]:px-2 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
+              className={`group shrink-0 flex items-center gap-1.5 max-[378px]:gap-1 md:gap-2 min-[640px]:max-[690px]:gap-1 px-2.5 max-[378px]:px-2 max-[340px]:px-1.5 md:px-3.5 min-[640px]:max-[690px]:px-2 py-1.5 max-[378px]:py-1 rounded-xl max-[378px]:rounded-lg border text-sm transition-all duration-200 ${
                 isDarkMode
                   ? "bg-[#0a1628] border-white/[0.07] hover:bg-[#0d1c2e] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
                   : "bg-white border-gray-200 hover:border-sky-300 hover:bg-sky-50 shadow-sm hover:shadow-md"
               }`}
             >
-              <svg className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
+              <svg className={`w-3.5 h-3.5 max-[378px]:w-3 max-[378px]:h-3 flex-shrink-0 transition-colors ${
                 isDarkMode ? "text-sky-400 group-hover:text-sky-300" : "text-sky-500 group-hover:text-sky-600"
               }`} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" />
               </svg>
-              <span className={`font-bold text-[12px] md:text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
+              <span className={`font-bold text-[12px] max-[378px]:text-[11px] md:text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
               <span className={`hidden md:inline text-[11px] font-medium ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-400"}`}>CR</span>
             </button>
           )}

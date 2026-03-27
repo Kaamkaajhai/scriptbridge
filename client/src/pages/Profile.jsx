@@ -114,10 +114,7 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
               }`}>Delete Project?</h3>
             <p className={`text-[13px] text-center mb-1 ${dark ? "text-neutral-400" : "text-gray-500"
               }`}>
-              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from your profile.
-            </p>
-            <p className={`text-[11px] text-center mb-5 ${dark ? "text-neutral-600" : "text-gray-400"}`}>
-              Uploaded files are kept in storage.
+              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from everywhere.
             </p>
             <div className="flex gap-2.5">
               <button
