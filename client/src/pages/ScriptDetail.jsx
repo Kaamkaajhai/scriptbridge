@@ -7,6 +7,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { Film, BadgeCheck } from "lucide-react";
 import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
 import { formatCurrency } from "../utils/currency";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 const ScriptDetail = () => {
   const { id } = useParams();
@@ -17,6 +18,7 @@ const ScriptDetail = () => {
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [coverError, setCoverError] = useState(false);
+  const [trailerError, setTrailerError] = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [holdLoading, setHoldLoading] = useState(false);
@@ -62,11 +64,7 @@ const ScriptDetail = () => {
     }
   };
 
-  const resolveImage = (url) => {
-    if (!url) return "";
-    if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
-  };
+  const resolveImage = resolveMediaUrl;
 
   const handlePrint = () => {
     const raw = script?.textContent || "";
@@ -139,7 +137,12 @@ const ScriptDetail = () => {
   useEffect(() => {
     fetchScript();
     setCoverError(false);
+    setTrailerError(false);
   }, [id]);
+
+  useEffect(() => {
+    setTrailerError(false);
+  }, [script?.trailerUrl, script?.uploadedTrailerUrl, script?.trailerSource]);
 
   useEffect(() => {
     if (!script?._id) return;
@@ -711,9 +714,12 @@ const ScriptDetail = () => {
     // Fallback for legacy/incomplete records where trailerSource is not synced.
     return aiTrailerUrl || uploadedTrailerUrl || "";
   })();
-  const hasTrailer = Boolean(trailerSourceUrl);
-  const heroImage = hasTrailer ? (script.trailerThumbnail || script.coverImage) : null;
-  const showCoverPlaceholder = !hasTrailer || !heroImage || coverError;
+  const trailerPlaybackUrl = resolveImage(trailerSourceUrl);
+  const hasTrailer = Boolean(trailerPlaybackUrl);
+  const canPlayTrailer = hasTrailer && !trailerError;
+  const heroImage = script.trailerThumbnail || script.coverImage || "";
+  const resolvedHeroImage = resolveImage(heroImage);
+  const showCoverPlaceholder = !resolvedHeroImage || coverError;
   const spotlightEndsAt = script?.promotion?.spotlightEndAt ? new Date(script.promotion.spotlightEndAt) : null;
   const spotlightActive = Boolean(spotlightEndsAt && spotlightEndsAt >= new Date());
   const spotlightPendingApproval = Boolean(script?.promotion?.pendingSpotlightActivation && script?.status !== "published");
@@ -804,16 +810,17 @@ const ScriptDetail = () => {
 
             {/* Cover / Trailer */}
             <div className={`relative h-52 sm:h-72 ${isDarkMode ? "bg-gradient-to-br from-[#060c17] via-[#0c1a2d] to-[#0f2035]" : "bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200"}`}>
-              {hasTrailer ? (
+              {canPlayTrailer ? (
                 <>
                   <video
-                    src={resolveImage(trailerSourceUrl)}
-                    poster={heroImage ? resolveImage(heroImage) : undefined}
+                    src={trailerPlaybackUrl}
+                    poster={resolvedHeroImage || undefined}
                     muted
                     loop
                     autoPlay
                     playsInline
                     preload="metadata"
+                    onError={() => setTrailerError(true)}
                     className="w-full h-full object-cover absolute inset-0"
                   />
                   <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t ${isDarkMode ? "from-black/35 via-black/10" : "from-white/25 via-transparent"} to-transparent`} />
@@ -830,7 +837,7 @@ const ScriptDetail = () => {
                 </div>
               ) : (
                 <img
-                  src={resolveImage(heroImage)}
+                  src={resolvedHeroImage}
                   alt={script.title}
                   onError={() => setCoverError(true)}
                   className="w-full h-full object-cover absolute inset-0"
@@ -838,7 +845,7 @@ const ScriptDetail = () => {
               )}
 
               {/* Play overlay */}
-              {hasTrailer && (
+              {canPlayTrailer && (
                 <button onClick={() => setShowTrailer(true)} className="absolute inset-0 flex items-center justify-center group">
                   <div className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md inline-flex items-center gap-2 ring-1 ring-white/15">
                     <span className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
@@ -2220,14 +2227,31 @@ const ScriptDetail = () => {
             </div>
             <div className="p-3 overflow-auto">
               <div className="rounded-xl overflow-hidden ring-1 ring-white/15 border border-white/10">
-              <video
-                src={resolveImage(trailerSourceUrl)}
-                poster={script.trailerThumbnail ? resolveImage(script.trailerThumbnail) : undefined}
-                controls
-                controlsList="nodownload"
-                autoPlay
-                className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
-              />
+                {trailerError ? (
+                  resolvedHeroImage ? (
+                    <img
+                      src={resolvedHeroImage}
+                      alt={script.title}
+                      className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
+                    />
+                  ) : (
+                    <div className="w-full max-h-[calc(88vh-150px)] min-h-[220px] flex items-center justify-center bg-black text-white/70 text-sm px-6 text-center">
+                      Trailer is unavailable on this device. Please try another browser.
+                    </div>
+                  )
+                ) : (
+                  <video
+                    src={trailerPlaybackUrl}
+                    poster={resolvedHeroImage || undefined}
+                    controls
+                    controlsList="nodownload"
+                    autoPlay
+                    playsInline
+                    preload="metadata"
+                    onError={() => setTrailerError(true)}
+                    className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
+                  />
+                )}
               </div>
             </div>
           </div>

@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 const resolveTrailerUrl = (script) => {
   const aiTrailerUrl = script?.trailerUrl || "";
@@ -16,8 +15,7 @@ const resolveTrailerUrl = (script) => {
   else if (script?.trailerSource === "uploaded" && uploadedTrailerUrl) selectedUrl = uploadedTrailerUrl;
   else selectedUrl = aiTrailerUrl || uploadedTrailerUrl || "";
 
-  if (!selectedUrl) return "";
-  return selectedUrl.startsWith("http") ? selectedUrl : `${API_BASE_URL}${selectedUrl}`;
+  return resolveMediaUrl(selectedUrl);
 };
 
 /* ── Icons ─────────────────────────────────────────── */
@@ -325,6 +323,8 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
                 controls
                 controlsList="nodownload"
                 autoPlay
+                playsInline
+                preload="metadata"
                 className="w-full max-h-[calc(88vh-190px)] object-contain rounded-xl border border-white/10 bg-black"
                 poster={script.coverImage ? getImageUrl(script.coverImage) : undefined}
               />
@@ -811,8 +811,7 @@ const FeaturedProjects = () => {
   };
 
   const getImageUrl = (url) => {
-    if (!url) return null;
-    return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+    return resolveMediaUrl(url) || null;
   };
 
   const rankBadge = (index) => {

@@ -8,7 +8,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import {
   MessageCircle, ChevronLeft, Send, Lock, Info, Search, X,
   Check, CheckCheck, Smile, Trash2, Video, FileText, Paperclip, Loader2, Download,
-  ShieldCheck, ArrowRight,
+  ShieldCheck, ArrowRight, ChevronDown,
 } from "lucide-react";
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
@@ -89,12 +89,28 @@ const Messages = () => {
   const [trailerActionLoading, setTrailerActionLoading] = useState("");
   const [attachment, setAttachment] = useState(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
 
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimerRef = useRef(null);
   const fileInputRef = useRef(null);
   const activeChatRef = useRef(null);
+  const shouldAutoScrollRef = useRef(false);
+  const previousChatIdRef = useRef("");
+
+  const scrollMessagesToBottom = (behavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+    setShowScrollToBottomButton(false);
+  };
+
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowScrollToBottomButton(distanceFromBottom > 96);
+  };
 
   const isWriter = user && ["writer", "creator"].includes(user.role);
   const isInvestor = user && user.role === "investor";
@@ -205,8 +221,36 @@ const Messages = () => {
 
   /* ── Scroll to bottom ───────────────────────────────────── */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+    const currentChatId = activeChat?.chatId || "";
+    if (!currentChatId) {
+      previousChatIdRef.current = "";
+      shouldAutoScrollRef.current = false;
+      setShowScrollToBottomButton(false);
+      return;
+    }
+
+    const chatChanged = previousChatIdRef.current !== currentChatId;
+    if (chatChanged) {
+      previousChatIdRef.current = currentChatId;
+      shouldAutoScrollRef.current = true;
+      scrollMessagesToBottom("auto");
+      return;
+    }
+
+    if (!shouldAutoScrollRef.current) return;
+    shouldAutoScrollRef.current = false;
+    scrollMessagesToBottom("smooth");
+  }, [activeChat?.chatId, messages.length]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!activeChat?.chatId || !container) {
+      setShowScrollToBottomButton(false);
+      return;
+    }
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowScrollToBottomButton(distanceFromBottom > 96);
+  }, [activeChat?.chatId, messages.length, isTyping]);
 
   /* ── Filter conversations by search query ───────────────── */
   useEffect(() => {
@@ -312,6 +356,7 @@ const Messages = () => {
       read: false,
     };
 
+    shouldAutoScrollRef.current = true;
     setMessages((prev) => [...prev, optimistic]);
     const sentText = textToSend;
 
@@ -607,7 +652,7 @@ const Messages = () => {
           RIGHT — Chat Area
       ════════════════════════════════════════ */}
       <div className={[
-        "flex-1 flex-col overflow-hidden",
+        "relative flex-1 flex-col overflow-hidden",
         t.chat,
         !showList ? "flex" : "hidden md:flex",
       ].join(" ")}>
@@ -657,7 +702,11 @@ const Messages = () => {
             </div>
 
             {/* ── Messages List ── */}
-            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 sm:px-6 py-4 space-y-1">
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleMessagesScroll}
+              className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 sm:px-6 py-4 space-y-1"
+            >
               {messagesLoading ? (
                 <div className="flex justify-center items-center h-32">
                   <div className={`w-7 h-7 border-[3px] rounded-full animate-spin ${dark ? "border-[#0d1520] border-t-[#8896a7]" : "border-gray-200 border-t-[#1e3a5f]"}`} />
@@ -886,6 +935,18 @@ const Messages = () => {
               </AnimatePresence>
               <div ref={messagesEndRef} />
             </div>
+
+            {showScrollToBottomButton && (
+              <button
+                type="button"
+                onClick={() => scrollMessagesToBottom("smooth")}
+                aria-label="Scroll to latest message"
+                title="Scroll to latest"
+                className={`absolute right-4 bottom-[82px] sm:bottom-[86px] z-20 w-10 h-10 rounded-full flex items-center justify-center shadow-md border ${dark ? "bg-[#132744] border-[#1c2a3a] text-gray-200 hover:bg-[#1a3354]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+              >
+                <ChevronDown size={18} />
+              </button>
+            )}
 
             {/* ── Input Area ── */}
             {isWriter && !messagesLoading && messages.length === 0 ? (
