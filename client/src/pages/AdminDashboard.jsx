@@ -481,8 +481,22 @@ const AdminDashboard = () => {
     const [messagesLoading, setMessagesLoading] = useState(false);
     const [messageAttachment, setMessageAttachment] = useState(null);
     const [uploadingMessageAttachment, setUploadingMessageAttachment] = useState(false);
+    const [showAdminScrollToBottomButton, setShowAdminScrollToBottomButton] = useState(false);
     const messageFileInputRef = useRef(null);
+    const messageListContainerRef = useRef(null);
     const messageListEndRef = useRef(null);
+    const shouldAutoScrollAdminMessagesRef = useRef(false);
+    const previousAdminChatIdRef = useRef("");
+    const scrollAdminMessagesToBottom = (behavior = "smooth") => {
+        messageListEndRef.current?.scrollIntoView({ behavior, block: "end" });
+        setShowAdminScrollToBottomButton(false);
+    };
+    const handleAdminMessageScroll = () => {
+        const container = messageListContainerRef.current;
+        if (!container) return;
+        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        setShowAdminScrollToBottomButton(distanceFromBottom > 96);
+    };
     const trailerFileInputRef = useRef(null);
     const [trailerUploadTargetScript, setTrailerUploadTargetScript] = useState(null);
     const [uploadingTrailerScriptId, setUploadingTrailerScriptId] = useState("");
@@ -1062,9 +1076,35 @@ const AdminDashboard = () => {
     }, [authorized, activeTab, activeMessageChatId]);
 
     useEffect(() => {
-        if (activeTab !== "messages") return;
-        messageListEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }, [activeTab, activeMessageChatId, messageList]);
+        if (activeTab !== "messages" || !activeMessageChatId) {
+            previousAdminChatIdRef.current = "";
+            shouldAutoScrollAdminMessagesRef.current = false;
+            setShowAdminScrollToBottomButton(false);
+            return;
+        }
+
+        const chatChanged = previousAdminChatIdRef.current !== activeMessageChatId;
+        if (chatChanged) {
+            previousAdminChatIdRef.current = activeMessageChatId;
+            shouldAutoScrollAdminMessagesRef.current = true;
+            scrollAdminMessagesToBottom("auto");
+            return;
+        }
+
+        if (!shouldAutoScrollAdminMessagesRef.current) return;
+        shouldAutoScrollAdminMessagesRef.current = false;
+        scrollAdminMessagesToBottom("smooth");
+    }, [activeTab, activeMessageChatId, messageList.length]);
+
+    useEffect(() => {
+        const container = messageListContainerRef.current;
+        if (activeTab !== "messages" || !activeMessageChatId || !container) {
+            setShowAdminScrollToBottomButton(false);
+            return;
+        }
+        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        setShowAdminScrollToBottomButton(distanceFromBottom > 96);
+    }, [activeTab, activeMessageChatId, messageList.length]);
 
     const fetchMessagesForChat = async (chatId, { silent = false } = {}) => {
         if (!chatId) {
@@ -1074,7 +1114,14 @@ const AdminDashboard = () => {
         if (!silent) setMessagesLoading(true);
         try {
             const { data } = await adminApi.get(`/messages/${chatId}`);
-            setMessageList(Array.isArray(data) ? data : []);
+            const next = Array.isArray(data) ? data : [];
+            setMessageList((prev) => {
+                const sameLength = prev.length === next.length;
+                const sameFirst = prev[0]?._id === next[0]?._id;
+                const sameLast = prev[prev.length - 1]?._id === next[next.length - 1]?._id;
+                if (sameLength && sameFirst && sameLast) return prev;
+                return next;
+            });
         } catch (err) {
             console.error("Admin messages fetch error:", err);
             if (!silent) showToast("Failed to load messages", "error");
@@ -1155,6 +1202,7 @@ const AdminDashboard = () => {
             setMessageText("");
             setMessageAttachment(null);
             if (messageFileInputRef.current) messageFileInputRef.current.value = "";
+            shouldAutoScrollAdminMessagesRef.current = true;
             setMessageList((prev) => [...prev, saved]);
 
             const nextChatId = saved?.chatId || activeMessageChatId || buildChatId(saved?.sender?._id, activeMessageUser._id);
@@ -1922,7 +1970,7 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
 
-                            <div className={`lg:col-span-2 h-[62vh] sm:h-[66vh] lg:h-[calc(100vh-240px)] lg:min-h-[520px] lg:max-h-[760px] rounded-2xl border flex flex-col overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                            <div className={`relative lg:col-span-2 h-[62vh] sm:h-[66vh] lg:h-[calc(100vh-240px)] lg:min-h-[520px] lg:max-h-[760px] rounded-2xl border flex flex-col overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                                 {!activeMessageUser ? (
                                     <div className="flex-1 py-20 flex items-center justify-center px-6 text-center">
                                         <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Select a writer to start or continue a trailer discussion.</p>
@@ -1937,7 +1985,11 @@ const AdminDashboard = () => {
                                             </p>
                                         </div>
 
-                                        <div className="p-4 space-y-3 flex-1 min-h-0 overflow-y-auto">
+                                        <div
+                                            ref={messageListContainerRef}
+                                            onScroll={handleAdminMessageScroll}
+                                            className="p-4 space-y-3 flex-1 min-h-0 overflow-y-auto"
+                                        >
                                             {messagesLoading ? (
                                                 <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Loading thread...</p>
                                             ) : messageList.length === 0 ? (
@@ -1979,6 +2031,20 @@ const AdminDashboard = () => {
                                             )}
                                             <div ref={messageListEndRef} />
                                         </div>
+
+                                        {showAdminScrollToBottomButton && (
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollAdminMessagesToBottom("smooth")}
+                                                aria-label="Scroll to latest message"
+                                                title="Scroll to latest"
+                                                className={`absolute right-4 bottom-[78px] z-20 w-10 h-10 rounded-full flex items-center justify-center shadow-md border ${isDark ? "bg-[#132744] border-[#1c2a3a] text-gray-200 hover:bg-[#1a3354]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                        )}
 
                                         <div className={`p-3 border-t ${isDark ? "border-[#1a3050]" : "border-gray-100"}`}>
                                             {messageAttachment && (
