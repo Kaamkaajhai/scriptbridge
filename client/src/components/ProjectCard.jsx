@@ -2,10 +2,9 @@ import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
-
-const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 const FORMAT_LABEL = {
   feature: "Feature Film",
@@ -28,6 +27,7 @@ const ProjectCard = ({ project, userName }) => {
   const { isDarkMode: dark } = useDarkMode();
   const { user, setUser } = useContext(AuthContext);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [coverError, setCoverError] = useState(false);
 
   const isClickable  = project?.status === "published";
   const genre        = project?.primaryGenre || project?.genre || null;
@@ -38,6 +38,7 @@ const ProjectCard = ({ project, userName }) => {
   const reads        = project?.readsCount ?? 0;
   const status       = STATUS[project?.status] || STATUS.draft;
   const coverImage   = project?.coverImage || null;
+  const resolvedCoverImage = coverError ? "" : resolveMediaUrl(coverImage);
   const initials     = (project?.title || "SC").replace(/[^a-zA-Z0-9 ]/g, "").trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "SC";
   const canBookmark  = Boolean(user?._id && project?._id && project?.creator?._id !== user?._id);
   const spotlightSpend = Number(
@@ -69,6 +70,10 @@ const ProjectCard = ({ project, userName }) => {
     const hasBookmark = ids.some((item) => (typeof item === "string" ? item : item?._id) === scriptId);
     setIsBookmarked(hasBookmark);
   }, [user?.favoriteScripts, project?._id]);
+
+  useEffect(() => {
+    setCoverError(false);
+  }, [project?._id, coverImage]);
 
   const handleToggleBookmark = async (e) => {
     e.preventDefault();
@@ -133,11 +138,12 @@ const ProjectCard = ({ project, userName }) => {
       {/* ══ HERO — fixed h-44 for both thumbnail and placeholder ══ */}
       <div className="relative h-44 w-full flex-shrink-0 overflow-hidden">
 
-        {coverImage ? (
+        {resolvedCoverImage ? (
           /* — Thumbnail — */
           <img
-            src={`${API_BASE}${coverImage}`}
+            src={resolvedCoverImage}
             alt={project?.title || "Script cover"}
+            onError={() => setCoverError(true)}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
           />
         ) : (

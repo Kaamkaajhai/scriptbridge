@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useDarkMode } from "../context/DarkModeContext";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import {
   Drama, Laugh, Crosshair, Skull, Heart, Flame, Atom, Wand2,
   Search, Clapperboard, Sparkles, ScrollText, Swords, Globe,
@@ -54,7 +55,9 @@ const ScriptCard = ({ script, index = 0 }) => {
   const [imgErr, setImgErr] = useState(false);
   if (!script) return null;
 
-  const noImage = !script.coverImage || imgErr;
+  const coverImage = resolveMediaUrl(script.coverImage);
+  const creatorImage = resolveMediaUrl(script.creator?.profileImage);
+  const noImage = !coverImage || imgErr;
   const rating = script.rating || script.scriptScore?.overall || 0;
   const reviewCount = script.reviewCount || 0;
   const views = script.views || 0;
@@ -85,7 +88,7 @@ const ScriptCard = ({ script, index = 0 }) => {
             ) : (
               <>
                 <img
-                  src={script.coverImage}
+                  src={coverImage}
                   alt={script.title}
                   onError={() => setImgErr(true)}
                   className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
@@ -130,8 +133,8 @@ const ScriptCard = ({ script, index = 0 }) => {
 
             {/* Author */}
             <div className="flex items-center gap-2 mb-1.5">
-              {script.creator?.profileImage ? (
-                <img src={script.creator.profileImage} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
+              {creatorImage ? (
+                <img src={creatorImage} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
               ) : (
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${dark ? "bg-[#1e2a3e] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
                   {script.creator?.name?.charAt(0)?.toUpperCase() || "U"}

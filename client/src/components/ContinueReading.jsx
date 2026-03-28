@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BookOpen, ChevronRight, ChevronLeft, Clock } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import api from "../services/api";
 
 const ContinueReading = () => {
@@ -88,7 +89,8 @@ const ContinueReading = () => {
 
 const ContinueCard = ({ script, index, dark }) => {
   const [imgError, setImgError] = useState(false);
-  const showCover = script.coverImage && !imgError;
+  const coverImage = resolveMediaUrl(script.coverImage);
+  const showCover = coverImage && !imgError;
 
   return (
     <motion.div
@@ -109,7 +111,7 @@ const ContinueCard = ({ script, index, dark }) => {
         <div className="w-12 h-16 rounded-xl overflow-hidden shrink-0 bg-[#0f1c2e]">
           {showCover ? (
             <img
-              src={script.coverImage}
+              src={coverImage}
               alt={script.title}
               onError={() => setImgError(true)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
