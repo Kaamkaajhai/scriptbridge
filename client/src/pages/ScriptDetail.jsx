@@ -19,6 +19,7 @@ const ScriptDetail = () => {
   const [loading, setLoading] = useState(true);
   const [coverError, setCoverError] = useState(false);
   const [trailerError, setTrailerError] = useState(false);
+  const [trailerSourceIndex, setTrailerSourceIndex] = useState(0);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [holdLoading, setHoldLoading] = useState(false);
@@ -142,6 +143,7 @@ const ScriptDetail = () => {
 
   useEffect(() => {
     setTrailerError(false);
+    setTrailerSourceIndex(0);
   }, [script?.trailerUrl, script?.uploadedTrailerUrl, script?.trailerSource]);
 
   useEffect(() => {
@@ -704,18 +706,35 @@ const ScriptDetail = () => {
   const isOwner = script.creator?._id === user?._id;
   const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
-  const trailerSourceUrl = (() => {
+  const trailerSources = (() => {
     const aiTrailerUrl = script?.trailerUrl || "";
     const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
 
-    if (script?.trailerSource === "ai" && aiTrailerUrl) return aiTrailerUrl;
-    if (script?.trailerSource === "uploaded" && uploadedTrailerUrl) return uploadedTrailerUrl;
+    let ordered = [];
 
-    // Fallback for legacy/incomplete records where trailerSource is not synced.
-    return aiTrailerUrl || uploadedTrailerUrl || "";
+    if (script?.trailerSource === "ai") ordered = [aiTrailerUrl, uploadedTrailerUrl];
+    else if (script?.trailerSource === "uploaded") ordered = [uploadedTrailerUrl, aiTrailerUrl];
+    else ordered = [aiTrailerUrl, uploadedTrailerUrl];
+
+    const uniqueSources = [...new Set(ordered.filter(Boolean))];
+    return uniqueSources.map((url) => resolveImage(url)).filter(Boolean);
   })();
-  const trailerPlaybackUrl = resolveImage(trailerSourceUrl);
-  const hasTrailer = Boolean(trailerPlaybackUrl);
+
+  const trailerSourceUrl =
+    trailerSources[Math.min(trailerSourceIndex, Math.max(trailerSources.length - 1, 0))] || "";
+
+  const handleTrailerPlaybackError = () => {
+    if (trailerSourceIndex < trailerSources.length - 1) {
+      setTrailerSourceIndex((prev) => prev + 1);
+      setTrailerError(false);
+      return;
+    }
+
+    setTrailerError(true);
+  };
+
+  const trailerPlaybackUrl = trailerSourceUrl;
+  const hasTrailer = trailerSources.length > 0;
   const canPlayTrailer = hasTrailer && !trailerError;
   const heroImage = script.trailerThumbnail || script.coverImage || "";
   const resolvedHeroImage = resolveImage(heroImage);
@@ -820,7 +839,7 @@ const ScriptDetail = () => {
                     autoPlay
                     playsInline
                     preload="metadata"
-                    onError={() => setTrailerError(true)}
+                    onError={handleTrailerPlaybackError}
                     className="w-full h-full object-cover absolute inset-0"
                   />
                   <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t ${isDarkMode ? "from-black/35 via-black/10" : "from-white/25 via-transparent"} to-transparent`} />
@@ -2248,7 +2267,7 @@ const ScriptDetail = () => {
                     autoPlay
                     playsInline
                     preload="metadata"
-                    onError={() => setTrailerError(true)}
+                    onError={handleTrailerPlaybackError}
                     className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
                   />
                 )}
