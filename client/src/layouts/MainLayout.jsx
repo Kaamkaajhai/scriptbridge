@@ -871,13 +871,37 @@ const MainLayout = ({ children }) => {
             </button>
 
             {dropdownOpen && (
-              <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-2xl border py-1.5 z-[130] origin-top-right animate-scaleIn ${isDarkMode ? "bg-[#0d1520]/98 border-[#1c2a3a] backdrop-blur-xl" : "bg-white/98 border-gray-200/80 shadow-gray-300/50 backdrop-blur-xl"}`}>
+              <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border py-1.5 z-[130] origin-top-right animate-scaleIn ${isDarkMode ? "bg-[#0d1520]/98 border-[#1c2a3a] backdrop-blur-xl" : "bg-white/98 border-gray-200/80 shadow-gray-300/50 backdrop-blur-xl"}`}>
                 <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   Profile
+                </button>
+
+                <button onClick={() => { navigate("/contact"); setDropdownOpen(false); }}
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 8.25v7.5a2.25 2.25 0 01-2.25 2.25h-15A2.25 2.25 0 012.25 15.75v-7.5m19.5 0A2.25 2.25 0 0019.5 6h-15a2.25 2.25 0 00-2.25 2.25m19.5 0l-8.69 5.214a2.25 2.25 0 01-2.32 0L2.25 8.25" />
+                  </svg>
+                  Contact
+                </button>
+
+                <button onClick={() => { navigate("/terms"); setDropdownOpen(false); }}
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                  T and C
+                </button>
+
+                <button onClick={() => { navigate("/privacy"); setDropdownOpen(false); }}
+                  className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M20.25 12a8.25 8.25 0 11-16.5 0 8.25 8.25 0 0116.5 0z" />
+                  </svg>
+                  Privacy
                 </button>
 
                 <div className={`border-t my-1 ${isDarkMode ? "border-[#1c2a3a]" : "border-gray-100"}`}></div>
