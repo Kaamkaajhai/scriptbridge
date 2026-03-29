@@ -192,7 +192,7 @@ const TransactionTable = ({ transactions, isDark }) => (
             <table className="w-full">
                 <thead>
                     <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
-                        {["User", "Type", "Amount", "Status", "Description", "Date"].map((h) => (
+                        {["User", "Type", "Amount", "Status", "Description", "Transaction / Pay ID", "Date"].map((h) => (
                             <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
                         ))}
                     </tr>
@@ -205,11 +205,17 @@ const TransactionTable = ({ transactions, isDark }) => (
                             <td className={`px-5 py-3.5 text-sm font-bold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             <td className="px-5 py-3.5"><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${t.status === "completed" ? "bg-emerald-100 text-emerald-700" : t.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>{t.status}</span></td>
                             <td className={`px-5 py-3.5 text-sm max-w-[200px] truncate ${isDark ? "text-gray-400" : "text-gray-600"}`}>{t.description}</td>
+                            <td className="px-5 py-3.5">
+                                <div className={`text-xs leading-5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                    <p className="break-all"><span className={`font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>Txn:</span> {getTransactionIdLabel(t) || "-"}</p>
+                                    <p className="break-all"><span className={`font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>Pay:</span> {getPaymentIdLabel(t) || "-"}</p>
+                                </div>
+                            </td>
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(t.createdAt).toLocaleDateString()}</td>
                         </tr>
                     ))}
                     {transactions.length === 0 && (
-                        <tr><td colSpan={6} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No transactions found</td></tr>
+                        <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No transactions found</td></tr>
                     )}
                 </tbody>
             </table>
@@ -390,6 +396,38 @@ const formatFileSize = (bytes = 0) => {
     return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 };
 
+const getTransactionMetadataValue = (transaction, key) => {
+    const metadata = transaction?.metadata;
+    if (!metadata) return "";
+    if (typeof metadata.get === "function") {
+        return metadata.get(key) || "";
+    }
+    return metadata[key] || "";
+};
+
+const getTransactionIdLabel = (transaction) => {
+    const reference = String(transaction?.reference || "").trim();
+    if (reference) return reference;
+    return String(transaction?._id || "").trim();
+};
+
+const getPaymentIdLabel = (transaction) => {
+    const keys = [
+        "razorpay_payment_id",
+        "paymentGatewayPaymentId",
+        "gatewayPaymentId",
+        "stripePaymentId",
+        "stripeChargeId",
+    ];
+
+    for (const key of keys) {
+        const value = String(getTransactionMetadataValue(transaction, key) || transaction?.[key] || "").trim();
+        if (value) return value;
+    }
+
+    return "";
+};
+
 const getMessagePreview = (msg) =>
     msg?.text ||
     (msg?.fileType === "video"
@@ -559,7 +597,20 @@ const AdminDashboard = () => {
 
     const filteredUsers = sourceUsers.filter((u) => matchesSearch(u.name, u.email, u.role, u.sid));
     const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, s.creator?.name));
-    const filteredTransactions = sourceTransactions.filter((t) => matchesSearch(t.user?.name, t.type, t.status, t.description, t.amount, t.currency, t.createdAt));
+    const filteredTransactions = sourceTransactions.filter((t) =>
+        matchesSearch(
+            t.user?.name,
+            t.type,
+            t.status,
+            t.description,
+            t.amount,
+            t.currency,
+            t.createdAt,
+            t.reference,
+            getTransactionIdLabel(t),
+            getPaymentIdLabel(t)
+        )
+    );
     const filteredInvoices = sourceInvoices.filter((inv) => matchesSearch(inv.invoiceNumber, inv.creator?.name, inv.creatorSid, inv.creator?.sid, inv.script?.title, inv.scriptSid, inv.script?.sid, inv.accessType));
     const filteredPendingInvestors = sourcePendingInvestors.filter((inv) => matchesSearch(inv.name, inv.email, inv.createdAt));
     const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
@@ -605,7 +656,7 @@ const AdminDashboard = () => {
             case "payments":
                 return {
                     title: `Payments (${transactions.length})`,
-                    lines: transactions.map((t, idx) => `${idx + 1}. ${t.user?.name || "-"} | ${t.type || "-"} | ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${t.status || "-"} | ${t.description || "-"} | ${formatExportDate(t.createdAt)}`),
+                    lines: transactions.map((t, idx) => `${idx + 1}. ${t.user?.name || "-"} | ${t.type || "-"} | ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${t.status || "-"} | ${t.description || "-"} | Txn: ${getTransactionIdLabel(t) || "-"} | Pay ID: ${getPaymentIdLabel(t) || "-"} | ${formatExportDate(t.createdAt)}`),
                 };
             case "invoices":
                 return {
@@ -816,7 +867,7 @@ const AdminDashboard = () => {
                     },
                     {
                         title: `Payments (${paymentsData.length})`,
-                        lines: paymentsData.map((t, idx) => `${idx + 1}. ${t.user?.name || "-"} | ${t.type || "-"} | ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${t.status || "-"} | ${t.description || "-"} | ${formatExportDate(t.createdAt)}`),
+                        lines: paymentsData.map((t, idx) => `${idx + 1}. ${t.user?.name || "-"} | ${t.type || "-"} | ${formatCurrency(t.amount || 0, t.currency || "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${t.status || "-"} | ${t.description || "-"} | Txn: ${getTransactionIdLabel(t) || "-"} | Pay ID: ${getPaymentIdLabel(t) || "-"} | ${formatExportDate(t.createdAt)}`),
                     },
                     sectionFromScripts("AI Scores", aiScoresData),
                     sectionFromScripts("Platform Scores", platformScoresData),

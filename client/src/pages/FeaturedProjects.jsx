@@ -6,16 +6,22 @@ import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
-const resolveTrailerUrl = (script) => {
+const resolveTrailerCandidates = (script) => {
   const aiTrailerUrl = script?.trailerUrl || "";
   const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
 
-  let selectedUrl = "";
-  if (script?.trailerSource === "ai" && aiTrailerUrl) selectedUrl = aiTrailerUrl;
-  else if (script?.trailerSource === "uploaded" && uploadedTrailerUrl) selectedUrl = uploadedTrailerUrl;
-  else selectedUrl = aiTrailerUrl || uploadedTrailerUrl || "";
+  let ordered = [];
+  if (script?.trailerSource === "ai") ordered = [aiTrailerUrl, uploadedTrailerUrl];
+  else if (script?.trailerSource === "uploaded") ordered = [uploadedTrailerUrl, aiTrailerUrl];
+  else ordered = [aiTrailerUrl, uploadedTrailerUrl];
 
-  return resolveMediaUrl(selectedUrl);
+  const uniqueSources = [...new Set(ordered.filter(Boolean))];
+  return uniqueSources.map((url) => resolveMediaUrl(url)).filter(Boolean);
+};
+
+const resolveTrailerUrl = (script) => {
+  const sources = resolveTrailerCandidates(script);
+  return sources[0] || "";
 };
 
 /* ── Icons ─────────────────────────────────────────── */
@@ -277,7 +283,26 @@ const AIDemo = ({ script, getImageUrl }) => {
 
 const TrailerModal = ({ script, onClose, getImageUrl }) => {
   const videoRef = useRef(null);
-  const trailerPlaybackUrl = resolveTrailerUrl(script);
+  const trailerCandidates = resolveTrailerCandidates(script);
+  const [trailerSourceIndex, setTrailerSourceIndex] = useState(0);
+  const [trailerError, setTrailerError] = useState(false);
+  const trailerPlaybackUrl =
+    trailerCandidates[Math.min(trailerSourceIndex, Math.max(trailerCandidates.length - 1, 0))] || "";
+
+  const handleTrailerError = () => {
+    if (trailerSourceIndex < trailerCandidates.length - 1) {
+      setTrailerSourceIndex((prev) => prev + 1);
+      setTrailerError(false);
+      return;
+    }
+    setTrailerError(true);
+  };
+
+  useEffect(() => {
+    setTrailerSourceIndex(0);
+    setTrailerError(false);
+  }, [script?._id, script?.trailerUrl, script?.uploadedTrailerUrl, script?.trailerSource]);
+
   useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handleKey);
@@ -315,9 +340,10 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
           </div>
 
           {/* Video or AI Demo */}
-          {trailerPlaybackUrl ? (
+          {trailerPlaybackUrl && !trailerError ? (
             <div className="p-3 overflow-auto bg-[#020812]">
               <video
+                key={trailerPlaybackUrl}
                 ref={videoRef}
                 src={trailerPlaybackUrl}
                 controls
@@ -325,6 +351,7 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
                 autoPlay
                 playsInline
                 preload="metadata"
+                onError={handleTrailerError}
                 className="w-full max-h-[calc(88vh-190px)] object-contain rounded-xl border border-white/10 bg-black"
                 poster={script.coverImage ? getImageUrl(script.coverImage) : undefined}
               />

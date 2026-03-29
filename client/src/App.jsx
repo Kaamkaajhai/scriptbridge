@@ -6,6 +6,7 @@ import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
 
 const Landing = lazy(() => import("./pages/Landing"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PolicyPage"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const RegistrationPrivacyPolicy = lazy(() => import("./pages/RegistrationPrivacyPolicy"));
@@ -107,7 +108,11 @@ function App() {
             >
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/t-and-c" element={<TermsOfService />} />
               <Route path="/registration-privacy-policy" element={<RegistrationPrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/writer-terms" element={<WriterTermsConditions />} />
