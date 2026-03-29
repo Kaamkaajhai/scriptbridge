@@ -22,8 +22,10 @@ export const getInvoicePdf = async (req, res) => {
     }
 
     const hasRemotePdf = /^https?:\/\//i.test(String(invoice.pdfPath || ""));
+    const refreshFlag = String(req.query.refresh || req.query.regenerate || "").toLowerCase();
+    const shouldRegenerate = ["1", "true", "yes"].includes(refreshFlag);
 
-    if (!hasRemotePdf) {
+    if (!hasRemotePdf || shouldRegenerate) {
       const generated = await generateAndSaveInvoicePdf({
         invoice,
         creatorName: invoice.creator?.name,
