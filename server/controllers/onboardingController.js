@@ -4,17 +4,34 @@ import Subscription from "../models/Subscription.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
+const normalizeString = (value) =>
+  value === undefined || value === null ? "" : String(value).trim();
+
+const normalizeOptionalDate = (value) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
 // @desc    Update writer profile (Phase 2: Identity)
 // @route   PUT /api/onboarding/writer-profile
 // @access  Private
 export const updateWriterProfile = async (req, res) => {
   try {
     const { 
+      username,
       bio, 
       representationStatus, 
       agencyName, 
       wgaMember,
-      diversity 
+      diversity,
+      links,
+      accomplishments,
+      representation,
+      demographicPrivacy,
+      dateOfBirth,
+      phone,
+      address,
     } = req.body;
     
     const user = await User.findById(req.user._id);
@@ -36,11 +53,93 @@ export const updateWriterProfile = async (req, res) => {
       });
     }
     
+    if (!user.writerProfile) {
+      user.writerProfile = {};
+    }
+
     // Update writer profile
+    if (username !== undefined) {
+      user.writerProfile.username = normalizeString(username).toLowerCase();
+    }
     user.bio = bio || user.bio;
     user.writerProfile.representationStatus = representationStatus || user.writerProfile.representationStatus;
     user.writerProfile.agencyName = agencyName || user.writerProfile.agencyName;
     user.writerProfile.wgaMember = wgaMember !== undefined ? wgaMember : user.writerProfile.wgaMember;
+
+    if (demographicPrivacy !== undefined) {
+      const normalizedPrivacy = normalizeString(demographicPrivacy);
+      if (["searchable", "private"].includes(normalizedPrivacy)) {
+        user.writerProfile.demographicPrivacy = normalizedPrivacy;
+      }
+    }
+
+    if (links !== undefined) {
+      user.writerProfile.links = {
+        portfolio: normalizeString(links?.portfolio),
+        instagram: normalizeString(links?.instagram),
+        twitter: normalizeString(links?.twitter),
+        linkedin: normalizeString(links?.linkedin),
+        imdb: normalizeString(links?.imdb),
+        facebook: normalizeString(links?.facebook),
+      };
+    }
+
+    if (accomplishments !== undefined) {
+      user.writerProfile.accomplishments = Array.isArray(accomplishments)
+        ? accomplishments.map((item) => normalizeString(item)).filter(Boolean)
+        : [];
+    }
+
+    if (representation !== undefined) {
+      const nextRepresentation = {
+        filmTv: {
+          agency: normalizeString(representation?.filmTv?.agency),
+          agent: normalizeString(representation?.filmTv?.agent),
+          managementCompany: normalizeString(representation?.filmTv?.managementCompany),
+          manager: normalizeString(representation?.filmTv?.manager),
+          lawFirm: normalizeString(representation?.filmTv?.lawFirm),
+          lawyer: normalizeString(representation?.filmTv?.lawyer),
+        },
+        theater: {
+          agency: normalizeString(representation?.theater?.agency),
+          agent: normalizeString(representation?.theater?.agent),
+          managementCompany: normalizeString(representation?.theater?.managementCompany),
+          manager: normalizeString(representation?.theater?.manager),
+          lawFirm: normalizeString(representation?.theater?.lawFirm),
+          lawyer: normalizeString(representation?.theater?.lawyer),
+        },
+        literary: {
+          agency: normalizeString(representation?.literary?.agency),
+          agent: normalizeString(representation?.literary?.agent),
+          managementCompany: normalizeString(representation?.literary?.managementCompany),
+          manager: normalizeString(representation?.literary?.manager),
+          lawFirm: normalizeString(representation?.literary?.lawFirm),
+          lawyer: normalizeString(representation?.literary?.lawyer),
+        },
+      };
+      user.writerProfile.representation = nextRepresentation;
+    }
+
+    if (phone !== undefined) {
+      user.phone = normalizeString(phone);
+    }
+
+    if (dateOfBirth !== undefined) {
+      const parsedDob = normalizeOptionalDate(dateOfBirth);
+      if (parsedDob) {
+        user.dateOfBirth = parsedDob;
+      }
+    }
+
+    if (address !== undefined) {
+      user.address = {
+        street: normalizeString(address?.street),
+        city: normalizeString(address?.city),
+        state: normalizeString(address?.state),
+        zipCode: normalizeString(address?.zipCode),
+        formatted: normalizeString(address?.formatted),
+      };
+    }
     
     if (diversity) {
       user.writerProfile.diversity = {
@@ -61,6 +160,9 @@ export const updateWriterProfile = async (req, res) => {
     if (user.writerProfile.onboardingStep < 2) {
       user.writerProfile.onboardingStep = 2;
     }
+
+    user.markModified("writerProfile");
+    user.markModified("address");
     
     await user.save();
     

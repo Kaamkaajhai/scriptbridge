@@ -2,6 +2,7 @@ import Script from "../models/Script.js";
 import mongoose from "mongoose";
 import ScriptOption from "../models/ScriptOption.js";
 import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
+import Review from "../models/Review.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
@@ -14,6 +15,7 @@ import {
 import { generateAndSaveInvoicePdf } from "../utils/invoicePdf.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { CREDIT_PRICES } from "./creditsController.js";
+import { buildScriptShareMeta } from "../utils/shareMeta.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
 import crypto from "crypto";
@@ -508,7 +510,7 @@ export const getMyScripts = async (req, res) => {
   try {
     const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" }, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
-      .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt")
+      .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt publishedAt")
       .populate("creator", "name profileImage")
       .lean();
     res.json(scripts);
@@ -1132,15 +1134,41 @@ export const getScriptById = async (req, res) => {
       }
     }
 
-    // Track view — only count views from users who are NOT the script creator
-    if (!isOwner) {
-      script.views += 1;
-    }
-    const alreadyViewed = script.viewedBy.some(v => v.user.toString() === req.user._id.toString());
+    // Track valid views: count only unique viewers (same user should not increase views again).
+    script.viewedBy = Array.isArray(script.viewedBy) ? script.viewedBy : [];
+    const viewedByBeforeCount = script.viewedBy.length;
+    const viewerId = req.user._id.toString();
+    const creatorId = script.creator?._id?.toString?.() || script.creator?.toString?.();
+
+    const uniqueViewerIds = new Set(
+      script.viewedBy
+        .map((entry) => entry?.user?.toString?.())
+        .filter(Boolean)
+    );
+
+    const alreadyViewed = uniqueViewerIds.has(viewerId);
     if (!alreadyViewed) {
       script.viewedBy.push({ user: req.user._id });
     }
-    await script.save();
+
+    // Exclude creator self-view from the public views metric.
+    if (creatorId) {
+      uniqueViewerIds.delete(creatorId);
+    }
+    if (!alreadyViewed && viewerId !== creatorId) {
+      uniqueViewerIds.add(viewerId);
+    }
+
+    const validViews = uniqueViewerIds.size;
+    const currentViews = Number(script.views || 0);
+    const viewsChanged = currentViews !== validViews;
+    if (viewsChanged) {
+      script.views = validViews;
+    }
+
+    if (script.viewedBy.length !== viewedByBeforeCount || viewsChanged) {
+      await script.save();
+    }
 
     // Update viewer's viewHistory so investor dashboard stats are accurate
     if (!isOwner) {
@@ -1201,6 +1229,87 @@ export const getScriptById = async (req, res) => {
       });
     }
 
+    const viewBreakdown = {
+      reader: 0,
+      writer: 0,
+      investor: 0,
+    };
+
+    const reviewBreakdown = {
+      reader: 0,
+      writer: 0,
+      investor: 0,
+    };
+
+    const uniqueViewedUserIds = [
+      ...new Set(
+        (script.viewedBy || [])
+          .map((entry) => entry?.user?.toString?.() || "")
+          .filter(Boolean)
+      ),
+    ];
+
+    if (uniqueViewedUserIds.length > 0) {
+      const viewerRoles = await User.find({ _id: { $in: uniqueViewedUserIds } })
+        .select("role")
+        .lean();
+
+      viewerRoles.forEach((viewer) => {
+        const role = String(viewer?.role || "").toLowerCase();
+        if (role === "reader") {
+          viewBreakdown.reader += 1;
+          return;
+        }
+        if (role === "writer" || role === "creator") {
+          viewBreakdown.writer += 1;
+          return;
+        }
+        if (["investor", "producer", "director", "industry", "professional"].includes(role)) {
+          viewBreakdown.investor += 1;
+        }
+      });
+    }
+
+    const reviewRoleStats = await Review.aggregate([
+      { $match: { script: script._id } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "reviewer",
+        },
+      },
+      { $unwind: "$reviewer" },
+      {
+        $project: {
+          role: { $toLower: { $ifNull: ["$reviewer.role", ""] } },
+        },
+      },
+      {
+        $group: {
+          _id: "$role",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    reviewRoleStats.forEach((item) => {
+      const role = String(item?._id || "");
+      const count = Number(item?.count || 0);
+      if (role === "reader") {
+        reviewBreakdown.reader += count;
+        return;
+      }
+      if (role === "writer" || role === "creator") {
+        reviewBreakdown.writer += count;
+        return;
+      }
+      if (["investor", "producer", "director", "industry", "professional"].includes(role)) {
+        reviewBreakdown.investor += count;
+      }
+    });
+
     const response = {
       ...script.toObject(),
       isUnlocked,
@@ -1211,12 +1320,15 @@ export const getScriptById = async (req, res) => {
       auditionCount,
       myPendingRequest,
       pendingRequestsCount,
+      viewBreakdown,
+      reviewBreakdown,
       // Hide full synopsis unless unlocked or creator
       synopsis: (isUnlocked || isCreator) ? script.synopsis : synopsisTeaser,
       // Hide full content unless unlocked or creator
       fullContent: (isUnlocked || isCreator) ? script.fullContent : null,
       // Hide script text unless unlocked or creator
       textContent: (isUnlocked || isCreator) ? script.textContent : null,
+      shareMeta: buildScriptShareMeta(req, script),
     };
 
     res.json(response);
@@ -1939,9 +2051,14 @@ export const addRoles = async (req, res) => {
 export const getFeaturedScripts = async (req, res) => {
   try {
     const now = new Date();
+    const activeSpotlightFilter = {
+      "promotion.spotlightActive": true,
+      "promotion.spotlightEndAt": { $gte: now },
+    };
+
     // Step 1: rank published scripts by trendScore via aggregation
     const ranked = await Script.aggregate([
-      { $match: { ...PUBLIC_SCRIPT_FILTER } },
+      { $match: { ...PUBLIC_SCRIPT_FILTER, ...activeSpotlightFilter } },
       {
         $addFields: {
           verifiedPriority: {
@@ -1984,7 +2101,7 @@ export const getFeaturedScripts = async (req, res) => {
     const ids = ranked.map((s) => s._id);
 
     // Step 2: fetch full documents with populated creator (preserving sort order)
-    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true }, isDeleted: { $ne: true } }).populate(
+    const docs = await Script.find({ _id: { $in: ids }, ...PUBLIC_SCRIPT_FILTER, ...activeSpotlightFilter }).populate(
       "creator",
       "name profileImage role"
     );
@@ -2628,6 +2745,18 @@ export const activateProjectSpotlight = async (req, res) => {
       if (!script) {
         const error = new Error("Script not found");
         error.statusCode = 404;
+        throw error;
+      }
+
+      if (script.isDeleted) {
+        const error = new Error("This project was deleted and spotlight cannot be activated.");
+        error.statusCode = 410;
+        throw error;
+      }
+
+      if (script.isSold || script.holdStatus === "sold") {
+        const error = new Error("Spotlight cannot be activated after this project is sold.");
+        error.statusCode = 400;
         throw error;
       }
 

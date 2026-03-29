@@ -9,6 +9,7 @@ import ProjectCard from "../components/ProjectCard";
 import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
+import SocialShareButton from "../components/SocialShareButton";
 import { formatCurrency } from "../utils/currency";
 
 /* â”€â”€ Helper components â”€â”€ */
@@ -155,7 +156,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [activeTab, setActiveTab] = useState(currentUser?.role === "investor" ? "about" : "projects");
+  const [activeTab, setActiveTab] = useState("projects");
   const [showMessageRequestModal, setShowMessageRequestModal] = useState(false);
   const [messageRequestText, setMessageRequestText] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
@@ -184,6 +185,7 @@ const Profile = () => {
   const [verificationCodeSent, setVerificationCodeSent] = useState(false);
   const isFetchingProfileRef = useRef(false);
   const bookmarkRefreshTimerRef = useRef(null);
+  const tabInitializedForProfileRef = useRef(null);
 
   const fetchProfile = useCallback(async ({ silent = false } = {}) => {
     const profileId = id || currentUser?._id;
@@ -205,6 +207,12 @@ const Profile = () => {
       setIsFollowing(
         data.user.followers.some((f) => f._id === currentUser?._id)
       );
+
+      if (tabInitializedForProfileRef.current !== data.user._id) {
+        const isInvestorProfile = String(data.user.role || "").toLowerCase() === "investor";
+        setActiveTab(isInvestorProfile ? "about" : "projects");
+        tabInitializedForProfileRef.current = data.user._id;
+      }
 
       // Fetch investor stats only when current user is also investor-side to avoid noisy role-mismatch calls.
       if (
@@ -403,6 +411,15 @@ const Profile = () => {
       year: "numeric",
     })
     : null;
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const defaultProfileRoute = profile?._id
+    ? `${String(profile?.role || "").toLowerCase() === "reader" ? "/reader/profile" : "/profile"}/${profile._id}`
+    : "";
+  const profileShare = {
+    url: profile?.shareMeta?.url || (defaultProfileRoute ? `${browserOrigin}${defaultProfileRoute}` : ""),
+    title: profile?.shareMeta?.title || `${profile?.name || "Profile"} | ScriptBridge`,
+    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this creator"}'s profile on ScriptBridge.`,
+  };
 
   const resolveImage = (url) => {
     if (!url) return "";
@@ -564,6 +581,11 @@ const Profile = () => {
           }} />
           {/* Edit / Follow button */}
           <div className="absolute top-4 right-4 z-10 flex gap-2">
+            <SocialShareButton
+              share={profileShare}
+              buttonLabel="Share"
+              className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] border-white/[0.12] text-white/80" : "bg-white/95 hover:bg-white border-gray-200 text-[#1a3557]"}`}
+            />
             {isOwnProfile ? (
               <button onClick={() => setShowEditModal(true)}
                 className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${t.editBtn}`}>

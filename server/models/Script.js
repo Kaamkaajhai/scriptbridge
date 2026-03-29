@@ -33,6 +33,7 @@ const scriptSchema = new mongoose.Schema({
   contentType: { type: String, enum: ["movie", "tv_series", "anime", "documentary", "short_film", "web_series", "book", "startup"], default: "movie" },
   status: { type: String, enum: ["draft", "published", "pending_approval", "rejected"], default: "draft" },
   adminApproved: { type: Boolean, default: false },
+  publishedAt: { type: Date },
 
   // Enhanced metadata for writer onboarding
   format: {

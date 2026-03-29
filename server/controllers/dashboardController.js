@@ -12,7 +12,7 @@ export const getDashboardStats = async (req, res) => {
 
     // Run all heavy queries in parallel
     const [user, postStats, scriptStats, recentPosts, topScripts] = await Promise.all([
-      User.findById(userId).select("followers following subscription"),
+      User.findById(userId).select("followers following subscription profileViews"),
 
       // Aggregate post stats in one query instead of loading every post doc
       Post.aggregate([
@@ -103,7 +103,8 @@ export const getDashboardStats = async (req, res) => {
         holdEarnings,
         followersCount: user?.followers?.length || 0,
         followingCount: user?.following?.length || 0,
-        totalViews:      ss.totalViews,
+        totalViews:      Number(user?.profileViews || 0),
+        profileViews:    Number(user?.profileViews || 0),
         trailersGenerated: ss.trailersGenerated,
         scoredScripts:   ss.scoredCount,
         avgScore,

@@ -77,7 +77,7 @@ const StatCard = ({ label, value, icon, color, isDark }) => (
 );
 
 // ─── User Table ───
-const UserTable = ({ users, isDark, onLoginAs, roleLabel }) => (
+const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
     <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -87,7 +87,7 @@ const UserTable = ({ users, isDark, onLoginAs, roleLabel }) => (
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Email</th>
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Role</th>
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Joined</th>
-                        {onLoginAs && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</th>}
+                        {(onLoginAs || onViewUser) && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</th>}
                     </tr>
                 </thead>
                 <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
@@ -113,15 +113,22 @@ const UserTable = ({ users, isDark, onLoginAs, roleLabel }) => (
                                     }`}>{u.role}</span>
                             </td>
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                            {onLoginAs && (
+                            {(onLoginAs || onViewUser) && (
                                 <td className="px-5 py-3.5">
-                                    <button onClick={() => onLoginAs(u._id)} className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10">Login As</button>
+                                    <div className="flex items-center gap-2">
+                                        {onViewUser && (
+                                            <button onClick={() => onViewUser(u)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10">View Details</button>
+                                        )}
+                                        {onLoginAs && (
+                                            <button onClick={() => onLoginAs(u._id)} className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10">Login As</button>
+                                        )}
+                                    </div>
                                 </td>
                             )}
                         </tr>
                     ))}
                     {users.length === 0 && (
-                        <tr><td colSpan={5} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No users found</td></tr>
+                        <tr><td colSpan={(onLoginAs || onViewUser) ? 5 : 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No users found</td></tr>
                     )}
                 </tbody>
             </table>
@@ -504,6 +511,7 @@ const AdminDashboard = () => {
     const [pendingInvestors, setPendingInvestors] = useState([]);
     const [bankReviews, setBankReviews] = useState([]);
     const [rejectModal, setRejectModal] = useState(null); // investor object
+    const [selectedUserDetail, setSelectedUserDetail] = useState(null);
     const [contacts, setContacts] = useState([]);
     const [alertSummary, setAlertSummary] = useState({});
     const previousAlertSummaryRef = useRef(null);
@@ -1710,7 +1718,12 @@ const AdminDashboard = () => {
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredUsers.length : total})</span>
                             </h2>
                         </div>
-                        <UserTable users={filteredUsers} isDark={isDark} onLoginAs={activeTab === "investors" ? handleLoginAs : null} roleLabel={activeTab} />
+                        <UserTable
+                            users={filteredUsers}
+                            isDark={isDark}
+                            onLoginAs={null}
+                            onViewUser={setSelectedUserDetail}
+                        />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
@@ -2226,6 +2239,10 @@ const AdminDashboard = () => {
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(inv.createdAt).toLocaleDateString()}</td>
                                                 <td className="px-5 py-3.5">
                                                     <div className="flex items-center gap-2">
+                                                        <button onClick={() => setSelectedUserDetail(inv)}
+                                                            className="text-xs font-bold text-blue-500 hover:text-blue-400 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">
+                                                            View Details
+                                                        </button>
                                                         <button onClick={() => handleApproveInvestor(inv._id)}
                                                             className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">
                                                             ✓ Approve
@@ -2423,6 +2440,125 @@ const AdminDashboard = () => {
         );
     };
 
+    const UserDetailsModal = ({ user, onClose }) => {
+        const writerLinks = user?.writerProfile?.links || {};
+        const investorLinks = user?.industryProfile?.socialLinks || {};
+        const mandates = user?.industryProfile?.mandates || {};
+        const addressLine = [
+            user?.address?.street,
+            user?.address?.city,
+            user?.address?.state,
+            user?.address?.zipCode,
+        ].filter(Boolean).join(", ");
+
+        const detailRows = [
+            { label: "Name", value: user?.name },
+            { label: "Email", value: user?.email },
+            { label: "Phone", value: user?.phone },
+            { label: "Role", value: user?.role },
+            { label: "SID", value: user?.sid },
+            { label: "Date of Birth", value: user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "" },
+            { label: "Address", value: addressLine || user?.address?.formatted },
+            { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleString() : "" },
+        ].filter((row) => row.value);
+
+        const writerRows = [
+            { label: "Username", value: user?.writerProfile?.username },
+            { label: "Representation", value: user?.writerProfile?.representationStatus },
+            { label: "Agency", value: user?.writerProfile?.agencyName },
+            { label: "Demographic Privacy", value: user?.writerProfile?.demographicPrivacy },
+            { label: "Gender", value: user?.writerProfile?.diversity?.gender },
+            { label: "Nationality", value: user?.writerProfile?.diversity?.nationality },
+            { label: "Ethnicity", value: user?.writerProfile?.diversity?.ethnicity },
+            { label: "LGBTQ+", value: user?.writerProfile?.diversity?.lgbtqStatus },
+            { label: "Disability", value: user?.writerProfile?.diversity?.disabilityStatus },
+            { label: "Portfolio", value: writerLinks?.portfolio },
+            { label: "Instagram", value: writerLinks?.instagram },
+            { label: "Twitter", value: writerLinks?.twitter },
+            { label: "LinkedIn", value: writerLinks?.linkedin },
+            { label: "IMDb", value: writerLinks?.imdb },
+            { label: "Facebook", value: writerLinks?.facebook },
+            { label: "Accomplishments", value: Array.isArray(user?.writerProfile?.accomplishments) ? user.writerProfile.accomplishments.join(", ") : "" },
+        ].filter((row) => row.value);
+
+        const investorRows = [
+            { label: "Sub Role", value: user?.industryProfile?.subRole },
+            { label: "Company", value: user?.industryProfile?.company },
+            { label: "Job Title", value: user?.industryProfile?.jobTitle },
+            { label: "Investment Range", value: user?.industryProfile?.investmentRange },
+            { label: "Previous Credits", value: user?.industryProfile?.previousCredits },
+            { label: "Other URL", value: user?.industryProfile?.otherUrl },
+            { label: "LinkedIn", value: user?.industryProfile?.linkedInUrl },
+            { label: "IMDb", value: user?.industryProfile?.imdbUrl },
+            { label: "Website", value: investorLinks?.website },
+            { label: "Instagram", value: investorLinks?.instagram },
+            { label: "Twitter", value: investorLinks?.twitter },
+            { label: "YouTube", value: investorLinks?.youtube },
+            { label: "Facebook", value: investorLinks?.facebook },
+            { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
+            { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
+            { label: "Mandates Budget", value: Array.isArray(mandates?.budgetTiers) ? mandates.budgetTiers.join(", ") : "" },
+        ].filter((row) => row.value);
+
+        const sectionClass = `rounded-xl border p-4 ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`;
+
+        return (
+            <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+                <div className={`w-full max-w-3xl mx-4 rounded-2xl border max-h-[88vh] overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200"}`} onClick={(e) => e.stopPropagation()}>
+                    <div className={`px-5 py-4 border-b flex items-center justify-between ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                        <div>
+                            <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>User Full Profile</h3>
+                            <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>Writer / Investor complete details for admin review</p>
+                        </div>
+                        <button onClick={onClose} className={`text-sm font-semibold px-3 py-1.5 rounded-lg ${isDark ? "text-gray-300 hover:bg-white/[0.08]" : "text-gray-600 hover:bg-gray-100"}`}>Close</button>
+                    </div>
+
+                    <div className="p-5 space-y-4 overflow-y-auto max-h-[calc(88vh-74px)]">
+                        <div className={sectionClass}>
+                            <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Basic Info</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {detailRows.map((row) => (
+                                    <div key={row.label}>
+                                        <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
+                                        <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {writerRows.length > 0 && (
+                            <div className={sectionClass}>
+                                <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Writer Profile</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {writerRows.map((row) => (
+                                        <div key={row.label}>
+                                            <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {investorRows.length > 0 && (
+                            <div className={sectionClass}>
+                                <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Investor / Industry Profile</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {investorRows.map((row) => (
+                                        <div key={row.label}>
+                                            <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
 
     return (
         <>
@@ -2549,6 +2685,9 @@ const AdminDashboard = () => {
 
             {/* Reject Investor Modal */}
             {rejectModal && <RejectInvestorModal investor={rejectModal} onClose={() => setRejectModal(null)} onConfirm={handleRejectInvestor} />}
+
+            {/* User Details Modal */}
+            {selectedUserDetail && <UserDetailsModal user={selectedUserDetail} onClose={() => setSelectedUserDetail(null)} />}
 
         </div>
 

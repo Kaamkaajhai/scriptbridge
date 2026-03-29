@@ -6,6 +6,7 @@ import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
 import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 
@@ -321,6 +322,12 @@ export const getUserProfile = async (req, res) => {
           blockedByProfile,
         });
       }
+
+      const isWriterProfile = ["writer", "creator"].includes(String(user?.role || "").toLowerCase());
+      if (isWriterProfile) {
+        await User.updateOne({ _id: user._id }, { $inc: { profileViews: 1 } });
+        user.profileViews = Number(user.profileViews || 0) + 1;
+      }
     }
 
     const posts = await Post.find({ user: req.params.id })
@@ -346,7 +353,7 @@ export const getUserProfile = async (req, res) => {
     if (isOwnProfile && isWriterUser) {
       deletedScripts = await Script.find({ creator: req.params.id, isDeleted: true })
         .populate("creator", "name profileImage role")
-        .select("_id title genre format coverImage logline isDeleted deletedAt createdAt")
+        .select("_id title genre format coverImage logline isDeleted deletedAt createdAt publishedAt")
         .sort({ deletedAt: -1, updatedAt: -1 });
     }
 
@@ -381,7 +388,7 @@ export const getUserProfile = async (req, res) => {
 
       purchasedScripts = await Script.find(purchasedQuery)
         .populate("creator", "name profileImage role")
-        .select("_id title genre format price coverImage creator premium createdAt logline unlockedBy purchasedBy isDeleted deletedAt")
+        .select("_id title genre format price coverImage creator premium createdAt publishedAt logline unlockedBy purchasedBy isDeleted deletedAt")
         .sort({ createdAt: -1 });
     }
 
@@ -412,8 +419,25 @@ export const getUserProfile = async (req, res) => {
 
     userObj.blockedByCurrent = blockedByCurrent;
     userObj.blockedByProfile = blockedByProfile;
+    userObj.shareMeta = buildUserShareMeta(req, userObj);
 
-    res.json({ user: userObj, posts, scripts, deletedScripts, purchasedScripts, bookmarkedScripts });
+    const attachScriptShareMeta = (list = []) => list.map((scriptDoc) => {
+      if (!scriptDoc) return scriptDoc;
+      const scriptObj = typeof scriptDoc.toObject === "function" ? scriptDoc.toObject() : scriptDoc;
+      return {
+        ...scriptObj,
+        shareMeta: buildScriptShareMeta(req, scriptObj),
+      };
+    });
+
+    res.json({
+      user: userObj,
+      posts,
+      scripts: attachScriptShareMeta(scripts),
+      deletedScripts: attachScriptShareMeta(deletedScripts),
+      purchasedScripts: attachScriptShareMeta(purchasedScripts),
+      bookmarkedScripts: attachScriptShareMeta(bookmarkedScripts),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -14,6 +14,15 @@ const userSchema = new mongoose.Schema({
   sid: { type: String, unique: true, sparse: true, index: true },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  phone: { type: String },
+  dateOfBirth: { type: Date },
+  address: {
+    street: { type: String },
+    city: { type: String },
+    state: { type: String },
+    zipCode: { type: String },
+    formatted: { type: String },
+  },
   pendingEmail: { type: String },
   password: { type: String, required: true },
   role: { type: String, enum: ["creator", "investor", "producer", "director", "actor", "reader", "writer", "industry", "professional", "admin"], required: true },
@@ -38,6 +47,7 @@ const userSchema = new mongoose.Schema({
 
   // Writer-specific profile fields
   writerProfile: {
+    username: { type: String },
     legalName: { type: String },
     representationStatus: {
       type: String,
@@ -55,9 +65,50 @@ const userSchema = new mongoose.Schema({
     // Diversity data (optional)
     diversity: {
       gender: { type: String },
+      nationality: { type: String },
       ethnicity: { type: String },
       lgbtqStatus: { type: String },
       disabilityStatus: { type: String },
+    },
+    links: {
+      portfolio: { type: String },
+      instagram: { type: String },
+      twitter: { type: String },
+      linkedin: { type: String },
+      imdb: { type: String },
+      facebook: { type: String },
+    },
+    accomplishments: [{ type: String }],
+    representation: {
+      filmTv: {
+        agency: { type: String },
+        agent: { type: String },
+        managementCompany: { type: String },
+        manager: { type: String },
+        lawFirm: { type: String },
+        lawyer: { type: String },
+      },
+      theater: {
+        agency: { type: String },
+        agent: { type: String },
+        managementCompany: { type: String },
+        manager: { type: String },
+        lawFirm: { type: String },
+        lawyer: { type: String },
+      },
+      literary: {
+        agency: { type: String },
+        agent: { type: String },
+        managementCompany: { type: String },
+        manager: { type: String },
+        lawFirm: { type: String },
+        lawyer: { type: String },
+      },
+    },
+    demographicPrivacy: {
+      type: String,
+      enum: ["searchable", "private"],
+      default: "searchable",
     },
     // Onboarding completion tracking
     onboardingComplete: { type: Boolean, default: false },
@@ -103,6 +154,7 @@ const userSchema = new mongoose.Schema({
 
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  profileViews: { type: Number, default: 0 },
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   // Smart Match preferences
   preferences: {
