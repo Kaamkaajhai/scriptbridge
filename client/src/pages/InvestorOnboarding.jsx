@@ -453,13 +453,13 @@ const InvestorOnboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f8faff] via-white to-[#f0f4ff] flex items-center justify-center p-4">
+    <div className="investor-onboarding-page min-h-screen bg-[#080e18] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="text-center mb-3">
           <div className="flex items-center justify-center mb-1">
-            <div className="w-20 h-20 bg-[#f8faff] rounded-xl flex items-center justify-center">
-              <Users className="text-black" size={40} strokeWidth={1.5} />
+            <div className="w-20 h-20 bg-[#0d1520] border border-[#1a2433] rounded-xl flex items-center justify-center shadow-lg shadow-black/25">
+              <Users className="text-white" size={40} strokeWidth={1.5} />
             </div>
           </div>
           <p className="text-sm text-gray-600">Producer/Director Onboarding</p>

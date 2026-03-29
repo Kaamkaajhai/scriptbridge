@@ -10,7 +10,6 @@ import homeImg2 from "../assets/home-img2.jpeg";
 import homeImg3 from "../assets/home-img3.jpeg";
 
 const FeaturesShowcase = lazy(() => import("../components/FeaturesShowcase"));
-const SuccessStories = lazy(() => import("../components/SuccessStories"));
 
 const contactReasons = [
   { value: "doubt", label: "I have a question / doubt", icon: HelpCircle },
@@ -242,6 +241,7 @@ const ContactSection = () => {
 const Landing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showInvestorReviewPopup, setShowInvestorReviewPopup] = useState(false);
+  const [activeProcessStep, setActiveProcessStep] = useState(0);
   const { user } = useContext(AuthContext);
 
   const reviewStatus = useMemo(() => {
@@ -260,12 +260,119 @@ const Landing = () => {
     }
   }, [reviewStatus]);
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setActiveProcessStep((prev) => (prev + 1) % 4);
+    }, 2200);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const closeInvestorReviewPopup = () => {
     setShowInvestorReviewPopup(false);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("investorReview");
     nextParams.delete("note");
     setSearchParams(nextParams, { replace: true });
+  };
+
+  const processSteps = [
+    {
+      step: "01",
+      stage: "Submission",
+      title: "Upload Your Script",
+      desc: "Present your concept with a concise summary, key details, and genre metadata.",
+      shortDesc: "Share your concept with key details and genre.",
+      note: "Clear start",
+      icon: PenLine
+    },
+    {
+      step: "02",
+      stage: "AI Visualization",
+      title: "AI Creates Trailer",
+      desc: "Generate a sharp 30-second visual trailer that communicates tone and premise quickly.",
+      shortDesc: "Generate a quick visual trailer for tone and premise.",
+      note: "Quick clarity",
+      icon: Film
+    },
+    {
+      step: "03",
+      stage: "Matching",
+      title: "Get Smart Matched",
+      desc: "Our algorithm prioritizes relevant producers and investors based on creative fit.",
+      shortDesc: "Get matched with relevant producers and investors.",
+      note: "Right-fit discovery",
+      icon: Users
+    },
+    {
+      step: "04",
+      stage: "Monetization",
+      title: "Unlock & Earn",
+      desc: "Buyers unlock full scripts, and creators receive fast, transparent payouts.",
+      shortDesc: "Buyers unlock scripts and creators receive payouts.",
+      note: "Transparent payout",
+      icon: TrendingUp
+    }
+  ];
+
+  const desktopProcessPositions = [
+    "left-0 top-1/2 -translate-y-1/2",
+    "left-1/2 top-0 -translate-x-1/2",
+    "right-0 top-1/2 -translate-y-1/2",
+    "left-1/2 bottom-0 -translate-x-1/2",
+  ];
+
+  const renderProcessCard = (item, index, extraClassName = "", variant = "default") => {
+    const isActive = index === activeProcessStep;
+    const compact = variant === "compact";
+    const descText = compact ? (item.shortDesc || item.desc) : item.desc;
+
+    return (
+      <motion.article
+        key={item.step}
+        initial={{ opacity: 0, y: 10 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        whileHover={{ y: -3 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.4, delay: index * 0.08 }}
+        onClick={() => setActiveProcessStep(index)}
+        className={`group relative overflow-hidden cursor-pointer transition-all duration-300 ${compact ? "rounded-xl p-3.5" : "rounded-2xl p-5 sm:p-6"} ${isActive
+          ? "border border-[#4d77a3] bg-[#13263d] shadow-[0_14px_34px_rgba(8,22,42,0.45)]"
+          : "border border-[#223a56] bg-[#102034] hover:border-[#365779] hover:bg-[#11243b]"
+        } ${extraClassName}`}
+      >
+        <div className={`absolute inset-x-0 top-0 h-0.5 ${isActive ? "bg-[#8cb3d8]" : "bg-transparent"}`} />
+
+        <div className={`flex items-center justify-between ${compact ? "mb-3" : "mb-5"}`}>
+          <span className={`${compact ? "text-xl" : "text-2xl"} font-bold leading-none ${isActive ? "text-[#c2d5eb]" : "text-[#a8bbd3]"}`}>{item.step}</span>
+          <span className={`inline-flex items-center rounded-full ${compact ? "px-2.5 py-0.5 text-[9px]" : "px-3 py-1 text-[10px]"} font-semibold tracking-[0.12em] uppercase ${isActive
+            ? "border border-[#4a739e] bg-[#173150] text-[#d1e0ef]"
+            : "border border-[#2b4562] bg-[#0d1a2c] text-[#9cb1cc]"
+          }`}>
+            {item.stage}
+          </span>
+        </div>
+
+        <div className={`${compact ? "w-8 h-8 mb-3" : "w-10 h-10 mb-4"} rounded-lg flex items-center justify-center ${isActive
+          ? "border border-[#4a739e] bg-[#173150]"
+          : "border border-[#284463] bg-[#14263d]"
+        }`}>
+          <item.icon className={`${compact ? "w-4 h-4" : "w-5 h-5"} ${isActive ? "text-[#d3e2f2]" : "text-[#a7bdd7]"}`} />
+        </div>
+
+        <h3 className={`${compact ? "text-base mb-1.5" : "text-lg mb-2"} font-bold text-white tracking-tight`}>{item.title}</h3>
+        <p className={`${compact ? "text-xs" : "text-sm"} text-[#94a9c3] leading-relaxed`}>{descText}</p>
+
+        {!compact && (
+          <div className="mt-4 pt-4 border-t border-[#22374f]">
+            <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#9fb5d0]">
+              <Clock3 className="w-3.5 h-3.5" />
+              {item.note}
+            </p>
+          </div>
+        )}
+      </motion.article>
+    );
   };
 
   return (
@@ -357,106 +464,82 @@ const Landing = () => {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-8 lg:gap-12 items-center">
-            <div className="max-w-3xl pt-10 sm:pt-14 md:pt-24">
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.4 }}
-                className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-5"
-              >
-                The Future of Script Discovery
-              </motion.p>
+      <section className="relative pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6 min-h-[76vh] flex items-center overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src={homeImg1}
+            alt="Landing visual showcase"
+            className="w-full h-full object-cover"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#050c18]/92 via-[#07111f]/85 to-[#07111f]/62" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#050c18]/70 via-transparent to-[#050c18]/25" />
+        </div>
 
-              <motion.h1
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 sm:mb-6 tracking-tight"
-              >
-                Your Ideas Deserve
-                <br />
-                <span className="text-gray-400">More Than Rejection</span>
-              </motion.h1>
+        <div className="relative z-10 max-w-6xl mx-auto w-full">
+          <div className="max-w-3xl pt-10 sm:pt-14 md:pt-24">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4 }}
+              className="text-gray-300 text-sm font-semibold tracking-wide uppercase mb-5"
+            >
+              The Future of Script Discovery
+            </motion.p>
 
-              <motion.p
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="text-base sm:text-lg text-[#8896a7] leading-relaxed mb-8 sm:mb-10 max-w-xl"
-              >
-                Ckript connects brilliant creators with producers, directors, and investors who are actively searching for your next big idea. Publish, visualize, and monetize your scripts like never before.
-              </motion.p>
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] mb-5 sm:mb-6 tracking-tight text-white"
+            >
+              Your Ideas Deserve
+              <br />
+              <span className="text-gray-300">More Than Rejection</span>
+            </motion.h1>
 
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="flex flex-col sm:flex-row gap-3 sm:gap-4"
-              >
-                <Link
-                  to="/writer-onboarding"
-                  className="w-full sm:w-auto justify-center px-7 py-3.5 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg font-semibold text-sm transition-colors flex items-center gap-2"
-                >
-                  Sign Up as Creator
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  to="/producer-director-onboarding"
-                  className="w-full sm:w-auto text-center px-7 py-3.5 bg-transparent border border-[#1c2a3a] hover:border-[#2a3a4e] text-[#8896a7] hover:text-white rounded-lg font-semibold text-sm transition-colors"
-                >
-                  Sign Up as Producer
-                </Link>
-              </motion.div>
-            </div>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-base sm:text-lg text-[#d1d8e2] leading-relaxed mb-8 sm:mb-10 max-w-xl"
+            >
+              Ckript connects brilliant creators with producers, directors, and investors who are actively searching for your next big idea. Publish, visualize, and monetize your scripts like never before.
+            </motion.p>
 
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.2 }}
-              className="relative lg:mt-20"
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4"
             >
-              <div className="absolute -top-8 -left-6 h-28 w-28 rounded-full bg-[#4f6379]/25 blur-2xl" />
-              <div className="absolute -bottom-10 -right-6 h-36 w-36 rounded-full bg-[#28374b]/40 blur-2xl" />
-              <div className="relative rounded-2xl bg-[#0d1520] p-2 sm:p-3 shadow-[0_20px_50px_rgba(0,0,0,0.45)]">
-                <img
-                  src={homeImg1}
-                  alt="Landing visual showcase"
-                  className="w-full h-[320px] sm:h-[420px] object-cover rounded-xl"
-                  loading="eager"
-                />
-              </div>
+              <Link
+                to="/writer-onboarding"
+                className="w-full sm:w-auto justify-center px-7 py-3.5 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg font-semibold text-sm transition-colors flex items-center gap-2"
+              >
+                Sign Up as Creator
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/producer-director-onboarding"
+                className="w-full sm:w-auto text-center px-7 py-3.5 bg-transparent border border-[#8896a7]/45 hover:border-[#c5ceda]/70 text-[#e5ebf4] hover:text-white rounded-lg font-semibold text-sm transition-colors backdrop-blur-[2px]"
+              >
+                Sign Up as Producer
+              </Link>
             </motion.div>
           </div>
-
         </div>
       </section>
 
       {/* ── Problem & Solution ── */}
       <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#0a1221]">
         <div className="max-w-6xl mx-auto">
-          {/* heading — left aligned */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="max-w-2xl mb-16"
-          >
-            <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Industry Friction</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight">
-              The Problem We Solve
-            </h2>
-          </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.45 }}
-            className="mb-8 rounded-2xl overflow-hidden bg-[#0d1520]"
+            className="mb-8 sm:mb-9 rounded-3xl overflow-hidden border border-[#1f3148] bg-[#0d1520]"
           >
             <div className="relative">
               <img
@@ -465,74 +548,103 @@ const Landing = () => {
                 className="w-full h-60 sm:h-72 lg:h-80 object-cover"
                 loading="lazy"
               />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a1221]/55 via-transparent to-transparent" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a1221]/82 via-[#0a1221]/58 to-[#0a1221]/42" />
+
+              <div className="absolute inset-0 flex items-center justify-center px-4 sm:px-6">
+                <div className="text-center max-w-3xl">
+                  <p className="text-[11px] sm:text-xs font-semibold tracking-[0.16em] uppercase text-[#c3d0e1] mb-2">
+                    Industry Friction
+                  </p>
+                  <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight">
+                    The Problem We Solve
+                  </h2>
+                </div>
+              </div>
             </div>
           </motion.div>
 
           {/* Two problem cards */}
-          <div className="grid md:grid-cols-2 gap-4 sm:gap-5 mb-6">
+          <div className="grid md:grid-cols-2 gap-5 sm:gap-6 md:gap-0 mb-2 sm:mb-3 md:mb-0 md:relative md:z-40">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -2 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-5 sm:p-7"
+              className="rounded-2xl border border-[#22354d] bg-[#0d1a2c] p-5 sm:p-6 flex flex-col h-full md:relative md:z-40 md:mr-[-26px] md:translate-y-2 md:rotate-[-0.4deg]"
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center shrink-0">
-                  <PenLine className="w-[18px] h-[18px] text-[#8896a7]" />
+              <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                <div className="w-10 h-10 rounded-xl bg-[#15243a] border border-[#2a3f5a] flex items-center justify-center shrink-0">
+                  <PenLine className="w-[17px] h-[17px] text-[#9fb2ca]" />
                 </div>
                 <div>
 
-                  <h3 className="text-lg font-bold text-white">For Creators</h3>
+                  <h3 className="text-xl sm:text-[1.4rem] font-bold text-white tracking-tight">For Creators</h3>
                 </div>
               </div>
 
-              <ul className="space-y-3.5">
+              <ul className="space-y-3">
                 {[
                   "Brilliant ideas stuck without capital or connections",
                   "No path to reach producers, directors, and investors",
                   "Endless rejection from traditional gatekeepers",
                   "Stories remain dormant and undiscovered forever",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-[#8896a7] leading-snug">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2a3a4e] shrink-0" />
+                  <li key={i} className="flex items-start gap-3 text-sm sm:text-[0.98rem] text-[#95a8c1] leading-snug">
+                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#304966] shrink-0" />
                     {item}
                   </li>
                 ))}
               </ul>
+
+              <Link
+                to="/writer-onboarding"
+                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#080e18] transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-200"
+              >
+                Start as Creator
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -2 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-5 sm:p-7"
+              className="rounded-2xl border border-[#22354d] bg-[#0d1a2c] p-5 sm:p-6 flex flex-col h-full md:relative md:z-50 md:ml-[-26px] md:rotate-[0.45deg]"
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-[18px] h-[18px] text-[#8896a7]" />
+              <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                <div className="w-10 h-10 rounded-xl bg-[#15243a] border border-[#2a3f5a] flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-[17px] h-[17px] text-[#9fb2ca]" />
                 </div>
                 <div>
 
-                  <h3 className="text-lg font-bold text-white">For Industry Professionals</h3>
+                  <h3 className="text-xl sm:text-[1.4rem] font-bold text-white tracking-tight">For Industry Professionals</h3>
                 </div>
               </div>
 
-              <ul className="space-y-3.5">
+              <ul className="space-y-3">
                 {[
                   "Drowning in unfiltered submissions with no smart search",
                   "Impossible to find fresh, genre-specific content fast",
                   "No way to preview talent before committing resources",
                   "Expensive, slow, and painfully manual discovery process",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-[#8896a7] leading-snug">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2a3a4e] shrink-0" />
+                  <li key={i} className="flex items-start gap-3 text-sm sm:text-[0.98rem] text-[#95a8c1] leading-snug">
+                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#304966] shrink-0" />
                     {item}
                   </li>
                 ))}
               </ul>
+
+              <Link
+                to="/producer-director-onboarding"
+                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#080e18] transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-200"
+              >
+                Start as Industry Professional
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </motion.div>
           </div>
 
@@ -540,17 +652,20 @@ const Landing = () => {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             whileInView={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -2 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="rounded-xl border border-gray-400/15 bg-[#0d1520] p-8 sm:p-10"
+            className="relative z-20 mt-2 sm:mt-3 md:-mt-5 lg:-mt-6 md:mx-10 lg:mx-16 rounded-2xl overflow-hidden border border-[#2a3f5b] bg-[linear-gradient(145deg,#101f34_0%,#0e1a2b_58%,#0b1626_100%)] p-5 sm:p-7 md:pt-12 md:rotate-[-0.2deg] shadow-[0_14px_32px_rgba(4,12,24,0.32)]"
           >
-            <div className="grid md:grid-cols-[auto_1fr] gap-6 items-start">
-              <div className="w-12 h-12 rounded-lg bg-gray-400/10 flex items-center justify-center shrink-0">
-                <Zap className="w-5 h-5 text-gray-400" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#7f9fc3]/55 to-transparent" />
+
+            <div className="grid md:grid-cols-[auto_1fr] gap-6 sm:gap-7 items-start">
+              <div className="w-12 h-12 rounded-xl bg-[#172842] border border-[#304965] flex items-center justify-center shrink-0">
+                <Zap className="w-5 h-5 text-[#a9bdd8]" />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-white mb-3">The Ckript Solution</h3>
-                <p className="text-[#8896a7] text-base leading-relaxed mb-6 max-w-2xl">
+                <h3 className="text-2xl sm:text-[1.85rem] font-bold text-white mb-3 tracking-tight">The Ckript Solution</h3>
+                <p className="text-[#9db0c7] text-sm sm:text-base leading-relaxed mb-5 max-w-3xl">
                   Ckript eliminates friction between creative talent and industry decision-makers.
                   Scripts come to life through{" "}
                   <span className="text-white font-medium">AI-generated visual trailers</span>, surface to the right buyers via{" "}
@@ -564,12 +679,20 @@ const Landing = () => {
                     { icon: <Users className="w-3.5 h-3.5" />, label: "Direct Industry Access" },
                     { icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Real-time Analytics" },
                   ].map((f, i) => (
-                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#151f2e] text-xs font-medium text-[#8896a7]">
-                      <span className="text-gray-400">{f.icon}</span>
+                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#2f4764] bg-[#13243a] text-xs font-medium text-[#afc0d5]">
+                      <span className="text-[#98adc8]">{f.icon}</span>
                       {f.label}
                     </span>
                   ))}
                 </div>
+
+                <Link
+                  to="/join"
+                  className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#080e18] transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-200"
+                >
+                  Get Started on Ckript
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
               </div>
             </div>
           </motion.div>
@@ -581,164 +704,129 @@ const Landing = () => {
         <FeaturesShowcase />
       </Suspense>
 
-      {/* ── Success Stories ── */}
-      <Suspense fallback={<section className="py-20 px-6 bg-[#0a1221]" aria-label="Loading stories" />}>
-        <SuccessStories />
-      </Suspense>
-
       {/* ── How it Works ── */}
-      <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#0a1221]">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,560px)] gap-8 lg:gap-12 items-center mb-12 sm:mb-14">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="max-w-2xl"
-            >
-              <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Process</p>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-                How It Works in 4 Simple Steps
-              </h2>
-              <p className="mt-4 text-base text-[#8896a7] leading-relaxed max-w-xl">
-                A clearly defined flow from script submission to revenue. Every step is designed to reduce friction,
-                speed up discovery, and improve decision quality for both creators and buyers.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: 0.1 }}
-              className="rounded-2xl overflow-hidden bg-[#0d1520] shadow-[0_24px_60px_rgba(2,8,20,0.55)]"
-            >
-              <img
-                src={homeImg3}
-                alt="How it works visual"
-                className="w-full h-56 sm:h-64 lg:h-80 object-cover"
-                loading="lazy"
-              />
-            </motion.div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {[
-              {
-                step: "01",
-                stage: "Submission",
-                title: "Upload Your Script",
-                desc: "Present your concept with a concise summary, key details, and genre metadata.",
-                icon: PenLine
-              },
-              {
-                step: "02",
-                stage: "AI Visualization",
-                title: "AI Creates Trailer",
-                desc: "Generate a sharp 30-second visual trailer that communicates tone and premise quickly.",
-                icon: Film
-              },
-              {
-                step: "03",
-                stage: "Matching",
-                title: "Get Smart Matched",
-                desc: "Our algorithm prioritizes relevant producers and investors based on creative fit.",
-                icon: Users
-              },
-              {
-                step: "04",
-                stage: "Monetization",
-                title: "Unlock & Earn",
-                desc: "Buyers unlock full scripts, and creators receive fast, transparent payouts.",
-                icon: TrendingUp
-              }
-            ].map((item, index) => (
-              <motion.article
-                key={index}
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.08 }}
-                className="group relative overflow-hidden rounded-2xl border border-[#1c2a3a] bg-[#0d1520] p-5 sm:p-6 hover:border-[#2a3a4e] transition-colors"
-              >
-                <div className="flex items-center justify-between mb-5">
-                  <span className="text-gray-400 text-2xl font-bold leading-none">{item.step}</span>
-                  <span className="inline-flex items-center rounded-full border border-[#2a3a4e] px-3 py-1 text-[10px] font-semibold tracking-[0.12em] uppercase text-[#8896a7]">
-                    {item.stage}
-                  </span>
-                </div>
-                <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center mb-4">
-                  <item.icon className="w-5 h-5 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
-                <p className="text-sm text-[#8896a7] leading-relaxed">{item.desc}</p>
-              </motion.article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── For All User Types ── */}
-      <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#080e18]">
+      <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 border-y border-[#152a42] bg-[linear-gradient(180deg,#0b1422_0%,#0d1829_100%)]">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-16"
+            className="max-w-3xl mx-auto text-center"
           >
-            <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Built for you</p>
+            <p className="text-[#9fb2cb] text-sm font-semibold tracking-wide uppercase mb-3">Process</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              For Everyone on the Creative Spectrum
+              How It Works in 4 Simple Steps
             </h2>
           </motion.div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {[
-              {
-                icon: PenLine,
-                role: "Writers & Creators",
-                desc: "Publish, protect, and profit from your scripts.",
-                benefits: ["Publish with AI-generated trailers", "Earn 100% on unlock fees", "Get Pro Analysis reports", "Smart matching with producers"]
-              },
-              {
-                icon: Film,
-                role: "Producers & Directors",
-                desc: "Find production-ready scripts and talent fast.",
-                benefits: ["Browse visual trailers", "AI-matched scripts to your style", "Direct creator collaboration", "Streamlined option workflow"]
-              },
-              {
-                icon: BookOpen,
-                role: "Readers",
-                desc: "Discover and evaluate compelling stories.",
-                benefits: ["Deliver in-depth coverage reports", "Explore content you prefer", "Bookmark favorite stories", "Discover fresh interests"]
-              }
-            ].map((user, index) => (
+          <div className="mt-10 sm:mt-12">
+            <div className="hidden xl:block relative h-[760px]">
               <motion.div
-                key={index}
+                initial={{ opacity: 0, scale: 0.98 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45 }}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] rounded-2xl overflow-hidden border border-[#223c57] bg-[#0f1d30] shadow-[0_16px_38px_rgba(4,12,24,0.34)]"
+              >
+                <img
+                  src={homeImg3}
+                  alt="How it works visual"
+                  className="w-full h-[360px] object-cover"
+                  loading="lazy"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#081120]/58 via-transparent to-transparent" />
+                <p className="absolute left-1/2 -translate-x-1/2 bottom-4 rounded-full border border-[#2a435f] bg-[#0b182a]/90 px-3 py-1 text-[11px] font-semibold text-[#b7c8dc] whitespace-nowrap">
+                  Structured flow, step by step
+                </p>
+              </motion.div>
+
+              {processSteps.map((item, index) => (
+                <div
+                  key={item.step}
+                  className={`absolute ${desktopProcessPositions[index]} ${index === 1 || index === 3 ? "w-[340px]" : "w-[320px]"}`}
+                >
+                  {renderProcessCard(item, index)}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden md:block xl:hidden relative h-[620px] lg:h-[700px]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45 }}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] lg:w-[520px] rounded-2xl overflow-hidden border border-[#223c57] bg-[#0f1d30] shadow-[0_16px_38px_rgba(4,12,24,0.34)]"
+              >
+                <img
+                  src={homeImg3}
+                  alt="How it works visual"
+                  className="w-full h-[250px] lg:h-[310px] object-cover"
+                  loading="lazy"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#081120]/58 via-transparent to-transparent" />
+              </motion.div>
+
+              {processSteps.map((item, index) => (
+                <div
+                  key={item.step}
+                  className={`absolute ${desktopProcessPositions[index]} ${index === 1 || index === 3 ? "w-[300px] lg:w-[320px]" : "w-[230px] lg:w-[260px]"}`}
+                >
+                  {renderProcessCard(item, index)}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden min-[400px]:max-[767px]:block relative h-[560px] min-[640px]:h-[620px]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45 }}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] min-[640px]:w-[360px] rounded-xl overflow-hidden border border-[#223c57] bg-[#0f1d30] shadow-[0_14px_28px_rgba(4,12,24,0.32)]"
+              >
+                <img
+                  src={homeImg3}
+                  alt="How it works visual"
+                  className="w-full h-[190px] min-[640px]:h-[220px] object-cover"
+                  loading="lazy"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#081120]/58 via-transparent to-transparent" />
+              </motion.div>
+
+              {processSteps.map((item, index) => (
+                <div
+                  key={item.step}
+                  className={`absolute ${desktopProcessPositions[index]} ${index === 1 || index === 3 ? "w-[250px] min-[640px]:w-[280px]" : "w-[180px] min-[640px]:w-[220px]"}`}
+                >
+                  {renderProcessCard(item, index, "", "compact")}
+                </div>
+              ))}
+            </div>
+
+            <div className="max-[399px]:block hidden space-y-5">
+              <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.08 }}
-                className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-5 sm:p-7 hover:border-[#2a3a4e] transition-colors"
+                transition={{ duration: 0.45 }}
+                className="relative max-w-3xl mx-auto rounded-2xl overflow-hidden border border-[#223c57] bg-[#0f1d30] shadow-[0_16px_38px_rgba(4,12,24,0.34)]"
               >
-                <div className="w-10 h-10 rounded-lg bg-[#151f2e] flex items-center justify-center mb-5">
-                  <user.icon className="w-[18px] h-[18px] text-gray-400" />
-                </div>
-                <h3 className="text-lg font-bold text-white mb-1">{user.role}</h3>
-                <p className="text-sm text-[#4a5a6e] mb-5">{user.desc}</p>
-                <ul className="space-y-3">
-                  {user.benefits.map((benefit, idx) => (
-                    <li key={idx} className="flex gap-2.5 text-sm text-[#8896a7]">
-                      <CheckCircle className="w-4 h-4 text-gray-400/60 shrink-0 mt-0.5" />
-                      {benefit}
-                    </li>
-                  ))}
-                </ul>
+                <img
+                  src={homeImg3}
+                  alt="How it works visual"
+                  className="w-full h-56 sm:h-64 object-cover"
+                  loading="lazy"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#081120]/58 via-transparent to-transparent" />
               </motion.div>
-            ))}
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                {processSteps.map((item, index) => renderProcessCard(item, index))}
+              </div>
+            </div>
+
           </div>
         </div>
       </section>

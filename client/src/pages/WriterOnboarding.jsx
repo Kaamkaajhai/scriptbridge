@@ -1461,12 +1461,12 @@ const WriterOnboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] pt-2 pb-8 px-3 sm:px-4">
+    <div className="writer-onboarding-page min-h-screen bg-[#080e18] pt-2 pb-8 px-3 sm:px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-3">
           <div className="flex items-center justify-center mb-1">
-            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#f0f4f8] rounded-xl flex items-center justify-center">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0d1520] border border-[#1a2433] rounded-xl flex items-center justify-center shadow-lg shadow-black/25">
               <FileText className="text-black" size={32} strokeWidth={1.5} />
             </div>
           </div>
