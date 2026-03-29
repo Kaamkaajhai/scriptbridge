@@ -1,6 +1,19 @@
 import { useMemo, useState } from "react";
-import { Share2, X, Copy, Check, ExternalLink } from "lucide-react";
+import {
+  Share2,
+  X,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
+import whatsappIcon from "../assets/share-icons/whatsapp.svg";
+import linkedinIcon from "../assets/share-icons/linkedin.svg";
+import instagramIcon from "../assets/share-icons/instagram.svg";
+import xIcon from "../assets/share-icons/x.svg";
+import facebookIcon from "../assets/share-icons/facebook.svg";
+import telegramIcon from "../assets/share-icons/telegram.svg";
+import emailIcon from "../assets/share-icons/email.svg";
 
 const encode = (value) => encodeURIComponent(value || "");
 
@@ -45,6 +58,51 @@ const buildPlatformLinks = ({ url, title, text }) => {
       openDirect: true,
     },
   ];
+};
+
+const getPlatformBrand = (id) => {
+  switch (id) {
+    case "whatsapp":
+      return {
+        iconSrc: whatsappIcon,
+        badgeClass: "bg-[#25D366]/12 border-[#25D366]/30",
+      };
+    case "linkedin":
+      return {
+        iconSrc: linkedinIcon,
+        badgeClass: "bg-[#0A66C2]/12 border-[#0A66C2]/30",
+      };
+    case "instagram":
+      return {
+        iconSrc: instagramIcon,
+        badgeClass: "bg-[#E1306C]/12 border-[#E1306C]/30",
+      };
+    case "x":
+      return {
+        iconSrc: xIcon,
+        badgeClass: "bg-slate-500/12 border-slate-400/25",
+      };
+    case "facebook":
+      return {
+        iconSrc: facebookIcon,
+        badgeClass: "bg-[#1877F2]/12 border-[#1877F2]/30",
+      };
+    case "telegram":
+      return {
+        iconSrc: telegramIcon,
+        badgeClass: "bg-[#229ED9]/12 border-[#229ED9]/30",
+      };
+    case "email":
+      return {
+        iconSrc: emailIcon,
+        badgeClass: "bg-amber-500/12 border-amber-400/30",
+      };
+    default:
+      return {
+        iconSrc: emailIcon,
+        badgeClass: "bg-gray-400/12 border-gray-300/30",
+      };
+  }
 };
 
 const safeClipboardWrite = async (value) => {
@@ -101,6 +159,20 @@ const SocialShareButton = ({
     }
   };
 
+  const tryNativeShare = async () => {
+    if (!canNativeShare) return false;
+    try {
+      await navigator.share({
+        title,
+        text: text || title,
+        url,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCopy = async () => {
     const ok = await safeClipboardWrite(url);
     if (!ok) {
@@ -119,16 +191,37 @@ const SocialShareButton = ({
       return;
     }
 
-    try {
-      await navigator.share({ title, text, url });
+    const nativeShared = await tryNativeShare();
+    if (nativeShared) {
       markShared("native");
       setInfoText("Shared.");
-    } catch {
-      // User cancelled native share.
+      return;
     }
+
+    // User cancelled native share, keep modal open.
   };
 
   const handlePlatform = async (platform) => {
+    if (platform.id === "instagram") {
+      const nativeShared = await tryNativeShare();
+      if (nativeShared) {
+        markShared("instagram-native");
+        setInfoText("Shared from your app chooser.");
+        return;
+      }
+
+      const copiedOk = await safeClipboardWrite(payloadText || url);
+      if (copiedOk) {
+        setInfoText("Instagram web cannot auto-post. Caption and link copied. Paste in Instagram.");
+      } else {
+        setInfoText("Instagram web cannot auto-post. Copy failed, please copy manually from below.");
+      }
+
+      window.open(platform.href, "_blank", "noopener,noreferrer,width=680,height=720");
+      markShared(platform.id);
+      return;
+    }
+
     if (platform.requiresCopy) {
       const copiedOk = await safeClipboardWrite(payloadText || url);
       if (copiedOk) {
@@ -191,17 +284,38 @@ const SocialShareButton = ({
             <div className="px-5 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-2.5">
                 {platforms.map((platform) => (
+                  (() => {
+                    const brand = getPlatformBrand(platform.id);
+                    return (
                   <button
                     key={platform.id}
                     type="button"
                     onClick={() => handlePlatform(platform)}
-                    className={`px-3.5 py-2.5 rounded-xl border text-sm font-semibold text-left transition inline-flex items-center justify-between ${dark ? "bg-white/[0.04] border-white/[0.08] text-white/80 hover:bg-white/[0.08]" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                    className={`px-3 py-2.5 rounded-xl border text-sm font-semibold text-left transition inline-flex items-center justify-between ${dark ? "bg-white/[0.04] border-white/[0.08] text-white/80 hover:bg-white/[0.08]" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
                   >
-                    <span>{platform.label}</span>
-                    <ExternalLink size={13} className={dark ? "text-white/45" : "text-gray-400"} />
+                    <span className="inline-flex items-center gap-2.5">
+                      <span className={`w-7 h-7 rounded-lg border inline-flex items-center justify-center ${brand.badgeClass}`}>
+                        <img src={brand.iconSrc} alt={`${platform.label} logo`} className="w-4 h-4" loading="lazy" />
+                      </span>
+                      <span>{platform.label}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      {platform.id === "instagram" && (
+                        <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${dark ? "bg-white/[0.08] text-white/65" : "bg-gray-200 text-gray-600"}`}>
+                          Copy
+                        </span>
+                      )}
+                      <ExternalLink size={13} className={dark ? "text-white/45" : "text-gray-400"} />
+                    </span>
                   </button>
+                    );
+                  })()
                 ))}
               </div>
+
+              <p className={`text-[11px] leading-relaxed ${dark ? "text-white/45" : "text-gray-500"}`}>
+                Instagram on desktop does not support direct auto-post from websites. Use the copied text/link when prompted.
+              </p>
 
               <div className={`rounded-xl border p-3 ${dark ? "border-white/[0.08] bg-[#0a111a]" : "border-gray-200 bg-gray-50"}`}>
                 <p className={`text-[11px] font-semibold mb-2 ${dark ? "text-white/45" : "text-gray-500"}`}>Direct options</p>
