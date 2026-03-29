@@ -831,7 +831,7 @@ const IndustryOnboarding = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e8eff5] py-8 px-4">
+    <div className="industry-onboarding-page min-h-screen bg-[#080e18] py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
