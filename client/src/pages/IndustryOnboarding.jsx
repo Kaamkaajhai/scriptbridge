@@ -10,6 +10,7 @@ import {
   CheckCircle, 
   ArrowRight, 
   ArrowLeft,
+  RotateCcw,
   Mail,
   Lock,
   User,
@@ -22,6 +23,14 @@ import BrandLogo from "../components/BrandLogo";
 const IndustryOnboarding = () => {
   const { join } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  const getDefaultMandates = () => ({
+    formats: [],
+    budgetTiers: [],
+    genres: [],
+    excludeGenres: [],
+    specificHooks: []
+  });
   
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -51,13 +60,7 @@ const IndustryOnboarding = () => {
   });
   
   // Step 3: Mandates (What they're looking for)
-  const [mandates, setMandates] = useState({
-    formats: [],
-    budgetTiers: [],
-    genres: [],
-    excludeGenres: [],
-    specificHooks: []
-  });
+  const [mandates, setMandates] = useState(getDefaultMandates);
 
   // Step 4: Legal
   const [agreementScrolled, setAgreementScrolled] = useState(false);
@@ -199,6 +202,11 @@ const IndustryOnboarding = () => {
   const handleMandatesSubmit = (e) => {
     e.preventDefault();
     setCurrentStep(4);
+  };
+
+  const handleResetMandates = () => {
+    setMandates(getDefaultMandates());
+    setError("");
   };
 
   const handleFinalSubmit = async (e) => {
@@ -721,6 +729,14 @@ const IndustryOnboarding = () => {
               >
                 <ArrowLeft size={20} />
                 Back
+              </button>
+              <button
+                type="button"
+                onClick={handleResetMandates}
+                className="px-6 py-2.5 border border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center gap-2"
+              >
+                <RotateCcw size={18} />
+                Reset
               </button>
               <button
                 type="submit"

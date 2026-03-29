@@ -7,6 +7,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
 import ReviewCard from "../components/ReviewCard";
+import SocialShareButton from "../components/SocialShareButton";
 
 /* ── Edit Profile Modal ─────────────────────────────── */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
@@ -366,6 +367,12 @@ const ReaderProfile = () => {
   const memberSince = profile.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
     : null;
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const readerShare = {
+    url: profile?.shareMeta?.url || (profile?._id ? `${browserOrigin}/reader/profile/${profile._id}` : ""),
+    title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | ScriptBridge`,
+    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on ScriptBridge.`,
+  };
 
   const tabs = [
     { key: "read", label: "Scripts Read", icon: BookOpen, count: profile.scriptsRead?.length || 0 },
@@ -431,8 +438,13 @@ const ReaderProfile = () => {
             </div>
 
             {/* Action Buttons */}
-            {isOwnProfile && (
-              <div className="flex shrink-0 justify-center sm:justify-start">
+            <div className="flex shrink-0 justify-center sm:justify-start gap-2">
+              <SocialShareButton
+                share={readerShare}
+                buttonLabel="Share"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
+              />
+              {isOwnProfile && (
                 <button
                   onClick={() => setEditOpen(true)}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
@@ -440,8 +452,8 @@ const ReaderProfile = () => {
                   <Pencil size={16} strokeWidth={2.5} />
                   Edit Profile
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Bio */}

@@ -418,6 +418,9 @@ export const approveScript = async (req, res) => {
 
         script.status = "published";
         script.adminApproved = true;
+        if (!script.publishedAt) {
+            script.publishedAt = new Date();
+        }
         script.rejectionReason = undefined;
 
         if (shouldAutoActivateSpotlight) {

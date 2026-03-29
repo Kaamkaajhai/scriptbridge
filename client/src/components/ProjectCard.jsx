@@ -5,6 +5,7 @@ import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
+import SocialShareButton from "./SocialShareButton";
 
 const FORMAT_LABEL = {
   feature: "Feature Film",
@@ -59,6 +60,17 @@ const ProjectCard = ({ project, userName }) => {
       || 0
   );
   const showVerifiedBadge = Boolean(project?.verifiedBadge || project?.promotion?.spotlightActive || hasSpotlightPurchase);
+  const isPublished = project?.status === "published";
+  const timelineDate = isPublished
+    ? (project?.publishedAt || project?.createdAt)
+    : project?.createdAt;
+  const timelineLabel = isPublished ? "Published" : "Uploaded";
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const projectShare = {
+    url: project?.shareMeta?.url || (project?._id ? `${browserOrigin}/script/${project._id}` : ""),
+    title: project?.shareMeta?.title || `${project?.title || "Project"} | ScriptBridge`,
+    text: project?.shareMeta?.text || (project?.logline || project?.synopsis || "Check out this project on ScriptBridge."),
+  };
 
   useEffect(() => {
     const ids = user?.favoriteScripts || [];
@@ -106,6 +118,17 @@ const ProjectCard = ({ project, userName }) => {
   };
 
   const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+
+  const fmtDateTime = (d) =>
+    d
+      ? new Date(d).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+      : "N/A";
 
   const handleCardClick = async () => {
     if (!isClickable) return;
@@ -252,6 +275,11 @@ const ProjectCard = ({ project, userName }) => {
             SID: {project.sid}
           </p>
         )}
+        {timelineDate && (
+          <p className={`mt-1 text-[10px] font-medium ${dark ? "text-[#5a6f85]" : "text-gray-500"}`}>
+            {timelineLabel}: {fmtDateTime(timelineDate)}
+          </p>
+        )}
 
         {/* Divider */}
         <div className={`my-3 h-px ${dark ? "bg-[#182535]" : "bg-gray-100"}`} />
@@ -316,6 +344,14 @@ const ProjectCard = ({ project, userName }) => {
             <span className={`text-[11px] font-semibold ${dark ? "text-[#68788a]" : "text-gray-500"}`}>{rating.toFixed(1)}</span>
           </div>
         )}
+
+        {/* Spacer */}
+        <SocialShareButton
+          share={projectShare}
+          iconOnly
+          buttonLabel="Share project"
+          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center shrink-0 border transition ${dark ? "bg-[#152030] border-[#223142] text-[#9cb0c4] hover:text-white hover:bg-[#1f3246]" : "bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"}`}
+        />
 
         {/* Spacer */}
         <div className="flex-1" />

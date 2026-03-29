@@ -58,7 +58,7 @@ const CreatorDashboard = ({ user, dark }) => {
         // Demo stats
         setStats({
           totalScripts: 3, totalEarnings: 450, totalUnlocks: 12, holdEarnings: 360,
-          totalViews: 1247, trailersGenerated: 2, scoredScripts: 3, avgScore: 84,
+          totalViews: 1247, profileViews: 1247, trailersGenerated: 2, scoredScripts: 3, avgScore: 84,
           auditionCount: 15, activeHolds: 1, scriptScoreCredits: 5, plan: "free",
         });
       }
@@ -83,7 +83,7 @@ const CreatorDashboard = ({ user, dark }) => {
   }
 
   const statCards = stats ? [
-    { label: "Total Views", value: stats.totalViews || 0 },
+    { label: "Profile Views", value: stats.profileViews ?? stats.totalViews ?? 0 },
     { label: "Earnings", value: `₹${stats.totalEarnings || 0}` },
 
     { label: "Unlocks", value: stats.totalUnlocks || 0 },
@@ -282,41 +282,6 @@ const CreatorDashboard = ({ user, dark }) => {
                 </div>
               </div>
 
-              {/* Script Breakdown */}
-              <div className={`border-t px-4 sm:px-6 py-4 ${dark ? 'border-[#1c2a3a]' : 'border-gray-100'}`}>
-                <p className={`text-[11px] font-bold uppercase tracking-wider mb-3 ${dark ? 'text-[#2a3a4e]' : 'text-gray-400'}`}>Breakdown</p>
-                <div className="space-y-2.5">
-                  {chartData.slice(0, 5).map((s, i) => {
-                    const pct = totalViews > 0 ? Math.round((s.views / totalViews) * 100) : 0;
-                    return (
-                      <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 + i * 0.05 }}
-                        className="flex items-center gap-3"
-                      >
-                        <span className="text-[11px] font-bold text-gray-300 w-4 text-right tabular-nums">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[13px] font-semibold truncate ${dark ? 'text-[#8896a7]' : 'text-gray-700'}`}>{s.fullName}</span>
-                            <div className="flex items-center gap-2 ml-3 shrink-0">
-                              <span className={`text-[12px] font-bold tabular-nums ${dark ? 'text-white' : 'text-gray-900'}`}>{s.views.toLocaleString()}</span>
-                              <span className={`text-[10px] font-medium tabular-nums w-7 text-right ${dark ? 'text-[#2a3a4e]' : 'text-gray-400'}`}>{pct}%</span>
-                            </div>
-                          </div>
-                          <div className={`h-[3px] rounded-full overflow-hidden ${dark ? 'bg-[#1c2a3a]' : 'bg-gray-100'}`}>
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${pct}%` }}
-                              transition={{ duration: 0.7, delay: 0.4 + i * 0.06 }}
-                              className="h-full rounded-full"
-                              style={{ backgroundColor: i === 0 ? "#1e3a5f" : i <= 2 ? "#4a6d8c" : "#a8c4d8" }}
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
             </motion.div>
           );
         })()}

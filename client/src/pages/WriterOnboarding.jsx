@@ -417,7 +417,18 @@ const WriterOnboarding = () => {
     setLoading(true);
     
     try {
-      const response = await api.put("/onboarding/writer-profile", writerProfile);
+      const response = await api.put("/onboarding/writer-profile", {
+        ...writerProfile,
+        dateOfBirth: accountData.dateOfBirth,
+        phone: accountData.phone,
+        address: {
+          street: addressFields.street,
+          city: addressFields.city,
+          state: addressFields.state,
+          zipCode: addressFields.zipCode,
+          formatted: `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
+        },
+      });
       
       if (response.data.success) {
         setCurrentStep(3); // Move to tags step
