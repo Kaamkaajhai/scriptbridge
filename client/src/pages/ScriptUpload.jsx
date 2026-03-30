@@ -15,6 +15,15 @@ const formats = [
   { value: "tv_1hour", label: "TV 1hr" },
   { value: "tv_halfhour", label: "TV 1/2hr" },
   { value: "short", label: "Short" },
+  { value: "web_series", label: "Web Series" },
+  { value: "drama_school", label: "Drama School" },
+  { value: "anime", label: "Anime" },
+  { value: "movie", label: "Movie" },
+  { value: "tv_serial", label: "TV Serial" },
+  { value: "cartoon", label: "Cartoon" },
+  { value: "limited_series", label: "Limited Series" },
+  { value: "documentary", label: "Documentary" },
+  { value: "other", label: "Other" },
 ];
 
 const FORMAT_PAGE_RANGES = {
@@ -22,6 +31,15 @@ const FORMAT_PAGE_RANGES = {
   tv_1hour: { min: 45, max: 75, typical: "50-65", label: "TV 1-Hour" },
   tv_halfhour: { min: 22, max: 45, typical: "25-35", label: "TV Half-Hour" },
   short: { min: 1, max: 40, typical: "5-25", label: "Short" },
+  web_series: { min: 20, max: 80, typical: "25-45", label: "Web Series" },
+  drama_school: { min: 10, max: 60, typical: "15-35", label: "Drama School" },
+  anime: { min: 18, max: 65, typical: "22-45", label: "Anime" },
+  movie: { min: 70, max: 180, typical: "90-120", label: "Movie" },
+  tv_serial: { min: 18, max: 50, typical: "20-35", label: "TV Serial" },
+  cartoon: { min: 7, max: 45, typical: "10-25", label: "Cartoon" },
+  limited_series: { min: 45, max: 75, typical: "50-65", label: "Limited Series" },
+  documentary: { min: 60, max: 120, typical: "70-100", label: "Documentary" },
+  other: { min: 1, max: 250, typical: "Varies", label: "Other" },
 };
 
 const getPageCountWarning = (format, pageCountValue) => {
@@ -214,6 +232,7 @@ const ScriptUpload = () => {
   const [formData, setFormData] = useState({
     title: "",
     format: "feature",
+    formatOther: "",
     pageCount: "",
     primaryGenre: "",
     logline: "",
@@ -259,6 +278,15 @@ const ScriptUpload = () => {
     tv_1hour:     { label: "TV 1-Hour",     min: 10, max: 30, suggest: 15 },
     tv_halfhour:  { label: "TV Half-Hour",  min: 5,  max: 20, suggest: 10 },
     short:        { label: "Short Film",    min: 5,  max: 15, suggest: 5  },
+    web_series:   { label: "Web Series",    min: 8,  max: 35, suggest: 15 },
+    drama_school: { label: "Drama School",  min: 5,  max: 20, suggest: 10 },
+    anime:        { label: "Anime",         min: 8,  max: 35, suggest: 15 },
+    movie:        { label: "Movie",         min: 15, max: 50, suggest: 25 },
+    tv_serial:    { label: "TV Serial",     min: 5,  max: 25, suggest: 10 },
+    cartoon:      { label: "Cartoon",       min: 5,  max: 20, suggest: 10 },
+    limited_series:{ label: "Limited Series", min: 10, max: 35, suggest: 15 },
+    documentary:  { label: "Documentary",   min: 10, max: 40, suggest: 20 },
+    other:        { label: "Other",         min: 5,  max: 50, suggest: 10 },
   };
 
   // Fetch credits balance on mount
@@ -287,6 +315,7 @@ const ScriptUpload = () => {
           title: data.title || "",
           logline: data.logline || "",
           format: data.format || "feature",
+          formatOther: data.formatOther || "",
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || data.genre || "",
           synopsis: data.synopsis || data.description || "",
@@ -336,6 +365,7 @@ const ScriptUpload = () => {
           title: data.title || "",
           logline: data.logline || "",
           format: data.format || "feature",
+          formatOther: data.formatOther || "",
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || "",
           synopsis: data.synopsis || data.description || "",
@@ -363,7 +393,17 @@ const ScriptUpload = () => {
   // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      if (name === "format") {
+        return {
+          ...prev,
+          format: value,
+          formatOther: value === "other" ? prev.formatOther : "",
+        };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   const addRole = () => {
@@ -709,6 +749,10 @@ const ScriptUpload = () => {
           setError("Format is required.");
           return false;
         }
+        if (formData.format === "other" && !String(formData.formatOther || "").trim()) {
+          setError("Please specify the format when selecting Other.");
+          return false;
+        }
         if (!formData.pageCount || Number(formData.pageCount) <= 0) {
           setError("Page count is required.");
           return false;
@@ -790,6 +834,7 @@ const ScriptUpload = () => {
         logline: formData.logline,
         synopsis: formData.synopsis,
         format: formData.format,
+        formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: Number(formData.pageCount) || 0,
         textContent: textContent,
         roles: roles
@@ -854,6 +899,7 @@ const ScriptUpload = () => {
         synopsis: formData.synopsis,
         description: formData.synopsis,
         format: formData.format,
+        formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: Number(formData.pageCount),
         textContent: textContent,
         roles: roles
@@ -1117,6 +1163,17 @@ const ScriptUpload = () => {
                           </option>
                         ))}
                       </select>
+                      {formData.format === "other" && (
+                        <input
+                          type="text"
+                          name="formatOther"
+                          value={formData.formatOther}
+                          onChange={handleChange}
+                          required
+                          placeholder="Please specify format"
+                          className={`${inputCls} mt-2`}
+                        />
+                      )}
                     </div>
 
                     <div>
@@ -1656,7 +1713,7 @@ const ScriptUpload = () => {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-5"
                 >
-                  <div className={`rounded-2xl border p-6 sm:p-8 space-y-6 ${isDarkMode ? "border-white/[0.06] bg-[#0d1829]" : "border-gray-200 bg-white shadow-sm"}`}>
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-8 space-y-5 min-[420px]:space-y-6 ${isDarkMode ? "border-white/[0.06] bg-[#0d1829]" : "border-gray-200 bg-white shadow-sm"}`}>
                     <div>
                       <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
                       <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
@@ -1754,7 +1811,7 @@ const ScriptUpload = () => {
                       )}
                     </div>
 
-                    <div className={`rounded-2xl border p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                       <div className="flex items-center gap-2.5 mb-5">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                           <svg className={`w-4 h-4 ${isDarkMode ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h16.5A2.25 2.25 0 0122.5 5.25V9M3.75 3l5.25 5.25m0 0L12 11.25m-3-3L6 11.25m3-3v8.25" /></svg>
@@ -1873,7 +1930,7 @@ const ScriptUpload = () => {
                       </div>
                     </div>
 
-                    <div className={`rounded-2xl border p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                       <div className="flex items-center gap-2.5 mb-4">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                           <svg className={`w-4 h-4 ${isDarkMode ? "text-purple-300" : "text-purple-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h3.75A2.625 2.625 0 0116.5 4.875v1.5H7.5v-1.5A2.625 2.625 0 0110.125 2.25zM7.5 9h9m-9 0v8.625A2.625 2.625 0 0010.125 20.25h3.75A2.625 2.625 0 0016.5 17.625V9m-9 0h9" /></svg>
@@ -1925,9 +1982,9 @@ const ScriptUpload = () => {
                     </div>
 
                     <div className={`rounded-xl p-4 border ${isDarkMode ? "bg-white/[0.03] border-white/[0.08]" : "bg-gray-50 border-gray-200"}`}>
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col gap-2 min-[460px]:flex-row min-[460px]:items-center min-[460px]:justify-between">
                         <span className={`text-sm font-medium ${labelCls}`}>Total Credits Required</span>
-                        <span className={`text-2xl font-black ${isDarkMode ? "text-white" : "text-[#1e3a5f]"}`}>{calculateTotal()} credits</span>
+                        <span className={`text-xl min-[420px]:text-2xl font-black ${isDarkMode ? "text-white" : "text-[#1e3a5f]"}`}>{calculateTotal()} credits</span>
                       </div>
                       <p className={`text-xs mt-2 ${isDarkMode ? "text-neutral-500" : "text-gray-500"}`}>
                         {services.hosting && <span>Hosting (FREE)</span>}
@@ -1947,18 +2004,18 @@ const ScriptUpload = () => {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 justify-between pt-2">
+                  <div className="flex flex-col-reverse min-[420px]:flex-row gap-2.5 min-[420px]:gap-3 justify-between pt-1 min-[420px]:pt-2">
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="px-6 py-2.5 border border-white/[0.08] text-neutral-400 rounded-xl text-sm hover:bg-white/[0.05] transition"
+                      className="w-full min-[420px]:w-auto px-6 py-2.5 border border-white/[0.08] text-neutral-400 rounded-xl text-sm hover:bg-white/[0.05] transition"
                     >
                       ← Back
                     </button>
                     <button
                       type="button"
                       onClick={handleNext}
-                      className="px-6 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition"
+                      className="w-full min-[420px]:w-auto px-6 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition"
                     >
                       Next →
                     </button>

@@ -38,9 +38,29 @@ const scriptSchema = new mongoose.Schema({
   // Enhanced metadata for writer onboarding
   format: {
     type: String,
-    enum: ["feature", "feature_film", "tv_1hour", "tv_pilot_1hour", "tv_halfhour", "tv_pilot_halfhour", "play", "short", "short_film", "web_series"],
+    enum: [
+      "feature",
+      "feature_film",
+      "tv_1hour",
+      "tv_pilot_1hour",
+      "tv_halfhour",
+      "tv_pilot_halfhour",
+      "play",
+      "short",
+      "short_film",
+      "web_series",
+      "limited_series",
+      "documentary",
+      "drama_school",
+      "anime",
+      "movie",
+      "tv_serial",
+      "cartoon",
+      "other",
+    ],
     default: "feature_film"
   },
+  formatOther: { type: String, trim: true, maxlength: 120 },
   primaryGenre: { type: String },
   subGenres: [{ type: String }],
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Send, CheckCircle2, MessageSquare, Briefcase, HelpCircle } from "lucide-react";
+import { Mail, Send, CheckCircle2, MessageSquare, Briefcase, HelpCircle, PhoneCall, Clock3 } from "lucide-react";
 import api from "../services/api";
 import BrandLogo from "../components/BrandLogo";
 import { useDarkMode } from "../context/DarkModeContext";
@@ -11,39 +11,66 @@ const contactReasons = [
   { value: "team", label: "Work With Us", icon: Briefcase },
   { value: "general", label: "General Feedback", icon: MessageSquare },
   { value: "email", label: "Direct Email Request", icon: Mail },
+  { value: "other", label: "Other", icon: MessageSquare },
 ];
 
 const ContactPage = () => {
+  const navigate = useNavigate();
   const { isDarkMode } = useDarkMode();
-  const [form, setForm] = useState({ reason: "", name: "", email: "", message: "" });
+  const [form, setForm] = useState({ reason: "", otherReason: "", name: "", email: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/");
+  };
+
   const theme = {
-    page: isDarkMode ? "bg-[#070e18] text-white" : "bg-[#f5f8fc] text-gray-900",
+    page: isDarkMode ? "bg-[#060d16] text-white" : "bg-[#f4f7fb] text-gray-900",
     panel: isDarkMode
-      ? "bg-[#0d1520] border-[#1c2a3a]"
-      : "bg-white border-gray-200 shadow-[0_12px_35px_rgba(15,23,42,0.08)]",
+      ? "bg-[#0c1624] border-[#1d2e43]"
+      : "bg-white border-gray-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)]",
     input: isDarkMode
-      ? "bg-[#08111c] border-[#223449] text-white placeholder:text-[#4a5a6e]"
+      ? "bg-[#08121e] border-[#24384f] text-white placeholder:text-[#50627a]"
       : "bg-white border-gray-300 text-gray-900 placeholder:text-gray-400",
     subtle: isDarkMode ? "text-[#8896a7]" : "text-gray-600",
     headingSubtle: isDarkMode ? "text-[#6b7a8d]" : "text-gray-500",
     card: isDarkMode
-      ? "bg-[#0b1320] border-[#1a2a3a] hover:border-[#2a3d52]"
-      : "bg-[#f8fbff] border-gray-200 hover:border-gray-300",
-    cardActive: isDarkMode ? "bg-[#111f32] border-[#365478] text-white" : "bg-[#eef6ff] border-[#aac6ea] text-[#183a62]",
+      ? "bg-[#0a1523] border-[#1f3349]"
+      : "bg-[#f8fbff] border-gray-200",
+    cardActive: isDarkMode ? "bg-[#11243a] border-[#396087] text-white" : "bg-[#edf5ff] border-[#a8c5e9] text-[#183a62]",
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (error) setError("");
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      if (name === "reason") {
+        return {
+          ...prev,
+          reason: value,
+          otherReason: value === "other" ? prev.otherReason : "",
+        };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (form.reason === "other" && !String(form.otherReason || "").trim()) {
+      setError("Please tell us what 'Other' means.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -59,68 +86,88 @@ const ContactPage = () => {
 
   return (
     <div className={`min-h-screen ${theme.page}`}>
-      <header className={`sticky top-0 z-20 border-b backdrop-blur-sm ${isDarkMode ? "bg-[#070e18]/92 border-[#162435]" : "bg-white/92 border-gray-200"}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center" aria-label="Go to home">
-            <BrandLogo className="h-9 w-auto" />
+      <nav className="fixed top-0 w-full z-50 bg-[#080e18]/90 backdrop-blur-sm border-b border-[#151f2e]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
+          <Link to="/" className="inline-flex items-center" aria-label="Go to landing page">
+            <BrandLogo className="h-8 sm:h-10 w-auto" />
           </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              to="/terms"
-              className={`text-xs sm:text-sm font-semibold transition-colors ${isDarkMode ? "text-[#8da4bf] hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
-            >
-              T and C
-            </Link>
-            <Link
-              to="/privacy"
-              className={`text-xs sm:text-sm font-semibold transition-colors ${isDarkMode ? "text-[#8da4bf] hover:text-white" : "text-gray-600 hover:text-gray-900"}`}
-            >
-              Privacy
-            </Link>
-          </div>
-        </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium text-[#8896a7] hover:text-white transition-colors whitespace-nowrap"
+          >
+            Back
+          </button>
+        </div>
+      </nav>
+
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 sm:pt-28 pb-8 sm:pb-12">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.28 }}
-          className="mb-8"
+          className="mb-7 sm:mb-9"
         >
           <p className={`text-xs font-bold tracking-[0.16em] uppercase mb-2 ${theme.headingSubtle}`}>Contact</p>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Talk to the Ckript Team</h1>
-          <p className={`mt-2 text-sm sm:text-base max-w-2xl ${theme.subtle}`}>
-            Have a platform question, support issue, or business query? Send a message and we will respond as soon as possible.
-          </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8">
-          <section className="lg:col-span-2 space-y-3">
-            {contactReasons.map(({ value, label, icon: Icon }) => {
-              const active = form.reason === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, reason: value }))}
-                  className={`w-full text-left rounded-xl border px-4 py-3.5 transition-colors flex items-center gap-3 ${active ? theme.cardActive : theme.card}`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="text-sm font-semibold">{label}</span>
-                </button>
-              );
-            })}
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-5 sm:gap-7">
+          <section className="space-y-4">
+            <div className={`rounded-2xl border px-4 py-4 ${theme.card}`}>
+              <p className={`text-[11px] uppercase tracking-[0.14em] font-bold mb-3 ${theme.headingSubtle}`}>Direct Contact</p>
 
-            <div className={`rounded-xl border px-4 py-4 ${theme.card}`}>
-              <p className={`text-[11px] uppercase tracking-[0.14em] font-bold mb-1 ${theme.headingSubtle}`}>Direct Email</p>
-              <a href="mailto:info.ckript@gmail.com" className="text-sm font-semibold underline-offset-4 hover:underline break-all">
-                info.ckript@gmail.com
-              </a>
+              <div className="space-y-3">
+                <a
+                  href="mailto:info.ckript@gmail.com"
+                  className={`flex items-center gap-2.5 text-sm font-semibold rounded-lg px-2.5 py-2 border transition-colors ${isDarkMode ? "border-[#24374d] hover:bg-white/[0.03]" : "border-gray-200 hover:bg-white"}`}
+                >
+                  <Mail className="w-4 h-4 shrink-0" />
+                  <span className="break-all">info.ckript@gmail.com</span>
+                </a>
+
+                <a
+                  href="tel:+917986950853"
+                  className={`flex items-center gap-2.5 text-sm font-semibold rounded-lg px-2.5 py-2 border transition-colors ${isDarkMode ? "border-[#24374d] hover:bg-white/[0.03]" : "border-gray-200 hover:bg-white"}`}
+                >
+                  <PhoneCall className="w-4 h-4 shrink-0" />
+                  <span>+91 7986950853</span>
+                </a>
+
+                <div className={`flex items-center gap-2.5 text-xs rounded-lg px-2.5 py-2 border ${isDarkMode ? "border-[#24374d] text-[#8ea1b8]" : "border-gray-200 text-gray-600"}`}>
+                  <Clock3 className="w-4 h-4 shrink-0" />
+                  <span>Mon to Sat, 10:00 AM to 7:00 PM IST</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={`rounded-2xl border p-2.5 ${theme.card}`}>
+              <p className={`text-[11px] uppercase tracking-[0.14em] font-bold px-2 py-1 mb-1 ${theme.headingSubtle}`}>Choose Topic</p>
+              <div className="space-y-2">
+                {contactReasons.map(({ value, label, icon: Icon }) => {
+                  const active = form.reason === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setForm((prev) => ({
+                        ...prev,
+                        reason: value,
+                        otherReason: value === "other" ? prev.otherReason : "",
+                      }))}
+                      className={`w-full text-left rounded-xl border px-3.5 py-3 transition-colors flex items-center gap-2.5 ${active ? theme.cardActive : theme.card}`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="text-sm font-semibold">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </section>
 
-          <section className={`lg:col-span-3 rounded-2xl border p-5 sm:p-7 ${theme.panel}`}>
+          <section className={`rounded-2xl sm:rounded-3xl border p-5 sm:p-7 ${theme.panel}`}>
             <AnimatePresence mode="wait">
               {submitted ? (
                 <motion.div
@@ -128,7 +175,7 @@ const ContactPage = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="min-h-[320px] flex flex-col items-center justify-center text-center"
+                  className="min-h-[360px] flex flex-col items-center justify-center text-center"
                 >
                   <div className={`w-14 h-14 rounded-2xl mb-4 flex items-center justify-center ${isDarkMode ? "bg-emerald-500/12" : "bg-emerald-50"}`}>
                     <CheckCircle2 className="w-7 h-7 text-emerald-500" />
@@ -140,7 +187,7 @@ const ContactPage = () => {
                   <button
                     onClick={() => {
                       setSubmitted(false);
-                      setForm({ reason: "", name: "", email: "", message: "" });
+                      setForm({ reason: "", otherReason: "", name: "", email: "", message: "" });
                     }}
                     className={`mt-5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${isDarkMode ? "border-[#2a4159] hover:bg-[#102237]" : "border-gray-300 hover:bg-gray-50"}`}
                   >
@@ -154,11 +201,16 @@ const ContactPage = () => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onSubmit={handleSubmit}
-                  className="space-y-4"
+                  className="space-y-5"
                 >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1 border-b border-transparent sm:border-b-0">
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Send a Message</h2>
+                    <span className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${theme.headingSubtle}`}>Secure Contact Form</span>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className="space-y-1 block">
-                      <span className={`text-xs font-semibold ${theme.headingSubtle}`}>Full name</span>
+                      <span className={`text-xs font-semibold uppercase tracking-[0.08em] ${theme.headingSubtle}`}>Full name</span>
                       <input
                         name="name"
                         value={form.name}
@@ -169,7 +221,7 @@ const ContactPage = () => {
                       />
                     </label>
                     <label className="space-y-1 block">
-                      <span className={`text-xs font-semibold ${theme.headingSubtle}`}>Email address</span>
+                      <span className={`text-xs font-semibold uppercase tracking-[0.08em] ${theme.headingSubtle}`}>Email address</span>
                       <input
                         type="email"
                         name="email"
@@ -183,7 +235,7 @@ const ContactPage = () => {
                   </div>
 
                   <label className="space-y-1 block">
-                    <span className={`text-xs font-semibold ${theme.headingSubtle}`}>Reason</span>
+                    <span className={`text-xs font-semibold uppercase tracking-[0.08em] ${theme.headingSubtle}`}>Reason</span>
                     <select
                       name="reason"
                       value={form.reason}
@@ -202,8 +254,22 @@ const ContactPage = () => {
                     </select>
                   </label>
 
+                  {form.reason === "other" && (
+                    <label className="space-y-1 block">
+                      <span className={`text-xs font-semibold uppercase tracking-[0.08em] ${theme.headingSubtle}`}>What is Other?</span>
+                      <input
+                        name="otherReason"
+                        value={form.otherReason}
+                        onChange={handleChange}
+                        required
+                        className={`w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#3f74aa]/35 ${theme.input}`}
+                        placeholder="Please specify your topic"
+                      />
+                    </label>
+                  )}
+
                   <label className="space-y-1 block">
-                    <span className={`text-xs font-semibold ${theme.headingSubtle}`}>Message</span>
+                    <span className={`text-xs font-semibold uppercase tracking-[0.08em] ${theme.headingSubtle}`}>Message</span>
                     <textarea
                       name="message"
                       value={form.message}
@@ -247,6 +313,17 @@ const ContactPage = () => {
           </section>
         </div>
       </main>
+
+      <footer className="py-8 sm:py-10 px-4 sm:px-6 border-t border-[#151f2e] bg-[#080e18]">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs sm:text-sm text-[#4a5a6e] text-center sm:text-left">&copy; 2026 Ckript. Connecting brilliant ideas with brilliant people.</p>
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 sm:gap-6 text-xs sm:text-sm text-[#4a5a6e]">
+            <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+            <Link to="/terms" className="hover:text-white transition-colors">T and C</Link>
+            <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

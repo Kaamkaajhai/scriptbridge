@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, ChevronRight } from "lucide-react";
 import BrandLogo from "../components/BrandLogo";
 
@@ -145,19 +145,31 @@ const itemVariants = {
 };
 
 export default function PrivacyPolicy() {
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-white">
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <BrandLogo className="h-9 w-auto" />
-          <Link
-            to="/"
+          <button
+            type="button"
+            onClick={handleBack}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-cyan-400 transition"
           >
             <ChevronRight className="w-4 h-4 rotate-180" />
-            Back to Home
-          </Link>
+            Back
+          </button>
         </div>
       </nav>
 
