@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
+import SeoManager from "./components/SeoManager";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
@@ -98,6 +99,7 @@ function App() {
     <DarkModeProvider>
       <AuthProvider>
         <Router>
+          <SeoManager />
           <AdminLoginHandler>
             <Suspense
               fallback={

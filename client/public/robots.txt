@@ -1,4 +1,20 @@
 User-agent: *
 Allow: /
 
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /messages
+Disallow: /search
+Disallow: /script/
+Disallow: /reader
+Disallow: /create-project
+Disallow: /upload
+Disallow: /writer-onboarding
+Disallow: /producer-director-onboarding
+Disallow: /industry-onboarding
+Disallow: /login
+Disallow: /join
+Disallow: /signup
+
 Sitemap: https://ckript.com/sitemap.xml
