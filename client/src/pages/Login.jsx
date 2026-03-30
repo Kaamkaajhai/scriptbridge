@@ -1,7 +1,7 @@
 import { useContext, useState } from "react";
 import { motion } from "framer-motion";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation, useSearchParams } from "react-router-dom";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import OTPVerification from "../components/OTPVerification";
 import BrandLogo from "../components/BrandLogo";
@@ -9,12 +9,41 @@ import BrandLogo from "../components/BrandLogo";
 const Login = () => {
   const { login, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const getSafeRedirectPath = (value = "") => {
+    const path = String(value || "").trim();
+    if (!path || !path.startsWith("/")) return "";
+    if (path.startsWith("//")) return "";
+    if (path.startsWith("/login")) return "";
+    return path;
+  };
+
+  const redirectPath =
+    getSafeRedirectPath(location.state?.from) ||
+    getSafeRedirectPath(searchParams.get("next"));
+
+  const navigateAfterLogin = (userData = {}) => {
+    if (redirectPath) {
+      navigate(redirectPath, { replace: true });
+      return;
+    }
+
+    if (userData?.role === "reader") {
+      navigate("/reader");
+    } else if (userData?.role === "investor") {
+      navigate("/home");
+    } else {
+      navigate("/dashboard");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,14 +60,8 @@ const Login = () => {
         return;
       }
       
-      const storedUser = JSON.parse(localStorage.getItem("user"));
-      if (storedUser?.role === "reader") {
-        navigate("/reader");
-      } else if (storedUser?.role === "investor") {
-        navigate("/home");
-      } else {
-        navigate("/dashboard");
-      }
+      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      navigateAfterLogin(storedUser || userData || {});
     } catch (err) {
       const data = err.response?.data;
       if (data?.pendingApproval) {
@@ -67,15 +90,8 @@ const Login = () => {
 
     // Update auth context with user data
     setUser(userData);
-    
-    // Navigate based on role
-    if (userData.role === "reader") {
-      navigate("/reader");
-    } else if (userData.role === "investor") {
-      navigate("/home");
-    } else {
-      navigate("/dashboard");
-    }
+
+    navigateAfterLogin(userData);
   };
 
   const handleBackToLogin = () => {

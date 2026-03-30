@@ -9,11 +9,20 @@ import SocialShareButton from "./SocialShareButton";
 
 const FORMAT_LABEL = {
   feature: "Feature Film",
+  movie: "Movie",
   short: "Short Film",
+  tv_1hour: "TV 1-Hour",
+  tv_halfhour: "TV Half-Hour",
   tv_pilot: "TV Pilot",
+  tv_serial: "TV Serial",
   limited_series: "Limited Series",
   webseries: "Web Series",
+  web_series: "Web Series",
   documentary: "Documentary",
+  drama_school: "Drama School",
+  anime: "Anime",
+  cartoon: "Cartoon",
+  other: "Other",
 };
 
 const STATUS = {
@@ -32,7 +41,9 @@ const ProjectCard = ({ project, userName }) => {
 
   const isClickable  = project?.status === "published";
   const genre        = project?.primaryGenre || project?.genre || null;
-  const format       = FORMAT_LABEL[project?.format] || project?.format || null;
+  const format       = project?.format === "other"
+    ? (project?.formatOther || FORMAT_LABEL.other)
+    : (FORMAT_LABEL[project?.format] || project?.format || null);
   const score        = project?.platformScore?.overall ?? project?.scriptScore?.overall ?? null;
   const views        = project?.views ?? 0;
   const rating       = project?.rating ?? 0;

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Film, FileText, ChevronRight } from "lucide-react";
 
 const LAST_UPDATED = "March 12, 2026";
@@ -183,6 +183,17 @@ const itemVariants = {
 };
 
 export default function TermsOfService() {
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-white">
       {/* Nav */}
@@ -194,13 +205,14 @@ export default function TermsOfService() {
               Ckript
             </span>
           </Link>
-          <Link
-            to="/"
+          <button
+            type="button"
+            onClick={handleBack}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-cyan-400 transition"
           >
             <ChevronRight className="w-4 h-4 rotate-180" />
-            Back to Home
-          </Link>
+            Back
+          </button>
         </div>
       </nav>
 

@@ -15,6 +15,22 @@ const buildChatId = (idA, idB) => {
     return `${sorted[0]}_${sorted[1]}`;
 };
 
+const resolveClientOriginFromRequest = (req) => {
+    const originHeader = String(req.get("origin") || "").trim();
+    if (originHeader) return originHeader;
+
+    const refererHeader = String(req.get("referer") || "").trim();
+    if (refererHeader) {
+        try {
+            return new URL(refererHeader).origin;
+        } catch (_error) {
+            // Ignore malformed referer and fall back to env-based URL resolution.
+        }
+    }
+
+    return "";
+};
+
 const maskAccountNumber = (accountNumber = "") => {
     if (!accountNumber) return "";
     return `****${String(accountNumber).slice(-4)}`;
@@ -722,7 +738,9 @@ export const approveInvestor = async (req, res) => {
         await user.save();
 
         // Send approval email
-        sendInvestorApprovalEmail(user.email, user.name).catch((err) =>
+        sendInvestorApprovalEmail(user.email, user.name, {
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+        }).catch((err) =>
             console.error("Failed to send investor approval email:", err.message)
         );
 
@@ -748,7 +766,9 @@ export const rejectInvestor = async (req, res) => {
         if (note) user.approvalNote = note;
         await user.save();
 
-        sendInvestorRejectionEmail(user.email, user.name, note || user.approvalNote || "").catch((err) =>
+        sendInvestorRejectionEmail(user.email, user.name, note || user.approvalNote || "", {
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+        }).catch((err) =>
             console.error("Failed to send investor rejection email:", err.message)
         );
 

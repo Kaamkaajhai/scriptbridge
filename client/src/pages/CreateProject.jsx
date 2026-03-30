@@ -30,6 +30,13 @@ const formats = [
   { value: "short", label: "Short Film", icon: "SHORT" },
   { value: "limited_series", label: "Limited Series", icon: "SERIES" },
   { value: "documentary", label: "Documentary", icon: "DOC" },
+  { value: "web_series", label: "Web Series", icon: "SERIES" },
+  { value: "drama_school", label: "Drama School", icon: "DOC" },
+  { value: "anime", label: "Anime", icon: "TV" },
+  { value: "movie", label: "Movie", icon: "FILM" },
+  { value: "tv_serial", label: "TV Serial", icon: "TV" },
+  { value: "cartoon", label: "Cartoon", icon: "SHORT" },
+  { value: "other", label: "Other", icon: "DOC" },
 ];
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Fantasy",
@@ -127,6 +134,13 @@ const FORMAT_PAGE_RANGES = {
   short: { min: 1, max: 40, typical: "5-25", label: "Short Film", wordsPerPage: 250 },
   limited_series: { min: 45, max: 75, typical: "50-65", label: "Limited Series", wordsPerPage: 250 },
   documentary: { min: 60, max: 120, typical: "70-100", label: "Documentary", wordsPerPage: 250 },
+  web_series: { min: 20, max: 80, typical: "25-45", label: "Web Series", wordsPerPage: 250 },
+  drama_school: { min: 10, max: 60, typical: "15-35", label: "Drama School", wordsPerPage: 250 },
+  anime: { min: 18, max: 65, typical: "22-45", label: "Anime", wordsPerPage: 250 },
+  movie: { min: 70, max: 180, typical: "90-120", label: "Movie", wordsPerPage: 250 },
+  tv_serial: { min: 18, max: 50, typical: "20-35", label: "TV Serial", wordsPerPage: 250 },
+  cartoon: { min: 7, max: 45, typical: "10-25", label: "Cartoon", wordsPerPage: 250 },
+  other: { min: 1, max: 250, typical: "Varies", label: "Other", wordsPerPage: 250 },
 };
 const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
 
@@ -422,7 +436,7 @@ const CreateProject = () => {
   const [showUndoBar, setShowUndoBar] = useState(false);
 
   // Step 2: Details
-  const [formData, setFormData] = useState({ format: "feature", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
+  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
 
   // File Upload State
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -706,6 +720,7 @@ const CreateProject = () => {
       setTitle(data.title || ""); setScriptId(data._id);
       if (editor && data.textContent) editor.commands.setContent(data.textContent);
       if (data.format) setFormData(f => ({ ...f, format: data.format }));
+      if (data.formatOther !== undefined) setFormData(f => ({ ...f, formatOther: data.formatOther || "" }));
       if (data.pageCount) setFormData(f => ({ ...f, pageCount: String(data.pageCount) }));
       if (data.classification?.primaryGenre || data.genre) setFormData(f => ({ ...f, primaryGenre: data.classification?.primaryGenre || data.genre || "" }));
       if (data.logline) setFormData(f => ({ ...f, logline: data.logline }));
@@ -1021,7 +1036,19 @@ const CreateProject = () => {
   };
 
   // Form handlers
-  const handleChange = e => { const { name, value } = e.target; setFormData(f => ({ ...f, [name]: value })); };
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((f) => {
+      if (name === "format") {
+        return {
+          ...f,
+          format: value,
+          formatOther: value === "other" ? f.formatOther : "",
+        };
+      }
+      return { ...f, [name]: value };
+    });
+  };
   const addRole = () => {
     setRoles((prev) => ([
       ...prev,
@@ -1133,7 +1160,13 @@ const CreateProject = () => {
   ];
 
   const publishReviewItems = [
-    { label: "Format", value: formats.find((item) => item.value === formData.format)?.label || "Not selected" },
+    {
+      label: "Format",
+      value:
+        formData.format === "other"
+          ? (String(formData.formatOther || "").trim() || "Other")
+          : (formats.find((item) => item.value === formData.format)?.label || "Not selected"),
+    },
     { label: "Primary Genre", value: formData.primaryGenre || "Not selected" },
     { label: "Estimated Pages", value: `${estimatedPages} pages` },
     { label: "Access", value: isPremium ? "Premium paid access" : "Free public access" },
@@ -1156,6 +1189,10 @@ const CreateProject = () => {
     }
     if (s === 2) {
       if (!formData.format) { setError("Format is required."); return false; }
+      if (formData.format === "other" && !String(formData.formatOther || "").trim()) {
+        setError("Please specify the format when selecting Other.");
+        return false;
+      }
       if (!formData.primaryGenre) { setError("Primary genre is required."); return false; }
       if (formData.logline && formData.logline.length > 50) { setError("Logline must be 50 chars or less."); return false; }
       if (!formData.synopsis || !formData.synopsis.trim()) { setError("Synopsis is required."); return false; }
@@ -1218,6 +1255,7 @@ const CreateProject = () => {
         synopsis: formData.synopsis,
         description: formData.synopsis,
         format: formData.format,
+        formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
         classification: { primaryGenre: formData.primaryGenre, secondaryGenre: null, tones: classification.tones, themes: classification.themes, settings: classification.settings },
         roles: roles
@@ -1954,6 +1992,17 @@ const CreateProject = () => {
                   <select name="format" value={formData.format} onChange={handleChange} className={inputCls}>
                     {formats.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                   </select>
+                  {formData.format === "other" && (
+                    <input
+                      type="text"
+                      name="formatOther"
+                      value={formData.formatOther}
+                      onChange={handleChange}
+                      required
+                      placeholder="Please specify format"
+                      className={`${inputCls} mt-2`}
+                    />
+                  )}
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Estimated Pages</label>
@@ -2251,7 +2300,7 @@ const CreateProject = () => {
         {step === 4 && (
           <motion.div key="s4" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className="space-y-6">
-                <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
+                <div className={`${cardCls} p-4 min-[420px]:p-5 sm:p-8 space-y-5 min-[420px]:space-y-6`}>
                   <div>
                     <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
                     <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
@@ -2338,7 +2387,7 @@ const CreateProject = () => {
                     )}
                   </div>
 
-                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-center gap-2.5 mb-5">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                         <svg className={`w-4 h-4 ${dark ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h16.5A2.25 2.25 0 0122.5 5.25V9M3.75 3l5.25 5.25m0 0L12 11.25m-3-3L6 11.25m3-3v8.25" /></svg>
@@ -2423,7 +2472,7 @@ const CreateProject = () => {
                     )}
                   </div>
 
-                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-center gap-2.5 mb-4">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                         <svg className={`w-4 h-4 ${dark ? "text-purple-300" : "text-purple-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h3.75A2.625 2.625 0 0116.5 4.875v1.5H7.5v-1.5A2.625 2.625 0 0110.125 2.25zM7.5 9h9m-9 0v8.625A2.625 2.625 0 0010.125 20.25h3.75A2.625 2.625 0 0016.5 17.625V9m-9 0h9" /></svg>

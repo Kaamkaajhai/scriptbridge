@@ -1,5 +1,47 @@
 import nodemailer from "nodemailer";
 
+const trimTrailingSlash = (value = "") => String(value || "").trim().replace(/\/+$/, "");
+
+const normalizeClientBaseUrl = (value = "") => {
+  const rawValue = trimTrailingSlash(value);
+  if (!rawValue) return "";
+
+  if (/^https?:\/\//i.test(rawValue)) {
+    return rawValue;
+  }
+
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(rawValue)) {
+    return `http://${rawValue}`;
+  }
+
+  return `https://${rawValue}`;
+};
+
+const resolveClientBaseUrl = (overrideBaseUrl = "") => {
+  const candidates = [
+    overrideBaseUrl,
+    process.env.PUBLIC_CLIENT_URL,
+    process.env.CLIENT_URL,
+    process.env.FRONTEND_URL,
+    process.env.APP_URL,
+  ];
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const normalized = normalizeClientBaseUrl(candidates[i]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "http://localhost:5173";
+};
+
+const buildClientUrl = (path = "/", overrideBaseUrl = "") => {
+  const baseUrl = resolveClientBaseUrl(overrideBaseUrl);
+  const normalizedPath = `/${String(path || "/").replace(/^\/+/, "")}`;
+  return `${baseUrl}${normalizedPath}`;
+};
+
 // Create reusable transporter
 const createTransporter = () => {
   // For development, use ethereal.email or Gmail
@@ -301,13 +343,13 @@ export const sendWelcomeEmail = async (email, name) => {
 };
 
 // Send investor account approval email
-export const sendInvestorApprovalEmail = async (email, name) => {
+export const sendInvestorApprovalEmail = async (email, name, options = {}) => {
   try {
     console.log(`Sending investor approval email to ${email}...`);
     const transporter = createTransporter();
     await transporter.verify();
 
-    const loginUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`;
+    const loginUrl = buildClientUrl("/login", options?.clientBaseUrl || "");
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
@@ -364,13 +406,13 @@ export const sendInvestorApprovalEmail = async (email, name) => {
 };
 
 // Send investor account rejection email with optional admin reason
-export const sendInvestorRejectionEmail = async (email, name, reason) => {
+export const sendInvestorRejectionEmail = async (email, name, reason, options = {}) => {
   try {
     console.log(`Sending investor rejection email to ${email}...`);
     const transporter = createTransporter();
     await transporter.verify();
 
-    const loginUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`;
+    const loginUrl = buildClientUrl("/login", options?.clientBaseUrl || "");
     const safeReason = String(reason || "").trim();
 
     const mailOptions = {
@@ -430,7 +472,16 @@ export const sendInvestorRejectionEmail = async (email, name, reason) => {
 };
 
 // Send purchase request email to writer
-export const sendPurchaseRequestEmail = async (writerEmail, writerName, requesterName, requesterType, scriptTitle, amount, requestNote = "") => {
+export const sendPurchaseRequestEmail = async (
+  writerEmail,
+  writerName,
+  requesterName,
+  requesterType,
+  scriptTitle,
+  amount,
+  requestNote = "",
+  options = {}
+) => {
   try {
     const transporter = createTransporter();
     await transporter.verify();
@@ -439,7 +490,7 @@ export const sendPurchaseRequestEmail = async (writerEmail, writerName, requeste
     const safeRequesterType = String(requesterType || "Buyer").trim();
     const safeRequestNote = String(requestNote || "").trim();
 
-    const dashboardUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/purchase-requests`;
+    const dashboardUrl = buildClientUrl("/purchase-requests", options?.clientBaseUrl || "");
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
@@ -519,7 +570,7 @@ export const sendPurchaseApprovedEmail = async (investorEmail, investorName, wri
         timeStyle: "short",
       })
       : "";
-    const scriptsUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}${scriptId ? `/script/${scriptId}` : '/purchase-requests'}`;
+    const scriptsUrl = buildClientUrl(scriptId ? `/script/${scriptId}` : "/search", options?.clientBaseUrl || "");
     const subject = requiresPayment
       ? `✅ Request Approved — Complete Payment for "${scriptTitle}" — ckript`
       : `✅ Purchase Approved — "${scriptTitle}" — ckript`;
@@ -602,7 +653,7 @@ export const sendPurchaseRejectedEmail = async (investorEmail, investorName, wri
     await transporter.verify();
 
     const refundAmount = Number(options?.refundAmount || 0);
-    const searchUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/search`;
+    const searchUrl = buildClientUrl("/search", options?.clientBaseUrl || "");
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,

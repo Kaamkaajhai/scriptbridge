@@ -2,7 +2,7 @@ import ContactSubmission from "../models/ContactSubmission.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VALID_REASONS = new Set(["doubt", "team", "general", "email"]);
+const VALID_REASONS = new Set(["doubt", "team", "general", "email", "other"]);
 
 export const getContactSubmissions = async (req, res) => {
   try {
@@ -25,7 +25,7 @@ export const getContactSubmissions = async (req, res) => {
 
 export const createContactSubmission = async (req, res) => {
   try {
-    const { name, email, reason, message } = req.body;
+    const { name, email, reason, otherReason, message } = req.body;
 
     if (!name || !email || !reason || !message) {
       return res.status(400).json({ message: "All fields are required" });
@@ -34,6 +34,7 @@ export const createContactSubmission = async (req, res) => {
     const trimmedName = String(name).trim();
     const normalizedEmail = String(email).trim().toLowerCase();
     const trimmedMessage = String(message).trim();
+    const trimmedOtherReason = String(otherReason || "").trim();
 
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       return res.status(400).json({ message: "Please enter a valid email" });
@@ -43,10 +44,15 @@ export const createContactSubmission = async (req, res) => {
       return res.status(400).json({ message: "Invalid contact reason" });
     }
 
+    if (reason === "other" && !trimmedOtherReason) {
+      return res.status(400).json({ message: "Please specify what 'Other' means" });
+    }
+
     const submission = await ContactSubmission.create({
       name: trimmedName,
       email: normalizedEmail,
       reason,
+      otherReason: reason === "other" ? trimmedOtherReason : "",
       message: trimmedMessage,
     });
 
@@ -57,6 +63,7 @@ export const createContactSubmission = async (req, res) => {
       metadata: {
         queryId: submission._id,
         reason,
+        otherReason: submission.otherReason || undefined,
         email: normalizedEmail,
       },
     });

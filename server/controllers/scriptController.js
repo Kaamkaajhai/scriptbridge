@@ -166,6 +166,22 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
 const hasUserInIdArray = (arr = [], userId) =>
   Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
 
+const resolveClientOriginFromRequest = (req) => {
+  const originHeader = String(req.get("origin") || "").trim();
+  if (originHeader) return originHeader;
+
+  const refererHeader = String(req.get("referer") || "").trim();
+  if (refererHeader) {
+    try {
+      return new URL(refererHeader).origin;
+    } catch (_error) {
+      // Ignore malformed referer headers and fall back to env-based URL resolution.
+    }
+  }
+
+  return "";
+};
+
 const getPurchaseRequesterLabel = (user = {}) => {
   const rawRole = String(user?.industryProfile?.subRole || user?.role || "").trim().toLowerCase();
   if (rawRole === "producer") return "Producer";
@@ -390,7 +406,15 @@ export const saveDraft = async (req, res) => {
         script.synopsis = otherData.synopsis;
         script.description = otherData.synopsis;
       }
-      if (otherData.format !== undefined) script.format = otherData.format;
+      if (otherData.format !== undefined) {
+        script.format = otherData.format;
+        if (otherData.format !== "other") {
+          script.formatOther = "";
+        }
+      }
+      if (otherData.formatOther !== undefined) {
+        script.formatOther = String(otherData.formatOther || "").trim();
+      }
       if (otherData.pageCount !== undefined) script.pageCount = Number(otherData.pageCount) || 0;
       if (otherData.primaryGenre !== undefined) script.primaryGenre = otherData.primaryGenre;
       if (otherData.tags !== undefined) script.tags = Array.isArray(otherData.tags) ? otherData.tags : [];
@@ -532,6 +556,7 @@ export const updateScript = async (req, res) => {
 
     const {
       title, logline, format, pageCount, classification,
+      formatOther,
       scriptUrl, description, synopsis, textContent, fileUrl,
       coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
@@ -544,9 +569,21 @@ export const updateScript = async (req, res) => {
       return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
     }
 
+    if (format === "other" && !String(formatOther || script.formatOther || "").trim()) {
+      return res.status(400).json({ message: "Please specify the format when selecting Other." });
+    }
+
     if (title) script.title = title;
     if (logline !== undefined) script.logline = logline;
-    if (format) script.format = format;
+    if (format) {
+      script.format = format;
+      if (format !== "other") {
+        script.formatOther = "";
+      }
+    }
+    if (formatOther !== undefined) {
+      script.formatOther = String(formatOther || "").trim();
+    }
     if (pageCount) script.pageCount = Number(pageCount);
     if (textContent !== undefined) script.textContent = textContent;
     if (description !== undefined) script.description = description;
@@ -662,6 +699,7 @@ export const uploadScript = async (req, res) => {
       title,
       logline,
       format,
+      formatOther,
       pageCount,
       classification,
       scriptUrl,
@@ -691,6 +729,9 @@ export const uploadScript = async (req, res) => {
     }
     if (logline !== undefined && String(logline).trim().length > 50) {
       return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
+    }
+    if (format === "other" && !String(formatOther || "").trim()) {
+      return res.status(400).json({ message: "Please specify the format when selecting Other." });
     }
     if (!synopsis || String(synopsis).trim().length === 0) {
       return res.status(400).json({ message: "Synopsis is required" });
@@ -795,6 +836,7 @@ export const uploadScript = async (req, res) => {
 
       // New fields from the 5-step wizard
       format: format || "feature_film",
+      formatOther: format === "other" ? String(formatOther || "").trim() : "",
       primaryGenre: classification?.primaryGenre || genre,
       classification: classification ? {
         primaryGenre: classification.primaryGenre,
@@ -1486,7 +1528,10 @@ export const requestScriptPurchase = async (req, res) => {
       requesterType,
       script.title,
       amount,
-      sanitizedNote
+      sanitizedNote,
+      {
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }
     ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
 
     res.status(201).json({
@@ -1555,7 +1600,12 @@ export const approveScriptPurchase = async (req, res) => {
         writer.name,
         script.title,
         script._id.toString(),
-        { requiresPayment: true, amount: amountToRelease, paymentDueAt }
+        {
+          requiresPayment: true,
+          amount: amountToRelease,
+          paymentDueAt,
+          clientBaseUrl: resolveClientOriginFromRequest(req),
+        }
       ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
       return res.json({
@@ -1686,7 +1736,11 @@ export const approveScriptPurchase = async (req, res) => {
       writer.name,
       script.title,
       script._id.toString(),
-      { requiresPayment: false, amount: amountToRelease }
+      {
+        requiresPayment: false,
+        amount: amountToRelease,
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
     res.json({
@@ -1864,7 +1918,10 @@ export const rejectScriptPurchase = async (req, res) => {
       writer.name,
       script.title,
       note || "",
-      { refundAmount: amountToRefund }
+      {
+        refundAmount: amountToRefund,
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }
     ).catch((err) => console.error("[Purchase] Failed to send rejection email:", err.message));
 
     res.json({
