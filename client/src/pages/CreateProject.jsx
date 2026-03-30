@@ -66,6 +66,7 @@ const THUMBNAIL_ASPECT = 3 / 4;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 const MAX_THUMBNAIL_SOURCE_SIZE = 25 * 1024 * 1024;
 const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
+const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
 
 const createImage = (url) => new Promise((resolve, reject) => {
   const image = new Image();
@@ -406,6 +407,7 @@ const CreateProject = () => {
   const navigate = useNavigate();
   const { draftId } = useParams();
   const agreementRef = useRef(null);
+  const reviewRedirectTimerRef = useRef(null);
 
   // Wizard state
   const [step, setStep] = useState(1);
@@ -421,6 +423,7 @@ const CreateProject = () => {
   const [charCount, setCharCount] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showUnderReviewModal, setShowUnderReviewModal] = useState(false);
   const [grammarLoading, setGrammarLoading] = useState(false);
   const [grammarNotes, setGrammarNotes] = useState([]);
   const lastDraftSignatureRef = useRef("");
@@ -643,6 +646,12 @@ const CreateProject = () => {
     return () => window.cancelAnimationFrame(frameId);
   }, [step]);
 
+  useEffect(() => () => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+    }
+  }, []);
+
   // Auto-calculated page count from word count + format
   const formatInfo = FORMAT_PAGE_RANGES[formData.format] || FORMAT_PAGE_RANGES.feature;
   const estimatedPages = Math.max(1, Math.round(wordCount / formatInfo.wordsPerPage));
@@ -666,7 +675,7 @@ const CreateProject = () => {
 
   // Step 4: Services & Legal
   const [services, setServices] = useState({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
-  const [legal, setLegal] = useState({ agreedToTerms: false });
+  const [legal, setLegal] = useState({ agreedToTerms: false, customInvestorTerms: "" });
   const [creditsBalance, setCreditsBalance] = useState(0);
 
   // Step 4: Script pricing
@@ -740,6 +749,11 @@ const CreateProject = () => {
         })));
       }
       if (data.classification) setClassification({ tones: data.classification.tones || [], themes: data.classification.themes || [], settings: data.classification.settings || [] });
+      setLegal((prev) => ({
+        ...prev,
+        agreedToTerms: Boolean(data?.legal?.agreedToTerms),
+        customInvestorTerms: data?.legal?.customInvestorTerms || "",
+      }));
       lastDraftSignatureRef.current = `${(data.title || "Untitled Draft").trim()}::${String(data.textContent || "").length}:${String(data.textContent || "").slice(0, 120)}:${String(data.textContent || "").slice(-120)}`;
       setSaved(true);
       setShowDrafts(false);
@@ -752,9 +766,14 @@ const CreateProject = () => {
     return {
       title: title?.trim() ? title.trim() : "Untitled Draft",
       textContent: editor.getHTML(),
+      legal: {
+        agreedToTerms: Boolean(legal.agreedToTerms),
+        termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+        customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
+      },
       ...(scriptId ? { scriptId } : {}),
     };
-  }, [editor, scriptId, title]);
+  }, [editor, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
 
   const getDraftSignature = useCallback((payload) => {
     if (!payload) return "";
@@ -1203,6 +1222,10 @@ const CreateProject = () => {
     if (s === 3) return true;
     if (s === 5) {
       if (!legal.agreedToTerms) { setError("You must agree to the terms."); return false; }
+      if (String(legal.customInvestorTerms || "").trim().length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+        setError(`Custom investor terms cannot exceed ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters.`);
+        return false;
+      }
       return true;
     }
     return true;
@@ -1239,9 +1262,29 @@ const CreateProject = () => {
     }
   };
 
+  const openUnderReviewModal = (redirectPath = "/dashboard") => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+    }
+
+    setShowUnderReviewModal(true);
+    reviewRedirectTimerRef.current = setTimeout(() => {
+      navigate(redirectPath);
+    }, 2400);
+  };
+
+  const handleUnderReviewContinue = () => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+      reviewRedirectTimerRef.current = null;
+    }
+    setShowUnderReviewModal(false);
+    navigate("/dashboard");
+  };
+
   // Publish
   const handlePublish = async () => {
-    if (!validateStep(4)) return;
+    if (!validateStep(5)) return;
     const ageRangeError = getInvalidRoleAgeRangeMessage();
     if (ageRangeError) { setError(ageRangeError); return; }
     const creditsNeeded = calculateTotal();
@@ -1275,6 +1318,7 @@ const CreateProject = () => {
           agreedToTerms: legal.agreedToTerms,
           timestamp: new Date().toISOString(),
           termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+          customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
         },
         premium: isPremium && effectivePrice > 0,
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
@@ -1284,7 +1328,7 @@ const CreateProject = () => {
       await uploadSelectedProjectMedia(data?._id);
 
       clearLocalWorkingDraft();
-      navigate("/dashboard");
+      openUnderReviewModal("/dashboard");
     } catch (err) { setError(err.response?.data?.message || err.message || "Failed to publish."); } finally { setLoading(false); }
   };
 
@@ -1618,6 +1662,56 @@ const CreateProject = () => {
                   }`}
                 >
                   Pay {GRAMMAR_COST} Credits & Fix
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {showUnderReviewModal && createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="under-review-modal-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+            style={{ background: "rgba(3, 10, 19, 0.72)", backdropFilter: "blur(6px)" }}
+          >
+            <motion.div
+              key="under-review-modal"
+              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.96 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${dark ? "bg-[#091322] border-white/[0.08]" : "bg-white border-gray-200"}`}
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-300 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+
+              <h3 className={`text-lg font-extrabold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                Script Submitted Successfully
+              </h3>
+              <p className={`text-sm mt-2 leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                Your script is now under review. Please wait for admin approval. You will be notified once it is approved.
+              </p>
+
+              <div className={`mt-4 rounded-xl border px-3 py-2.5 text-xs ${dark ? "border-white/[0.08] bg-white/[0.03] text-gray-400" : "border-gray-200 bg-gray-50 text-gray-600"}`}>
+                Redirecting automatically...
+              </div>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleUnderReviewContinue}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition"
+                >
+                  Continue
                 </button>
               </div>
             </motion.div>
@@ -2511,7 +2605,7 @@ const CreateProject = () => {
                     </p>
 
                     <label className="flex items-start gap-3 cursor-pointer mt-4">
-                      <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal({ agreedToTerms: e.target.checked })}
+                      <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal((prev) => ({ ...prev, agreedToTerms: e.target.checked }))}
                         className="w-5 h-5 rounded mt-0.5 accent-[#1e3a5f]" />
                       <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
                         I confirm I own or control the rights to this script and agree to the Script Upload Terms & Conditions (v{SCRIPT_UPLOAD_TERMS_VERSION}).
@@ -2565,7 +2659,7 @@ const CreateProject = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className={`rounded-xl px-4 py-4 ${dark ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Publish Cost</p>
                   <p className={`text-xl font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : dark ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
                   <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Charged from current balance</p>
                 </div>
@@ -2582,6 +2676,28 @@ const CreateProject = () => {
               </div>
 
               <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
+                <div className="mb-3">
+                  <p className={`text-[12px] font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>
+                    Writer Custom Terms For Investors (Optional)
+                  </p>
+                  <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                    Investors must accept these custom terms before they can pay for your script.
+                  </p>
+                  <textarea
+                    value={legal.customInvestorTerms}
+                    onChange={(e) => setLegal((prev) => ({
+                      ...prev,
+                      customInvestorTerms: e.target.value.slice(0, MAX_CUSTOM_INVESTOR_TERMS_LENGTH),
+                    }))}
+                    rows={6}
+                    placeholder="Example: Payment grants reading access only. Rights transfer requires a separate signed agreement."
+                    className={`mt-3 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors resize-y ${dark ? "bg-[#050b14] border-[#182840] text-gray-200 placeholder:text-gray-600 focus:border-[#2a4a6e]" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-gray-400"}`}
+                  />
+                  <p className={`text-[11px] mt-2 text-right ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                    {String(legal.customInvestorTerms || "").length}/{MAX_CUSTOM_INVESTOR_TERMS_LENGTH}
+                  </p>
+                </div>
+
                 <div className="flex items-start gap-2.5">
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>
                     {legal.agreedToTerms ? (
@@ -2600,7 +2716,7 @@ const CreateProject = () => {
                         <input
                           type="checkbox"
                           checked={legal.agreedToTerms}
-                          onChange={e => setLegal({ agreedToTerms: e.target.checked })}
+                          onChange={e => setLegal((prev) => ({ ...prev, agreedToTerms: e.target.checked }))}
                           className="w-4 h-4 rounded mt-0.5 accent-[#1e3a5f]"
                         />
                         <span className={`text-[11px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>

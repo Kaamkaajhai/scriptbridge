@@ -63,6 +63,14 @@ const scriptPurchaseRequestSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    termsAcceptance: {
+      platformTermsAccepted: { type: Boolean, default: false },
+      writerTermsAccepted: { type: Boolean, default: false },
+      customWriterTermsAccepted: { type: Boolean, default: false },
+      customWriterTermsSnapshot: { type: String, default: "" },
+      acceptedAt: { type: Date },
+      acceptedIp: { type: String, default: "" },
+    },
   },
   { timestamps: true }
 );

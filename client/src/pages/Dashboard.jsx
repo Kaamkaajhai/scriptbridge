@@ -4,13 +4,45 @@ import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, AreaChart, Area } from "recharts";
 import api from "../services/api";
 import ProjectCard from "../components/ProjectCard";
+import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import InvestorDashboard from "./InvestorDashboard";
 
 const Dashboard = () => {
-  const { user } = useContext(AuthContext);
+  const { user, setUser } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
+
+  useEffect(() => {
+    if (!user?.token) return;
+
+    let disposed = false;
+
+    const syncCurrentUser = async () => {
+      try {
+        const { data } = await api.get("/auth/me");
+        if (disposed || !data) return;
+
+        const nextUser = {
+          ...user,
+          ...data,
+          token: user.token,
+          expiresAt: data.expiresAt || user.expiresAt,
+        };
+
+        setUser(nextUser);
+        localStorage.setItem("user", JSON.stringify(nextUser));
+      } catch {
+        // Keep current session on transient fetch errors.
+      }
+    };
+
+    syncCurrentUser();
+
+    return () => {
+      disposed = true;
+    };
+  }, [setUser, user?._id, user?.token]);
 
   // If user is an investor, render the dedicated investor dashboard
   if (user?.role === "investor") {
@@ -91,10 +123,19 @@ const CreatorDashboard = ({ user, dark }) => {
     { label: "Avg Score", value: stats.avgScore ?? "N/A" },
 
   ] : [];
+  const profileEditPath = user?._id ? `/profile/${user._id}` : "/profile";
 
   return (
     <div className="max-w-6xl mx-auto px-1 sm:px-0">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <ProfileCompletionBanner
+          completion={user?.profileCompletion}
+          subtitle="Your profile is incomplete. Complete it to improve your visibility and recommendations."
+          ctaLabel="Edit Profile"
+          ctaTo={profileEditPath}
+          className="mb-6"
+        />
+
         {/* Page heading */}
         <div className="mb-6 sm:mb-8">
           <div className={`rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 overflow-hidden ${dark ? 'bg-[#0d1520]/70 border-[#1c2a3a]' : 'bg-white border-gray-100'}`}>

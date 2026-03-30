@@ -4,9 +4,10 @@ import Script from "../models/Script.js";
 import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
-import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
+import { sendOTPEmail } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 
@@ -281,7 +282,10 @@ export const getCurrentUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(user);
+    const userObj = user.toObject();
+    userObj.profileCompletion = getProfileCompletion(userObj);
+
+    res.json(userObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -420,6 +424,7 @@ export const getUserProfile = async (req, res) => {
     userObj.blockedByCurrent = blockedByCurrent;
     userObj.blockedByProfile = blockedByProfile;
     userObj.shareMeta = buildUserShareMeta(req, userObj);
+    userObj.profileCompletion = getProfileCompletion(userObj);
 
     const attachScriptShareMeta = (list = []) => list.map((scriptDoc) => {
       if (!scriptDoc) return scriptDoc;
@@ -742,6 +747,7 @@ export const updateUserProfile = async (req, res) => {
       notificationPrefs: user.notificationPrefs,
       bankDetails: sanitizedBankDetails,
       bankDetailsReview: sanitizedBankReview,
+      profileCompletion: getProfileCompletion(user),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1074,15 +1080,6 @@ export const changeEmail = async (req, res) => {
       return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
     }
 
-    // Internal copy for compliance/audit visibility. Do not block user flow if this fails.
-    await sendEmailChangeOTPToCompany({
-      userName: user.name,
-      currentEmail: user.email,
-      newEmail: normalizedEmail,
-      otp,
-      trigger: "changeEmail",
-    });
-
     // Keep current email active until OTP verification succeeds.
     user.pendingEmail = normalizedEmail;
     user.emailVerificationToken = otp;
@@ -1117,17 +1114,6 @@ export const sendEmailVerificationCode = async (req, res) => {
     const emailResult = await sendOTPEmail(targetEmail, user.name, otp);
     if (!emailResult.success) {
       return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
-    }
-
-    // If user is verifying a pending email change, send a company copy as well.
-    if (user.pendingEmail) {
-      await sendEmailChangeOTPToCompany({
-        userName: user.name,
-        currentEmail: user.email,
-        newEmail: user.pendingEmail,
-        otp,
-        trigger: "resendEmailVerificationCode",
-      });
     }
 
     res.json({ message: `Verification code sent to ${targetEmail}` });

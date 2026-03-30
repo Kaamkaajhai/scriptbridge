@@ -22,7 +22,6 @@ const ScriptDetail = () => {
   const [trailerError, setTrailerError] = useState(false);
   const [trailerSourceIndex, setTrailerSourceIndex] = useState(0);
   const [showHoldModal, setShowHoldModal] = useState(false);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [holdLoading, setHoldLoading] = useState(false);
   const [trailerLoading, setTrailerLoading] = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -32,7 +31,6 @@ const ScriptDetail = () => {
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [paymentType, setPaymentType] = useState("purchase"); // "purchase" or "hold"
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]); // for creator view on this script
@@ -318,48 +316,17 @@ const ScriptDetail = () => {
   };
 
   const handleHold = async () => {
-    setPaymentType("hold");
     setShowHoldModal(true);
-  };
-
-  const handlePurchase = async () => {
-    setPaymentType("purchase");
-    setShowPurchaseModal(true);
   };
 
   const handlePaymentSuccess = async (paymentData) => {
     // Refresh script data after successful payment
     await fetchScript();
 
-    // Show success message
-    if (paymentType === "purchase") {
-      const successMessage = paymentData.message || "Payment successful. Full script access unlocked.";
-      const invoiceNumber = paymentData?.invoice?.invoiceNumber;
-      if (invoiceNumber) {
-        const shouldDownload = window.confirm(
-          `${successMessage}\n\nInvoice ${invoiceNumber} was created. Download invoice now?`
-        );
-        if (shouldDownload) {
-          try {
-            await handleInvoicePdfAction(paymentData.invoice, "download");
-          } catch {
-            alert(`Payment successful. Invoice ${invoiceNumber} created, but download failed.`);
-          }
-        }
-
-        if (!shouldDownload) {
-          alert(`${successMessage}\n\nInvoice ${invoiceNumber} is available in your invoice records.`);
-        }
-      } else {
-        alert(successMessage);
-      }
-    } else {
-      alert(`Hold placed successfully! ${paymentData.message || ""}`);
-    }
+    alert(`Hold placed successfully! ${paymentData.message || ""}`);
 
     // Close modal
     setShowHoldModal(false);
-    setShowPurchaseModal(false);
   };
 
   const handleGenerateTrailer = async () => {
@@ -1396,19 +1363,21 @@ const ScriptDetail = () => {
                     {!isOwner && script.canPurchase && !script.isUnlocked && (
                       script.myPendingRequest ? (
                         script.myPendingRequest?.status === "approved" &&
-                        script.myPendingRequest?.paymentStatus !== "released" &&
-                        Number(script.myPendingRequest?.amount || script.price || 0) > 0 ? (
+                        script.myPendingRequest?.paymentStatus !== "released" ? (
                           <div className="space-y-1.5">
                             <button
-                              onClick={() => {
-                                setPaymentType("purchase");
-                                setShowPurchaseModal(true);
-                              }}
+                              onClick={() => navigate(`/script/${script._id}/pay`)}
                               className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                             >
-                              {`Pay & Get Full Script — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`}
+                              {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                ? `Pay & Get Full Script — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
+                                : "Get Full Script (Free)"}
                             </button>
-                            <p className="text-[11px] text-amber-700/90 text-center">Payment window: 72 hours after approval.</p>
+                            <p className="text-[11px] text-amber-700/90 text-center">
+                              {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                ? "Payment window: 72 hours after approval."
+                                : "Approval granted. Confirm free access to unlock full script."}
+                            </p>
                           </div>
                         ) : (
                           <div className="w-full px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl">
@@ -2415,25 +2384,29 @@ const ScriptDetail = () => {
                                 </div>
                               ) : script.myPendingRequest ? (
                                 script.myPendingRequest?.status === "approved" &&
-                                script.myPendingRequest?.paymentStatus !== "released" &&
-                                Number(script.myPendingRequest?.amount || script.price || 0) > 0 ? (
+                                script.myPendingRequest?.paymentStatus !== "released" ? (
                                   <div className="flex flex-col items-center gap-2">
                                     <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold">
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                       </svg>
-                                      Approved — Complete Payment to Unlock
+                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                        ? "Approved — Complete Payment to Unlock"
+                                        : "Approved — Confirm Free Access to Unlock"}
                                     </div>
                                     <button
-                                      onClick={() => {
-                                        setPaymentType("purchase");
-                                        setShowPurchaseModal(true);
-                                      }}
+                                      onClick={() => navigate(`/script/${script._id}/pay`)}
                                       className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                     >
-                                      {`Pay Now — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`}
+                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                        ? `Pay Now — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
+                                        : "Get Full Script (Free)"}
                                     </button>
-                                    <p className={`text-xs ${t.muted}`}>Payment window: 72 hours after approval.</p>
+                                    <p className={`text-xs ${t.muted}`}>
+                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                        ? "Payment window: 72 hours after approval."
+                                        : "Approval granted. Confirm free access to unlock instantly."}
+                                    </p>
                                   </div>
                                 ) : (
                                   <div className="flex flex-col items-center gap-2">
@@ -2721,15 +2694,6 @@ const ScriptDetail = () => {
         onClose={() => setShowHoldModal(false)}
         script={script}
         type="hold"
-        onSuccess={handlePaymentSuccess}
-      />
-
-      {/* Purchase modal */}
-      <RazorpayScriptPayment
-        isOpen={showPurchaseModal}
-        onClose={() => setShowPurchaseModal(false)}
-        script={script}
-        type="purchase"
         onSuccess={handlePaymentSuccess}
       />
     </div>
