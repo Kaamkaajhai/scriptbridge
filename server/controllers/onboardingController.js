@@ -3,6 +3,16 @@ import Script from "../models/Script.js";
 import Subscription from "../models/Subscription.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
+
+const normalizeString = (value) =>
+  value === undefined || value === null ? "" : String(value).trim();
+
+const normalizeOptionalDate = (value) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
 
 // @desc    Update writer profile (Phase 2: Identity)
 // @route   PUT /api/onboarding/writer-profile
@@ -10,11 +20,19 @@ import nodemailer from "nodemailer";
 export const updateWriterProfile = async (req, res) => {
   try {
     const { 
+      username,
       bio, 
       representationStatus, 
       agencyName, 
       wgaMember,
-      diversity 
+      diversity,
+      links,
+      accomplishments,
+      representation,
+      demographicPrivacy,
+      dateOfBirth,
+      phone,
+      address,
     } = req.body;
     
     const user = await User.findById(req.user._id);
@@ -25,17 +43,117 @@ export const updateWriterProfile = async (req, res) => {
         message: "User not found" 
       });
     }
+
+    const nextGender = String(diversity?.gender ?? user.writerProfile?.diversity?.gender ?? "").trim();
+    const nextNationality = String(diversity?.nationality ?? user.writerProfile?.diversity?.nationality ?? "").trim();
+
+    if (!nextGender || !nextNationality) {
+      return res.status(400).json({
+        success: false,
+        message: "Gender and Nationality are required",
+      });
+    }
     
+    if (!user.writerProfile) {
+      user.writerProfile = {};
+    }
+
     // Update writer profile
+    if (username !== undefined) {
+      user.writerProfile.username = normalizeString(username).toLowerCase();
+    }
     user.bio = bio || user.bio;
     user.writerProfile.representationStatus = representationStatus || user.writerProfile.representationStatus;
     user.writerProfile.agencyName = agencyName || user.writerProfile.agencyName;
     user.writerProfile.wgaMember = wgaMember !== undefined ? wgaMember : user.writerProfile.wgaMember;
+
+    if (demographicPrivacy !== undefined) {
+      const normalizedPrivacy = normalizeString(demographicPrivacy);
+      if (["searchable", "private"].includes(normalizedPrivacy)) {
+        user.writerProfile.demographicPrivacy = normalizedPrivacy;
+      }
+    }
+
+    if (links !== undefined) {
+      user.writerProfile.links = {
+        portfolio: normalizeString(links?.portfolio),
+        instagram: normalizeString(links?.instagram),
+        twitter: normalizeString(links?.twitter),
+        linkedin: normalizeString(links?.linkedin),
+        imdb: normalizeString(links?.imdb),
+        facebook: normalizeString(links?.facebook),
+      };
+    }
+
+    if (accomplishments !== undefined) {
+      user.writerProfile.accomplishments = Array.isArray(accomplishments)
+        ? accomplishments.map((item) => normalizeString(item)).filter(Boolean)
+        : [];
+    }
+
+    if (representation !== undefined) {
+      const nextRepresentation = {
+        filmTv: {
+          agency: normalizeString(representation?.filmTv?.agency),
+          agent: normalizeString(representation?.filmTv?.agent),
+          managementCompany: normalizeString(representation?.filmTv?.managementCompany),
+          manager: normalizeString(representation?.filmTv?.manager),
+          lawFirm: normalizeString(representation?.filmTv?.lawFirm),
+          lawyer: normalizeString(representation?.filmTv?.lawyer),
+        },
+        theater: {
+          agency: normalizeString(representation?.theater?.agency),
+          agent: normalizeString(representation?.theater?.agent),
+          managementCompany: normalizeString(representation?.theater?.managementCompany),
+          manager: normalizeString(representation?.theater?.manager),
+          lawFirm: normalizeString(representation?.theater?.lawFirm),
+          lawyer: normalizeString(representation?.theater?.lawyer),
+        },
+        literary: {
+          agency: normalizeString(representation?.literary?.agency),
+          agent: normalizeString(representation?.literary?.agent),
+          managementCompany: normalizeString(representation?.literary?.managementCompany),
+          manager: normalizeString(representation?.literary?.manager),
+          lawFirm: normalizeString(representation?.literary?.lawFirm),
+          lawyer: normalizeString(representation?.literary?.lawyer),
+        },
+      };
+      user.writerProfile.representation = nextRepresentation;
+    }
+
+    if (phone !== undefined) {
+      user.phone = normalizeString(phone);
+    }
+
+    if (dateOfBirth !== undefined) {
+      const parsedDob = normalizeOptionalDate(dateOfBirth);
+      if (parsedDob) {
+        user.dateOfBirth = parsedDob;
+      }
+    }
+
+    if (address !== undefined) {
+      user.address = {
+        street: normalizeString(address?.street),
+        city: normalizeString(address?.city),
+        state: normalizeString(address?.state),
+        zipCode: normalizeString(address?.zipCode),
+        formatted: normalizeString(address?.formatted),
+      };
+    }
     
     if (diversity) {
       user.writerProfile.diversity = {
         ...user.writerProfile.diversity,
-        ...diversity
+        ...diversity,
+        gender: nextGender,
+        nationality: nextNationality,
+      };
+    } else {
+      user.writerProfile.diversity = {
+        ...user.writerProfile.diversity,
+        gender: nextGender,
+        nationality: nextNationality,
       };
     }
     
@@ -43,6 +161,9 @@ export const updateWriterProfile = async (req, res) => {
     if (user.writerProfile.onboardingStep < 2) {
       user.writerProfile.onboardingStep = 2;
     }
+
+    user.markModified("writerProfile");
+    user.markModified("address");
     
     await user.save();
     
@@ -133,13 +254,30 @@ export const completeOnboarding = async (req, res) => {
       tags,
       plan,
       agreementAccepted,
+      termsVersion,
+      privacyPolicyAccepted,
+      privacyPolicyVersion,
       stripePaymentMethodId
     } = req.body;
+
+    if (plan && !["free", "paid"].includes(plan)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan selection",
+      });
+    }
     
     if (!agreementAccepted) {
       return res.status(400).json({ 
         success: false, 
         message: "You must accept the terms and conditions" 
+      });
+    }
+
+    if (!privacyPolicyAccepted) {
+      return res.status(400).json({
+        success: false,
+        message: "You must accept the privacy policy"
       });
     }
     
@@ -149,6 +287,13 @@ export const completeOnboarding = async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         message: "User not found" 
+      });
+    }
+
+    if (!["creator", "writer"].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only writers can complete writer onboarding"
       });
     }
     
@@ -165,6 +310,12 @@ export const completeOnboarding = async (req, res) => {
     user.writerProfile.onboardingComplete = true;
     user.writerProfile.onboardingStep = 4;
     user.writerProfile.plan = plan || "free";
+    user.writerProfile.writerOnboardingTermsAccepted = true;
+    user.writerProfile.writerOnboardingTermsAcceptedAt = new Date();
+    user.writerProfile.writerOnboardingTermsVersion = termsVersion || "writer-onboarding-v1";
+    user.privacyPolicyAccepted = true;
+    user.privacyPolicyAcceptedAt = new Date();
+    user.privacyPolicyVersion = privacyPolicyVersion || "registration-privacy-v1";
     await user.save();
     
     // Create subscription record if paid plan
@@ -176,7 +327,8 @@ export const completeOnboarding = async (req, res) => {
       
       subscription = await Subscription.create({
         user: req.user._id,
-        plan: "pro",
+        // Must match Subscription schema enum values
+        plan: "hosting_plus_evaluation",
         amount: totalAmount,
         status: "pending", // Will be updated after Stripe payment
         billingCycle: "monthly",
@@ -505,7 +657,8 @@ export const getOnboardingStatus = async (req, res) => {
         emailVerified: user.emailVerified,
         currentStep: user.writerProfile.onboardingStep,
         complete: user.writerProfile.onboardingComplete,
-        writerProfile: user.writerProfile
+        writerProfile: user.writerProfile,
+        profileCompletion: getProfileCompletion(user)
       }
     });
   } catch (error) {

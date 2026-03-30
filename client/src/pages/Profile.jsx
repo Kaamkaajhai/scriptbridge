@@ -1,6 +1,6 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import api from "../services/api";
 import { sendPitch } from "../services/scriptPitchService";
 import { AuthContext } from "../context/AuthContext";
@@ -9,209 +9,9 @@ import ProjectCard from "../components/ProjectCard";
 import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
-import PrivacySettings from "../components/PrivacySettingsWrapper";
-
-/* ── Streak helper ── */
-const calcStreak = (createdAt) => {
-  if (!createdAt) return 0;
-  const created = new Date(createdAt);
-  const now = new Date();
-  const diffDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
-  return Math.min(diffDays + 1, 999);
-};
-
-/* ── StreakWidget ── */
-const StreakWidget = ({ dark, createdAt, scriptsCount }) => {
-  const streak = calcStreak(createdAt);
-  const weekDays = ["M", "T", "W", "T", "F", "S", "S"];
-  const todayIdx = (new Date().getDay() + 6) % 7;
-  const activeGoal = Math.min(scriptsCount, 5);
-  const goalPct = Math.round((activeGoal / 5) * 100);
-
-  return (
-    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Reading Streak</h3>
-        <span className={`ml-auto text-[13px] font-medium px-2.5 py-1 rounded-lg border ${dark ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
-          {streak} days
-        </span>
-      </div>
-
-      {/* Streak ring */}
-      <div className="flex items-center gap-5 mb-5">
-        <div className="relative w-20 h-20 shrink-0">
-          <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-            <circle cx="40" cy="40" r="32" fill="none" stroke={dark ? "rgba(255,255,255,0.05)" : "#f3f4f6"} strokeWidth="7" />
-            <circle cx="40" cy="40" r="32" fill="none" stroke="#f97316" strokeWidth="7" strokeLinecap="round"
-              strokeDasharray={`${Math.min((streak / 30) * 201, 201)} 201`}
-              style={{ filter: "drop-shadow(0 0 6px rgba(249,115,22,0.4))", transition: "stroke-dasharray 1s ease-out" }} />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`text-2xl font-extrabold tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{streak > 30 ? "30+" : streak}</span>
-            <span className={`text-[12px] font-bold uppercase tracking-wide ${dark ? "text-white/30" : "text-gray-400"}`}>days</span>
-          </div>
-        </div>
-        <div className="flex-1">
-          <p className={`text-[15px] font-semibold mb-1 ${dark ? "text-white/50" : "text-gray-500"}`}>Weekly Goal</p>
-          <div className={`h-2 rounded-full overflow-hidden mb-1.5 ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
-            <div className="h-full rounded-full bg-orange-400 transition-all duration-700" style={{ width: `${goalPct}%` }} />
-          </div>
-          <p className={`text-[14px] ${dark ? "text-white/30" : "text-gray-400"}`}>{activeGoal} / 5 scripts read</p>
-        </div>
-      </div>
-
-      {/* Day indicators */}
-      <div className="flex gap-1.5">
-        {weekDays.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className={`w-full h-1.5 rounded-full transition-all ${i <= todayIdx
-              ? "bg-orange-400"
-              : dark ? "bg-white/[0.06]" : "bg-gray-100"}`} />
-            <span className={`text-[13px] font-bold ${i === todayIdx ? "text-orange-400" : dark ? "text-white/20" : "text-gray-300"}`}>{d}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/* ── CurrentlyReadingCard ── */
-const CurrentlyReadingCard = ({ dark, scripts, resolveImage }) => {
-  const recent = scripts.slice(0, 3);
-  const fakeProgress = [72, 45, 18];
-
-  if (recent.length === 0) return (
-    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05] text-blue-400" : "bg-blue-50 text-blue-600"}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-          </svg>
-        </div>
-        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Currently Reading</h3>
-      </div>
-      <div className={`rounded-xl py-8 text-center ${dark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
-        <p className={`text-[14px] ${dark ? "text-white/25" : "text-gray-400"}`}>No scripts yet</p>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-blue-500/10 text-blue-400" : "bg-blue-50 text-blue-600"}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-          </svg>
-        </div>
-        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Currently Reading</h3>
-        <span className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"}`}>{recent.length} scripts</span>
-      </div>
-      <div className="space-y-3">
-        {recent.map((s, i) => {
-          const pct = fakeProgress[i] ?? Math.floor(Math.random() * 80 + 10);
-          const cover = resolveImage(s.coverImage || s.thumbnail);
-          const genreColors = [
-            dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-600 border-blue-200",
-            dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-600 border-purple-200",
-            dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200",
-          ];
-          return (
-            <div key={s._id} className={`rounded-xl p-3 flex gap-3 border transition-all hover:scale-[1.01] ${dark ? "bg-white/[0.02] border-white/[0.05] hover:border-white/[0.1]" : "bg-gray-50/60 border-gray-100 hover:border-gray-200"}`}>
-              {/* Thumbnail */}
-              <div className={`w-12 h-16 rounded-lg shrink-0 overflow-hidden ${dark ? "bg-white/[0.04]" : "bg-gray-200"}`}>
-                {cover
-                  ? <img src={cover} alt={s.title} className="w-full h-full object-cover" />
-                  : <div className={`w-full h-full flex items-center justify-center text-lg font-extrabold bg-gradient-to-br ${dark ? "from-[#1e3a5f] to-[#0f2439] text-white/40" : "from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>{s.title?.charAt(0)}</div>
-                }
-              </div>
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className={`text-[16px] font-bold truncate ${dark ? "text-white" : "text-gray-900"}`}>{s.title}</p>
-                  <span className={`text-[13px] font-bold shrink-0 ${dark ? "text-white/40" : "text-gray-400"}`}>{pct}%</span>
-                </div>
-                {s.genre && (
-                  <span className={`inline-block px-2.5 py-1 rounded-md text-[13px] font-semibold border mb-2 ${genreColors[i % 3]}`}>{s.genre}</span>
-                )}
-                <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
-                  <div className="h-full rounded-full bg-blue-500 transition-all duration-700" style={{ width: `${pct}%` }} />
-                </div>
-                <p className={`text-[13px] mt-1 ${dark ? "text-white/25" : "text-gray-400"}`}>
-                  {s.format?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Script"} · {s.pageCount ? `${s.pageCount}pp` : "—"}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-/* ── ProfileEssentials ── */
-const ProfileEssentials = ({ dark, profile, scripts, memberSince, t }) => {
-  const isWriter = (role) => role === "creator" || role === "writer";
-  const essentials = [
-    profile.location && { label: "Location", value: profile.location },
-    profile.website && { label: "Website", value: profile.website, isLink: true },
-    memberSince && { label: "Member Since", value: memberSince },
-    profile.role && { label: "Role", value: profile.role.charAt(0).toUpperCase() + profile.role.slice(1) },
-    isWriter(profile.role) && profile.writerProfile?.representationStatus && {
-      label: "Representation", value: profile.writerProfile.representationStatus.replace(/_/g, " & ")
-    },
-    profile.industryProfile?.company && { label: "Company", value: profile.industryProfile.company },
-    profile.industryProfile?.jobTitle && { label: "Title", value: profile.industryProfile.jobTitle },
-  ].filter(Boolean);
-
-  return (
-    <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05] text-white/40" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]/60"}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
-        </div>
-        <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Profile Essentials</h3>
-      </div>
-
-      {essentials.length > 0 ? (
-        <div className="space-y-2.5">
-          {essentials.map((e, i) => (
-            <div key={i} className={`flex items-center gap-3 py-2 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-              <span className={`text-[14px] ${dark ? "text-white/30" : "text-gray-400"} shrink-0 w-24`}>{e.label}</span>
-              {e.isLink
-                ? <a href={e.value.startsWith("http") ? e.value : `https://${e.value}`} target="_blank" rel="noreferrer"
-                    className={`text-[14px] font-semibold truncate hover:underline ${dark ? "text-blue-400" : "text-blue-600"}`}>{e.value}</a>
-                : <span className={`text-[14px] font-semibold truncate capitalize ${dark ? "text-white/65" : "text-gray-700"}`}>{e.value}</span>
-              }
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className={`rounded-xl py-6 text-center ${dark ? "bg-white/[0.02]" : "bg-gray-50"}`}>
-          <p className={`text-[14px] italic ${dark ? "text-white/20" : "text-gray-400"}`}>No essentials yet</p>
-        </div>
-      )}
-
-      {/* Quick action links */}
-      {(profile.socialLinks?.imdb || profile.socialLinks?.linkedin || profile.socialLinks?.twitter) && (
-        <div className={`mt-3 pt-3 border-t flex gap-2 flex-wrap ${dark ? "border-white/[0.05]" : "border-gray-100"}`}>
-          {[
-            { key: "imdb", label: "IMDb", icon: "🎬" },
-            { key: "linkedin", label: "LinkedIn", icon: "💼" },
-            { key: "twitter", label: "Twitter", icon: "𝕏" },
-          ].filter(l => profile.socialLinks?.[l.key]).map(l => (
-            <a key={l.key} href={profile.socialLinks[l.key]} target="_blank" rel="noreferrer"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[14px] font-semibold border transition-all hover:scale-105 ${dark ? "border-white/[0.08] bg-white/[0.03] text-white/50 hover:text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"}`}>
-              <span>{l.icon}</span>{l.label}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
+import SocialShareButton from "../components/SocialShareButton";
+import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
+import { formatCurrency } from "../utils/currency";
 
 /* â”€â”€ Helper components â”€â”€ */
 
@@ -232,14 +32,14 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
         {icon}
       </div>
       <h3
-        className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"
+        className={`text-[13px] font-bold ${dark ? "text-white/70" : "text-gray-800"
           }`}
       >
         {title}
       </h3>
       {badge && (
         <span
-          className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"
+          className={`ml-auto text-[11px] font-medium ${dark ? "text-white/25" : "text-gray-400"
             }`}
         >
           {badge}
@@ -252,11 +52,11 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
 
 const InfoRow = ({ label, value, dark }) => (
   <div className="flex items-center justify-between">
-    <span className={`text-[15px] ${dark ? "text-white/35" : "text-gray-400"}`}>
+    <span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>
       {label}
     </span>
     <span
-      className={`text-[15px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
+      className={`text-[13px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
         }`}
     >
       {value}
@@ -316,10 +116,7 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
               }`}>Delete Project?</h3>
             <p className={`text-[13px] text-center mb-1 ${dark ? "text-neutral-400" : "text-gray-500"
               }`}>
-              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from your profile.
-            </p>
-            <p className={`text-[11px] text-center mb-5 ${dark ? "text-neutral-600" : "text-gray-400"}`}>
-              Uploaded files are kept in storage.
+              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from everywhere.
             </p>
             <div className="flex gap-2.5">
               <button
@@ -348,94 +145,124 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
 const Profile = () => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const { id } = useParams();
-  const { user: currentUser } = useContext(AuthContext);
+  const { user: currentUser, setUser } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
 
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
+  const [deletedScripts, setDeletedScripts] = useState([]);
   const [purchasedScripts, setPurchasedScripts] = useState([]);
-  const [investorStats, setInvestorStats] = useState(null);
   const [bookmarkedScripts, setBookmarkedScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
-  const [connectionsTab, setConnectionsTab] = useState("followers");
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("projects");
+  const [showMessageRequestModal, setShowMessageRequestModal] = useState(false);
+  const [messageRequestText, setMessageRequestText] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState(false);
+  
+  // Pitch
+  const [showPitchModal, setShowPitchModal] = useState(false);
+  const [myScripts, setMyScripts] = useState([]);
+  const [pitchData, setPitchData] = useState({ scriptId: "", note: "" });
+  const [sendingPitch, setSendingPitch] = useState(false);
+  const [pitchSuccess, setPitchSuccess] = useState(false);
 
   // Settings state
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsErr, setSettingsErr] = useState("");
-  const [privacySettings, setPrivacySettings] = useState({
-    accountEmail: "",
-    emailVerified: false,
-    requestVerification: false,
-    profileVisibility: "public",
-    messagingPermissions: "everyone",
-    showOnlineStatus: true,
-    profileInfoVisibility: {
-      email: "hidden",
-      phone: "hidden",
-      bio: "public",
-    },
-    allowAnalytics: true,
-    personalizedAds: false,
-    enableTwoFactor: false,
-    blockedUsers: [],
-  });
+  const [isBlockedByCurrent, setIsBlockedByCurrent] = useState(false);
+  const [blockedByProfile, setBlockedByProfile] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [blockingAction, setBlockingAction] = useState(false);
+  const [emailForm, setEmailForm] = useState({ password: "", newEmail: "" });
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [emailVerificationCode, setEmailVerificationCode] = useState("");
+  const [sendingVerificationCode, setSendingVerificationCode] = useState(false);
+  const [verifyingEmailCode, setVerifyingEmailCode] = useState(false);
+  const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const isFetchingProfileRef = useRef(false);
+  const bookmarkRefreshTimerRef = useRef(null);
+  const tabInitializedForProfileRef = useRef(null);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [id]);
+  const fetchProfile = useCallback(async ({ silent = false } = {}) => {
+    const profileId = id || currentUser?._id;
+    if (!profileId || isFetchingProfileRef.current) return;
 
-  useEffect(() => {
-    if (!profile) return;
-    setPrivacySettings((prev) => ({
-      ...prev,
-      accountEmail: profile.email || "",
-      emailVerified: !!profile.emailVerified,
-      profileVisibility: profile.isPrivate ? "private" : "public",
-      blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers : [],
-    }));
-  }, [profile]);
-
-  const handleDeleteScript = async (scriptId) => {
     try {
-      await api.delete(`/scripts/${scriptId}`);
-      setScripts((prev) => prev.filter((s) => s._id !== scriptId));
-    } catch (error) {
-      console.error("Delete failed:", error);
-    }
-  };
+      isFetchingProfileRef.current = true;
+      if (!silent) setLoading(true);
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.get(`/users/${id || currentUser._id}`);
+      const { data } = await api.get(`/users/${profileId}`);
       setProfile(data.user);
-      setScripts((data.scripts || []).filter((s) => s.status !== "draft"));
+      setScripts((data.scripts || []).filter((s) => s.status !== "draft" && !s.isDeleted));
+      setDeletedScripts(data.deletedScripts || []);
       setPurchasedScripts(data.purchasedScripts || []);
       setBookmarkedScripts(data.bookmarkedScripts || []);
       setBlockedUsers(Array.isArray(data.user.blockedUsers) ? data.user.blockedUsers : []);
       setIsBlockedByCurrent(Boolean(data.user.blockedByCurrent));
       setBlockedByProfile(Boolean(data.user.blockedByProfile));
       setIsFollowing(
-        data.user.followers.some((f) => f._id === currentUser._id)
+        data.user.followers.some((f) => f._id === currentUser?._id)
       );
 
-      // Fetch investor stats if viewing an investor profile
-      if (["investor", "producer", "director"].includes(data.user.role)) {
-        try {
-          const { data: dashData } = await api.get("/dashboard/investor");
-          setInvestorStats(dashData.stats);
-        } catch (err) {
-          console.error("Error fetching investor stats:", err);
-        }
+      if (tabInitializedForProfileRef.current !== data.user._id) {
+        const isInvestorProfile = String(data.user.role || "").toLowerCase() === "investor";
+        setActiveTab(isInvestorProfile ? "about" : "projects");
+        tabInitializedForProfileRef.current = data.user._id;
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
-      setLoading(false);
+      isFetchingProfileRef.current = false;
+      if (!silent) setLoading(false);
+    }
+  }, [id, currentUser?._id]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    const isOwnView = !id || id === currentUser?._id;
+    if (!isOwnView) return undefined;
+
+    const refreshBookmarks = () => {
+      if (bookmarkRefreshTimerRef.current) {
+        clearTimeout(bookmarkRefreshTimerRef.current);
+      }
+      bookmarkRefreshTimerRef.current = setTimeout(() => {
+        fetchProfile({ silent: true });
+      }, 250);
+    };
+
+    window.addEventListener("bookmarkUpdated", refreshBookmarks);
+    return () => {
+      window.removeEventListener("bookmarkUpdated", refreshBookmarks);
+      if (bookmarkRefreshTimerRef.current) {
+        clearTimeout(bookmarkRefreshTimerRef.current);
+      }
+    };
+  }, [id, currentUser?._id, fetchProfile]);
+
+  const handleDeleteScript = async (scriptId) => {
+    try {
+      await api.delete(`/scripts/${scriptId}`);
+      setScripts((prev) => {
+        const deletedScript = prev.find((s) => s._id === scriptId);
+        if (deletedScript) {
+          setDeletedScripts((existing) => [
+            { ...deletedScript, isDeleted: true, deletedAt: new Date().toISOString() },
+            ...existing.filter((s) => s._id !== scriptId),
+          ]);
+        }
+        return prev.filter((s) => s._id !== scriptId);
+      });
+      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: scriptId } }));
+    } catch (error) {
+      console.error("Delete failed:", error);
     }
   };
 
@@ -564,6 +391,10 @@ const Profile = () => {
 
   const isOwnProfile = currentUser._id === profile?._id;
   const isWriterUser = isWriter(profile?.role);
+  const isInvestorProfile = String(profile?.role || "").toLowerCase() === "investor";
+  const purchasedCount = purchasedScripts.length;
+  const profileCompletion = profile?.profileCompletion;
+  const showProfileCompletion = isOwnProfile && profileCompletion && !profileCompletion.isComplete;
 
   const memberSince = profile?.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-US", {
@@ -571,16 +402,20 @@ const Profile = () => {
       year: "numeric",
     })
     : null;
-  const yearJoined = profile?.createdAt
-    ? new Date(profile.createdAt).getFullYear()
-    : "-";
-  const favoriteCount = profile?.favoriteScripts?.length || 0;
-  const favoritePreview = (profile?.favoriteScripts || []).slice(0, 3);
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const defaultProfileRoute = profile?._id
+    ? `${String(profile?.role || "").toLowerCase() === "reader" ? "/reader/profile" : "/profile"}/${profile._id}`
+    : "";
+  const profileShare = {
+    url: profile?.shareMeta?.url || (defaultProfileRoute ? `${browserOrigin}${defaultProfileRoute}` : ""),
+    title: profile?.shareMeta?.title || `${profile?.name || "Profile"} | ScriptBridge`,
+    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this creator"}'s profile on ScriptBridge.`,
+  };
 
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5002${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   /* â”€â”€ Loading â”€â”€ */
@@ -717,31 +552,38 @@ const Profile = () => {
      RENDER
      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      {/* ──────── PROFILE CARD ──────── */}
+    <div className={`mx-auto space-y-5 ${isWriterUser || isInvestorProfile ? "max-w-6xl" : "max-w-3xl"}`}>
+      <ProfileCompletionBanner
+        completion={showProfileCompletion ? profileCompletion : null}
+        subtitle="Your profile is incomplete. Add missing details from Edit Profile."
+        ctaLabel="Edit Profile"
+        onCta={() => setShowEditModal(true)}
+      />
+
+      {/* ════════ PROFILE CARD ════════ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
         className={`rounded-2xl border transition-colors relative overflow-visible ${t.card}`}
       >
-        {/* Cover area */}
+        {/* Cover — clean solid for writers */}
         <div
-          className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden ${
-            profile.coverImage
-              ? ""
-              : dark
-                ? "bg-white/[0.04]"
-                : "bg-gray-100"
-          }`}
-          style={profile.coverImage ? {
-            backgroundImage: `url(${resolveImage(profile.coverImage)})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          } : {}}
+          className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
         >
-          {/* Edit / Follow button — pinned on cover */}
-          <div className="absolute top-4 right-4 z-10">
+          {/* Subtle dot pattern — single, no gradients */}
+          <div className="absolute inset-0" style={{
+            opacity: dark ? 0.035 : 0.05,
+            backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
+            backgroundSize: "24px 24px",
+          }} />
+          {/* Edit / Follow button */}
+          <div className="absolute top-4 right-4 z-10 flex gap-2">
+            <SocialShareButton
+              share={profileShare}
+              buttonLabel="Share"
+              className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] border-white/[0.12] text-white/80" : "bg-white/95 hover:bg-white border-gray-200 text-[#1a3557]"}`}
+            />
             {isOwnProfile ? (
               <button onClick={() => setShowEditModal(true)}
                 className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${t.editBtn}`}>
@@ -771,133 +613,82 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Avatar + Info row */}
-        <div className="px-6 sm:px-8 relative">
-          <div className="-mt-16 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
-            {/* Avatar */}
-            <div className="shrink-0">
-              {profile.profileImage ? (
-                <img
-                  src={resolveImage(profile.profileImage)}
-                  alt={profile.name}
-                  className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-[5px] shadow-2xl ${t.avatarRing}`}
-                />
-              ) : (
-                <div
-                  className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full ring-[5px] bg-gradient-to-br flex items-center justify-center shadow-2xl ${t.avatarRing} ${t.avatarGrad}`}
-                >
-                  <span className="text-4xl sm:text-5xl font-extrabold text-white/80">
-                    {profile.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-            </div>
+        {/* Writer-first premium hero */}
+        {isWriterUser ? (
+          <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
+            <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
+              <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="shrink-0">
+                    {profile.profileImage ? (
+                      <img
+                        src={resolveImage(profile.profileImage)}
+                        alt={profile.name}
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                      />
+                    ) : (
+                      <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                        <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
+                          {profile.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-            {/* Name, badges, email, bio — beside avatar */}
-            <div className="flex-1 min-w-0 pb-1">
-              <div className="flex items-center gap-2.5 mb-1 flex-wrap">
-                <h1
-                  className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}
-                >
-                  {profile.name}
-                </h1>
-                <span
-                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border ${t.roleBg}`}
-                >
-                  {profile.role}
-                </span>
-                {isWriter(profile.role) &&
-                  profile.writerProfile?.wgaMember && (
-                    <span
-                      className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border ${t.wgaBadge}`}
-                    >
-                      WGA
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="space-y-2.5">
-                    <h1 className={`text-3xl sm:text-4xl font-black tracking-tight leading-none ${t.writerName}`}>
-                      {profile.name}
-                    </h1>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.13em] border ${t.roleBg}`}>
+                      <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                         {profile.role}
                       </span>
                       {profile.writerProfile?.wgaMember && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.13em] border ${t.wgaBadge}`}>WGA</span>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>WGA</span>
                       )}
-                      {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-semibold capitalize border ${t.repBadge}`}>
-                          {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
+                    </div>
+
+                    {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
+                      <p className={`text-[13px] mt-1.5 capitalize ${dark ? "text-white/50" : "text-gray-600"}`}>
+                        {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
+                        {profile.writerProfile?.agencyName ? ` at ${profile.writerProfile.agencyName}` : ""}
+                      </p>
+                    )}
+
+                    {isOwnProfile && (
+                      <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
+                    )}
+
+                    {profile.bio && (
+                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
+                        {profile.bio}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      {memberSince && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          Joined {memberSince}
+                        </span>
+                      )}
+                      {(profile.writerProfile?.genres?.length || 0) > 0 && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          {profile.writerProfile.genres.length} Genres
                         </span>
                       )}
                     </div>
                   </div>
-
-                  <div className="mt-3 space-y-2">
-                    {isOwnProfile && <p className={`text-[13px] font-semibold ${t.email}`}>{profile.email}</p>}
-                    {profile.bio && (
-                      <p className={`text-[14px] leading-relaxed line-clamp-2 ${t.writerPanelSub}`}>
-                        {profile.bio}
-                      </p>
-                    )}
-                  </div>
-
-                  {profile.skills?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3.5">
-                      {profile.skills.slice(0, 8).map((skill, i) => (
-                        <span key={i} className={`px-3 py-1 rounded-full text-[11px] font-semibold border ${t.chip}`}>{skill}</span>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
-              {isOwnProfile && (
-                <p className={`text-[13px] font-medium ${t.email}`}>
-                  {profile.email}
-                </p>
-              )}
-              <div className={`text-[13px] font-semibold mt-1 flex items-center ${dark ? "text-white/45" : "text-gray-500"}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConnectionsTab("followers");
-                    setShowConnectionsModal(true);
-                  }}
-                  className={`transition-colors hover:underline ${dark ? "hover:text-white/80" : "hover:text-gray-800"}`}
-                >
-                  {profile.followers.length} Followers
-                </button>
-                <span className={`mx-2 ${dark ? "text-white/20" : "text-gray-300"}`}>•</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConnectionsTab("following");
-                    setShowConnectionsModal(true);
-                  }}
-                  className={`transition-colors hover:underline ${dark ? "hover:text-white/80" : "hover:text-gray-800"}`}
-                >
-                  {profile.following.length} Following
-                </button>
-              </div>
-              {profile.bio && (
-                <p
-                  className={`text-[14px] leading-relaxed mt-2 line-clamp-2 ${t.body}`}
-                >
-                  {profile.bio}
-                </p>
-              )}
-              {profile.skills?.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {profile.skills.map((skill, i) => (
-                    <span
-                      key={i}
-                      className={`px-3 py-1 rounded-full text-[12px] font-semibold border ${t.chip}`}
-                    >
-                      {skill}
-                    </span>
+
+                <div className="grid grid-cols-2 gap-2.5 w-full lg:w-[420px]">
+                  {[
+                    { label: "Projects", value: scripts.length },
+                    { label: "Followers", value: profile.followers.length },
+                    { label: "Following", value: profile.following.length },
+                    { label: "Genres", value: profile.writerProfile?.genres?.length || 0 },
+                  ].map((item) => (
+                    <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                      <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -908,44 +699,160 @@ const Profile = () => {
             {profile.role === "investor" ? (
               <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
                 <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
-                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4 sm:gap-6">
+                    <div className="flex items-start gap-4 sm:gap-5 min-w-0">
                       <div className="shrink-0">
                         {profile.profileImage ? (
                           <img
                             src={resolveImage(profile.profileImage)}
                             alt={profile.name}
-                            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                            className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
                           />
                         ) : (
-                          <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
-                            <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
+                          <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                            <span className="text-4xl sm:text-5xl font-extrabold text-white/85">
                               {profile.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
                         )}
                       </div>
 
-        {/* Stats */}
-        {/* REMOVED: Activity Stats section */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.05] ${t.h1}`}>{profile.name}</h1>
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
+                            Investor
+                          </span>
+                        </div>
+
+                        {(profile.industryProfile?.company || profile.industryProfile?.jobTitle) && (
+                          <p className={`text-[14px] mt-2 font-medium ${dark ? "text-white/55" : "text-gray-600"}`}>
+                            {profile.industryProfile?.jobTitle || "Investor"}
+                            {profile.industryProfile?.company ? ` at ${profile.industryProfile.company}` : ""}
+                          </p>
+                        )}
+
+                        {isOwnProfile && (
+                          <p className={`text-[13px] font-semibold mt-2 ${t.email}`}>{profile.email}</p>
+                        )}
+
+                        {profile.bio && (
+                          <p className={`text-[15px] leading-relaxed mt-3 line-clamp-2 ${t.body}`}>
+                            {profile.bio}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
+                          {memberSince && (
+                            <span className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                              Joined {memberSince}
+                            </span>
+                          )}
+                          {profile.industryProfile?.investmentRange && (
+                            <span className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                              {profile.industryProfile.investmentRange.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5 self-start">
+                      {[
+                        { label: "Followers", value: profile.followers.length },
+                        { label: "Following", value: profile.following.length },
+                        { label: "Purchased", value: purchasedCount },
+                        { label: "Profile Views", value: Number(profile.profileViews || 0) },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className={`rounded-xl border px-3 py-3.5 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}
+                        >
+                          <p className={`text-xl sm:text-2xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Avatar + Info row */}
+                <div className="px-6 sm:px-8">
+                  <div className="-mt-12 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
+                    <div className="shrink-0">
+                      {profile.profileImage ? (
+                        <img src={resolveImage(profile.profileImage)} alt={profile.name}
+                          className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover ring-[5px] ${t.avatarRing}`} />
+                      ) : (
+                        <div className={`w-28 h-28 sm:w-36 sm:h-36 rounded-full ring-[5px] bg-gradient-to-br flex items-center justify-center ${t.avatarRing} ${t.avatarGrad}`}>
+                          <span className="text-4xl sm:text-5xl font-extrabold text-white/80">
+                            {profile.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0 pb-1 pt-1 sm:pt-0">
+                      <div className="space-y-2">
+                        <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>
+                          {profile.name}
+                        </h1>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
+                            {profile.role}
+                          </span>
+                        </div>
+                      </div>
+                      {isOwnProfile && <p className={`text-[13px] font-medium mt-2 ${t.email}`}>{profile.email}</p>}
+                      {profile.bio && (
+                        <p className={`text-[14px] leading-relaxed mt-2.5 line-clamp-3 ${t.body}`}>
+                          {profile.bio}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats for non-writer */}
+                <div className="px-6 sm:px-8 pb-7 pt-5">
+                  <div className={`flex flex-wrap items-end gap-6 sm:gap-8 pt-5 border-t ${t.divider}`}>
+                    {[
+                      ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
+                      { value: profile.followers.length, label: "Followers" },
+                      { value: profile.following.length, label: "Following" },
+                      ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
+                    ].map((s) => (
+                      <div key={s.label}>
+                        <p className={`${s.isStr ? "text-lg sm:text-xl" : "text-2xl"} font-extrabold tabular-nums ${t.statNum}`}>{s.value}</p>
+                        <p className={`text-[11px] font-semibold uppercase tracking-wider mt-0.5 ${t.statLabel}`}>{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
       </motion.div>
 
-      {/* ──────── TABS ──────── */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {[
-          { key: "overview", label: "Overview", icon: "✦" },
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
           ...(isOwnProfile ? [{ key: "bookmarks", label: "Bookmarks", count: profile.favoriteScripts?.length || bookmarkedScripts.length }] : []),
           { key: "about", label: "About" },
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
-            ? [{ key: "purchased", label: "Purchased", count: purchasedScripts.length }]
+            ? [{ key: "purchased", label: "Purchased", count: purchasedCount }]
             : []),
+          ...(isOwnProfile ? [{ key: "financial", label: "Financial" }] : []),
           ...(isOwnProfile ? [{ key: "settings", label: "Settings" }] : []),
         ].map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border ${activeTab === tab.key
+            className={`px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 border shrink-0 max-[585px]:px-3 max-[585px]:py-2 max-[585px]:text-[12px] max-[350px]:text-[11px] ${activeTab === tab.key
               ? dark
                 ? "bg-[#1c2b42] text-white border-[#314765]"
                 : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
@@ -954,8 +861,7 @@ const Profile = () => {
                 : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-900"
               }`}
           >
-            <span className="flex items-center gap-1.5">
-              {tab.icon && <span className="text-[11px] opacity-70">{tab.icon}</span>}
+            <span className="flex items-center justify-center gap-1.5 min-w-0">
               {tab.label}
               {tab.count !== undefined && (
                 <span
@@ -974,280 +880,7 @@ const Profile = () => {
         ))}
       </div>
 
-      {/* ──────── OVERVIEW TAB ──────── */}
-      {activeTab === "overview" && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-4"
-        >
-          {/* Left column — 2/3 width */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Currently Reading */}
-            <CurrentlyReadingCard dark={dark} scripts={scripts} resolveImage={resolveImage} />
-
-            {/* Weekly Reading Stats */}
-            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600"}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                  </svg>
-                </div>
-                <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Activity Stats</h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {[
-                  {
-                    label: "Scripts",
-                    value: scripts.length,
-                    color: dark ? "text-blue-400" : "text-blue-600",
-                    icon: (
-                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                      </svg>
-                    ),
-                  },
-                  {
-                    label: "Favorites",
-                    value: profile.favoriteScripts?.length || 0,
-                    color: dark ? "text-emerald-400" : "text-emerald-600",
-                    icon: (
-                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.015-4.5-4.5-4.5-1.74 0-3.248.99-3.997 2.436a4.502 4.502 0 00-8.012 2.064c-.123 2.684 1.51 5.07 3.597 6.995 1.84 1.698 4.006 3.122 4.912 3.68.906-.558 3.072-1.982 4.912-3.68 2.087-1.925 3.72-4.311 3.597-6.995z" />
-                      </svg>
-                    ),
-                  },
-                  {
-                    label: "Days Active",
-                    value: calcStreak(profile.createdAt),
-                    color: dark ? "text-orange-400" : "text-orange-600",
-                    icon: (
-                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
-                      </svg>
-                    ),
-                  },
-                ].map((stat) => (
-                  <div key={stat.label} className={`rounded-xl p-3.5 border text-center ${dark ? "bg-white/[0.02] border-white/[0.05]" : "bg-gray-50/60 border-gray-100"}`}>
-                    <div className={`mb-1 inline-flex items-center justify-center ${stat.color}`}>{stat.icon}</div>
-                    <p className={`text-2xl font-extrabold tabular-nums ${stat.color}`}>{stat.value}</p>
-                    <p className={`text-[14px] font-bold uppercase tracking-wider mt-0.5 ${dark ? "text-white/25" : "text-gray-400"}`}>{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Bio card */}
-            {profile.bio && (
-              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-white/[0.05] text-white/40" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f]/60"}`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-                    </svg>
-                  </div>
-                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>About</h3>
-                </div>
-                <p className={`text-[16px] leading-relaxed ${dark ? "text-white/50" : "text-gray-600"}`}>{profile.bio}</p>
-                {profile.skills?.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {profile.skills.map((skill, i) => (
-                      <span key={i} className={`px-3 py-1 rounded-full text-[14px] font-semibold border ${t.chip}`}>{skill}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Right column — 1/3 width */}
-          <div className="space-y-4">
-            {/* Streak Widget */}
-            <StreakWidget dark={dark} createdAt={profile.createdAt} scriptsCount={scripts.length} />
-
-            {/* Profile Essentials */}
-            <ProfileEssentials dark={dark} profile={profile} scripts={scripts} memberSince={memberSince} t={t} />
-
-            {/* Featured Script */}
-            {scripts.length > 0 && (
-              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600"}`}>
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                    </svg>
-                  </div>
-                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Featured Script</h3>
-                </div>
-                {(() => {
-                  const featured = scripts[0];
-                  const cover = resolveImage(featured.coverImage || featured.thumbnail);
-                  return (
-                    <div>
-                      {cover && (
-                        <div className="w-full h-28 rounded-xl overflow-hidden mb-3">
-                          <img src={cover} alt={featured.title} className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                      <p className={`text-[17px] font-bold mb-1 ${dark ? "text-white" : "text-gray-900"}`}>{featured.title}</p>
-                      {featured.genre && (
-                        <span className={`inline-block px-2.5 py-1 rounded-md text-[14px] font-semibold border mb-2 ${t.genreChip}`}>{featured.genre}</span>
-                      )}
-                      {featured.logline && (
-                        <p className={`text-[14px] leading-relaxed line-clamp-3 ${dark ? "text-white/35" : "text-gray-500"}`}>{featured.logline}</p>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* ── Genre Breakdown ── */}
-            {scripts.length > 0 && (() => {
-              const genreMap = {};
-              scripts.forEach(s => { if (s.genre) genreMap[s.genre] = (genreMap[s.genre] || 0) + 1; });
-              const sorted = Object.entries(genreMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-              const max = sorted[0]?.[1] || 1;
-              const barColors = [
-                dark ? "bg-blue-500/70" : "bg-blue-500",
-                dark ? "bg-purple-500/70" : "bg-purple-500",
-                dark ? "bg-emerald-500/70" : "bg-emerald-500",
-                dark ? "bg-amber-500/70" : "bg-amber-500",
-                dark ? "bg-rose-500/70" : "bg-rose-500",
-              ];
-              return sorted.length > 0 ? (
-                <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                      </svg>
-                    </div>
-                    <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Genre Breakdown</h3>
-                  </div>
-                  <div className="space-y-2.5">
-                    {sorted.map(([genre, count], i) => (
-                      <div key={genre}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-[12px] font-semibold capitalize ${dark ? "text-white/55" : "text-gray-600"}`}>{genre}</span>
-                          <span className={`text-[11px] font-bold tabular-nums ${dark ? "text-white/30" : "text-gray-400"}`}>{count}</span>
-                        </div>
-                        <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.05]" : "bg-gray-100"}`}>
-                          <div
-                            className={`h-full rounded-full transition-all duration-700 ${barColors[i]}`}
-                            style={{ width: `${(count / max) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null;
-            })()}
-
-            {/* ── Script Insights ── */}
-            {scripts.length > 0 && (() => {
-              const formats = [...new Set(scripts.map(s => s.format || s.contentType).filter(Boolean))];
-              const avgPages = scripts.filter(s => s.pageCount > 0).length > 0
-                ? Math.round(scripts.filter(s => s.pageCount > 0).reduce((a, s) => a + s.pageCount, 0) / scripts.filter(s => s.pageCount > 0).length)
-                : null;
-              const latestScript = scripts[scripts.length - 1];
-              const uploadDate = latestScript?.createdAt
-                ? new Date(latestScript.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-                : null;
-              return (
-                <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-teal-500/10 text-teal-400" : "bg-teal-50 text-teal-600"}`}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
-                      </svg>
-                    </div>
-                    <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Script Insights</h3>
-                  </div>
-                  <div className="space-y-2.5">
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                      <span className={`text-[13px] ${dark ? "text-white/30" : "text-gray-400"}`}>Total Scripts</span>
-                      <span className={`text-[13px] font-bold tabular-nums ${dark ? "text-white/65" : "text-gray-800"}`}>{scripts.length}</span>
-                    </div>
-                    {avgPages && (
-                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                        <span className={`text-[13px] ${dark ? "text-white/30" : "text-gray-400"}`}>Avg. Pages</span>
-                        <span className={`text-[13px] font-bold tabular-nums ${dark ? "text-white/65" : "text-gray-800"}`}>{avgPages} pp</span>
-                      </div>
-                    )}
-                    {formats.length > 0 && (
-                      <div className={`px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                        <p className={`text-[13px] mb-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>Formats</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {formats.map(f => (
-                            <span key={f} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border capitalize ${t.chip}`}>
-                              {f.replace(/_/g, " ")}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {uploadDate && (
-                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
-                        <span className={`text-[13px] ${dark ? "text-white/30" : "text-gray-400"}`}>Latest Upload</span>
-                        <span className={`text-[13px] font-bold ${dark ? "text-white/65" : "text-gray-800"}`}>{uploadDate}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* ── Followers Preview ── */}
-            {profile.followers?.length > 0 && (
-              <div className={`rounded-2xl border p-5 ${dark ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200/70 shadow-sm"}`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${dark ? "bg-rose-500/10 text-rose-400" : "bg-rose-50 text-rose-600"}`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                    </svg>
-                  </div>
-                  <h3 className={`text-[17px] font-bold ${dark ? "text-white/70" : "text-gray-800"}`}>Followers</h3>
-                  <span className={`ml-auto text-[12px] font-semibold px-2 py-0.5 rounded-md ${dark ? "bg-white/[0.05] text-white/30" : "bg-gray-100 text-gray-400"}`}>{profile.followers.length}</span>
-                </div>
-                {/* Avatar stack */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {profile.followers.slice(0, 8).map((f, i) => (
-                    <div
-                      key={f._id || i}
-                      title={f.name || "Follower"}
-                      className={`w-9 h-9 rounded-full ring-2 flex items-center justify-center text-[13px] font-extrabold uppercase bg-gradient-to-br transition-transform hover:scale-110 cursor-default ${
-                        dark ? "ring-[#0d1829] from-[#1e3a5f] to-[#0f2439] text-white/70" : "ring-white from-[#1e3a5f] to-[#2d5a8e] text-white"
-                      }`}
-                    >
-                      {(f.name || "?").charAt(0)}
-                    </div>
-                  ))}
-                  {profile.followers.length > 8 && (
-                    <div className={`w-9 h-9 rounded-full ring-2 flex items-center justify-center text-[11px] font-bold ${
-                      dark ? "ring-[#0d1829] bg-white/[0.06] text-white/40" : "ring-white bg-gray-100 text-gray-500"
-                    }`}>
-                      +{profile.followers.length - 8}
-                    </div>
-                  )}
-                </div>
-                {profile.followers.length > 0 && (
-                  <p className={`text-[12px] mt-2.5 ${dark ? "text-white/25" : "text-gray-400"}`}>
-                    {profile.followers.slice(0, 2).map(f => f.name).join(", ")}
-                    {profile.followers.length > 2 ? ` and ${profile.followers.length - 2} more` : ""} follow{profile.followers.length === 1 ? "s" : ""} this profile
-                  </p>
-                )}
-              </div>
-            )}
-
-          </div>
-        </motion.div>
-      )}
-
-      {/* ──────── PROJECTS TAB ──────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€ PROJECTS TAB â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "projects" && profile.role !== "investor" && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -1285,7 +918,7 @@ const Profile = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 min-[460px]:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
               {scripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -1326,7 +959,7 @@ const Profile = () => {
               <p className={`text-[13px] max-w-xs mx-auto ${t.emptyP}`}>Bookmark projects from cards or project pages to quickly access them here.</p>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
+            <div className={`grid grid-cols-1 min-[460px]:grid-cols-2 ${isWriterUser ? "lg:grid-cols-3" : ""} gap-4`}>
               {bookmarkedScripts.map((script, idx) => (
                 <motion.div
                   key={script._id}
@@ -1866,7 +1499,7 @@ const Profile = () => {
                   {/* Thumbnail */}
                   <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 ${dark ? "bg-[#1a2d47]" : "bg-gray-100"}`}>
                     {script.coverImage ? (
-                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `http://localhost:5002${script.coverImage}`}
+                      <img src={script.coverImage.startsWith("http") ? script.coverImage : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${script.coverImage}`}
                         alt={script.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -1898,6 +1531,11 @@ const Profile = () => {
                       </svg>
                       Purchased
                     </span>
+                    {script.isDeleted && (
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${dark ? "bg-amber-500/10 text-amber-300 border-amber-400/20" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                        Deleted by creator
+                      </span>
+                    )}
                     {script.price > 0 && (
                       <span className={`text-[12px] font-bold ${dark ? "text-white/30" : "text-gray-400"}`}>{formatCurrency(script.price, "INR")}</span>
                     )}
@@ -1930,8 +1568,296 @@ const Profile = () => {
             </div>
           )}
 
-          {/* Privacy Settings */}
-          <PrivacySettings dark={dark} privacySettings={privacySettings} setPrivacySettings={setPrivacySettings} userId={id || currentUser?._id} api={api} />
+          {/* Account */}
+          <SectionCard dark={dark} title="Account" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
+            <div className="space-y-4">
+              <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
+                <div>
+                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Private Account</p>
+                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>Only approved followers can see your profile</p>
+                </div>
+                <button onClick={async () => { try { setSavingSettings(true); await api.put("/users/settings", { isPrivate: !profile.isPrivate }); setProfile({ ...profile, isPrivate: !profile.isPrivate }); setSettingsMsg("Privacy updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr("Failed"); } finally { setSavingSettings(false); } }}
+                  className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.isPrivate ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
+                  <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.isPrivate ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
+                </button>
+              </div>
+              <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-white/[0.06] bg-white/[0.02]" : "border-gray-100 bg-gray-50/60"}`}>
+                <div>
+                  <p className={`text-[13px] font-semibold ${dark ? "text-white/70" : "text-gray-700"}`}>Email Verified</p>
+                  <p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{profile.pendingEmail ? `Current: ${profile.email}` : profile.email}</p>
+                  {profile.pendingEmail && (
+                    <p className={`text-[11px] mt-0.5 ${dark ? "text-amber-300/70" : "text-amber-700"}`}>Pending: {profile.pendingEmail}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {(profile.pendingEmail || !profile.emailVerified) && (
+                    <button
+                      disabled={sendingVerificationCode || savingSettings}
+                      onClick={async () => {
+                        try {
+                          setSendingVerificationCode(true);
+                          setSettingsErr("");
+                          await api.post("/users/email-verification/send");
+                          setVerificationCodeSent(true);
+                          setSettingsMsg("Verification code sent to your email");
+                          setTimeout(() => setSettingsMsg(""), 3000);
+                        } catch (e) {
+                          setSettingsErr(e.response?.data?.message || "Failed to send verification code");
+                        } finally {
+                          setSendingVerificationCode(false);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${dark ? "bg-[#1e3a5f]/30 text-blue-300 border-[#1e3a5f]/40 hover:bg-[#1e3a5f]/40 disabled:opacity-40" : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 disabled:opacity-40"}`}
+                    >
+                      {sendingVerificationCode ? "Sending..." : "Send Code"}
+                    </button>
+                  )}
+                  <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${(profile.emailVerified && !profile.pendingEmail) ? dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-200" : dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-200"}`}>{(profile.emailVerified && !profile.pendingEmail) ? "Verified" : "Unverified"}</span>
+                </div>
+              </div>
+              {(profile.pendingEmail || !profile.emailVerified) && (
+                <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                  <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Verify Email</p>
+                  <div className="space-y-2.5">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="Enter 6-digit code"
+                      value={emailVerificationCode}
+                      onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={verifyingEmailCode || emailVerificationCode.length !== 6}
+                        onClick={async () => {
+                          try {
+                            setVerifyingEmailCode(true);
+                            setSettingsErr("");
+                            await api.post("/users/email-verification/verify", { otp: emailVerificationCode });
+                            const verifiedEmail = profile.pendingEmail || profile.email;
+                            setProfile({ ...profile, email: verifiedEmail, emailVerified: true, pendingEmail: undefined });
+                            setEmailVerificationCode("");
+                            setVerificationCodeSent(false);
+                            setSettingsMsg("Email verified successfully");
+                            setTimeout(() => setSettingsMsg(""), 3000);
+                          } catch (e) {
+                            setSettingsErr(e.response?.data?.message || "Failed to verify email");
+                          } finally {
+                            setVerifyingEmailCode(false);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40" : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-40"}`}
+                      >
+                        {verifyingEmailCode ? "Verifying..." : "Verify Code"}
+                      </button>
+                      <button
+                        disabled={sendingVerificationCode || savingSettings}
+                        onClick={async () => {
+                          try {
+                            setSendingVerificationCode(true);
+                            setSettingsErr("");
+                            await api.post("/users/email-verification/send");
+                            setVerificationCodeSent(true);
+                            setSettingsMsg("Verification code resent");
+                            setTimeout(() => setSettingsMsg(""), 3000);
+                          } catch (e) {
+                            setSettingsErr(e.response?.data?.message || "Failed to resend verification code");
+                          } finally {
+                            setSendingVerificationCode(false);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-white/[0.04] text-white/70 border border-white/[0.08] hover:bg-white/[0.08] disabled:opacity-40" : "bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 disabled:opacity-40"}`}
+                      >
+                        {sendingVerificationCode ? "Sending..." : "Resend"}
+                      </button>
+                    </div>
+                    {verificationCodeSent && (
+                      <p className={`text-[11px] ${dark ? "text-white/30" : "text-gray-500"}`}>
+                        A verification code was sent to {profile.pendingEmail || profile.email}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Email</p>
+                <div className="space-y-2.5">
+                  <input type="email" placeholder="New email address" value={emailForm.newEmail} onChange={e => setEmailForm({ ...emailForm, newEmail: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="Current password" value={emailForm.password} onChange={e => setEmailForm({ ...emailForm, password: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <button disabled={savingSettings || !emailForm.newEmail || !emailForm.password} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); const { data } = await api.put("/users/change-email", emailForm); setProfile({ ...profile, email: data.email, pendingEmail: data.pendingEmail, emailVerified: true }); setEmailForm({ password: "", newEmail: "" }); setEmailVerificationCode(""); setVerificationCodeSent(true); setSettingsMsg(data.message || "Verification code sent to new email."); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
+                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Update Email"}</button>
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                <p className={`text-[12px] font-bold uppercase tracking-wider mb-3 ${dark ? "text-white/30" : "text-gray-400"}`}>Change Password</p>
+                <div className="space-y-2.5">
+                  <input type="password" placeholder="Current password" value={pwForm.currentPassword} onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="New password (min 6 chars)" value={pwForm.newPassword} onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <input type="password" placeholder="Confirm new password" value={pwForm.confirmPassword} onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none transition-colors ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/15 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-300 focus:border-gray-400"}`} />
+                  <button disabled={savingSettings || !pwForm.currentPassword || !pwForm.newPassword || pwForm.newPassword !== pwForm.confirmPassword} onClick={async () => { try { setSavingSettings(true); setSettingsErr(""); await api.put("/users/change-password", { currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }); setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); setSettingsMsg("Password changed"); setTimeout(() => setSettingsMsg(""), 3000); } catch (e) { setSettingsErr(e.response?.data?.message || "Failed"); } finally { setSavingSettings(false); } }}
+                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors ${dark ? "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-30" : "bg-[#1e3a5f] text-white hover:bg-[#254a75] disabled:opacity-40"}`}>{savingSettings ? "Saving..." : "Change Password"}</button>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Notification Preferences */}
+          <SectionCard dark={dark} title="Notification Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>}>
+            <div className="space-y-2.5">
+              {[{ key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "When a new script matches your mandates" }, { key: "holdAlerts", label: "Hold Alerts", desc: "Option hold status updates" }, { key: "viewAlerts", label: "View Alerts", desc: "When someone views your profile" }, { key: "auditionAlerts", label: "Audition Alerts", desc: "New audition opportunities" }].map((pref) => (
+                <div key={pref.key} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
+                  <div><p className={`text-[13px] font-semibold ${dark ? "text-white/65" : "text-gray-700"}`}>{pref.label}</p><p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{pref.desc}</p></div>
+                  <button onClick={async () => { const nv = !profile.notificationPrefs?.[pref.key]; try { await api.put("/users/settings", { notificationPrefs: { [pref.key]: nv } }); setProfile({ ...profile, notificationPrefs: { ...profile.notificationPrefs, [pref.key]: nv } }); } catch (e) { setSettingsErr("Failed"); } }}
+                    className={`w-10 h-[22px] rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${profile.notificationPrefs?.[pref.key] ? dark ? "bg-emerald-500/30" : "bg-emerald-100" : dark ? "bg-white/[0.06]" : "bg-gray-200"}`}>
+                    <div className={`w-[18px] h-[18px] rounded-full transition-all ${profile.notificationPrefs?.[pref.key] ? `${dark ? "bg-emerald-400" : "bg-emerald-500"} translate-x-[18px]` : `${dark ? "bg-white/30" : "bg-white"}`}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+
+          {/* Content Preferences + Subscription */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <SectionCard dark={dark} title="Content Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
+              <div className="space-y-3">
+                <div>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Preferred Genres</p>
+                  {profile.preferences?.genres?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.genres.map((g, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${t.genreChip}`}>{g}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No genres selected</p>)}
+                </div>
+                <InfoRow dark={dark} label="Budget Range" value={profile.preferences?.budgetRange ? `${formatCurrency(profile.preferences.budgetRange.min || 0, "INR")} - ${formatCurrency(profile.preferences.budgetRange.max || 0, "INR")}` : <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
+                <div>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Content Types</p>
+                  {profile.preferences?.contentTypes?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.contentTypes.map((ct, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${t.chip}`}>{ct.replace(/_/g, " ")}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No content types selected</p>)}
+                </div>
+              </div>
+            </SectionCard>
+            <SectionCard dark={dark} title="Subscription" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between"><span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>Plan</span><span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border uppercase ${profile.subscription?.plan === "enterprise" ? dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-200" : profile.subscription?.plan === "pro" ? dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200" : dark ? "bg-white/[0.04] text-white/45 border-white/[0.06]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{profile.subscription?.plan || "free"}</span></div>
+                <InfoRow dark={dark} label="Script Score Credits" value={profile.subscription?.scriptScoreCredits || 0} />
+                {profile.subscription?.expiresAt && (<InfoRow dark={dark} label="Expires" value={new Date(profile.subscription.expiresAt).toLocaleDateString()} />)}
+              </div>
+            </SectionCard>
+          </div>
+
+          {/* Localization */}
+          <SectionCard dark={dark} title="Localization" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" /></svg>}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
+                <select value={profile.language || "en"} onChange={async (e) => { try { await api.put("/users/settings", { language: e.target.value }); setProfile({ ...profile, language: e.target.value }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
+                  <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option>
+                </select>
+              </div>
+              <div>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Timezone</p>
+                <select value={profile.timezone || "Asia/Kolkata"} onChange={async (e) => { try { await api.put("/users/settings", { timezone: e.target.value }); setProfile({ ...profile, timezone: e.target.value }); setSettingsMsg("Timezone updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
+                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="America/New_York">America/New_York (EST)</option><option value="America/Los_Angeles">America/Los_Angeles (PST)</option><option value="America/Chicago">America/Chicago (CST)</option><option value="Europe/London">Europe/London (GMT)</option><option value="Europe/Paris">Europe/Paris (CET)</option><option value="Asia/Tokyo">Asia/Tokyo (JST)</option><option value="Asia/Shanghai">Asia/Shanghai (CST)</option><option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                </select>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Blocked Users */}
+          <SectionCard dark={dark} title="Blocked Users" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728" /></svg>}>
+            {blockedUsers.length === 0 ? (
+              <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>No blocked users.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {blockedUsers.map((u) => (
+                  <div key={u._id} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {u.profileImage ? (
+                        <img src={resolveImage(u.profileImage)} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${dark ? "bg-white/[0.06] text-white/70" : "bg-gray-200 text-gray-700"}`}>
+                          {u.name?.charAt(0)?.toUpperCase() || "U"}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/75" : "text-gray-800"}`}>{u.name}</p>
+                        <p className={`text-[11px] capitalize ${dark ? "text-white/30" : "text-gray-400"}`}>{u.role || "user"}</p>
+                      </div>
+                    </div>
+                    <button
+                      disabled={savingSettings}
+                      onClick={() => handleUnblockFromSettings(u._id)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors disabled:opacity-40 ${dark ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"}`}
+                    >
+                      Unblock
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {isWriterUser && (
+            <SectionCard
+              dark={dark}
+              title="Deleted Projects"
+              badge={`${deletedScripts.length}`}
+              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>}
+            >
+              {deletedScripts.length === 0 ? (
+                <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>
+                  No deleted projects yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {deletedScripts.map((script) => (
+                    <div
+                      key={script._id}
+                      className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}
+                    >
+                      {script.coverImage ? (
+                        <img
+                          src={resolveImage(script.coverImage)}
+                          alt={script.title}
+                          className="w-10 h-10 rounded-lg object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center ${dark ? "bg-white/[0.06] text-white/40" : "bg-gray-200 text-gray-500"}`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V8.25A2.25 2.25 0 015.25 6h13.5A2.25 2.25 0 0121 8.25v8.25M3 16.5l4.586-4.586a2.25 2.25 0 013.182 0L15 16.146m6 0l-3.586-3.586a2.25 2.25 0 00-3.182 0L12 14.793" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-800"}`}>
+                          {script.title}
+                        </p>
+                        <p className={`text-[11px] mt-0.5 ${dark ? "text-white/30" : "text-gray-500"}`}>
+                          {script.genre || "Unspecified genre"}
+                          {script.format ? ` \u00b7 ${script.format.replace(/_/g, " ")}` : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-red-300/70" : "text-red-600"}`}>
+                          Deleted
+                        </p>
+                        <p className={`text-[11px] ${dark ? "text-white/30" : "text-gray-500"}`}>
+                          {new Date(script.deletedAt || script.updatedAt || script.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          )}
+
+          {/* Danger Zone */}
+          <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>
+            <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-red-500/15 bg-red-500/[0.03]" : "border-red-100 bg-red-50/40"}`}>
+              <div><p className={`text-[13px] font-semibold ${dark ? "text-red-400/80" : "text-red-600"}`}>Delete Account</p><p className={`text-[11px] ${dark ? "text-red-400/30" : "text-red-400"}`}>Permanently delete your account and all data</p></div>
+              <button className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}>Delete</button>
+            </div>
+          </SectionCard>
         </motion.div>
       )}
 
@@ -2114,118 +2040,219 @@ const Profile = () => {
           transition={{ duration: 0.2 }}
           className="space-y-6"
         >
-          {/* Transactions Overview */}
-          <Transactions dark={dark} />
-
-          {/* Bank Details */}
-          {isWriter(profile.role) && <BankDetails dark={dark} />}
+          <Transactions
+            dark={dark}
+            middleContent={isWriter(profile.role) ? <BankDetails dark={dark} /> : null}
+          />
         </motion.div>
       )}
 
-      <AnimatePresence>
-        {showConnectionsModal && (
+      {/* Pitch Modal */}
+      {showPitchModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowPitchModal(false)}
+        >
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm p-4 flex items-center justify-center"
-            onClick={() => setShowConnectionsModal(false)}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`rounded-2xl shadow-2xl max-w-lg w-full p-6 border ${dark ? "bg-[#0d1520] border-white/[0.06]" : "bg-white border-gray-200"}`}
+            onClick={(e) => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              onClick={(event) => event.stopPropagation()}
-              className={`w-full max-w-md rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1829] border-white/[0.1]" : "bg-white border-gray-200 shadow-xl"}`}
-            >
-              <div className={`px-4 py-3 border-b flex items-center ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
-                <h3 className={`text-[16px] font-bold ${dark ? "text-white" : "text-gray-900"}`}>Connections</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowConnectionsModal(false)}
-                  className={`ml-auto w-8 h-8 rounded-lg text-lg leading-none ${dark ? "text-white/60 hover:bg-white/[0.06] hover:text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"}`}
-                  aria-label="Close connections modal"
-                >
-                  ×
-                </button>
+            {pitchSuccess ? (
+              <div className="text-center py-8">
+                <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
+                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-extrabold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Pitch Sent!</h3>
+                <p className={`text-sm ${dark ? "text-white/50" : "text-gray-500"}`}>
+                  Your pitch to {profile.name} was successfully submitted.
+                </p>
               </div>
-
-              <div className={`px-4 pt-3 pb-2 flex items-center gap-2 border-b ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
-                <button
-                  type="button"
-                  onClick={() => setConnectionsTab("followers")}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border transition-colors ${connectionsTab === "followers"
-                    ? dark
-                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/70"
-                      : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                    : dark
-                      ? "bg-transparent text-white/70 border-white/[0.15] hover:bg-white/[0.04]"
-                      : "bg-transparent text-gray-600 border-gray-200 hover:bg-gray-50"
-                    }`}
-                >
-                  Followers ({profile.followers.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConnectionsTab("following")}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border transition-colors ${connectionsTab === "following"
-                    ? dark
-                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/70"
-                      : "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                    : dark
-                      ? "bg-transparent text-white/70 border-white/[0.15] hover:bg-white/[0.04]"
-                      : "bg-transparent text-gray-600 border-gray-200 hover:bg-gray-50"
-                    }`}
-                >
-                  Following ({profile.following.length})
-                </button>
-              </div>
-
-              <div className="max-h-80 overflow-y-auto p-4 space-y-2.5">
-                {(connectionsTab === "followers" ? profile.followers : profile.following).length === 0 ? (
-                  <div className={`text-center py-8 text-[13px] ${dark ? "text-white/35" : "text-gray-500"}`}>
-                    {connectionsTab === "followers" ? "No followers yet." : "Not following anyone yet."}
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className={`text-lg font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Pitch Script</h3>
+                    <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-gray-500"}`}>
+                      Select a script to pitch to {profile.name}
+                    </p>
                   </div>
-                ) : (
-                  (connectionsTab === "followers" ? profile.followers : profile.following).map((person, idx) => {
-                    const item = typeof person === "object" && person !== null ? person : {};
-                    const displayName = item.name || item.username || "Unknown User";
-                    const subtitle = item.username
-                      ? item.username.startsWith("@")
-                        ? item.username
-                        : `@${item.username}`
-                      : item.email || "ScriptBridge member";
-                    const imageSrc = item.profileImage ? resolveImage(item.profileImage) : "";
-                    const key = item._id || item.id || `${connectionsTab}-${idx}`;
+                  <button
+                    onClick={() => setShowPitchModal(false)}
+                    className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.06] text-white/40 hover:text-white/60" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
 
-                    return (
-                      <div
-                        key={key}
-                        className={`flex items-center gap-3 p-2.5 rounded-xl border ${dark ? "bg-white/[0.03] border-white/[0.06]" : "bg-gray-50/60 border-gray-100"}`}
-                      >
-                        <div className={`w-10 h-10 rounded-full overflow-hidden shrink-0 ${dark ? "bg-white/[0.08]" : "bg-gray-200"}`}>
-                          {imageSrc ? (
-                            <img src={imageSrc} alt={displayName} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className={`w-full h-full flex items-center justify-center text-[13px] font-extrabold uppercase ${dark ? "text-white/60" : "text-gray-600"}`}>
-                              {displayName.charAt(0)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-900"}`}>{displayName}</p>
-                          <p className={`text-[12px] truncate ${dark ? "text-white/35" : "text-gray-500"}`}>{subtitle}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </motion.div>
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className={`block text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
+                      Select Script
+                    </label>
+                    <select
+                      value={pitchData.scriptId}
+                      onChange={(e) => setPitchData({ ...pitchData, scriptId: e.target.value })}
+                      className={`w-full p-3 rounded-xl border text-[13px] outline-none transition-all ${
+                        dark 
+                          ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20" 
+                          : "bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-purple-500"
+                      }`}
+                    >
+                      <option value="">-- Choose a script --</option>
+                      {myScripts.map(script => (
+                        <option key={script._id} value={script._id}>{script.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
+                      Pitch Note (Optional)
+                    </label>
+                    <textarea
+                      value={pitchData.note}
+                      onChange={(e) => setPitchData({ ...pitchData, note: e.target.value })}
+                      placeholder="Add a brief note about why this fits their mandate..."
+                      className={`w-full min-h-[100px] p-3 rounded-xl border text-[13px] outline-none resize-none transition-all ${
+                        dark 
+                          ? "bg-white/[0.03] border-white/[0.06] text-white focus:bg-white/[0.05] focus:border-white/20 placeholder-white/20" 
+                          : "bg-gray-50 border-gray-200 text-gray-800 focus:bg-white focus:border-purple-500 placeholder-gray-400"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPitchModal(false)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                      dark ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendPitch}
+                    disabled={!pitchData.scriptId || sendingPitch}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      dark ? "bg-purple-500 text-white hover:bg-purple-600" : "bg-purple-600 text-white hover:bg-purple-700 shadow-md"
+                    }`}
+                  >
+                    {sendingPitch ? "Sending..." : "Submit Pitch"}
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
+
+      {/* Message Request Modal */}
+      {showMessageRequestModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowMessageRequestModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`rounded-2xl shadow-2xl max-w-lg w-full p-6 border ${dark ? "bg-[#0d1520] border-white/[0.06]" : "bg-white border-gray-200"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {requestSuccess ? (
+              <div className="text-center py-8">
+                <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
+                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-extrabold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>Request Sent!</h3>
+                <p className={`text-sm ${dark ? "text-white/50" : "text-gray-500"}`}>
+                  Your message request has been sent to {profile.name}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className={`text-lg font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>
+                      Send Message Request
+                    </h3>
+                    <p className={`text-sm mt-1 ${dark ? "text-white/50" : "text-gray-500"}`}>
+                      Introduce yourself to {profile.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowMessageRequestModal(false)}
+                    className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.06] text-white/40 hover:text-white/60" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <label className={`block text-sm font-semibold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>
+                    Your Message
+                  </label>
+                  <textarea
+                    value={messageRequestText}
+                    onChange={(e) => setMessageRequestText(e.target.value)}
+                    placeholder="Tell them about your work and why you'd like to connect..."
+                    rows={5}
+                    className={`w-full px-4 py-3 rounded-xl text-sm border outline-none transition-colors resize-none ${
+                      dark
+                        ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/25 focus:border-white/20"
+                        : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-blue-400"
+                    }`}
+                    maxLength={500}
+                  />
+                  <p className={`text-xs mt-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                    {messageRequestText.length}/500 characters
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowMessageRequestModal(false)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                      dark
+                        ? "bg-white/[0.07] text-white/70 hover:bg-white/[0.12]"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendMessageRequest}
+                    disabled={!messageRequestText.trim() || sendingRequest}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      dark
+                        ? "bg-blue-500 text-white hover:bg-blue-600"
+                        : "bg-blue-500 text-white hover:bg-blue-600 shadow-md"
+                    }`}
+                  >
+                    {sendingRequest ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        Sending...
+                      </span>
+                    ) : (
+                      "Send Request"
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && (
@@ -2233,7 +2260,19 @@ const Profile = () => {
           profile={profile}
           onClose={() => setShowEditModal(false)}
           onUpdate={(updatedData) => {
-            setProfile({ ...profile, ...updatedData });
+            const mergedProfile = { ...profile, ...updatedData };
+            setProfile(mergedProfile);
+
+            if (isOwnProfile && currentUser) {
+              const nextSessionUser = {
+                ...currentUser,
+                ...updatedData,
+                profileCompletion: updatedData.profileCompletion || mergedProfile.profileCompletion || currentUser.profileCompletion,
+              };
+              setUser(nextSessionUser);
+              localStorage.setItem("user", JSON.stringify(nextSessionUser));
+            }
+
             setShowEditModal(false);
           }}
         />

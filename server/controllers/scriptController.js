@@ -2,6 +2,7 @@ import Script from "../models/Script.js";
 import mongoose from "mongoose";
 import ScriptOption from "../models/ScriptOption.js";
 import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
+import Review from "../models/Review.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Transaction from "../models/Transaction.js";
@@ -11,9 +12,10 @@ import {
   sendPurchaseApprovedEmail,
   sendPurchaseRejectedEmail,
 } from "../utils/emailService.js";
-import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { generateAndSaveInvoicePdf } from "../utils/invoicePdf.js";
+import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { CREDIT_PRICES } from "./creditsController.js";
+import { buildScriptShareMeta } from "../utils/shareMeta.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
 import crypto from "crypto";
@@ -49,15 +51,126 @@ const PUBLIC_SCRIPT_FILTER = {
   status: "published",
   isSold: { $ne: true },
   purchaseRequestLocked: { $ne: true },
+  isDeleted: { $ne: true },
 };
 
 const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
 const PROJECT_SPOTLIGHT_EXTENSION_CREDITS = 150;
 const PROJECT_SPOTLIGHT_DURATION_DAYS = 30;
+const SCRIPT_UPLOAD_TERMS_VERSION = process.env.SCRIPT_UPLOAD_TERMS_VERSION || "2026-03-24";
+const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
+const SCRIPT_PURCHASE_PLATFORM_TAX_RATE = 0.05;
+
+const roundCurrencyAmount = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
+const getScriptPurchasePricing = (baseAmount) => {
+  const cleanBaseAmount = roundCurrencyAmount(baseAmount);
+  const platformTaxAmount = roundCurrencyAmount(cleanBaseAmount * SCRIPT_PURCHASE_PLATFORM_TAX_RATE);
+  const totalAmount = roundCurrencyAmount(cleanBaseAmount + platformTaxAmount);
+
+  return {
+    baseAmount: cleanBaseAmount,
+    platformTaxRate: SCRIPT_PURCHASE_PLATFORM_TAX_RATE,
+    platformTaxPercent: Math.round(SCRIPT_PURCHASE_PLATFORM_TAX_RATE * 100),
+    platformTaxAmount,
+    totalAmount,
+  };
+};
+
+const sanitizeCustomInvestorTerms = (value = "") => String(value || "").trim();
+
+const getInvalidRoleAgeRangeMessage = (roles = []) => {
+  if (!Array.isArray(roles)) return "";
+
+  for (let i = 0; i < roles.length; i += 1) {
+    const role = roles[i] || {};
+    const min = role?.ageRange?.min;
+    const max = role?.ageRange?.max;
+
+    if (min === undefined || min === null || min === "" || max === undefined || max === null || max === "") {
+      continue;
+    }
+
+    const minAge = Number(min);
+    const maxAge = Number(max);
+    if (!Number.isFinite(minAge) || !Number.isFinite(maxAge) || minAge >= maxAge) {
+      return `Role ${i + 1}: Min age must be less than max age.`;
+    }
+  }
+
+  return "";
+};
 
 const isSpotlightActive = (script, now = new Date()) => {
   const endAt = script?.promotion?.spotlightEndAt;
   return Boolean(endAt && new Date(endAt) >= now);
+};
+
+const shouldAutoSyncUploadSpotlight = (script, now = new Date()) => {
+  if (!script) return false;
+  if (script.status !== "published") return false;
+  if (isSpotlightActive(script, now)) return false;
+  if (script.promotion?.lastSpotlightPurchaseAt) return false;
+  return Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
+};
+
+const isAdminUploadedTrailer = (script) => {
+  const hasUploadedTrailer = Boolean(script?.uploadedTrailerUrl && script?.trailerSource === "uploaded");
+  if (!hasUploadedTrailer) return false;
+  return (script?.trailerWriterFeedback?.note || "").trim() === "Trailer uploaded by admin";
+};
+
+const shouldQueueSpotlightAiTrailer = (script) => {
+  const hasAiTrailer = Boolean(script?.trailerUrl);
+  if (hasAiTrailer) return false;
+  return !isAdminUploadedTrailer(script);
+};
+
+const applySpotlightPackageState = (script, now = new Date()) => {
+  const spotlightEndsAt = new Date(now.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  const chargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+
+  script.premium = true;
+  script.isFeatured = true;
+  script.verifiedBadge = true;
+  script.services = {
+    hosting: true,
+    evaluation: true,
+    aiTrailer: true,
+    spotlight: true,
+  };
+  script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+
+  if (shouldQueueSpotlightAiTrailer(script) && !["requested", "generating"].includes(script.trailerStatus)) {
+    script.trailerStatus = "requested";
+  }
+
+  script.promotion = {
+    spotlightActive: true,
+    pendingSpotlightActivation: false,
+    spotlightStartAt: now,
+    spotlightEndAt: spotlightEndsAt,
+    lastSpotlightPurchaseAt: now,
+    totalSpotlightCreditsSpent: Math.max(
+      Number(script.promotion?.totalSpotlightCreditsSpent || 0),
+      chargedAtUpload,
+      PROJECT_SPOTLIGHT_ACTIVATION_CREDITS
+    ),
+  };
+
+  script.billing = {
+    ...(script.billing || {}),
+    spotlightCreditsSpent: Math.max(
+      Number(script.billing?.spotlightCreditsSpent || 0),
+      chargedAtUpload,
+      PROJECT_SPOTLIGHT_ACTIVATION_CREDITS
+    ),
+    lastSpotlightActivatedAt: now,
+  };
+
+  script.markModified("services");
+  script.markModified("promotion");
+  script.markModified("billing");
 };
 
 const getBlockedUserIdsForViewer = async (viewerId) => {
@@ -68,6 +181,204 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
     ...(currentUser?.blockedUsers || []),
     ...usersWhoBlockedCurrent.map((u) => u._id),
   ];
+};
+
+const hasUserInIdArray = (arr = [], userId) =>
+  Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
+
+const resolveClientOriginFromRequest = (req) => {
+  const originHeader = String(req.get("origin") || "").trim();
+  if (originHeader) return originHeader;
+
+  const refererHeader = String(req.get("referer") || "").trim();
+  if (refererHeader) {
+    try {
+      return new URL(refererHeader).origin;
+    } catch (_error) {
+      // Ignore malformed referer headers and fall back to env-based URL resolution.
+    }
+  }
+
+  return "";
+};
+
+const getPurchaseRequesterLabel = (user = {}) => {
+  const rawRole = String(user?.industryProfile?.subRole || user?.role || "").trim().toLowerCase();
+  if (rawRole === "producer") return "Producer";
+  if (rawRole === "director") return "Director";
+  if (rawRole === "investor") return "Investor";
+  if (rawRole === "industry" || rawRole === "professional") return "Industry Professional";
+  return "Buyer";
+};
+
+const PURCHASE_INVOICE_PREFIX = "INV-SCP";
+
+const buildScriptPurchaseInvoiceNumber = (paymentId = "") => {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const paymentSuffix = String(paymentId || "").replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase() || Date.now().toString().slice(-8);
+  return `${PURCHASE_INVOICE_PREFIX}-${stamp}-${paymentSuffix}`;
+};
+
+const getSettledPurchaseQuery = (extra = {}) => ({
+  ...extra,
+  status: "approved",
+  $or: [
+    { paymentStatus: "released" },
+    { amount: { $lte: 0 } },
+  ],
+});
+
+const APPROVED_UNPAID_EXPIRY_HOURS = 72;
+const APPROVED_UNPAID_EXPIRY_MS = APPROVED_UNPAID_EXPIRY_HOURS * 60 * 60 * 1000;
+const APPROVED_UNPAID_EXPIRY_NOTE = `Auto-cancelled: buyer did not complete payment within ${APPROVED_UNPAID_EXPIRY_HOURS} hours of approval.`;
+const APPROVED_UNPAID_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+let lastApprovedUnpaidSweepAt = 0;
+
+const getApprovedUnpaidExpiryCutoff = (now = new Date()) =>
+  new Date(now.getTime() - APPROVED_UNPAID_EXPIRY_MS);
+
+const getApprovedPaymentDueAt = (approvedAt = new Date()) =>
+  new Date(new Date(approvedAt).getTime() + APPROVED_UNPAID_EXPIRY_MS);
+
+const getApprovedUnpaidActiveClause = (now = new Date()) => ({
+  status: "approved",
+  paymentStatus: { $ne: "released" },
+  amount: { $gt: 0 },
+  $or: [
+    { paymentDueAt: { $gt: now } },
+    { paymentDueAt: { $exists: false }, updatedAt: { $gt: getApprovedUnpaidExpiryCutoff(now) } },
+  ],
+});
+
+const expireApprovedUnpaidRequests = async ({ scriptId, userId, force = false } = {}) => {
+  const now = new Date();
+  const shouldRunGlobalSweep = !scriptId && !userId;
+  if (shouldRunGlobalSweep && !force && Date.now() - lastApprovedUnpaidSweepAt < APPROVED_UNPAID_SWEEP_INTERVAL_MS) {
+    return;
+  }
+  if (shouldRunGlobalSweep) {
+    lastApprovedUnpaidSweepAt = Date.now();
+  }
+
+  const filters = [
+    { status: "approved" },
+    { paymentStatus: { $ne: "released" } },
+    { amount: { $gt: 0 } },
+    { $or: [{ paymentDueAt: { $exists: false } }, { paymentDueAt: { $lte: now } }] },
+  ];
+  if (scriptId) filters.push({ script: scriptId });
+  if (userId) filters.push({ $or: [{ investor: userId }, { writer: userId }] });
+
+  const requestsToProcess = await ScriptPurchaseRequest.find({ $and: filters })
+    .select("_id script paymentDueAt updatedAt createdAt note")
+    .lean();
+
+  if (requestsToProcess.length === 0) {
+    return;
+  }
+
+  const bulkOps = [];
+  const scriptIdsToCheck = new Set();
+
+  requestsToProcess.forEach((request) => {
+    const approvedAt = request?.updatedAt || request?.createdAt || now;
+    const dueAt = request?.paymentDueAt ? new Date(request.paymentDueAt) : getApprovedPaymentDueAt(approvedAt);
+    const expiresNow = dueAt <= now;
+
+    if (expiresNow) {
+      const existingNote = String(request?.note || "").trim();
+      const nextNote = existingNote.includes(APPROVED_UNPAID_EXPIRY_NOTE)
+        ? existingNote
+        : existingNote
+          ? `${existingNote}\n${APPROVED_UNPAID_EXPIRY_NOTE}`
+          : APPROVED_UNPAID_EXPIRY_NOTE;
+
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: request._id },
+          update: {
+            $set: {
+              status: "cancelled",
+              paymentStatus: "failed",
+              settledAt: now,
+              paymentDueAt: dueAt,
+              note: nextNote,
+            },
+          },
+        },
+      });
+      scriptIdsToCheck.add(request.script.toString());
+      return;
+    }
+
+    if (!request?.paymentDueAt) {
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: request._id },
+          update: {
+            $set: {
+              paymentDueAt: dueAt,
+            },
+          },
+        },
+      });
+    }
+  });
+
+  if (bulkOps.length > 0) {
+    await ScriptPurchaseRequest.bulkWrite(bulkOps);
+  }
+
+  if (scriptId) {
+    scriptIdsToCheck.add(scriptId.toString());
+  }
+
+  const expiryCutoff = getApprovedUnpaidExpiryCutoff(now);
+  for (const sid of scriptIdsToCheck) {
+    const hasActiveRequests = await ScriptPurchaseRequest.exists({
+      script: sid,
+      $or: [
+        { status: "pending" },
+        {
+          status: "approved",
+          paymentStatus: { $ne: "released" },
+          amount: { $gt: 0 },
+          $or: [
+            { paymentDueAt: { $gt: now } },
+            { paymentDueAt: { $exists: false }, updatedAt: { $gt: expiryCutoff } },
+          ],
+        },
+      ],
+    });
+
+    if (!hasActiveRequests) {
+      await Script.findByIdAndUpdate(sid, {
+        purchaseRequestLocked: false,
+        purchaseRequestLockedBy: null,
+        purchaseRequestLockedAt: null,
+      });
+    }
+  }
+};
+
+const getPurchasedUserIdSet = async (script) => {
+  const approvedPurchaseRequests = await ScriptPurchaseRequest.find(
+    getSettledPurchaseQuery({ script: script._id })
+  ).select("investor").lean();
+
+  const convertedOptions = await ScriptOption.find({
+    script: script._id,
+    status: "converted",
+  }).select("holder").lean();
+
+  return new Set(
+    [
+      ...(Array.isArray(script.unlockedBy) ? script.unlockedBy.map((id) => id?.toString?.()) : []),
+      ...(Array.isArray(script.purchasedBy) ? script.purchasedBy.map((id) => id?.toString?.()) : []),
+      ...approvedPurchaseRequests.map((row) => row?.investor?.toString?.()),
+      ...convertedOptions.map((row) => row?.holder?.toString?.()),
+    ].filter(Boolean)
+  );
 };
 
 export const extractPdfText = async (req, res) => {
@@ -104,6 +415,9 @@ export const saveDraft = async (req, res) => {
       if (script.creator.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: "Not authorized" });
       }
+      if (script.isDeleted) {
+        return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
+      }
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
@@ -112,11 +426,26 @@ export const saveDraft = async (req, res) => {
         script.synopsis = otherData.synopsis;
         script.description = otherData.synopsis;
       }
-      if (otherData.format !== undefined) script.format = otherData.format;
+      if (otherData.format !== undefined) {
+        script.format = otherData.format;
+        if (otherData.format !== "other") {
+          script.formatOther = "";
+        }
+      }
+      if (otherData.formatOther !== undefined) {
+        script.formatOther = String(otherData.formatOther || "").trim();
+      }
       if (otherData.pageCount !== undefined) script.pageCount = Number(otherData.pageCount) || 0;
       if (otherData.primaryGenre !== undefined) script.primaryGenre = otherData.primaryGenre;
       if (otherData.tags !== undefined) script.tags = Array.isArray(otherData.tags) ? otherData.tags : [];
-      if (otherData.roles !== undefined) script.roles = Array.isArray(otherData.roles) ? otherData.roles : [];
+      if (otherData.roles !== undefined) {
+        const nextRoles = Array.isArray(otherData.roles) ? otherData.roles : [];
+        const ageRangeError = getInvalidRoleAgeRangeMessage(nextRoles);
+        if (ageRangeError) {
+          return res.status(400).json({ message: ageRangeError });
+        }
+        script.roles = nextRoles;
+      }
       if (otherData.classification !== undefined) {
         script.classification = {
           primaryGenre: otherData.classification?.primaryGenre ?? script.classification?.primaryGenre,
@@ -128,17 +457,54 @@ export const saveDraft = async (req, res) => {
         script.markModified("classification");
       }
 
+      if (otherData.legal !== undefined) {
+        const incomingLegal = otherData.legal || {};
+        const nextCustomInvestorTerms = sanitizeCustomInvestorTerms(incomingLegal.customInvestorTerms);
+        if (nextCustomInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+          return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+        }
+
+        const previousCustomInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+        const hasChangedCustomTerms = previousCustomInvestorTerms !== nextCustomInvestorTerms;
+
+        script.legal = {
+          ...(script.legal || {}),
+          agreedToTerms: incomingLegal.agreedToTerms ?? script.legal?.agreedToTerms ?? false,
+          termsVersion: incomingLegal.termsVersion || script.legal?.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
+          customInvestorTerms: nextCustomInvestorTerms,
+          customInvestorTermsUpdatedAt: hasChangedCustomTerms
+            ? new Date()
+            : (script.legal?.customInvestorTermsUpdatedAt || undefined),
+        };
+      }
+
       await script.save();
       return res.json(script);
     }
 
     // Otherwise create a new draft
+    const { _id, id, sid, ...safeOtherData } = otherData || {};
+
+    if (safeOtherData.legal !== undefined) {
+      const incomingLegal = safeOtherData.legal || {};
+      const nextCustomInvestorTerms = sanitizeCustomInvestorTerms(incomingLegal.customInvestorTerms);
+      if (nextCustomInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+        return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+      }
+
+      safeOtherData.legal = {
+        ...(incomingLegal || {}),
+        customInvestorTerms: nextCustomInvestorTerms,
+        customInvestorTermsUpdatedAt: nextCustomInvestorTerms ? new Date() : undefined,
+      };
+    }
+
     const newDraft = await Script.create({
       creator: req.user._id,
       title: title || "Untitled Draft",
       textContent: textContent || "",
       status: "draft",
-      ...otherData
+      ...safeOtherData
     });
 
     res.status(201).json(newDraft);
@@ -154,8 +520,55 @@ export const deleteScript = async (req, res) => {
     if (script.creator.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    await Script.findByIdAndDelete(req.params.id);
-    res.json({ message: "Script deleted" });
+
+    if (script.isDeleted) {
+      return res.json({ message: "Project already deleted", softDeleted: true });
+    }
+
+    const purchasedUserIds = await getPurchasedUserIdSet(script);
+    if (purchasedUserIds.size > 0) {
+      const mergedIds = Array.from(purchasedUserIds).map((id) => new mongoose.Types.ObjectId(id));
+      script.unlockedBy = mergedIds;
+      script.purchasedBy = mergedIds;
+    }
+
+    script.isDeleted = true;
+    script.deletedAt = new Date();
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
+    await script.save();
+
+    console.info("[AUDIT] Script soft deleted", {
+      scriptId: script._id.toString(),
+      scriptSid: script.sid || "",
+      deletedBy: req.user._id.toString(),
+      purchasedUserCount: purchasedUserIds.size,
+      deletedAt: script.deletedAt.toISOString(),
+    });
+
+    await notifyAdminWorkflowEvent({
+      title: "Writer Project Deleted",
+      section: "approvals",
+      actorId: req.user._id,
+      scriptId: script._id,
+      message: `Project "${script.title}" was deleted by the creator (soft-delete).`,
+      metadata: {
+        scriptId: script._id,
+        scriptSid: script.sid || "",
+        writerId: req.user._id,
+        isDeleted: true,
+        purchasedUserCount: purchasedUserIds.size,
+      },
+    }).catch(() => null);
+
+    return res.json({
+      message: purchasedUserIds.size > 0
+        ? "Project removed from platform listings. Existing buyers retain access."
+        : "Project removed from platform listings.",
+      softDeleted: true,
+      isDeleted: true,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -163,7 +576,7 @@ export const deleteScript = async (req, res) => {
 
 export const getMyDrafts = async (req, res) => {
   try {
-    const drafts = await Script.find({ creator: req.user._id, status: "draft" })
+    const drafts = await Script.find({ creator: req.user._id, status: "draft", isDeleted: { $ne: true } })
       .sort({ updatedAt: -1 })
       .lean();
     res.json(drafts);
@@ -174,9 +587,9 @@ export const getMyDrafts = async (req, res) => {
 
 export const getMyScripts = async (req, res) => {
   try {
-    const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" } })
+    const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" }, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
-      .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt")
+      .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt publishedAt")
       .populate("creator", "name profileImage")
       .lean();
     res.json(scripts);
@@ -192,20 +605,40 @@ export const updateScript = async (req, res) => {
     if (script.creator.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized to edit this script" });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
+    }
 
     const {
       title, logline, format, pageCount, classification,
+      formatOther,
       scriptUrl, description, synopsis, textContent, fileUrl,
       coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
+
+    if (!legal?.agreedToTerms) {
+      return res.status(400).json({ message: "Script Upload Terms & Conditions acceptance is required." });
+    }
 
     if (logline !== undefined && String(logline).trim().length > 50) {
       return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
     }
 
+    if (format === "other" && !String(formatOther || script.formatOther || "").trim()) {
+      return res.status(400).json({ message: "Please specify the format when selecting Other." });
+    }
+
     if (title) script.title = title;
     if (logline !== undefined) script.logline = logline;
-    if (format) script.format = format;
+    if (format) {
+      script.format = format;
+      if (format !== "other") {
+        script.formatOther = "";
+      }
+    }
+    if (formatOther !== undefined) {
+      script.formatOther = String(formatOther || "").trim();
+    }
     if (pageCount) script.pageCount = Number(pageCount);
     if (textContent !== undefined) script.textContent = textContent;
     if (description !== undefined) script.description = description;
@@ -241,15 +674,29 @@ export const updateScript = async (req, res) => {
         hosting: services.hosting ?? script.services?.hosting ?? true,
         evaluation: services.evaluation ?? script.services?.evaluation ?? false,
         aiTrailer: services.aiTrailer ?? script.services?.aiTrailer ?? false,
+        spotlight: services.spotlight ?? script.services?.spotlight ?? false,
       };
       script.markModified("services");
     }
 
     if (legal?.agreedToTerms !== undefined) {
+      const nextCustomInvestorTerms = sanitizeCustomInvestorTerms(legal?.customInvestorTerms);
+      if (nextCustomInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+        return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+      }
+
+      const previousCustomInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+      const hasChangedCustomTerms = previousCustomInvestorTerms !== nextCustomInvestorTerms;
+
       script.legal = {
         agreedToTerms: legal.agreedToTerms,
-        timestamp: script.legal?.timestamp || new Date(),
+        timestamp: legal.timestamp || script.legal?.timestamp || new Date(),
         ipAddress: req.ip || req.connection.remoteAddress,
+        termsVersion: legal.termsVersion || script.legal?.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
+        customInvestorTerms: nextCustomInvestorTerms,
+        customInvestorTermsUpdatedAt: hasChangedCustomTerms
+          ? new Date()
+          : (script.legal?.customInvestorTermsUpdatedAt || undefined),
       };
     }
 
@@ -257,39 +704,56 @@ export const updateScript = async (req, res) => {
     script.status = "pending_approval";
     await script.save();
 
-    if (!wasPendingApproval) {
-      await notifyAdminWorkflowEvent({
-        title: "Writer Project Submitted For Approval",
-        section: "approvals",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          writerEmail: req.user.email || "",
-          source: "update-script",
-        },
-      });
-    }
-
-    if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
-      await notifyAdminWorkflowEvent({
-        title: "AI Trailer Approval Request",
-        section: "trailers",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
-        metadata: {
-          scriptId: script._id,
-          writerId: req.user._id,
-          trailerStatus: script.trailerStatus,
-          source: "update-script",
-        },
-      });
-    }
-
     res.json(script);
+
+    // Non-critical notifications run after response to reduce submit latency.
+    (async () => {
+      const tasks = [];
+
+      if (!wasPendingApproval) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "Writer Project Submitted For Approval",
+            section: "approvals",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              writerEmail: req.user.email || "",
+              source: "update-script",
+            },
+          })
+        );
+      }
+
+      if (script.services?.aiTrailer && ["requested", "generating"].includes(script.trailerStatus)) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "AI Trailer Approval Request",
+            section: "trailers",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              trailerStatus: script.trailerStatus,
+              source: "update-script",
+            },
+          })
+        );
+      }
+
+      if (tasks.length) {
+        const results = await Promise.allSettled(tasks);
+        const rejected = results.filter((r) => r.status === "rejected");
+        if (rejected.length > 0) {
+          console.error(`[updateScript] ${rejected.length} post-submit notification task(s) failed`);
+        }
+      }
+    })();
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -298,9 +762,11 @@ export const updateScript = async (req, res) => {
 export const uploadScript = async (req, res) => {
   try {
     const {
+      scriptId,
       title,
       logline,
       format,
+      formatOther,
       pageCount,
       classification,
       scriptUrl,
@@ -331,24 +797,33 @@ export const uploadScript = async (req, res) => {
     if (logline !== undefined && String(logline).trim().length > 50) {
       return res.status(400).json({ message: "Logline must be 50 characters or fewer" });
     }
+    if (format === "other" && !String(formatOther || "").trim()) {
+      return res.status(400).json({ message: "Please specify the format when selecting Other." });
+    }
     if (!synopsis || String(synopsis).trim().length === 0) {
       return res.status(400).json({ message: "Synopsis is required" });
     }
     if (!scriptUrl && !fileUrl && !textContent) {
       return res.status(400).json({ message: "Script file or text content is required" });
     }
+    const ageRangeError = getInvalidRoleAgeRangeMessage(roles);
+    if (ageRangeError) {
+      return res.status(400).json({ message: ageRangeError });
+    }
 
-    const invoiceDate = new Date();
-    const invoiceNumber = `INV-${invoiceDate.toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-4)}`;
+    const customInvestorTerms = sanitizeCustomInvestorTerms(legal?.customInvestorTerms);
+    if (customInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+      return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+    }
+
     const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
     const effectivePrice = isPremiumAccess ? Number(price || 0) : 0;
-    const platformFeeRate = 0.2;
-    const writerEarnsPerSale = Math.round(effectivePrice * (1 - platformFeeRate) * 100) / 100;
 
     // Calculate credits needed for selected services
     let creditsRequired = 0;
     if (services?.evaluation) creditsRequired += CREDIT_PRICES.AI_EVALUATION;
     if (services?.aiTrailer) creditsRequired += CREDIT_PRICES.AI_TRAILER;
+    if (services?.spotlight) creditsRequired += PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
 
     const creator = await User.findById(req.user._id);
     if (!creator) {
@@ -396,6 +871,16 @@ export const uploadScript = async (req, res) => {
         });
       }
 
+      if (services?.spotlight) {
+        creator.credits.transactions.push({
+          type: "spent",
+          amount: -PROJECT_SPOTLIGHT_ACTIVATION_CREDITS,
+          description: `Project Spotlight package for "${title}"`,
+          reference: `SPOTUP-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: new Date()
+        });
+      }
+
       await creator.save();
       creditsBalanceAfter = creator.credits?.balance || 0;
     }
@@ -423,6 +908,7 @@ export const uploadScript = async (req, res) => {
 
       // New fields from the 5-step wizard
       format: format || "feature_film",
+      formatOther: format === "other" ? String(formatOther || "").trim() : "",
       primaryGenre: classification?.primaryGenre || genre,
       classification: classification ? {
         primaryGenre: classification.primaryGenre,
@@ -436,25 +922,37 @@ export const uploadScript = async (req, res) => {
       services: services ? {
         hosting: services.hosting !== undefined ? services.hosting : true,
         evaluation: services.evaluation || false,
-        aiTrailer: services.aiTrailer || false
-      } : { hosting: true, evaluation: false, aiTrailer: false },
+        aiTrailer: services.aiTrailer || false,
+        spotlight: services.spotlight || false,
+      } : { hosting: true, evaluation: false, aiTrailer: false, spotlight: false },
       billing: {
         evaluationCreditsCharged: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
         aiTrailerCreditsCharged: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
+        spotlightCreditsChargedAtUpload: services?.spotlight ? PROJECT_SPOTLIGHT_ACTIVATION_CREDITS : 0,
         evaluationCreditsChargedAtUpload: services?.evaluation ? CREDIT_PRICES.AI_EVALUATION : 0,
         aiTrailerCreditsChargedAtUpload: services?.aiTrailer ? CREDIT_PRICES.AI_TRAILER : 0,
         evaluationCreditsRefunded: 0,
         aiTrailerCreditsRefunded: 0,
-        spotlightCreditsSpent: 0,
+        spotlightCreditsSpent: services?.spotlight ? PROJECT_SPOTLIGHT_ACTIVATION_CREDITS : 0,
         lastSpotlightRefundCredits: 0,
       },
+      promotion: services?.spotlight
+        ? {
+            spotlightActive: false,
+            pendingSpotlightActivation: true,
+            totalSpotlightCreditsSpent: PROJECT_SPOTLIGHT_ACTIVATION_CREDITS,
+          }
+        : undefined,
       evaluationStatus: services?.evaluation ? "requested" : "none",
 
       // Legal compliance
       legal: legal ? {
         agreedToTerms: legal.agreedToTerms || false,
         timestamp: legal.timestamp || new Date(),
-        ipAddress: req.ip || req.connection.remoteAddress
+        ipAddress: req.ip || req.connection.remoteAddress,
+        termsVersion: legal.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
+        customInvestorTerms,
+        customInvestorTermsUpdatedAt: customInvestorTerms ? new Date() : undefined,
       } : undefined,
 
       // AI Trailer status initialization
@@ -463,143 +961,93 @@ export const uploadScript = async (req, res) => {
       status: "pending_approval" // Requires admin approval before publishing
     };
 
-    // If updating from a draft (if we pass draftId in the future), we could update instead of create.
-    // For now, assume it's a new or finalized creation.
-    const script = await Script.create(scriptData);
+    let script;
 
-    await notifyAdminWorkflowEvent({
-      title: "Writer Project Submitted For Approval",
-      section: "approvals",
-      actorId: req.user._id,
-      scriptId: script._id,
-      message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
-      metadata: {
-        scriptId: script._id,
-        writerId: req.user._id,
-        writerEmail: creator.email || "",
-        aiTrailerRequested: Boolean(services?.aiTrailer),
-        source: "upload-script",
-      },
-    });
+    if (scriptId) {
+      const existingDraft = await Script.findById(scriptId);
 
-    if (services?.aiTrailer) {
-      await notifyAdminWorkflowEvent({
-        title: "AI Trailer Approval Request",
-        section: "trailers",
-        actorId: req.user._id,
-        scriptId: script._id,
-        message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
-        metadata: {
+      if (!existingDraft) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      if (existingDraft.creator.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: "Not authorized to publish this draft" });
+      }
+
+      if (existingDraft.isDeleted) {
+        return res.status(410).json({ message: "This draft was deleted and cannot be published." });
+      }
+
+      if (existingDraft.status !== "draft") {
+        return res.status(409).json({ message: "This project is already submitted." });
+      }
+
+      existingDraft.set(scriptData);
+      script = await existingDraft.save();
+    } else {
+      script = await Script.create(scriptData);
+    }
+
+    res.status(201).json(script);
+
+    // Run non-critical tasks post-response to keep submit API fast.
+    (async () => {
+      const tasks = [
+        notifyAdminWorkflowEvent({
+          title: "Writer Project Submitted For Approval",
+          section: "approvals",
+          actorId: req.user._id,
           scriptId: script._id,
-          writerId: req.user._id,
-          trailerStatus: script.trailerStatus,
-          source: "upload-script",
-        },
-      });
-    }
+          message: `Project "${script.title}" was submitted for admin approval by ${creator.name || "a writer"}.`,
+          metadata: {
+            scriptId: script._id,
+            writerId: req.user._id,
+            writerEmail: creator.email || "",
+            aiTrailerRequested: Boolean(services?.aiTrailer),
+            source: "upload-script",
+          },
+        }),
+      ];
 
-    const invoice = await Invoice.create({
-      invoiceNumber,
-      invoiceDate,
-      creator: req.user._id,
-      creatorSid: creator?.sid || "",
-      script: script._id,
-      scriptSid: script?.sid || "",
-      accessType: isPremiumAccess ? "premium" : "free",
-      scriptPrice: effectivePrice,
-      platformFeeRate,
-      writerEarnsPerSale,
-      services: {
-        hosting: services?.hosting !== undefined ? services.hosting : true,
-        evaluation: Boolean(services?.evaluation),
-        aiTrailer: Boolean(services?.aiTrailer),
-        trailerUpload: !services?.aiTrailer,
-      },
-      totalCreditsRequired: creditsRequired,
-      creditsBalanceBefore,
-      creditsBalanceAfter,
-      rows: [
-        {
-          item: "Script Access Model",
-          type: "Configuration",
-          detail: isPremiumAccess ? `Premium access at ₹${effectivePrice}` : "Free public access",
-          amountLabel: "₹0",
-          amountValue: 0,
-        },
-        {
-          item: "Publish Services",
-          type: "Credit Charge",
-          detail: creditsRequired > 0 ? "Paid add-ons selected" : "No paid add-ons selected",
-          amountLabel: `${creditsRequired} cr`,
-          amountValue: creditsRequired,
-        },
-        {
-          item: "Writer Earnings Per Premium Sale",
-          type: "Future Earnings",
-          detail: isPremiumAccess ? `Buyer pays ₹${effectivePrice}, writer receives after platform fee` : "Upgrade to premium to monetize full script access",
-          amountLabel: isPremiumAccess ? `₹${writerEarnsPerSale}` : "₹0",
-          amountValue: writerEarnsPerSale,
-        },
-      ],
-    });
+      if (services?.aiTrailer) {
+        tasks.push(
+          notifyAdminWorkflowEvent({
+            title: "AI Trailer Approval Request",
+            section: "trailers",
+            actorId: req.user._id,
+            scriptId: script._id,
+            message: `AI trailer requested for "${script.title}" and is waiting in admin queue.`,
+            metadata: {
+              scriptId: script._id,
+              writerId: req.user._id,
+              trailerStatus: script.trailerStatus,
+              source: "upload-script",
+            },
+          })
+        );
+      }
 
-    const generatedInvoicePdf = await generateAndSaveInvoicePdf({
-      invoice,
-      creatorName: creator.name,
-      creatorEmail: creator.email,
-      creatorSid: creator?.sid,
-      scriptTitle: script.title,
-      scriptSid: script?.sid,
-    });
-    invoice.pdfPath = generatedInvoicePdf.relativePath;
-    invoice.pdfGeneratedAt = new Date();
-    await invoice.save();
+      // --- Async Service Processing ---
+      // TODO: Implement these async workflows:
+      if (services?.hosting) {
+        console.log(`[SERVICE] Hosting activated for script ${script._id}`);
+      }
+      if (services?.evaluation) {
+        console.log(`[SERVICE] Evaluation requested for script ${script._id}`);
+      }
+      if (services?.aiTrailer) {
+        console.log(`[SERVICE] AI Trailer generation started for script ${script._id}`);
+        console.log(`Logline: ${logline}`);
+        console.log(`Genre: ${classification?.primaryGenre}`);
+        console.log(`Tones: ${classification?.tones?.join(', ')}`);
+      }
 
-    // --- Async Service Processing ---
-    // TODO: Implement these async workflows:
-
-    // 1. If hosting: Start subscription timer (30 days)
-    if (services?.hosting) {
-      // TODO: Create/Update Subscription document
-      console.log(`[SERVICE] Hosting activated for script ${script._id}`);
-    }
-
-    // 2. If evaluation: Create job ticket for Reader Portal
-    if (services?.evaluation) {
-      // TODO: Create evaluation job in a Queue or Job collection
-      console.log(`[SERVICE] Evaluation requested for script ${script._id}`);
-      // Example: await createEvaluationJob(script._id, req.user._id);
-    }
-
-    // 3. If aiTrailer: Trigger AI video generation
-    if (services?.aiTrailer) {
-      // TODO: Send request to AI Video API (Runway/HeyGen/OpenAI)
-      console.log(`[SERVICE] AI Trailer generation started for script ${script._id}`);
-      console.log(`Logline: ${logline}`);
-      console.log(`Genre: ${classification?.primaryGenre}`);
-      console.log(`Tones: ${classification?.tones?.join(', ')}`);
-
-      // Example async call:
-      // generateAITrailer({
-      //   scriptId: script._id,
-      //   logline,
-      //   genre: classification.primaryGenre,
-      //   tones: classification.tones
-      // }).catch(err => {
-      //   // Update script.trailerStatus = 'failed'
-      //   console.error('AI Trailer generation failed:', err);
-      // });
-    }
-
-    // Return the created script with invoice metadata
-    res.status(201).json({
-      ...script.toObject(),
-      invoice: {
-        _id: invoice._id,
-        invoiceNumber: invoice.invoiceNumber,
-        pdfPath: invoice.pdfPath,
-      },
-    });
+      const results = await Promise.allSettled(tasks);
+      const rejected = results.filter((r) => r.status === "rejected");
+      if (rejected.length > 0) {
+        console.error(`[uploadScript] ${rejected.length} post-submit task(s) failed`);
+      }
+    })();
   } catch (error) {
     console.error("Script upload error:", error);
     res.status(500).json({ message: error.message });
@@ -608,6 +1056,8 @@ export const uploadScript = async (req, res) => {
 
 export const getScripts = async (req, res) => {
   try {
+    await expireApprovedUnpaidRequests();
+
     const { genre, contentType, budget, sort, search, premium, minPrice, maxPrice } = req.query;
     const query = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) query.genre = genre;
@@ -733,20 +1183,42 @@ export const getScripts = async (req, res) => {
 
 export const getScriptById = async (req, res) => {
   try {
+    await expireApprovedUnpaidRequests({ scriptId: req.params.id });
+
     const script = await Script.findById(req.params.id)
       .populate("creator", "name profileImage role bio followers")
       .populate("heldBy", "name role");
 
     if (!script) return res.status(404).json({ message: "Script not found" });
 
+    const now = new Date();
+    if (shouldAutoSyncUploadSpotlight(script, now)) {
+      applySpotlightPackageState(script, now);
+      await script.save();
+    }
+
     const isOwner = script.creator._id.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === "admin";
+    let isBuyer = hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
+
+    if (!isBuyer) {
+      const [approvedPurchase, convertedOption] = await Promise.all([
+        ScriptPurchaseRequest.exists(getSettledPurchaseQuery({ script: script._id, investor: req.user._id })),
+        ScriptOption.exists({ script: script._id, holder: req.user._id, status: "converted" }),
+      ]);
+      isBuyer = Boolean(approvedPurchase || convertedOption);
+    }
+
+    // Deleted projects are hidden from writer/public but remain visible to purchasers and admins.
+    if (script.isDeleted && !isAdmin && !isBuyer) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
     if (script.status === "draft" && !isOwner) {
       return res.status(403).json({ message: "This draft is private" });
     }
 
     // Block access to sold scripts — only allow creator, buyer, and admins
-    const isBuyer = script.unlockedBy?.some(uid => uid.toString() === req.user._id.toString());
-    const isAdmin = req.user.role === "admin";
     if (script.isSold && !isOwner && !isBuyer && !isAdmin) {
       return res.status(403).json({ message: "This script has been purchased and is no longer publicly available" });
     }
@@ -757,13 +1229,18 @@ export const getScriptById = async (req, res) => {
       const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
       const isLockOwner = lockOwnerId && lockOwnerId === req.user._id.toString();
       let hasMyPendingRequest = false;
+      const nowForLockCheck = new Date();
+      const activeApprovedClause = getApprovedUnpaidActiveClause(nowForLockCheck);
 
       if (!isLockOwner && !isOwner && !isAdmin && !isBuyer) {
         hasMyPendingRequest = Boolean(
           await ScriptPurchaseRequest.findOne({
             script: script._id,
             investor: req.user._id,
-            status: "pending",
+            $or: [
+              { status: "pending" },
+              activeApprovedClause,
+            ],
           }).select("_id").lean()
         );
       }
@@ -773,15 +1250,41 @@ export const getScriptById = async (req, res) => {
       }
     }
 
-    // Track view — only count views from users who are NOT the script creator
-    if (!isOwner) {
-      script.views += 1;
-    }
-    const alreadyViewed = script.viewedBy.some(v => v.user.toString() === req.user._id.toString());
+    // Track valid views: count only unique viewers (same user should not increase views again).
+    script.viewedBy = Array.isArray(script.viewedBy) ? script.viewedBy : [];
+    const viewedByBeforeCount = script.viewedBy.length;
+    const viewerId = req.user._id.toString();
+    const creatorId = script.creator?._id?.toString?.() || script.creator?.toString?.();
+
+    const uniqueViewerIds = new Set(
+      script.viewedBy
+        .map((entry) => entry?.user?.toString?.())
+        .filter(Boolean)
+    );
+
+    const alreadyViewed = uniqueViewerIds.has(viewerId);
     if (!alreadyViewed) {
       script.viewedBy.push({ user: req.user._id });
     }
-    await script.save();
+
+    // Exclude creator self-view from the public views metric.
+    if (creatorId) {
+      uniqueViewerIds.delete(creatorId);
+    }
+    if (!alreadyViewed && viewerId !== creatorId) {
+      uniqueViewerIds.add(viewerId);
+    }
+
+    const validViews = uniqueViewerIds.size;
+    const currentViews = Number(script.views || 0);
+    const viewsChanged = currentViews !== validViews;
+    if (viewsChanged) {
+      script.views = validViews;
+    }
+
+    if (script.viewedBy.length !== viewedByBeforeCount || viewsChanged) {
+      await script.save();
+    }
 
     // Update viewer's viewHistory so investor dashboard stats are accurate
     if (!isOwner) {
@@ -804,7 +1307,7 @@ export const getScriptById = async (req, res) => {
     }
 
     // Check if user has unlocked this script
-    const isUnlocked = script.unlockedBy.includes(req.user._id);
+    const isUnlocked = isBuyer || hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
     const isCreator = script.creator._id.toString() === req.user._id.toString();
     const userRole = req.user.role;
     const isWriter = userRole === 'writer' || userRole === 'creator';
@@ -821,11 +1324,16 @@ export const getScriptById = async (req, res) => {
     // Check if the viewer has a pending purchase request for this script
     let myPendingRequest = null;
     if (canPurchase && !isUnlocked) {
+      const nowForPendingRequest = new Date();
+      const activeApprovedClause = getApprovedUnpaidActiveClause(nowForPendingRequest);
       myPendingRequest = await ScriptPurchaseRequest.findOne({
         script: script._id,
         investor: req.user._id,
-        status: "pending",
-      }).lean();
+        $or: [
+          { status: "pending" },
+          activeApprovedClause,
+        ],
+      }).sort({ createdAt: -1 }).lean();
     }
 
     // For creators, count how many pending purchase requests exist for this script
@@ -837,6 +1345,87 @@ export const getScriptById = async (req, res) => {
       });
     }
 
+    const viewBreakdown = {
+      reader: 0,
+      writer: 0,
+      investor: 0,
+    };
+
+    const reviewBreakdown = {
+      reader: 0,
+      writer: 0,
+      investor: 0,
+    };
+
+    const uniqueViewedUserIds = [
+      ...new Set(
+        (script.viewedBy || [])
+          .map((entry) => entry?.user?.toString?.() || "")
+          .filter(Boolean)
+      ),
+    ];
+
+    if (uniqueViewedUserIds.length > 0) {
+      const viewerRoles = await User.find({ _id: { $in: uniqueViewedUserIds } })
+        .select("role")
+        .lean();
+
+      viewerRoles.forEach((viewer) => {
+        const role = String(viewer?.role || "").toLowerCase();
+        if (role === "reader") {
+          viewBreakdown.reader += 1;
+          return;
+        }
+        if (role === "writer" || role === "creator") {
+          viewBreakdown.writer += 1;
+          return;
+        }
+        if (["investor", "producer", "director", "industry", "professional"].includes(role)) {
+          viewBreakdown.investor += 1;
+        }
+      });
+    }
+
+    const reviewRoleStats = await Review.aggregate([
+      { $match: { script: script._id } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "reviewer",
+        },
+      },
+      { $unwind: "$reviewer" },
+      {
+        $project: {
+          role: { $toLower: { $ifNull: ["$reviewer.role", ""] } },
+        },
+      },
+      {
+        $group: {
+          _id: "$role",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    reviewRoleStats.forEach((item) => {
+      const role = String(item?._id || "");
+      const count = Number(item?.count || 0);
+      if (role === "reader") {
+        reviewBreakdown.reader += count;
+        return;
+      }
+      if (role === "writer" || role === "creator") {
+        reviewBreakdown.writer += count;
+        return;
+      }
+      if (["investor", "producer", "director", "industry", "professional"].includes(role)) {
+        reviewBreakdown.investor += count;
+      }
+    });
+
     const response = {
       ...script.toObject(),
       isUnlocked,
@@ -847,12 +1436,15 @@ export const getScriptById = async (req, res) => {
       auditionCount,
       myPendingRequest,
       pendingRequestsCount,
+      viewBreakdown,
+      reviewBreakdown,
       // Hide full synopsis unless unlocked or creator
       synopsis: (isUnlocked || isCreator) ? script.synopsis : synopsisTeaser,
       // Hide full content unless unlocked or creator
       fullContent: (isUnlocked || isCreator) ? script.fullContent : null,
       // Hide script text unless unlocked or creator
       textContent: (isUnlocked || isCreator) ? script.textContent : null,
+      shareMeta: buildScriptShareMeta(req, script),
     };
 
     res.json(response);
@@ -865,6 +1457,11 @@ export const unlockScript = async (req, res) => {
   try {
     const script = await Script.findById(req.body.scriptId);
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
+
+    await expireApprovedUnpaidRequests({ scriptId: script._id });
 
     // Only investors, producers, directors, and industry professionals can unlock
     const allowedRoles = ['investor', 'producer', 'director', 'industry', 'professional'];
@@ -879,8 +1476,12 @@ export const unlockScript = async (req, res) => {
       return res.status(400).json({ message: "You already have access to your own script" });
     }
 
-    if (!script.unlockedBy.includes(req.user._id)) {
+    if (!hasUserInIdArray(script.unlockedBy, req.user._id) && !hasUserInIdArray(script.purchasedBy, req.user._id)) {
       script.unlockedBy.push(req.user._id);
+      script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+      if (!hasUserInIdArray(script.purchasedBy, req.user._id)) {
+        script.purchasedBy.push(req.user._id);
+      }
       script.isSold = true; // hide from all public listings once purchased
       await script.save();
 
@@ -902,10 +1503,11 @@ export const unlockScript = async (req, res) => {
 
 // ─── PURCHASE REQUEST WORKFLOW ────────────────────────────────────────────────
 
-// Investor submits a purchase request for a script (funds frozen immediately)
+// Investor submits a purchase request for a script (no upfront payment)
 export const requestScriptPurchase = async (req, res) => {
   try {
     const { scriptId, note } = req.body;
+    const defaultRequestNote = "I like your synopsis and I want to buy your project.";
 
     const allowedRoles = ["investor", "producer", "director", "industry", "professional"];
     if (!allowedRoles.includes(req.user.role)) {
@@ -914,14 +1516,21 @@ export const requestScriptPurchase = async (req, res) => {
 
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     if (script.creator._id.toString() === req.user._id.toString()) {
       return res.status(400).json({ message: "You cannot purchase your own script." });
     }
 
-    if (script.unlockedBy.some((uid) => uid.toString() === req.user._id.toString())) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({ message: "You already have access to this script." });
     }
+
+    await expireApprovedUnpaidRequests({ scriptId: script._id });
+    const now = new Date();
+    const activeApprovedClause = getApprovedUnpaidActiveClause(now);
 
     if (script.purchaseRequestLocked) {
       const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
@@ -930,12 +1539,16 @@ export const requestScriptPurchase = async (req, res) => {
       }
     }
 
-    // Check for existing pending request
+    // Prevent duplicate active request flows for same investor/script.
     const existing = await ScriptPurchaseRequest.findOne({
       script: scriptId,
       investor: req.user._id,
-      status: "pending",
-    });
+      $or: [
+        { status: "pending" },
+        activeApprovedClause,
+      ],
+    }).sort({ createdAt: -1 });
+
     if (existing) {
       const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
       if (!script.purchaseRequestLocked || lockOwnerId !== req.user._id.toString()) {
@@ -944,78 +1557,33 @@ export const requestScriptPurchase = async (req, res) => {
         script.purchaseRequestLockedAt = script.purchaseRequestLockedAt || existing.createdAt || new Date();
         await script.save();
       }
+      if (existing.status === "approved" && existing.paymentStatus !== "released" && Number(existing.amount || 0) > 0) {
+        return res.status(400).json({ message: "Your request is already approved. Complete payment to unlock full script access." });
+      }
       return res.status(400).json({ message: "You already have a pending purchase request for this script." });
     }
 
-    const investor = await User.findById(req.user._id);
+    const investor = await User.findById(req.user._id).select("name email role industryProfile.subRole");
     const amount = Number(script.price || 0);
-
-    let frozenAmount = 0;
-    let balanceBefore = 0;
-    let balanceAfter = 0;
-
-    if (amount > 0) {
-      if (!investor.wallet) {
-        investor.wallet = {
-          balance: 0,
-          currency: "INR",
-          pendingBalance: 0,
-          totalEarnings: 0,
-          totalWithdrawals: 0,
-        };
-      }
-
-      if ((investor.wallet.balance || 0) < amount) {
-        return res.status(400).json({
-          message: `Insufficient wallet balance. Add ₹${amount.toLocaleString("en-IN")} to proceed with this purchase request.`,
-        });
-      }
-
-      balanceBefore = investor.wallet.balance || 0;
-      investor.wallet.balance = balanceBefore - amount;
-      investor.wallet.pendingBalance = (investor.wallet.pendingBalance || 0) + amount;
-      balanceAfter = investor.wallet.balance;
-      frozenAmount = amount;
-      await investor.save();
-    }
+    const sanitizedNote = String(note || defaultRequestNote).trim() || defaultRequestNote;
 
     const purchaseRequest = await ScriptPurchaseRequest.create({
       script: scriptId,
       investor: req.user._id,
       writer: script.creator._id,
       amount,
-      frozenAmount,
-      paymentMethod: "wallet",
-      paymentStatus: amount > 0 ? "escrow_held" : "pending",
-      note: note || "",
+      frozenAmount: 0,
+      paymentMethod: "manual",
+      paymentStatus: "pending",
+      note: sanitizedNote,
     });
-
-    if (frozenAmount > 0) {
-      await Transaction.create({
-        user: req.user._id,
-        type: "payment",
-        amount: -frozenAmount,
-        currency: "INR",
-        status: "pending",
-        description: `Escrow hold for purchase request: "${script.title}"`,
-        reference: `PRH-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
-        paymentMethod: "wallet",
-        relatedScript: script._id,
-        balanceBefore,
-        balanceAfter,
-        metadata: {
-          purchaseRequestId: purchaseRequest._id.toString(),
-          stage: "escrow_hold",
-          writerId: script.creator._id.toString(),
-          scriptId: script._id.toString(),
-        },
-      });
-    }
 
     script.purchaseRequestLocked = true;
     script.purchaseRequestLockedBy = req.user._id;
     script.purchaseRequestLockedAt = new Date();
     await script.save();
+
+    const requesterType = getPurchaseRequesterLabel(investor);
 
     // Notify writer in-app
     await Notification.create({
@@ -1023,7 +1591,7 @@ export const requestScriptPurchase = async (req, res) => {
       type: "purchase_request",
       from: req.user._id,
       script: script._id,
-      message: `${investor.name} submitted a purchase request for "${script.title}"${amount > 0 ? ` and escrowed ₹${amount}` : ""}.`,
+      message: `${investor.name} (${requesterType}) requested to buy "${script.title}"${amount > 0 ? ` for ₹${amount.toLocaleString("en-IN")}` : ""}. Request message: "${sanitizedNote}". Review in your dashboard.`,
     });
 
     // Email writer
@@ -1031,13 +1599,18 @@ export const requestScriptPurchase = async (req, res) => {
       script.creator.email,
       script.creator.name,
       investor.name,
+      requesterType,
       script.title,
-      amount
+      amount,
+      sanitizedNote,
+      {
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }
     ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
 
     res.status(201).json({
       message: amount > 0
-        ? "Purchase request submitted and payment held in escrow."
+        ? "Purchase request sent. Complete payment after writer approval."
         : "Purchase request submitted successfully.",
       purchaseRequest,
     });
@@ -1062,10 +1635,58 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     const script = purchaseRequest.script;
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and cannot be approved for new purchase." });
+    }
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
     const paymentMethod = purchaseRequest.paymentMethod || "wallet";
+    const hasEscrowHold = amountToRelease > 0 && purchaseRequest.paymentStatus === "escrow_held";
+
+    // New request-first flow: approve first, then ask buyer to pay.
+    if (!hasEscrowHold && amountToRelease > 0) {
+      const paymentDueAt = getApprovedPaymentDueAt(new Date());
+      purchaseRequest.status = "approved";
+      purchaseRequest.paymentStatus = "pending";
+      purchaseRequest.paymentMethod = "manual";
+      purchaseRequest.frozenAmount = 0;
+      purchaseRequest.paymentDueAt = paymentDueAt;
+      purchaseRequest.settledAt = undefined;
+      await purchaseRequest.save();
+
+      script.purchaseRequestLocked = true;
+      script.purchaseRequestLockedBy = investor._id;
+      script.purchaseRequestLockedAt = new Date();
+      await script.save();
+
+      await Notification.create({
+        user: investor._id,
+        type: "purchase_approved",
+        from: req.user._id,
+        script: script._id,
+        message: `${writer.name} approved your request for "${script.title}". Please pay ₹${amountToRelease.toLocaleString("en-IN")} within ${APPROVED_UNPAID_EXPIRY_HOURS} hours to unlock full script access.`,
+      });
+
+      sendPurchaseApprovedEmail(
+        investor.email,
+        investor.name,
+        writer.name,
+        script.title,
+        script._id.toString(),
+        {
+          requiresPayment: true,
+          amount: amountToRelease,
+          paymentDueAt,
+          clientBaseUrl: resolveClientOriginFromRequest(req),
+        }
+      ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
+
+      return res.json({
+        message: "Purchase request approved. Buyer has been notified to complete payment for access.",
+        purchaseRequest,
+      });
+    }
 
     const investorDoc = await User.findById(investor._id);
     if (!investorDoc) {
@@ -1153,8 +1774,12 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     // Grant access to the script
-    if (!script.unlockedBy.some((uid) => uid.toString() === investor._id.toString())) {
+    if (!hasUserInIdArray(script.unlockedBy, investor._id)) {
       script.unlockedBy.push(investor._id);
+    }
+    script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+    if (!hasUserInIdArray(script.purchasedBy, investor._id)) {
+      script.purchasedBy.push(investor._id);
     }
 
     script.isSold = true;
@@ -1164,7 +1789,8 @@ export const approveScriptPurchase = async (req, res) => {
     await script.save();
 
     purchaseRequest.status = "approved";
-    purchaseRequest.paymentStatus = amountToRelease > 0 ? "released" : purchaseRequest.paymentStatus;
+    purchaseRequest.paymentStatus = "released";
+    purchaseRequest.paymentDueAt = undefined;
     purchaseRequest.settledAt = new Date();
     await purchaseRequest.save();
 
@@ -1183,7 +1809,12 @@ export const approveScriptPurchase = async (req, res) => {
       investor.name,
       writer.name,
       script.title,
-      script._id.toString()
+      script._id.toString(),
+      {
+        requiresPayment: false,
+        amount: amountToRelease,
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
 
     res.json({
@@ -1215,7 +1846,8 @@ export const rejectScriptPurchase = async (req, res) => {
     const script = purchaseRequest.script;
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
-    const amountToRefund = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const hasEscrowHold = Number(purchaseRequest.frozenAmount || 0) > 0 && purchaseRequest.paymentStatus === "escrow_held";
+    const amountToRefund = hasEscrowHold ? Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0) : 0;
     const paymentMethod = purchaseRequest.paymentMethod || "wallet";
     let gatewayRefundId = "";
 
@@ -1350,7 +1982,7 @@ export const rejectScriptPurchase = async (req, res) => {
       type: "purchase_rejected",
       from: req.user._id,
       script: script._id,
-      message: `${writer.name} declined your purchase request for "${script.title}"${amountToRefund > 0 ? ` and ₹${amountToRefund} was refunded to your wallet` : ""}.`,
+      message: `${writer.name} denied your request to buy "${script.title}"${amountToRefund > 0 ? ` and ₹${amountToRefund} was refunded` : ""}.`,
     });
 
     // Email investor
@@ -1359,13 +1991,17 @@ export const rejectScriptPurchase = async (req, res) => {
       investor.name,
       writer.name,
       script.title,
-      note || ""
+      note || "",
+      {
+        refundAmount: amountToRefund,
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }
     ).catch((err) => console.error("[Purchase] Failed to send rejection email:", err.message));
 
     res.json({
       message: amountToRefund > 0
         ? "Purchase request rejected. Payment was refunded to the investor."
-        : "Purchase request rejected.",
+        : "Purchase request rejected. Buyer was notified.",
       purchaseRequest,
     });
   } catch (error) {
@@ -1376,6 +2012,8 @@ export const rejectScriptPurchase = async (req, res) => {
 // Get purchase requests — writers see incoming requests, investors see their own
 export const getMyPurchaseRequests = async (req, res) => {
   try {
+    await expireApprovedUnpaidRequests({ userId: req.user._id });
+
     const { role } = req.user;
     const isWriterRole = ["writer", "creator"].includes(role);
     const isInvestorRole = ["investor", "producer", "director", "industry", "professional"].includes(role);
@@ -1384,12 +2022,12 @@ export const getMyPurchaseRequests = async (req, res) => {
 
     if (isWriterRole) {
       requests = await ScriptPurchaseRequest.find({ writer: req.user._id })
-        .populate("script", "title price thumbnailUrl")
+        .populate("script", "title price thumbnailUrl isDeleted deletedAt")
         .populate("investor", "name profileImage role")
         .sort({ createdAt: -1 });
     } else if (isInvestorRole) {
       requests = await ScriptPurchaseRequest.find({ investor: req.user._id })
-        .populate("script", "title price thumbnailUrl creator")
+        .populate("script", "title price thumbnailUrl creator isDeleted deletedAt")
         .populate("writer", "name profileImage role")
         .sort({ createdAt: -1 });
     } else {
@@ -1411,6 +2049,9 @@ export const holdScript = async (req, res) => {
     const script = await Script.findById(scriptId);
 
     if (!script) return res.status(404).json({ message: "Script not found" });
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available." });
+    }
     if (script.holdStatus === "held") {
       return res.status(400).json({ message: "This script is already on hold by another party" });
     }
@@ -1541,9 +2182,14 @@ export const addRoles = async (req, res) => {
 export const getFeaturedScripts = async (req, res) => {
   try {
     const now = new Date();
+    const activeSpotlightFilter = {
+      "promotion.spotlightActive": true,
+      "promotion.spotlightEndAt": { $gte: now },
+    };
+
     // Step 1: rank published scripts by trendScore via aggregation
     const ranked = await Script.aggregate([
-      { $match: { ...PUBLIC_SCRIPT_FILTER } },
+      { $match: { ...PUBLIC_SCRIPT_FILTER, ...activeSpotlightFilter } },
       {
         $addFields: {
           verifiedPriority: {
@@ -1586,7 +2232,7 @@ export const getFeaturedScripts = async (req, res) => {
     const ids = ranked.map((s) => s._id);
 
     // Step 2: fetch full documents with populated creator (preserving sort order)
-    const docs = await Script.find({ _id: { $in: ids }, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true } }).populate(
+    const docs = await Script.find({ _id: { $in: ids }, ...PUBLIC_SCRIPT_FILTER, ...activeSpotlightFilter }).populate(
       "creator",
       "name profileImage role"
     );
@@ -1989,6 +2635,17 @@ export const getTopList = async (req, res) => {
       match.creator = { $nin: blockedUserIds };
     }
 
+    // AI Score tab should only show scripts with paid/included evaluation and a generated score.
+    if (sort === "score") {
+      match["scriptScore.overall"] = { $gt: 0 };
+      match.$or = [
+        { "services.evaluation": true },
+        { "services.spotlight": true },
+        { "billing.evaluationCreditsCharged": { $gt: 0 } },
+        { "billing.evaluationCreditsChargedAtUpload": { $gt: 0 } },
+      ];
+    }
+
     const pipeline = [
       { $match: match },
       {
@@ -2091,50 +2748,29 @@ export const getTopList = async (req, res) => {
 //  RAZORPAY PAYMENT INTEGRATION FOR SCRIPTS
 // ═══════════════════════════════════════════════════════════
 
-// @desc    Create Razorpay order for script purchase
+// @desc    Create Razorpay order for script purchase after writer approval
 // @route   POST /api/scripts/purchase/create-order
 // @access  Private
 export const createScriptPurchaseOrder = async (req, res) => {
   try {
-    // Check if Razorpay is configured
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      return res.status(500).json({
-        message: "Payment system not configured. Please contact support.",
-        error: "Razorpay credentials missing"
-      });
-    }
-
-    const { scriptId } = req.body;
+    const {
+      scriptId,
+      acceptedPlatformTerms,
+      acceptedWriterTerms,
+      acceptedCustomWriterTerms,
+    } = req.body;
 
     const script = await Script.findById(scriptId).populate("creator", "name");
     if (!script) {
       return res.status(404).json({ message: "Script not found" });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({ message: "This project was deleted by creator and is no longer available for new purchases." });
+    }
 
     // Check if already purchased
-    if (script.unlockedBy.includes(req.user._id)) {
-      return res.status(400).json({ message: "You have already purchased this script" });
-    }
-
-    if (script.purchaseRequestLocked) {
-      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
-        return res.status(409).json({
-          message: "This script is currently locked by another investor request.",
-        });
-      }
-    }
-
-    const existingPendingRequest = await ScriptPurchaseRequest.findOne({
-      script: scriptId,
-      investor: req.user._id,
-      status: "pending",
-    }).select("_id");
-
-    if (existingPendingRequest) {
-      return res.status(400).json({
-        message: "You already have a pending purchase request for this script.",
-      });
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
+      return res.status(400).json({ message: "You already have full access to this script." });
     }
 
     // Check if trying to buy own script
@@ -2142,9 +2778,99 @@ export const createScriptPurchaseOrder = async (req, res) => {
       return res.status(400).json({ message: "You cannot purchase your own script" });
     }
 
-    // Create Razorpay order
+    const now = new Date();
+    const activeApprovedClause = getApprovedUnpaidActiveClause(now);
+    const purchaseRequest = await ScriptPurchaseRequest.findOne({
+      script: scriptId,
+      investor: req.user._id,
+      $or: [{ status: "pending" }, activeApprovedClause],
+    }).sort({ createdAt: -1 });
+
+    if (!purchaseRequest) {
+      return res.status(400).json({
+        message: "Send a purchase request first. If approved, payment must be completed within 72 hours.",
+      });
+    }
+
+    if (purchaseRequest.status === "pending") {
+      return res.status(409).json({
+        message: "Your request is still pending writer approval. Payment will unlock after approval.",
+      });
+    }
+
+    if (purchaseRequest.paymentStatus === "released") {
+      return res.status(400).json({
+        message: "Payment is already completed for this approved request.",
+      });
+    }
+
+    const paymentDueAt = purchaseRequest.paymentDueAt
+      ? new Date(purchaseRequest.paymentDueAt)
+      : getApprovedPaymentDueAt(purchaseRequest.updatedAt || purchaseRequest.createdAt || now);
+
+    if (paymentDueAt <= now) {
+      await expireApprovedUnpaidRequests({ scriptId: script._id, force: true });
+      return res.status(410).json({
+        message: "Payment window expired for this approved request. Send a new purchase request.",
+      });
+    }
+
+    if (!acceptedPlatformTerms || !acceptedWriterTerms) {
+      return res.status(400).json({
+        message: "Accept Platform and Writer terms before proceeding to payment.",
+      });
+    }
+
+    const customInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+    if (customInvestorTerms && !acceptedCustomWriterTerms) {
+      return res.status(400).json({
+        message: "Accept writer custom terms before proceeding to payment.",
+      });
+    }
+
+    purchaseRequest.termsAcceptance = {
+      platformTermsAccepted: true,
+      writerTermsAccepted: true,
+      customWriterTermsAccepted: Boolean(customInvestorTerms && acceptedCustomWriterTerms),
+      customWriterTermsSnapshot: customInvestorTerms,
+      acceptedAt: new Date(),
+      acceptedIp: req.ip || req.connection.remoteAddress || "",
+    };
+    await purchaseRequest.save();
+
+    const baseAmount = Number(purchaseRequest.amount || script.price || 0);
+    const pricing = getScriptPurchasePricing(Math.max(0, baseAmount));
+
+    if (baseAmount <= 0) {
+      return res.json({
+        success: true,
+        noPaymentRequired: true,
+        amount: 0,
+        currency: "INR",
+        scriptDetails: {
+          id: script._id,
+          title: script.title,
+          price: 0,
+          creator: script.creator.name,
+        },
+        pricing,
+        purchaseRequestId: purchaseRequest._id,
+        paymentDueAt,
+        message: "No payment required. Confirm free access to unlock full script.",
+      });
+    }
+
+    // Check if Razorpay is configured for paid requests.
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        message: "Payment system not configured. Please contact support.",
+        error: "Razorpay credentials missing"
+      });
+    }
+
+    // Create Razorpay order after writer approval
     const options = {
-      amount: Math.round(script.price * 100), // Amount in paise (INR) or cents
+      amount: Math.round(pricing.totalAmount * 100),
       currency: "INR",
       receipt: `script_purchase_${Date.now()}`,
       notes: {
@@ -2152,7 +2878,12 @@ export const createScriptPurchaseOrder = async (req, res) => {
         scriptId: scriptId,
         scriptTitle: script.title,
         creatorId: script.creator._id.toString(),
-        type: "script_purchase"
+        purchaseRequestId: purchaseRequest._id.toString(),
+        baseAmount: pricing.baseAmount.toFixed(2),
+        platformTaxPercent: String(pricing.platformTaxPercent),
+        platformTaxAmount: pricing.platformTaxAmount.toFixed(2),
+        totalAmount: pricing.totalAmount.toFixed(2),
+        type: "script_purchase_after_approval",
       }
     };
 
@@ -2167,9 +2898,12 @@ export const createScriptPurchaseOrder = async (req, res) => {
       scriptDetails: {
         id: script._id,
         title: script.title,
-        price: script.price,
+        price: pricing.baseAmount,
         creator: script.creator.name
-      }
+      },
+      pricing,
+      purchaseRequestId: purchaseRequest._id,
+      paymentDueAt,
     });
   } catch (error) {
     console.error("Razorpay order creation error:", error);
@@ -2204,9 +2938,27 @@ export const activateProjectSpotlight = async (req, res) => {
         throw error;
       }
 
+      if (script.isDeleted) {
+        const error = new Error("This project was deleted and spotlight cannot be activated.");
+        error.statusCode = 410;
+        throw error;
+      }
+
+      if (script.isSold || script.holdStatus === "sold") {
+        const error = new Error("Spotlight cannot be activated after this project is sold.");
+        error.statusCode = 400;
+        throw error;
+      }
+
       if (script.creator.toString() !== req.user._id.toString()) {
         const error = new Error("Only the script creator can activate spotlight");
         error.statusCode = 403;
+        throw error;
+      }
+
+      if (script.services?.spotlight && script.promotion?.pendingSpotlightActivation && script.status !== "published") {
+        const error = new Error("Spotlight is already purchased for this project and will auto-activate after admin approval.");
+        error.statusCode = 409;
         throw error;
       }
 
@@ -2230,9 +2982,27 @@ export const activateProjectSpotlight = async (req, res) => {
       const now = new Date();
 
       const spotlightCurrentlyActive = isSpotlightActive(script, now);
-      const spotlightCreditsRequired = spotlightCurrentlyActive
-        ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
-        : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+      let spotlightChargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+      if (!spotlightChargedAtUpload) {
+        const uploadInvoice = await Invoice.findOne({ script: script._id, creator: req.user._id })
+          .sort({ createdAt: -1 })
+          .session(session)
+          .lean();
+        if (uploadInvoice?.services?.spotlight) {
+          spotlightChargedAtUpload = PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
+        }
+      }
+
+      const hasUnusedUploadSpotlightPayment =
+        !spotlightCurrentlyActive &&
+        spotlightChargedAtUpload > 0 &&
+        !script.promotion?.lastSpotlightPurchaseAt;
+
+      const spotlightCreditsRequired = hasUnusedUploadSpotlightPayment
+        ? 0
+        : spotlightCurrentlyActive
+          ? PROJECT_SPOTLIGHT_EXTENSION_CREDITS
+          : PROJECT_SPOTLIGHT_ACTIVATION_CREDITS;
       isExtensionPurchase = spotlightCurrentlyActive;
       spotlightCreditsCharged = spotlightCreditsRequired;
 
@@ -2334,15 +3104,17 @@ export const activateProjectSpotlight = async (req, res) => {
       const extensionStart = currentEnd && currentEnd > now ? currentEnd : now;
       endAt = new Date(extensionStart.getTime() + PROJECT_SPOTLIGHT_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
-      user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
-      user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
-      user.credits.transactions.push({
-        type: "spent",
-        amount: -spotlightCreditsRequired,
-        description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
-        reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
-        createdAt: now,
-      });
+      if (spotlightCreditsRequired > 0) {
+        user.credits.balance = (user.credits.balance || 0) - spotlightCreditsRequired;
+        user.credits.totalSpent = (user.credits.totalSpent || 0) + spotlightCreditsRequired;
+        user.credits.transactions.push({
+          type: "spent",
+          amount: -spotlightCreditsRequired,
+          description: `${spotlightCurrentlyActive ? "Project Spotlight extended" : "Project Spotlight activated"} for "${script.title}"`,
+          reference: `SPOT-${Date.now().toString(36).toUpperCase()}`,
+          createdAt: now,
+        });
+      }
       await user.save({ session });
 
       script.premium = true;
@@ -2352,16 +3124,18 @@ export const activateProjectSpotlight = async (req, res) => {
         hosting: true,
         evaluation: true,
         aiTrailer: true,
+        spotlight: true,
       };
       script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
 
-      if (!script.trailerUrl && !script.uploadedTrailerUrl && !["generating", "ready"].includes(script.trailerStatus)) {
+      if (shouldQueueSpotlightAiTrailer(script) && !["requested", "generating"].includes(script.trailerStatus)) {
         script.trailerStatus = "requested";
       }
 
       const previousSpent = script.promotion?.totalSpotlightCreditsSpent || 0;
       script.promotion = {
         spotlightActive: true,
+        pendingSpotlightActivation: false,
         spotlightStartAt: now,
         spotlightEndAt: endAt,
         lastSpotlightPurchaseAt: now,
@@ -2370,6 +3144,7 @@ export const activateProjectSpotlight = async (req, res) => {
       script.billing = {
         evaluationCreditsCharged: evaluationCharged,
         aiTrailerCreditsCharged: aiTrailerCharged,
+        spotlightCreditsChargedAtUpload: spotlightChargedAtUpload,
         evaluationCreditsChargedAtUpload: evaluationChargedAtUpload,
         aiTrailerCreditsChargedAtUpload: aiTrailerChargedAtUpload,
         evaluationCreditsRefunded: evaluationRefunded,
@@ -2383,28 +3158,30 @@ export const activateProjectSpotlight = async (req, res) => {
       script.markModified("billing");
       await script.save({ session });
 
-      await Transaction.create([
-        {
-          user: req.user._id,
-          type: "debit",
-          amount: -spotlightCreditsRequired,
-          currency: "INR",
-          status: "completed",
-          description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
-          reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
-          paymentMethod: "wallet",
-          relatedScript: script._id,
-          metadata: {
-            package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
-            isExtension: spotlightCurrentlyActive,
-            includesVerifiedBadge: true,
-            includesFreeEvaluation: true,
-            includesFreeAITrailer: true,
-            featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
-            spotlightEndAt: endAt.toISOString(),
+      if (spotlightCreditsRequired > 0) {
+        await Transaction.create([
+          {
+            user: req.user._id,
+            type: "debit",
+            amount: -spotlightCreditsRequired,
+            currency: "INR",
+            status: "completed",
+            description: `Project Spotlight ${spotlightCurrentlyActive ? "extension" : "package"} for "${script.title}"`,
+            reference: `SPTD-${Date.now().toString(36).toUpperCase()}`,
+            paymentMethod: "wallet",
+            relatedScript: script._id,
+            metadata: {
+              package: spotlightCurrentlyActive ? "project_spotlight_extension" : "project_spotlight",
+              isExtension: spotlightCurrentlyActive,
+              includesVerifiedBadge: true,
+              includesFreeEvaluation: true,
+              includesFreeAITrailer: true,
+              featuredDurationDays: PROJECT_SPOTLIGHT_DURATION_DAYS,
+              spotlightEndAt: endAt.toISOString(),
+            },
           },
-        },
-      ], { session });
+        ], { session });
+      }
     });
 
     await notifyAdminWorkflowEvent({
@@ -2456,7 +3233,7 @@ export const activateProjectSpotlight = async (req, res) => {
   }
 };
 
-// @desc    Verify Razorpay payment and unlock script
+// @desc    Verify Razorpay payment for approved request and unlock script
 // @route   POST /api/scripts/purchase/verify-payment
 // @access  Private
 export const verifyScriptPurchase = async (req, res) => {
@@ -2465,38 +3242,19 @@ export const verifyScriptPurchase = async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      scriptId
+      scriptId,
+      freeAccess,
     } = req.body;
 
     console.log("Script purchase verification:", { razorpay_order_id, razorpay_payment_id, scriptId });
 
-    // Check if Razorpay key secret is available
-    if (!process.env.RAZORPAY_KEY_SECRET) {
-      console.error("RAZORPAY_KEY_SECRET not found in environment");
-      return res.status(500).json({
-        message: "Payment system not configured",
-        success: false
-      });
-    }
-
-    // Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
-
-    const isAuthentic = expectedSignature === razorpay_signature;
-
-    if (!isAuthentic) {
-      console.error("Signature verification failed");
+    if (!scriptId) {
       return res.status(400).json({
-        message: "Payment verification failed - Invalid signature",
-        success: false
+        message: "Script id is required.",
+        success: false,
       });
     }
 
-    // Payment verified successfully, create escrowed purchase request for writer approval
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) {
       console.error("Script not found:", scriptId);
@@ -2505,120 +3263,399 @@ export const verifyScriptPurchase = async (req, res) => {
         success: false
       });
     }
+    if (script.isDeleted) {
+      return res.status(410).json({
+        message: "This project was deleted by creator and is no longer available for new purchases.",
+        success: false,
+      });
+    }
+
+    await expireApprovedUnpaidRequests({ scriptId: script._id });
 
     // Check if already unlocked
-    if (script.unlockedBy.includes(req.user._id)) {
+    if (hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id)) {
       return res.status(400).json({
         message: "Script already purchased",
         success: false
       });
     }
 
-    const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-    if (script.purchaseRequestLocked && lockOwnerId !== req.user._id.toString()) {
+    const alreadyReleased = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      investor: req.user._id,
+      status: "approved",
+      paymentStatus: "released",
+    }).select("_id");
+
+    if (alreadyReleased) {
+      const existingInvoice = await Invoice.findOne({
+        creator: req.user._id,
+        script: script._id,
+      })
+        .sort({ createdAt: -1 })
+        .select("_id invoiceNumber pdfPath");
+
+      return res.json({
+        success: true,
+        message: existingInvoice ? "Payment already completed. Full access is already active." : "Access already granted for this request.",
+        purchaseRequestId: alreadyReleased._id,
+        invoice: existingInvoice
+          ? {
+              _id: existingInvoice._id,
+              invoiceNumber: existingInvoice.invoiceNumber,
+              pdfPath: existingInvoice.pdfPath || "",
+            }
+          : null,
+      });
+    }
+
+    const pendingRequest = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      investor: req.user._id,
+      status: "pending",
+    }).select("_id");
+
+    if (pendingRequest) {
       return res.status(409).json({
-        message: "This script is currently locked by another investor request.",
+        message: "Your request is still pending writer approval. Complete payment after approval.",
         success: false,
       });
     }
 
-    let purchaseRequest = await ScriptPurchaseRequest.findOne({
+    const now = new Date();
+    const activeApprovedClause = getApprovedUnpaidActiveClause(now);
+    const purchaseRequest = await ScriptPurchaseRequest.findOne({
       script: script._id,
       investor: req.user._id,
-      status: "pending",
+      ...activeApprovedClause,
     });
-
-    if (purchaseRequest && purchaseRequest.paymentStatus === "escrow_held") {
-      return res.json({
-        success: true,
-        message: "Payment already verified. Waiting for writer approval.",
-        purchaseRequestId: purchaseRequest._id,
-      });
-    }
-
-    const amount = Number(script.price || 0);
 
     if (!purchaseRequest) {
-      purchaseRequest = await ScriptPurchaseRequest.create({
-        script: script._id,
-        investor: req.user._id,
-        writer: script.creator._id,
-        amount,
-        frozenAmount: amount,
-        paymentMethod: "razorpay",
-        paymentStatus: amount > 0 ? "escrow_held" : "pending",
-        paymentGatewayOrderId: razorpay_order_id,
-        paymentGatewayPaymentId: razorpay_payment_id,
-        paymentGatewaySignature: razorpay_signature,
+      return res.status(400).json({
+        message: "No approved purchase request found for payment.",
+        success: false,
       });
+    }
+
+    const paymentDueAt = purchaseRequest.paymentDueAt
+      ? new Date(purchaseRequest.paymentDueAt)
+      : getApprovedPaymentDueAt(purchaseRequest.updatedAt || purchaseRequest.createdAt || now);
+
+    if (paymentDueAt <= now) {
+      await expireApprovedUnpaidRequests({ scriptId: script._id, force: true });
+      return res.status(410).json({
+        message: "Payment window expired for this approved request. Send a new purchase request.",
+        success: false,
+      });
+    }
+
+    const baseAmount = Number(purchaseRequest.amount || script.price || 0);
+    const isFreeAccessRequest = baseAmount <= 0;
+
+    if (isFreeAccessRequest) {
+      const hasAcceptedPlatformAndWriterTerms = Boolean(
+        purchaseRequest?.termsAcceptance?.platformTermsAccepted &&
+        purchaseRequest?.termsAcceptance?.writerTermsAccepted
+      );
+
+      if (!hasAcceptedPlatformAndWriterTerms) {
+        return res.status(400).json({
+          message: "Accept Platform and Writer terms before confirming free access.",
+          success: false,
+        });
+      }
+
+      const customInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+      if (customInvestorTerms && !purchaseRequest?.termsAcceptance?.customWriterTermsAccepted) {
+        return res.status(400).json({
+          message: "Accept writer custom terms before confirming free access.",
+          success: false,
+        });
+      }
+
+      if (!freeAccess && !razorpay_order_id && !razorpay_payment_id && !razorpay_signature) {
+        return res.status(400).json({
+          message: "Use free access confirmation from the payment page.",
+          success: false,
+        });
+      }
     } else {
-      purchaseRequest.amount = amount;
-      purchaseRequest.frozenAmount = amount;
-      purchaseRequest.paymentMethod = "razorpay";
-      purchaseRequest.paymentStatus = amount > 0 ? "escrow_held" : "pending";
-      purchaseRequest.paymentGatewayOrderId = razorpay_order_id;
-      purchaseRequest.paymentGatewayPaymentId = razorpay_payment_id;
-      purchaseRequest.paymentGatewaySignature = razorpay_signature;
-      await purchaseRequest.save();
+      if (!process.env.RAZORPAY_KEY_SECRET) {
+        console.error("RAZORPAY_KEY_SECRET not found in environment");
+        return res.status(500).json({
+          message: "Payment system not configured",
+          success: false
+        });
+      }
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({
+          message: "Payment verification payload is incomplete.",
+          success: false,
+        });
+      }
+
+      const body = razorpay_order_id + "|" + razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(body.toString())
+        .digest("hex");
+
+      const isAuthentic = expectedSignature === razorpay_signature;
+
+      if (!isAuthentic) {
+        console.error("Signature verification failed");
+        return res.status(400).json({
+          message: "Payment verification failed - Invalid signature",
+          success: false
+        });
+      }
     }
 
-    const holdReference = `PRH-RZP-${razorpay_payment_id}`;
-    const existingHoldTx = await Transaction.findOne({ reference: holdReference });
-    if (!existingHoldTx && amount > 0) {
-      await Transaction.create({
-        user: req.user._id,
-        type: "payment",
-        amount: -amount,
-        currency: "INR",
-        status: "pending",
-        description: `Escrow hold for purchase request: "${script.title}"`,
-        reference: holdReference,
-        paymentMethod: "razorpay",
-        relatedScript: script._id,
-        metadata: {
-          purchaseRequestId: purchaseRequest._id.toString(),
-          stage: "escrow_hold",
-          writerId: script.creator._id.toString(),
-          scriptId: script._id.toString(),
-          razorpay_order_id,
-          razorpay_payment_id,
-        },
+    const pricing = getScriptPurchasePricing(baseAmount);
+    const paymentReference = isFreeAccessRequest ? "" : `RZP-${razorpay_payment_id}`;
+
+    const [investorDoc, writerDoc] = await Promise.all([
+      User.findById(req.user._id).select("name email sid role industryProfile"),
+      User.findById(purchaseRequest.writer).select("name wallet"),
+    ]);
+
+    if (!writerDoc) {
+      return res.status(404).json({
+        message: "Writer account not found.",
+        success: false,
       });
     }
 
-    script.purchaseRequestLocked = true;
-    script.purchaseRequestLockedBy = req.user._id;
-    script.purchaseRequestLockedAt = new Date();
+    if (!writerDoc.wallet) {
+      writerDoc.wallet = {
+        balance: 0,
+        currency: "INR",
+        pendingBalance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      };
+    }
+
+    if (!isFreeAccessRequest) {
+      const writerBalanceBefore = writerDoc.wallet.balance || 0;
+      writerDoc.wallet.balance = writerBalanceBefore + pricing.baseAmount;
+      writerDoc.wallet.totalEarnings = (writerDoc.wallet.totalEarnings || 0) + pricing.baseAmount;
+      await writerDoc.save();
+
+      await Transaction.create([
+        {
+          user: req.user._id,
+          type: "payment",
+          amount: -pricing.totalAmount,
+          currency: "INR",
+          status: "completed",
+          description: `Purchased script after approval: "${script.title}"`,
+          reference: `PRP-RZP-${razorpay_payment_id}`,
+          paymentMethod: "razorpay",
+          relatedScript: script._id,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            writerId: purchaseRequest.writer.toString(),
+            scriptId: script._id.toString(),
+            razorpay_order_id,
+            razorpay_payment_id,
+          },
+        },
+        {
+          user: purchaseRequest.writer,
+          type: "credit",
+          amount: pricing.baseAmount,
+          currency: "INR",
+          status: "completed",
+          description: `Script purchase payout: "${script.title}"`,
+          reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+          paymentMethod: "razorpay",
+          relatedScript: script._id,
+          balanceBefore: writerBalanceBefore,
+          balanceAfter: writerDoc.wallet.balance,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            investorId: req.user._id.toString(),
+            scriptId: script._id.toString(),
+            razorpay_order_id,
+            razorpay_payment_id,
+          },
+        },
+      ]);
+    }
+
+    if (!hasUserInIdArray(script.unlockedBy, req.user._id)) {
+      script.unlockedBy.push(req.user._id);
+    }
+    script.purchasedBy = Array.isArray(script.purchasedBy) ? script.purchasedBy : [];
+    if (!hasUserInIdArray(script.purchasedBy, req.user._id)) {
+      script.purchasedBy.push(req.user._id);
+    }
+    script.isSold = true;
+    script.purchaseRequestLocked = false;
+    script.purchaseRequestLockedBy = null;
+    script.purchaseRequestLockedAt = null;
     await script.save();
 
-    const investor = await User.findById(req.user._id).select("name email");
+    purchaseRequest.frozenAmount = isFreeAccessRequest ? 0 : pricing.totalAmount;
+    purchaseRequest.paymentMethod = isFreeAccessRequest ? "free_access" : "razorpay";
+    purchaseRequest.paymentStatus = "released";
+    purchaseRequest.paymentDueAt = undefined;
+    purchaseRequest.paymentGatewayOrderId = isFreeAccessRequest ? undefined : razorpay_order_id;
+    purchaseRequest.paymentGatewayPaymentId = isFreeAccessRequest ? undefined : razorpay_payment_id;
+    purchaseRequest.paymentGatewaySignature = isFreeAccessRequest ? undefined : razorpay_signature;
+    purchaseRequest.settledAt = new Date();
+    await purchaseRequest.save();
+
+    let purchaseInvoice = null;
+    if (!isFreeAccessRequest) {
+      purchaseInvoice = await Invoice.findOne({ paymentReference }).select("_id invoiceNumber pdfPath");
+    }
+    if (!purchaseInvoice && !isFreeAccessRequest) {
+      try {
+        const buyerLabel = getPurchaseRequesterLabel(investorDoc || req.user);
+        const createdInvoice = await Invoice.create({
+          paymentReference,
+          invoiceNumber: buildScriptPurchaseInvoiceNumber(razorpay_payment_id),
+          invoiceDate: new Date(),
+          creator: req.user._id,
+          creatorSid: investorDoc?.sid || req.user?.sid || "",
+          script: script._id,
+          scriptSid: script?.sid || "",
+          accessType: "premium",
+          scriptPrice: pricing.baseAmount,
+          platformFeeRate: pricing.platformTaxRate,
+          writerEarnsPerSale: pricing.baseAmount,
+          services: {
+            hosting: false,
+            evaluation: false,
+            aiTrailer: false,
+            trailerUpload: false,
+          },
+          totalCreditsRequired: 0,
+          creditsBalanceBefore: 0,
+          creditsBalanceAfter: 0,
+          rows: [
+            {
+              item: "Script Purchase",
+              type: "Payment",
+              detail: `${buyerLabel} purchased full access for \"${script.title}\".`,
+              amountLabel: `INR ${pricing.baseAmount.toFixed(2)}`,
+              amountValue: pricing.baseAmount,
+            },
+            {
+              item: `Platform Tax (${pricing.platformTaxPercent}%)`,
+              type: "Tax",
+              detail: "Platform tax charged on script purchase.",
+              amountLabel: `INR ${pricing.platformTaxAmount.toFixed(2)}`,
+              amountValue: pricing.platformTaxAmount,
+            },
+            {
+              item: "Total Paid",
+              type: "Total",
+              detail: "Total charged via payment gateway.",
+              amountLabel: `INR ${pricing.totalAmount.toFixed(2)}`,
+              amountValue: pricing.totalAmount,
+            },
+            {
+              item: "Payment Gateway",
+              type: "Reference",
+              detail: `Razorpay Payment ID: ${razorpay_payment_id}`,
+              amountLabel: "Verified",
+              amountValue: 0,
+            },
+            {
+              item: "Writer Payout",
+              type: "Settlement",
+              detail: `Credited to writer wallet: ${writerDoc.name || "Writer"}`,
+              amountLabel: `INR ${pricing.baseAmount.toFixed(2)}`,
+              amountValue: pricing.baseAmount,
+            },
+          ],
+        });
+
+        try {
+          const buyerIdentity = investorDoc || req.user;
+          const generatedPdf = await generateAndSaveInvoicePdf({
+            invoice: createdInvoice,
+            creatorName: buyerIdentity?.name,
+            creatorEmail: buyerIdentity?.email,
+            creatorSid: createdInvoice.creatorSid || buyerIdentity?.sid,
+            scriptTitle: script?.title,
+            scriptSid: createdInvoice.scriptSid || script?.sid,
+          });
+
+          if (generatedPdf?.relativePath) {
+            createdInvoice.pdfPath = generatedPdf.relativePath;
+            createdInvoice.pdfGeneratedAt = new Date();
+            await createdInvoice.save();
+          }
+        } catch (pdfError) {
+          console.error("Purchase invoice PDF generation error:", pdfError?.message || pdfError);
+        }
+
+        purchaseInvoice = {
+          _id: createdInvoice._id,
+          invoiceNumber: createdInvoice.invoiceNumber,
+          pdfPath: createdInvoice.pdfPath || "",
+        };
+      } catch (invoiceError) {
+        if (invoiceError?.code === 11000) {
+          const duplicateInvoice = await Invoice.findOne({ paymentReference }).select("_id invoiceNumber pdfPath");
+          purchaseInvoice = duplicateInvoice
+            ? {
+                _id: duplicateInvoice._id,
+                invoiceNumber: duplicateInvoice.invoiceNumber,
+                pdfPath: duplicateInvoice.pdfPath || "",
+              }
+            : null;
+        } else {
+          console.error("Purchase invoice creation error:", invoiceError);
+        }
+      }
+    }
 
     await Notification.create({
-      user: script.creator._id,
-      type: "purchase_request",
-      from: req.user._id,
+      user: req.user._id,
+      type: "purchase_approved",
+      from: purchaseRequest.writer,
       script: script._id,
-      message: `${investor?.name || "An investor"} submitted a paid purchase request for "${script.title}". ₹${amount.toLocaleString("en-IN")} is held in escrow pending your approval.`,
+      message: isFreeAccessRequest
+        ? `Free access confirmed for "${script.title}". Full script access is now unlocked.`
+        : `Payment successful for "${script.title}". Full script access is now unlocked.`,
     });
 
-    sendPurchaseRequestEmail(
-      script.creator.email,
-      script.creator.name,
-      investor?.name || "Investor",
-      script.title,
-      amount
-    ).catch((err) => console.error("[Purchase] Failed to send request email:", err.message));
-    
-    console.log("Script purchase payment escrowed:", { scriptId, buyerId: req.user._id, amount });
+    await Notification.create({
+      user: purchaseRequest.writer,
+      type: "purchase",
+      from: req.user._id,
+      script: script._id,
+      message: isFreeAccessRequest
+        ? `${investorDoc?.name || "An investor"} confirmed free access for "${script.title}" after approval.`
+        : `${investorDoc?.name || "A buyer"} completed payment for "${script.title}". Payout of ₹${pricing.baseAmount.toLocaleString("en-IN")} has been credited to your wallet.`,
+    });
+
+    console.log("Script purchase settled:", {
+      scriptId,
+      buyerId: req.user._id,
+      baseAmount: pricing.baseAmount,
+      platformTaxAmount: pricing.platformTaxAmount,
+      totalAmount: pricing.totalAmount,
+      freeAccess: isFreeAccessRequest,
+    });
 
     res.json({
       success: true,
-      message: "Payment received and held in escrow. Request sent to writer for approval.",
+      message: isFreeAccessRequest
+        ? "Access granted. This project is free, so no payment or invoice was required."
+        : "Payment successful. Full script access granted.",
       purchaseRequest: {
         id: purchaseRequest._id,
         status: purchaseRequest.status,
         paymentStatus: purchaseRequest.paymentStatus,
       },
+      invoice: purchaseInvoice || null,
     });
   } catch (error) {
     console.error("Script purchase verification error:", error);
@@ -2875,8 +3912,19 @@ export const verifyScriptHold = async (req, res) => {
 
 // File filters
 const imageFileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-  if (allowed.includes(file.mimetype)) {
+  const allowed = [
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+    "image/png",
+    "image/x-png",
+    "image/webp",
+    "image/gif",
+  ];
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const extensionAllowed = [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext);
+
+  if (allowed.includes(file.mimetype) || extensionAllowed) {
     cb(null, true);
   } else {
     cb(new Error("Only JPEG, PNG, WebP and GIF images are allowed"), false);
@@ -2902,7 +3950,7 @@ export const uploadThumbnail = multer({
 export const uploadTrailer = multer({
   storage: multer.memoryStorage(),
   fileFilter: videoFileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+  limits: { fileSize: 250 * 1024 * 1024 } // 250MB limit
 });
 
 // ── Upload Thumbnail Controller (Cloudinary) ──
@@ -2973,16 +4021,31 @@ export const uploadScriptTrailer = async (req, res) => {
     const trailerUrl = result.secure_url;
     script.uploadedTrailerUrl = trailerUrl;
     script.trailerSource = "uploaded";
-    script.trailerStatus = "ready";
-    script.trailerWriterFeedback = {
-      status: "approved",
-      note: "",
-      updatedAt: new Date(),
-    };
+
+    const shouldKeepAiQueue = Boolean(script.services?.aiTrailer && !script.trailerUrl);
+    if (shouldKeepAiQueue) {
+      if (!["requested", "generating"].includes(script.trailerStatus)) {
+        script.trailerStatus = "requested";
+      }
+      script.trailerWriterFeedback = {
+        status: "pending",
+        note: script.trailerWriterFeedback?.note || "",
+        updatedAt: new Date(),
+      };
+    } else {
+      script.trailerStatus = "ready";
+      script.trailerWriterFeedback = {
+        status: "approved",
+        note: "",
+        updatedAt: new Date(),
+      };
+    }
     await script.save();
 
     res.json({
-      message: "Trailer uploaded successfully (free)",
+      message: shouldKeepAiQueue
+        ? "Trailer uploaded successfully. AI trailer request is still active."
+        : "Trailer uploaded successfully (free)",
       trailerUrl,
       trailerSource: "uploaded",
       script
@@ -3012,10 +4075,55 @@ export const requestScriptAITrailer = async (req, res) => {
       return res.status(400).json({ message: "AI trailer is already ready for this script" });
     }
 
+    const alreadyPaid = Boolean(
+      script.services?.aiTrailer || Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0
+    );
+
+    if (!alreadyPaid) {
+      const user = await User.findById(req.user._id);
+      const requiredCredits = CREDIT_PRICES.AI_TRAILER;
+      const userBalance = user?.credits?.balance || 0;
+
+      if (userBalance < requiredCredits) {
+        return res.status(402).json({
+          message: `Insufficient credits. AI Trailer generation requires ${requiredCredits} credits.`,
+          requiresCredits: true,
+          required: requiredCredits,
+          balance: userBalance,
+          shortfall: requiredCredits - userBalance,
+        });
+      }
+
+      user.credits.balance -= requiredCredits;
+      user.credits.totalSpent += requiredCredits;
+      user.credits.transactions.push({
+        type: "spent",
+        amount: -requiredCredits,
+        description: `AI Trailer generation for "${script.title}"`,
+        reference: `TRAILER-${Date.now().toString(36).toUpperCase()}`,
+        createdAt: new Date(),
+      });
+      await user.save();
+
+      const currentBilling = script.billing || {};
+      script.billing = {
+        ...currentBilling,
+        evaluationCreditsCharged: Number(currentBilling.evaluationCreditsCharged || 0),
+        aiTrailerCreditsCharged: Number(currentBilling.aiTrailerCreditsCharged || 0) + requiredCredits,
+        evaluationCreditsRefunded: Number(currentBilling.evaluationCreditsRefunded || 0),
+        aiTrailerCreditsRefunded: Number(currentBilling.aiTrailerCreditsRefunded || 0),
+        spotlightCreditsSpent: Number(currentBilling.spotlightCreditsSpent || 0),
+        lastSpotlightRefundCredits: Number(currentBilling.lastSpotlightRefundCredits || 0),
+        lastSpotlightActivatedAt: currentBilling.lastSpotlightActivatedAt,
+      };
+      script.markModified("billing");
+    }
+
     script.services = {
       hosting: script.services?.hosting ?? true,
       evaluation: script.services?.evaluation ?? false,
       aiTrailer: true,
+      spotlight: script.services?.spotlight ?? false,
     };
     script.trailerStatus = "requested";
     script.trailerWriterFeedback = {

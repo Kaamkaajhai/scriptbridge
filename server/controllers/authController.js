@@ -1,8 +1,9 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
-import { sendOTPEmail, sendWelcomeEmail, sendSignupOTPToCompany } from "../utils/emailService.js";
+import { sendOTPEmail, sendWelcomeEmail } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 
 const generateToken = (id) => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "30d";
@@ -138,14 +139,6 @@ export const join = async (req, res) => {
           });
         }
 
-        // Best-effort company copy (does not block user flow)
-        await sendSignupOTPToCompany({
-          userName: userExists.name || name,
-          userEmail: email,
-          userRole: userExists.role,
-          otp,
-        });
-        
         return res.status(200).json({ 
           message: "User already exists but not verified. New OTP sent to email.",
           requiresVerification: true,
@@ -200,14 +193,6 @@ export const join = async (req, res) => {
       });
     }
 
-    // Best-effort company copy (does not block signup)
-    await sendSignupOTPToCompany({
-      userName: name,
-      userEmail: email,
-      userRole: role,
-      otp,
-    });
-    
     console.log('User created successfully, OTP sent:', user._id);
     res.status(201).json({
       message: "Account created successfully. Please check your email for verification code.",
@@ -221,7 +206,7 @@ export const join = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  let { email, password } = req.body;
+  let { email, password, adminCode } = req.body;
   try {
     if (!email || !password) {
       return res.status(400).json({ message: "Please provide email and password" });
@@ -231,6 +216,13 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      if (user.role === "admin") {
+        const requiredAdminCode = String(process.env.ADMIN_PANEL_CODE || "24062004").trim();
+        if (String(adminCode || "").trim() !== requiredAdminCode) {
+          return res.status(403).json({ message: "Invalid admin access code" });
+        }
+      }
+
       if (!user.sid) {
         await user.save();
       }
@@ -270,6 +262,7 @@ export const login = async (req, res) => {
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
         profileImage: user.profileImage || user.profilePicture || "",
+        profileCompletion: getProfileCompletion(user),
         token,
         expiresAt,
       });
@@ -360,13 +353,22 @@ export const verifyOTP = async (req, res) => {
     // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
 
-    // Investors cannot log in yet — they need admin approval
+    // Investors cannot sign in from login until approved, but they should
+    // still receive a session here to complete onboarding steps.
     if (user.role === "investor") {
+      const { token, expiresAt } = generateToken(user._id);
       return res.json({
-        message: "Email verified successfully! Your account is now pending admin approval. You will be notified once approved.",
+        message: "Email verified successfully! Complete your onboarding while your account is under admin review.",
         pendingApproval: true,
         email: user.email,
         role: user.role,
+        _id: user._id,
+        name: user.name,
+        approvalStatus: user.approvalStatus,
+        approvalNote: user.approvalNote,
+        profileCompletion: getProfileCompletion(user),
+        token,
+        expiresAt,
       });
     }
 
@@ -379,6 +381,7 @@ export const verifyOTP = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      profileCompletion: getProfileCompletion(user),
       token,
       expiresAt,
     });
@@ -451,10 +454,51 @@ export const validateSignupAddress = async (req, res) => {
 
     const { city, state, zipCode } = parsed;
 
-    const response = await fetch(`https://api.postalpincode.in/pincode/${zipCode}`);
-    const data = await response.json();
+    const strictAddressValidation =
+      String(process.env.STRICT_ADDRESS_VALIDATION || "false").toLowerCase() === "true";
 
-    const offices = Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+    let offices = [];
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(`https://api.postalpincode.in/pincode/${zipCode}`, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Postal API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      offices = Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+    } catch (postalError) {
+      console.warn("Postal API unavailable during signup address validation:", postalError.message || postalError);
+
+      if (strictAddressValidation) {
+        return res.status(503).json({
+          valid: false,
+          message: "Address validation service is temporarily unavailable. Please try again.",
+        });
+      }
+
+      return res.json({
+        valid: true,
+        skipped: true,
+        message: "Address format accepted. Live ZIP verification is temporarily unavailable.",
+        normalized: {
+          city,
+          state,
+          zipCode,
+        },
+      });
+    }
+
     if (!offices.length) {
       return res.status(400).json({
         valid: false,
@@ -531,6 +575,7 @@ export const getMe = async (req, res) => {
       profileImage: user.profileImage || user.profilePicture || "",
       profilePicture: user.profilePicture,
       bio: user.bio,
+      profileCompletion: getProfileCompletion(user),
       expiresAt: decoded.exp * 1000,
     });
   } catch (error) {

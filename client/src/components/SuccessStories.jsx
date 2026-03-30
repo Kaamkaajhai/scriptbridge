@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Star, Quote } from "lucide-react";
+import { BadgeCheck, Quote } from "lucide-react";
 
 const SuccessStories = () => {
   const stories = [
@@ -8,100 +8,119 @@ const SuccessStories = () => {
       name: "Sarah Chen",
       role: "Screenplay Writer, Los Angeles",
       image: "SC",
-      story: "I'd been circling the industry for four years with a sci-fi spec that kept getting passed on. After uploading to Ckript, the AI-generated trailer framed it in a way I never could in a pitch deck. A producer reached out within ten days and we closed an option deal shortly after. It's now in active development.",
-      metric: "Optioned within 2 weeks of upload",
-      tagline: "The platform did what four years of networking couldn't"
+      headline: "From no replies to a real option discussion",
+      story:
+        "I had a script people complimented but never moved forward on. On Ckript, I could present it with a trailer and clearer project notes. The first producer call happened in under two weeks, and we entered option talks right after.",
+      metric: "First producer meeting in 11 days"
     },
     {
       type: "producer",
       name: "Marcus Williams",
       role: "Independent Producer, New York",
       image: "MW",
-      story: "My development slate was stalling because discovery was broken — I was buried in cold submissions that didn't fit what I was actually making. Ckript's matching surfaced writers whose voice and genre aligned with my body of work. I optioned three scripts in the first month alone and now have a pipeline I actually trust.",
-      metric: "3 scripts optioned in the first month",
-      tagline: "A development pipeline I can finally rely on"
+      headline: "Discovery became focused instead of noisy",
+      story:
+        "Most of my week used to go into sorting submissions that were not a fit. The filtering and matching made my shortlist tighter, and my team now spends more time on scripts we would actually develop.",
+      metric: "2 scripts moved to paid development"
     },
     {
       type: "investor",
       name: "Priya Kapoor",
       role: "Film & Media Investor, London",
       image: "PK",
-      story: "I allocate a portion of my portfolio to early-stage content IP, but sourcing credible opportunities has always been the bottleneck. Ckript changed that — curated collections organised by genre, budget, and commercial potential mean I can evaluate projects with real context. I've committed to two projects already and I'm actively reviewing a third.",
-      metric: "2 investment commitments in under 3 months",
-      tagline: "Structured deal flow for a space that's never had it"
+      headline: "Better visibility before capital goes in",
+      story:
+        "My issue was never interest in content IP, it was signal quality. Ckript gave me clearer context around genre fit, audience, and production scope. That made diligence faster and decisions more confident.",
+      metric: "2 projects shortlisted in 6 weeks"
     },
     {
       type: "actor",
       name: "James Rodriguez",
       role: "Actor, Miami",
       image: "JR",
-      story: "I wasn't looking for auditions in the traditional sense — I wanted to be attached to projects at the script stage, before casting even opened. Ckript lets you do exactly that. I submitted self-tapes for three projects that matched my type and one of them came back with an offer. That project is now in pre-production and I'm on it.",
-      metric: "Attached to a production before casting opened",
-      tagline: "The entry point I'd been waiting for"
+      headline: "I got in earlier than the usual casting cycle",
+      story:
+        "I wanted to connect with projects at script stage, not after roles were already narrowed. Through Ckript, I shared self-tapes with teams early and got invited into conversations before formal casting started.",
+      metric: "1 early attachment offer secured"
     }
   ];
 
+  const typeBadgeClass = {
+    creator: "border-[#2e4a68] bg-[#12243a] text-[#b8cae0]",
+    producer: "border-[#2e4a68] bg-[#12243a] text-[#b8cae0]",
+    investor: "border-[#2e4a68] bg-[#12243a] text-[#b8cae0]",
+    actor: "border-[#2e4a68] bg-[#12243a] text-[#b8cae0]",
+  };
+
+  const typeLabel = {
+    creator: "Creator",
+    producer: "Producer",
+    investor: "Investor",
+    actor: "Actor",
+  };
+
   return (
-    <section className="py-28 px-6 bg-[#0a1221]">
+    <section className="py-24 sm:py-28 px-6 border-y border-[#16273b] bg-[linear-gradient(180deg,#0b1422_0%,#0d1828_100%)]">
       <div className="max-w-6xl mx-auto">
-        {/* Header — left-aligned */}
         <motion.div
-          className="max-w-2xl mb-14"
+          className="max-w-3xl mb-14 sm:mb-16"
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Testimonials</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3 tracking-tight">
-            Stories of Real Success
+          <p className="text-[#9aacc3] text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase mb-3">Testimonials</p>
+          <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-white tracking-tight leading-tight">
+            Trusted by people who build projects in the real world
           </h2>
         </motion.div>
 
-        {/* Testimonial grid — 2x2 with varied card feel */}
-        <div className="grid md:grid-cols-2 gap-5">
+        <div className="grid md:grid-cols-2 items-start gap-5 sm:gap-6">
           {stories.map((story, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -3 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: index * 0.06 }}
-              className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-7 hover:border-[#2a3a4e] transition-colors"
+              className="group relative rounded-2xl border border-[#23394f] bg-[#0f1d30] p-6 sm:p-7 transition-all duration-300 hover:border-[#365574] hover:bg-[#112137] hover:shadow-[0_12px_30px_rgba(5,14,28,0.36)]"
             >
-              {/* Header row */}
-              <div className="flex items-center justify-between mb-5">
+              <Quote className="absolute right-5 top-5 w-5 h-5 text-[#365273] opacity-70" />
+
+              <div className="flex items-start justify-between gap-3 mb-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#151f2e] flex items-center justify-center text-xs font-bold text-[#8896a7]">
+                  <div className="w-11 h-11 rounded-full bg-[#152740] border border-[#2f4a69] flex items-center justify-center text-xs font-bold text-[#bccde2]">
                     {story.image}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-white">{story.name}</h3>
-                    <p className="text-xs text-[#4a5a6e]">{story.role}</p>
+                    <h3 className="font-semibold text-sm text-white leading-tight">{story.name}</h3>
+                    <p className="text-xs text-[#8ba0ba] mt-0.5">{story.role}</p>
                   </div>
                 </div>
-                <Quote className="w-4 h-4 text-[#1c2a3a]" />
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${typeBadgeClass[story.type]}`}
+                >
+                  <BadgeCheck className="w-3 h-3" />
+                  {typeLabel[story.type]}
+                </span>
               </div>
 
-              {/* Quote */}
-              <p className="text-sm text-[#8896a7] leading-relaxed mb-5">
+              <h3 className="text-lg sm:text-[1.26rem] font-semibold text-white tracking-tight leading-snug mb-3">
+                {story.headline}
+              </h3>
+
+              <p className="text-[15px] text-[#9cb2cb] leading-relaxed mb-6">
                 "{story.story}"
               </p>
 
-              {/* Metric */}
-              <div className="bg-[#0a1221] border border-[#1c2a3a] rounded-lg px-4 py-3 mb-4">
-                <p className="text-gray-400 font-semibold text-sm">{story.metric}</p>
+              <div className="rounded-xl border border-[#253f5a] bg-[#0c1729] px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.12em] font-semibold text-[#91a8c3] mb-1">
+                  Outcome
+                </p>
+                <p className="text-sm font-semibold text-white">{story.metric}</p>
               </div>
 
-              {/* Rating + tagline */}
-              <div className="flex items-center gap-2">
-                <div className="flex gap-0.5">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 fill-gray-400 text-gray-400" />
-                  ))}
-                </div>
-                <p className="text-[#4a5a6e] italic text-xs">"{story.tagline}"</p>
-              </div>
             </motion.div>
           ))}
         </div>

@@ -84,6 +84,126 @@ const normalizeScorePayload = (payload = {}) => {
   };
 };
 
+const scoreRequestLockMs = 10 * 60 * 1000;
+
+const runScriptScoreGeneration = async ({ scriptId, userId }) => {
+  const script = await Script.findById(scriptId);
+  if (!script) return;
+
+  // Another worker may have completed the score already.
+  if (Number(script.scriptScore?.overall || 0) > 0) {
+    if (script.evaluationStatus !== "completed") {
+      script.evaluationStatus = "completed";
+      script.evaluationRequestedAt = undefined;
+      await script.save();
+    }
+    return;
+  }
+
+  const scriptText = safeSlice(
+    script.textContent || script.fullContent || script.synopsis || script.description,
+    24000
+  );
+
+  const roles = (script.roles || []).map(r => `${r.characterName}${r.description ? ` — ${r.description}` : ""}`).join("; ");
+  const tones = (script.classification?.tones || []).join(", ");
+  const themes = (script.classification?.themes || []).join(", ");
+  const subGenres = (script.subGenres || []).join(", ");
+
+  const scorePrompt = `You are a senior Hollywood screenplay analyst with 20+ years of experience evaluating scripts for studios, production companies, and streaming platforms.
+
+Your job is to produce a rigorous, professional, and SPECIFIC evaluation of the script provided. Every score and every sentence of feedback must reference concrete details from the actual content — character names, specific scenes, actual plot points, dialogue patterns, structural beats. Do NOT write generic advice that could apply to any script.
+
+Return STRICT JSON with this exact shape — no markdown, no code fences:
+{
+  "plot": <integer 0-100>,
+  "characters": <integer 0-100>,
+  "dialogue": <integer 0-100>,
+  "pacing": <integer 0-100>,
+  "marketability": <integer 0-100>,
+  "overall": <integer 0-100>,
+  "feedback": "<4-6 sentences of sharp, specific, professional feedback referencing actual script elements>",
+  "strengths": ["<specific strength 1>", "<specific strength 2>", "<specific strength 3>"],
+  "weaknesses": ["<specific weakness 1>", "<specific weakness 2>"],
+  "improvements": ["<concrete actionable improvement 1>", "<concrete actionable improvement 2>", "<concrete actionable improvement 3>"],
+  "audienceFit": "<target audience and market positioning based on this specific script>",
+  "comparables": "<2-3 produced films or shows this script resembles in tone/structure/genre>"
+}
+
+Scoring guide:
+- 90-100: Festival/studio-ready, exceptional craft
+- 80-89: Professionally competitive with minor polish needed
+- 70-79: Strong foundation, clear revision path
+- 60-69: Promising concept, significant craft work required
+- Below 60: Fundamental structural or character issues
+
+Script Metadata:
+Title: ${script.title}
+Primary Genre: ${script.primaryGenre || script.genre || "Not specified"}
+Sub-genres: ${subGenres || "None"}
+Format: ${script.format || "Not specified"}
+Content Type: ${script.contentType || "Not specified"}
+Tones: ${tones || "Not specified"}
+Themes: ${themes || "Not specified"}
+Logline: ${script.logline || "Not provided"}
+Synopsis: ${script.synopsis || script.description || "Not provided"}
+Key Characters: ${roles || "Not provided"}
+Page Count: ${script.pageCount || "Unknown"}
+
+Full Script Content:
+${scriptText || "Not provided — evaluate based on metadata only and note this limitation in feedback"}
+
+Analyze deeply. Be specific. Be honest. Be professional.`;
+
+  let scorePayload;
+  let usedFallback = false;
+  try {
+    scorePayload = await generateJsonWithGoogleAI({
+      prompt: scorePrompt,
+      temperature: 0.4,
+      maxOutputTokens: 2600,
+    });
+  } catch {
+    usedFallback = true;
+    scorePayload = generateAIScriptScore(script);
+  }
+
+  const score = normalizeScorePayload(scorePayload);
+
+  script.scriptScore = {
+    overall: score.overall,
+    plot: score.plot,
+    characters: score.characters,
+    dialogue: score.dialogue,
+    pacing: score.pacing,
+    marketability: score.marketability,
+    feedback: score.feedback,
+    strengths: score.strengths,
+    weaknesses: score.weaknesses,
+    improvements: score.improvements,
+    audienceFit: score.audienceFit,
+    comparables: score.comparables,
+    scoredAt: new Date(),
+  };
+  script.services = {
+    hosting: script.services?.hosting ?? true,
+    evaluation: true,
+    aiTrailer: script.services?.aiTrailer ?? false,
+    spotlight: script.services?.spotlight ?? false,
+  };
+  script.evaluationStatus = "completed";
+  script.evaluationRequestedAt = undefined;
+  script.markModified("services");
+  await script.save();
+
+  await Notification.create({
+    user: userId,
+    type: "script_score",
+    script: script._id,
+    message: `Your script "${script.title}" scored ${score.overall}/100${usedFallback ? " (fallback engine)" : ""}`,
+  });
+};
+
 // Simulate AI trailer generation (in production, integrate with RunwayML, Pika, etc.)
 export const generateTrailer = async (req, res) => {
   try {
@@ -211,6 +331,7 @@ Content: ${scriptText || "N/A"}`;
       hosting: script.services?.hosting ?? true,
       evaluation: script.services?.evaluation ?? false,
       aiTrailer: true,
+      spotlight: script.services?.spotlight ?? false,
     };
     script.markModified("services");
     await script.save();
@@ -272,8 +393,28 @@ export const generateScriptScore = async (req, res) => {
       return res.status(403).json({ message: "Only the script creator can request a score" });
     }
 
-    // Check if credits were already paid during upload
-    const alreadyPaid = script.services?.evaluation === true;
+    const hasCompletedScore = Number(script.scriptScore?.overall || 0) > 0;
+    const requestedAtMs = script.evaluationRequestedAt
+      ? new Date(script.evaluationRequestedAt).getTime()
+      : 0;
+    const recentRequestInFlight =
+      script.evaluationStatus === "requested" &&
+      !hasCompletedScore &&
+      requestedAtMs > 0 &&
+      Date.now() - requestedAtMs < scoreRequestLockMs;
+
+    // Prevent rapid duplicate clicks while a recent generation request is still in-flight.
+    if (recentRequestInFlight) {
+      return res.status(202).json({
+        message: "Evaluation is already in progress.",
+        pending: true,
+      });
+    }
+
+    // Treat an existing billing charge as paid too, not only services.evaluation.
+    const alreadyPaid =
+      script.services?.evaluation === true ||
+      Number(script.billing?.evaluationCreditsCharged || 0) > 0;
     
     if (!alreadyPaid) {
       const user = await User.findById(req.user._id);
@@ -316,114 +457,33 @@ export const generateScriptScore = async (req, res) => {
       script.markModified("billing");
     }
 
-    script.evaluationStatus = "requested";
-
-    const scriptText = safeSlice(
-      script.textContent || script.fullContent || script.synopsis || script.description,
-      24000
-    );
-
-    const roles = (script.roles || []).map(r => `${r.characterName}${r.description ? ` — ${r.description}` : ""}`).join("; ");
-    const tones = (script.classification?.tones || []).join(", ");
-    const themes = (script.classification?.themes || []).join(", ");
-    const subGenres = (script.subGenres || []).join(", ");
-
-    const scorePrompt = `You are a senior Hollywood screenplay analyst with 20+ years of experience evaluating scripts for studios, production companies, and streaming platforms.
-
-Your job is to produce a rigorous, professional, and SPECIFIC evaluation of the script provided. Every score and every sentence of feedback must reference concrete details from the actual content — character names, specific scenes, actual plot points, dialogue patterns, structural beats. Do NOT write generic advice that could apply to any script.
-
-Return STRICT JSON with this exact shape — no markdown, no code fences:
-{
-  "plot": <integer 0-100>,
-  "characters": <integer 0-100>,
-  "dialogue": <integer 0-100>,
-  "pacing": <integer 0-100>,
-  "marketability": <integer 0-100>,
-  "overall": <integer 0-100>,
-  "feedback": "<4-6 sentences of sharp, specific, professional feedback referencing actual script elements>",
-  "strengths": ["<specific strength 1>", "<specific strength 2>", "<specific strength 3>"],
-  "weaknesses": ["<specific weakness 1>", "<specific weakness 2>"],
-  "improvements": ["<concrete actionable improvement 1>", "<concrete actionable improvement 2>", "<concrete actionable improvement 3>"],
-  "audienceFit": "<target audience and market positioning based on this specific script>",
-  "comparables": "<2-3 produced films or shows this script resembles in tone/structure/genre>"
-}
-
-Scoring guide:
-- 90-100: Festival/studio-ready, exceptional craft
-- 80-89: Professionally competitive with minor polish needed
-- 70-79: Strong foundation, clear revision path
-- 60-69: Promising concept, significant craft work required
-- Below 60: Fundamental structural or character issues
-
-Script Metadata:
-Title: ${script.title}
-Primary Genre: ${script.primaryGenre || script.genre || "Not specified"}
-Sub-genres: ${subGenres || "None"}
-Format: ${script.format || "Not specified"}
-Content Type: ${script.contentType || "Not specified"}
-Tones: ${tones || "Not specified"}
-Themes: ${themes || "Not specified"}
-Logline: ${script.logline || "Not provided"}
-Synopsis: ${script.synopsis || script.description || "Not provided"}
-Key Characters: ${roles || "Not provided"}
-Page Count: ${script.pageCount || "Unknown"}
-
-Full Script Content:
-${scriptText || "Not provided — evaluate based on metadata only and note this limitation in feedback"}
-
-Analyze deeply. Be specific. Be honest. Be professional.`;
-
-    let scorePayload;
-    let usedFallback = false;
-    try {
-      scorePayload = await generateJsonWithGoogleAI({
-        prompt: scorePrompt,
-        temperature: 0.4,
-        maxOutputTokens: 2600,
-      });
-    } catch (aiError) {
-      usedFallback = true;
-      scorePayload = generateAIScriptScore(script);
-    }
-
-    const score = normalizeScorePayload(scorePayload);
-    
-    script.scriptScore = {
-      overall: score.overall,
-      plot: score.plot,
-      characters: score.characters,
-      dialogue: score.dialogue,
-      pacing: score.pacing,
-      marketability: score.marketability,
-      feedback: score.feedback,
-      strengths: score.strengths,
-      weaknesses: score.weaknesses,
-      improvements: score.improvements,
-      audienceFit: score.audienceFit,
-      comparables: score.comparables,
-      scoredAt: new Date(),
-    };
     script.services = {
       hosting: script.services?.hosting ?? true,
       evaluation: true,
       aiTrailer: script.services?.aiTrailer ?? false,
+      spotlight: script.services?.spotlight ?? false,
     };
-    script.evaluationStatus = "completed";
+    script.evaluationStatus = "requested";
+    script.evaluationRequestedAt = new Date();
     script.markModified("services");
     await script.save();
 
-    // Notify the creator
-    await Notification.create({
-      user: req.user._id,
-      type: "script_score",
-      script: script._id,
-      message: `Your script "${script.title}" scored ${score.overall}/100`,
+    // Run generation in background; return immediately so one click is enough.
+    setImmediate(async () => {
+      try {
+        await runScriptScoreGeneration({ scriptId: script._id, userId: req.user._id });
+      } catch {
+        const staleScript = await Script.findById(script._id);
+        if (!staleScript) return;
+        staleScript.evaluationStatus = "none";
+        staleScript.evaluationRequestedAt = undefined;
+        await staleScript.save();
+      }
     });
 
-    res.json({ 
-      message: "Script scored successfully",
-      score: script.scriptScore,
-      usedFallback,
+    return res.status(202).json({
+      message: "Evaluation request submitted. It is now processing in the background.",
+      pending: true,
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({ message: error.message });

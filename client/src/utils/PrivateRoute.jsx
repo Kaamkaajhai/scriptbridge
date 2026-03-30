@@ -1,9 +1,10 @@
 import { useContext } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -24,7 +25,8 @@ const PrivateRoute = ({ children }) => {
     return <Navigate to="/?investorReview=rejected" replace />;
   }
 
-  return user ? children : <Navigate to="/login" />;
+  const destination = `${location.pathname}${location.search}${location.hash}`;
+  return user ? children : <Navigate to="/login" replace state={{ from: destination }} />;
 };
 
 export default PrivateRoute;

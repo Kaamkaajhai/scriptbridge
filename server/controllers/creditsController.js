@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import CreditPackage from "../models/CreditPackage.js";
 import Transaction from "../models/Transaction.js";
+import Notification from "../models/Notification.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -50,6 +51,11 @@ const getStandardPlanByCode = (planCode) =>
 
 const isValidCustomCredits = (value) =>
   Number.isInteger(value) && value >= 1 && value <= 10000;
+
+const getBankPurchaseEligibility = (user) => {
+  const reviewStatus = user?.bankDetailsReview?.status || "not_submitted";
+  return { allowed: true, reviewStatus, message: "" };
+};
 
 const buildPurchaseDetails = async ({ packageId, customCredits }) => {
   const parsedCustomCredits =
@@ -119,10 +125,34 @@ const getRazorpay = () => {
   return razorpayInstance;
 };
 
+const createCreditPurchaseNotifications = async ({ user, purchase, totalCredits, paymentMethod }) => {
+  const currency = (purchase.currency || "INR").toUpperCase();
+  const amountLabel = `${currency} ${Number(purchase.price || 0).toLocaleString("en-IN")}`;
+
+  const buyerNotification = {
+    user: user._id,
+    type: "purchase",
+    message: `Credits added: ${totalCredits} credits purchased successfully (${purchase.name}) for ${amountLabel}.`,
+  };
+
+  const adminUsers = await User.find({ role: "admin" }).select("_id").lean();
+  const adminNotifications = adminUsers.map((admin) => ({
+    user: admin._id,
+    type: "admin_alert",
+    from: user._id,
+    message: `${user.name || "A writer"} purchased ${totalCredits} credits via ${paymentMethod}.`,
+  }));
+
+  const payload = [buyerNotification, ...adminNotifications];
+  if (payload.length > 0) {
+    await Notification.insertMany(payload);
+  }
+};
+
 // Credit pricing for different services
 export const CREDIT_PRICES = {
-  AI_EVALUATION: 10,        // 10 credits for AI script evaluation
-  AI_TRAILER: 15,           // 15 credits for AI trailer generation
+  AI_EVALUATION: 50,        // 50 credits for AI script evaluation
+  AI_TRAILER: 120,          // 120 credits for AI trailer generation
   SCRIPT_ANALYSIS: 5,       // 5 credits for basic analysis
   PREMIUM_REPORT: 20,       // 20 credits for premium report
   CONSULTATION: 50,         // 50 credits for consultation booking
@@ -166,12 +196,16 @@ export const getCreditPackages = async (req, res) => {
 // @access  Private
 export const getCreditBalance = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("credits");
+    const user = await User.findById(req.user._id).select("credits role bankDetails bankDetailsReview");
+    const bankEligibility = getBankPurchaseEligibility(user);
     res.json({
       balance: user.credits?.balance || 0,
       totalPurchased: user.credits?.totalPurchased || 0,
       totalSpent: user.credits?.totalSpent || 0,
-      lastPurchase: user.credits?.lastPurchase
+      lastPurchase: user.credits?.lastPurchase,
+      canPurchaseCredits: bankEligibility.allowed,
+      bankReviewStatus: bankEligibility.reviewStatus,
+      bankPurchaseMessage: bankEligibility.message,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -219,6 +253,10 @@ export const purchaseCredits = async (req, res) => {
     }
     
     const user = await User.findById(req.user._id);
+    const bankEligibility = getBankPurchaseEligibility(user);
+    if (!bankEligibility.allowed) {
+      return res.status(403).json({ message: bankEligibility.message, bankReviewStatus: bankEligibility.reviewStatus });
+    }
     
     // In a real app, this is where you'd process Stripe payment
     // For now, we'll simulate successful payment
@@ -267,6 +305,17 @@ export const purchaseCredits = async (req, res) => {
         customCredits: purchase.isCustom ? purchase.credits : undefined,
       }
     });
+
+    try {
+      await createCreditPurchaseNotifications({
+        user,
+        purchase,
+        totalCredits,
+        paymentMethod,
+      });
+    } catch (notificationError) {
+      console.error("Credit purchase notification error:", notificationError.message);
+    }
     
     res.json({
       message: "Credits purchased successfully",
@@ -444,6 +493,11 @@ export const createRazorpayOrder = async (req, res) => {
     }
     
     const { packageId, customCredits } = req.body;
+    const user = await User.findById(req.user._id).select("role bankDetails bankDetailsReview");
+    const bankEligibility = getBankPurchaseEligibility(user);
+    if (!bankEligibility.allowed) {
+      return res.status(403).json({ message: bankEligibility.message, bankReviewStatus: bankEligibility.reviewStatus });
+    }
 
     const purchase = await buildPurchaseDetails({ packageId, customCredits });
     if (purchase.error) {
@@ -542,6 +596,14 @@ export const verifyRazorpayPayment = async (req, res) => {
         success: false 
       });
     }
+    const bankEligibility = getBankPurchaseEligibility(user);
+    if (!bankEligibility.allowed) {
+      return res.status(403).json({
+        message: bankEligibility.message,
+        bankReviewStatus: bankEligibility.reviewStatus,
+        success: false,
+      });
+    }
     
     const totalCredits = purchase.totalCredits;
     const reference = `RAZORPAY-${razorpay_payment_id}`;
@@ -590,6 +652,17 @@ export const verifyRazorpayPayment = async (req, res) => {
         razorpay_payment_id
       }
     });
+
+    try {
+      await createCreditPurchaseNotifications({
+        user,
+        purchase,
+        totalCredits,
+        paymentMethod: "razorpay",
+      });
+    } catch (notificationError) {
+      console.error("Razorpay credit notification error:", notificationError.message);
+    }
     
     res.json({
       success: true,

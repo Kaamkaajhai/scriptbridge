@@ -6,11 +6,83 @@ import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
 import ContactSubmission from "../models/ContactSubmission.js";
 import jwt from "jsonwebtoken";
+import multer from "multer";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 import { sendInvestorApprovalEmail, sendInvestorRejectionEmail } from "../utils/emailService.js";
 
 const buildChatId = (idA, idB) => {
     const sorted = [idA.toString(), idB.toString()].sort();
     return `${sorted[0]}_${sorted[1]}`;
+};
+
+const resolveClientOriginFromRequest = (req) => {
+    const originHeader = String(req.get("origin") || "").trim();
+    if (originHeader) return originHeader;
+
+    const refererHeader = String(req.get("referer") || "").trim();
+    if (refererHeader) {
+        try {
+            return new URL(refererHeader).origin;
+        } catch (_error) {
+            // Ignore malformed referer and fall back to env-based URL resolution.
+        }
+    }
+
+    return "";
+};
+
+const maskAccountNumber = (accountNumber = "") => {
+    if (!accountNumber) return "";
+    return `****${String(accountNumber).slice(-4)}`;
+};
+
+const isAdminUploadedTrailer = (script) => {
+    const hasUploadedTrailer = Boolean(script?.uploadedTrailerUrl && script?.trailerSource === "uploaded");
+    if (!hasUploadedTrailer) return false;
+    return (script?.trailerWriterFeedback?.note || "").trim() === "Trailer uploaded by admin";
+};
+
+const shouldQueueSpotlightAiTrailer = (script) => {
+    const hasAiTrailer = Boolean(script?.trailerUrl);
+    if (hasAiTrailer) return false;
+    return !isAdminUploadedTrailer(script);
+};
+
+const getAdminTrailerRequestFilter = () => ({
+    "services.aiTrailer": true,
+    $or: [
+        { trailerStatus: { $in: ["requested", "generating"] } },
+        {
+            trailerUrl: { $in: [null, ""] },
+            trailerSource: "uploaded",
+            uploadedTrailerUrl: { $exists: true, $nin: [null, ""] },
+            "trailerWriterFeedback.note": { $ne: "Trailer uploaded by admin" },
+        },
+    ],
+});
+
+const rawUploadAdminTrailer = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 250 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file?.mimetype?.startsWith("video/")) return cb(null, true);
+        return cb(new Error("Only video files are allowed for trailer upload."));
+    },
+}).single("trailer");
+
+export const uploadAdminTrailerFile = (req, res, next) => {
+    rawUploadAdminTrailer(req, res, (err) => {
+        if (!err) return next();
+
+        if (err instanceof multer.MulterError) {
+            if (err.code === "LIMIT_FILE_SIZE") {
+                return res.status(413).json({ message: "Trailer must be 250MB or smaller." });
+            }
+            return res.status(400).json({ message: err.message || "Trailer upload failed." });
+        }
+
+        return res.status(400).json({ message: err.message || "Trailer upload failed." });
+    });
 };
 
 // ─── Dashboard Stats ───
@@ -77,7 +149,11 @@ export const getScripts = async (req, res) => {
     try {
         const { search, status, page = 1, limit = 20 } = req.query;
         const filter = {};
-        if (status) filter.status = status;
+        if (status === "deleted") {
+            filter.isDeleted = true;
+        } else if (status) {
+            filter.status = status;
+        }
         if (search) {
             filter.$or = [
                 { sid: { $regex: search, $options: "i" } },
@@ -346,9 +422,58 @@ export const approveScript = async (req, res) => {
     try {
         const script = await Script.findById(req.params.id);
         if (!script) return res.status(404).json({ message: "Script not found" });
+
+        const spotlightChargedAtUpload = Number(script.billing?.spotlightCreditsChargedAtUpload || 0);
+        const shouldAutoActivateSpotlight = Boolean(
+            !script.promotion?.spotlightActive &&
+            (
+                (script.services?.spotlight && script.promotion?.pendingSpotlightActivation) ||
+                spotlightChargedAtUpload > 0
+            )
+        );
+
         script.status = "published";
         script.adminApproved = true;
+        if (!script.publishedAt) {
+            script.publishedAt = new Date();
+        }
         script.rejectionReason = undefined;
+
+        if (shouldAutoActivateSpotlight) {
+            const now = new Date();
+            script.premium = true;
+            script.isFeatured = true;
+            script.verifiedBadge = true;
+            script.services = {
+                hosting: true,
+                evaluation: true,
+                aiTrailer: true,
+                spotlight: true,
+            };
+            script.evaluationStatus = script.scriptScore?.overall ? "completed" : "requested";
+            if (shouldQueueSpotlightAiTrailer(script) && !["requested", "generating"].includes(script.trailerStatus)) {
+                script.trailerStatus = "requested";
+            }
+            const previousSpent = Number(script.promotion?.totalSpotlightCreditsSpent || 0);
+            const spentAtUpload = spotlightChargedAtUpload;
+            script.promotion = {
+                spotlightActive: true,
+                pendingSpotlightActivation: false,
+                spotlightStartAt: now,
+                spotlightEndAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+                lastSpotlightPurchaseAt: now,
+                totalSpotlightCreditsSpent: previousSpent || spentAtUpload,
+            };
+            script.billing = {
+                ...(script.billing || {}),
+                spotlightCreditsSpent: Math.max(Number(script.billing?.spotlightCreditsSpent || 0), spentAtUpload || 310),
+                lastSpotlightActivatedAt: now,
+            };
+            script.markModified("services");
+            script.markModified("promotion");
+            script.markModified("billing");
+        }
+
         await script.save();
 
         // Notify the writer
@@ -356,7 +481,9 @@ export const approveScript = async (req, res) => {
             user: script.creator,
             type: "script_approved",
             script: script._id,
-            message: `Your project "${script.title}" has been approved and is now live on the platform.`,
+            message: shouldAutoActivateSpotlight
+                ? `Your project "${script.title}" has been approved and is now live. Spotlight purchased at upload is now active for 1 month.`
+                : `Your project "${script.title}" has been approved and is now live on the platform.`,
         });
 
         res.json({ message: "Script approved and published", script });
@@ -424,10 +551,7 @@ export const scoreScript = async (req, res) => {
 export const getTrailerRequests = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
-        const filter = {
-            "services.aiTrailer": true,
-            trailerStatus: { $in: ["requested", "generating"] },
-        };
+        const filter = getAdminTrailerRequestFilter();
         const total = await Script.countDocuments(filter);
         const scripts = await Script.find(filter)
             .populate("creator", "name email role profileImage")
@@ -486,6 +610,68 @@ export const approveTrailer = async (req, res) => {
         res.json({ message: "Trailer approved and sent to writer via message", script });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+export const uploadTrailerAsAdmin = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No trailer file provided" });
+        }
+
+        const script = await Script.findById(req.params.id).populate("creator", "_id name");
+        if (!script) return res.status(404).json({ message: "Script not found" });
+
+        const uploadResult = await uploadToCloudinary(req.file.buffer, {
+            folder: "scriptbridge/trailers",
+            resource_type: "video",
+            public_id: `admin-trailer-${script._id}-${Date.now()}`,
+        });
+
+        const trailerUrl = uploadResult?.secure_url;
+        if (!trailerUrl) {
+            return res.status(500).json({ message: "Trailer upload failed" });
+        }
+
+        script.uploadedTrailerUrl = trailerUrl;
+        script.trailerSource = "uploaded";
+        script.trailerStatus = "ready";
+        script.trailerWriterFeedback = {
+            status: "approved",
+            note: "Trailer uploaded by admin",
+            updatedAt: new Date(),
+        };
+        await script.save();
+
+        const writerId = script.creator?._id || script.creator;
+        if (writerId) {
+            await Notification.create({
+                user: writerId,
+                type: "trailer_ready",
+                from: req.user._id,
+                script: script._id,
+                message: `Admin uploaded a trailer for "${script.title}". It is now visible on your script page.`,
+            });
+
+            await Message.create({
+                chatId: buildChatId(req.user._id, writerId),
+                sender: req.user._id,
+                receiver: writerId,
+                script: script._id,
+                text: `Admin uploaded a trailer for "${script.title}" and made it visible to all viewers.`,
+                fileUrl: trailerUrl,
+                fileType: "video",
+                fileName: `${script.title} - Trailer`,
+            });
+        }
+
+        return res.json({
+            message: "Trailer uploaded and published successfully",
+            trailerUrl,
+            script,
+        });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
     }
 };
 
@@ -552,7 +738,9 @@ export const approveInvestor = async (req, res) => {
         await user.save();
 
         // Send approval email
-        sendInvestorApprovalEmail(user.email, user.name).catch((err) =>
+        sendInvestorApprovalEmail(user.email, user.name, {
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+        }).catch((err) =>
             console.error("Failed to send investor approval email:", err.message)
         );
 
@@ -578,11 +766,209 @@ export const rejectInvestor = async (req, res) => {
         if (note) user.approvalNote = note;
         await user.save();
 
-        sendInvestorRejectionEmail(user.email, user.name, note || user.approvalNote || "").catch((err) =>
+        sendInvestorRejectionEmail(user.email, user.name, note || user.approvalNote || "", {
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+        }).catch((err) =>
             console.error("Failed to send investor rejection email:", err.message)
         );
 
         res.json({ message: "Investor rejected", user: { _id: user._id, name: user.name, email: user.email, approvalStatus: user.approvalStatus } });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Bank Details Review ───
+export const getBankDetailReviews = async (req, res) => {
+    try {
+        const { status = "pending", page = 1, limit = 20, search = "" } = req.query;
+        const filter = {
+            role: { $in: ["writer", "creator"] },
+        };
+
+        if (status && status !== "all") {
+            filter.$or = [
+                {
+                    "bankDetailsReview.status": status,
+                    "bankDetailsReview.requestedDetails.accountNumber": { $exists: true, $ne: "" },
+                },
+                { "bankDetailsSecurity.isLocked": true },
+            ];
+        } else {
+            filter.$or = [
+                { "bankDetailsReview.requestedDetails.accountNumber": { $exists: true, $ne: "" } },
+                { "bankDetailsSecurity.invalidAttempts": { $gt: 0 } },
+                { "bankDetailsSecurity.isLocked": true },
+            ];
+        }
+
+        if (search) {
+            const searchFilter = [
+                { sid: { $regex: search, $options: "i" } },
+                { name: { $regex: search, $options: "i" } },
+                { email: { $regex: search, $options: "i" } },
+                { "bankDetailsReview.requestedDetails.bankName": { $regex: search, $options: "i" } },
+            ];
+            filter.$and = [{ $or: searchFilter }];
+        }
+
+        const total = await User.countDocuments(filter);
+        const users = await User.find(filter)
+            .select("sid name email role bankDetails bankDetailsReview bankDetailsSecurity")
+            .sort({ "bankDetailsReview.submittedAt": 1, createdAt: -1 })
+            .skip((Number(page) - 1) * Number(limit))
+            .limit(Number(limit))
+            .lean();
+
+        const reviews = users.map((user) => {
+            const requested = user?.bankDetailsReview?.requestedDetails || {};
+            const active = user?.bankDetails || {};
+            return {
+                _id: user._id,
+                sid: user.sid,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                status: user?.bankDetailsReview?.status || "not_submitted",
+                submittedAt: user?.bankDetailsReview?.submittedAt,
+                dueAt: user?.bankDetailsReview?.dueAt,
+                reviewedAt: user?.bankDetailsReview?.reviewedAt,
+                adminNote: user?.bankDetailsReview?.adminNote || "",
+                bankSecurity: {
+                    invalidAttempts: Number(user?.bankDetailsSecurity?.invalidAttempts || 0),
+                    isLocked: Boolean(user?.bankDetailsSecurity?.isLocked),
+                    lockedAt: user?.bankDetailsSecurity?.lockedAt,
+                    lastInvalidAttemptAt: user?.bankDetailsSecurity?.lastInvalidAttemptAt,
+                    lastInvalidReason: user?.bankDetailsSecurity?.lastInvalidReason || "",
+                },
+                requestedDetails: {
+                    ...requested,
+                    accountNumber: requested.accountNumber || "",
+                    maskedAccountNumber: maskAccountNumber(requested.accountNumber),
+                },
+                activeDetails: active?.accountNumber
+                    ? {
+                        ...active,
+                        accountNumber: active.accountNumber,
+                        maskedAccountNumber: maskAccountNumber(active.accountNumber),
+                    }
+                    : null,
+            };
+        });
+
+        res.json({ reviews, total, page: Number(page), totalPages: Math.max(1, Math.ceil(total / Number(limit))) });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const approveBankDetailReview = async (req, res) => {
+    try {
+        const { note } = req.body || {};
+        const user = await User.findOne({ _id: req.params.id, role: { $in: ["writer", "creator"] } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        const requested = user?.bankDetailsReview?.requestedDetails;
+        if (!requested?.accountNumber || user?.bankDetailsReview?.status !== "pending") {
+            return res.status(400).json({ message: "No pending bank details review found" });
+        }
+
+        user.bankDetails = {
+            accountHolderName: requested.accountHolderName,
+            bankName: requested.bankName,
+            accountNumber: requested.accountNumber,
+            routingNumber: requested.routingNumber,
+            accountType: requested.accountType || "checking",
+            swiftCode: requested.swiftCode,
+            iban: requested.iban,
+            country: requested.country || "IN",
+            currency: requested.country === "IN" ? "INR" : (requested.currency || "INR"),
+            isVerified: true,
+            verifiedAt: new Date(),
+            addedAt: user.bankDetails?.addedAt || user?.bankDetailsReview?.submittedAt || new Date(),
+        };
+
+        user.bankDetailsReview.status = "approved";
+        user.bankDetailsReview.reviewedAt = new Date();
+        user.bankDetailsReview.reviewedBy = req.user._id;
+        user.bankDetailsReview.adminNote = note ? String(note).trim() : "Approved";
+
+        await user.save();
+
+        try {
+            await Notification.create({
+                user: user._id,
+                type: "admin_alert",
+                from: req.user?._id,
+                message: note
+                    ? `Your bank details were approved. Admin note: ${String(note).trim()}`
+                    : "Your bank details were approved. You can now purchase credits.",
+            });
+        } catch (notificationError) {
+            console.error("Bank approval notification failed:", notificationError.message);
+        }
+
+        res.json({ message: "Bank details approved and activated" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const rejectBankDetailReview = async (req, res) => {
+    try {
+        const { note } = req.body || {};
+        const user = await User.findOne({ _id: req.params.id, role: { $in: ["writer", "creator"] } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        if (user?.bankDetailsReview?.status !== "pending") {
+            return res.status(400).json({ message: "No pending bank details review found" });
+        }
+
+        user.bankDetailsReview.status = "rejected";
+        user.bankDetailsReview.reviewedAt = new Date();
+        user.bankDetailsReview.reviewedBy = req.user._id;
+        user.bankDetailsReview.adminNote = note ? String(note).trim() : "Rejected by admin";
+
+        await user.save();
+
+        try {
+            await Notification.create({
+                user: user._id,
+                type: "admin_alert",
+                from: req.user?._id,
+                message: note
+                    ? `Your bank details were rejected. Admin note: ${String(note).trim()}`
+                    : "Your bank details were rejected. Please update and resubmit your details.",
+            });
+        } catch (notificationError) {
+            console.error("Bank rejection notification failed:", notificationError.message);
+        }
+
+        res.json({ message: "Bank details request rejected" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const unblockBankDetailUpdates = async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.params.id, role: { $in: ["writer", "creator"] } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        if (!user.bankDetailsSecurity) {
+            user.bankDetailsSecurity = {};
+        }
+
+        user.bankDetailsSecurity.invalidAttempts = 0;
+        user.bankDetailsSecurity.isLocked = false;
+        user.bankDetailsSecurity.lockedAt = undefined;
+        user.bankDetailsSecurity.lastInvalidAttemptAt = undefined;
+        user.bankDetailsSecurity.lastInvalidReason = "";
+        user.bankDetailsSecurity.unlockedAt = new Date();
+        user.bankDetailsSecurity.unlockedBy = req.user._id;
+
+        await user.save();
+        res.json({ message: "Bank detail update lock removed. User can submit details again." });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -607,6 +993,8 @@ export const getAdminAlertSummary = async (req, res) => {
             approvals,
             trailers,
             pendingInvestors,
+            pendingBankReviews,
+            lockedBankUsers,
             queries,
         ] = await Promise.all([
             User.countDocuments({ role: "investor" }),
@@ -628,16 +1016,17 @@ export const getAdminAlertSummary = async (req, res) => {
             Script.countDocuments({ "platformScore.overall": { $exists: true, $ne: null } }),
             Script.countDocuments({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } }),
             Script.countDocuments({ status: "pending_approval" }),
-            Script.countDocuments({
-                "services.aiTrailer": true,
-                trailerStatus: { $in: ["requested", "generating"] },
-            }),
+            Script.countDocuments(getAdminTrailerRequestFilter()),
             User.countDocuments({ role: "investor", approvalStatus: "pending" }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsReview.status": "pending" }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsSecurity.isLocked": true }),
             ContactSubmission.countDocuments(),
         ]);
 
+        const bankReviewAlerts = pendingBankReviews + lockedBankUsers;
+
         res.json({
-            overview: approvals + trailers + pendingInvestors + queries,
+            overview: approvals + trailers + pendingInvestors + bankReviewAlerts + queries,
             investors: totalInvestors,
             writers: totalWriters,
             readers: totalReaders,
@@ -651,6 +1040,7 @@ export const getAdminAlertSummary = async (req, res) => {
             approvals,
             trailers,
             "pending-investors": pendingInvestors,
+            "bank-reviews": bankReviewAlerts,
             queries,
         });
     } catch (error) {

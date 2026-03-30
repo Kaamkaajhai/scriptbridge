@@ -81,8 +81,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
         return;
       }
 
-      // Store token and user data
-      localStorage.setItem('token', response.data.token);
+      // Store user session in the same shape consumed by AuthContext.
       localStorage.setItem('user', JSON.stringify(response.data));
 
       // Call success callback
@@ -144,12 +143,16 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
                   onChange={(e) => handleChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
                   onPaste={handlePaste}
-                  className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  className={`w-12 h-14 bg-white text-center text-[30px] leading-none font-extrabold border-2 rounded-lg transition-all outline-none caret-blue-700 ${
+                    digit
+                      ? 'text-gray-900 border-blue-500 ring-1 ring-blue-100'
+                      : 'text-gray-700 border-gray-400'
+                  } focus:text-gray-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-200`}
                   autoFocus={index === 0}
                 />
               ))}
             </div>
-            <p className="text-xs text-gray-500 text-center">Enter the 6-digit code</p>
+            <p className="text-xs font-medium text-gray-600 text-center">Enter the 6-digit code</p>
           </div>
 
           {/* Error Message */}
@@ -167,7 +170,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
           <button
             onClick={handleVerify}
             disabled={loading || otp.join('').length !== 6}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4"
+            className="w-full bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4"
           >
             {loading ? (
               <>

@@ -4,10 +4,16 @@ import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
+import SeoManager from "./components/SeoManager";
 
 const Landing = lazy(() => import("./pages/Landing"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PolicyPage"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const RegistrationPrivacyPolicy = lazy(() => import("./pages/RegistrationPrivacyPolicy"));
+const WriterTermsConditions = lazy(() => import("./pages/WriterTermsConditions"));
+const InvestorTermsConditions = lazy(() => import("./pages/InvestorTermsConditions"));
+const ScriptUploadTermsConditions = lazy(() => import("./pages/ScriptUploadTermsConditions"));
 const Login = lazy(() => import("./pages/Login"));
 const Join = lazy(() => import("./pages/Join"));
 const RoleSelection = lazy(() => import("./pages/RoleSelection"));
@@ -21,6 +27,7 @@ const NewProject = lazy(() => import("./pages/NewProject"));
 const CreateProject = lazy(() => import("./pages/CreateProject"));
 const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
+const ScriptPaymentPage = lazy(() => import("./pages/ScriptPaymentPage"));
 const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
@@ -33,6 +40,14 @@ const ReaderProfile = lazy(() => import("./pages/ReaderProfile"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
+
+const preloadRouteChunks = [
+  () => import("./layouts/MainLayout"),
+  () => import("./pages/Login"),
+  () => import("./pages/Join"),
+  () => import("./pages/Dashboard"),
+  () => import("./pages/Profile"),
+];
 
 // Handles admin impersonation login via URL parameter
 function AdminLoginHandler({ children }) {
@@ -59,10 +74,33 @@ function AdminLoginHandler({ children }) {
 }
 
 function App() {
+  useEffect(() => {
+    const preload = () => {
+      preloadRouteChunks.forEach((loadChunk) => {
+        loadChunk().catch(() => {
+          // Ignore prefetch errors; lazy route loading still works as fallback.
+        });
+      });
+    };
+
+    const idleCallback = window.requestIdleCallback
+      ? window.requestIdleCallback(preload, { timeout: 1200 })
+      : setTimeout(preload, 300);
+
+    return () => {
+      if (window.cancelIdleCallback && typeof idleCallback === "number") {
+        window.cancelIdleCallback(idleCallback);
+      } else {
+        clearTimeout(idleCallback);
+      }
+    };
+  }, []);
+
   return (
     <DarkModeProvider>
       <AuthProvider>
         <Router>
+          <SeoManager />
           <AdminLoginHandler>
             <Suspense
               fallback={
@@ -73,13 +111,22 @@ function App() {
             >
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/t-and-c" element={<TermsOfService />} />
+              <Route path="/registration-privacy-policy" element={<RegistrationPrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
+              <Route path="/writer-terms" element={<WriterTermsConditions />} />
+              <Route path="/investor-terms" element={<InvestorTermsConditions />} />
+              <Route path="/script-upload-terms" element={<ScriptUploadTermsConditions />} />
               <Route path="/login" element={<Login />} />
               <Route path="/join" element={<RoleSelection />} />
               <Route path="/signup" element={<Join />} />
               <Route path="/writer-onboarding" element={<WriterOnboarding />} />
-              <Route path="/investor-onboarding" element={<InvestorOnboarding />} />
+              <Route path="/producer-director-onboarding" element={<InvestorOnboarding />} />
+              <Route path="/investor-onboarding" element={<Navigate to="/producer-director-onboarding" replace />} />
               <Route path="/industry-onboarding" element={
                 <PrivateRoute>
                   <MainLayout>
@@ -211,6 +258,16 @@ function App() {
                   <PrivateRoute>
                     <MainLayout>
                       <Search />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/script/:id/pay"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <ScriptPaymentPage />
                     </MainLayout>
                   </PrivateRoute>
                 }

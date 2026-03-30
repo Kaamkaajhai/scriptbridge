@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { FileText, CheckCircle, Save, RefreshCw } from "lucide-react";
+import { FileText, CheckCircle, Save, RefreshCw, RotateCcw } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
+
+const getDefaultMandates = () => ({
+  formats: [],
+  budgetTiers: [],
+  genres: [],
+  excludeGenres: [],
+  specificHooks: [],
+});
 
 const Mandates = () => {
   const navigate = useNavigate();
@@ -10,13 +18,7 @@ const Mandates = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [mandates, setMandates] = useState({
-    formats: [],
-    budgetTiers: [],
-    genres: [],
-    excludeGenres: [],
-    specificHooks: [],
-  });
+  const [mandates, setMandates] = useState(getDefaultMandates);
 
   const formats = ["Feature Film", "TV Pilot", "Limited Series", "Short Film", "Web Series"];
   const budgetTiers = [
@@ -74,6 +76,11 @@ const Mandates = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleResetMandates = () => {
+    setMandates(getDefaultMandates());
+    setMessage("Mandates reset. Click Save Mandates to apply changes.");
   };
 
   const toggleFormat = (format) => {
@@ -269,23 +276,34 @@ const Mandates = () => {
 
             {/* Save Button */}
             <div className={`pt-6 border-t ${dark ? 'border-[#182840]' : 'border-gray-200'}`}>
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full py-4 bg-gradient-to-r from-[#0f2544] to-[#1a365d] text-white font-bold rounded-xl hover:from-[#0a1628] hover:to-[#0f2544] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {saving ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-5 h-5" />
-                    Save Mandates
-                  </>
-                )}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={handleResetMandates}
+                  disabled={saving}
+                  className={`sm:w-52 py-4 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border ${dark ? 'bg-white/[0.04] text-gray-200 border-white/[0.08] hover:bg-white/[0.08]' : 'bg-white text-[#1e3a5f] border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  Reset
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full py-4 bg-gradient-to-r from-[#0f2544] to-[#1a365d] text-white font-bold rounded-xl hover:from-[#0a1628] hover:to-[#0f2544] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5" />
+                      Save Mandates
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>

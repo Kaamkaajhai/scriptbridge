@@ -142,7 +142,7 @@ export default function WriterPurchaseRequests() {
     setActionLoading(requestId);
     try {
       await api.put(`/scripts/purchase-request/${requestId}/approve`);
-      showToast("success", "Purchase approved. Investor access granted and payout settled.");
+      showToast("success", "Request approved. Buyer was notified to complete payment for access.");
       fetchRequests();
     } catch (err) {
       showToast("error", err.response?.data?.message || "Failed to approve request.");
@@ -156,7 +156,7 @@ export default function WriterPurchaseRequests() {
     setActionLoading(rejectModal.id);
     try {
       await api.put(`/scripts/purchase-request/${rejectModal.id}/reject`, { note: rejectNote });
-      showToast("success", "Request declined. Refund processed to the investor.");
+      showToast("success", "Request declined. Buyer has been notified.");
       setRejectModal(null);
       setRejectNote("");
       fetchRequests();
@@ -207,7 +207,7 @@ export default function WriterPurchaseRequests() {
               You are declining{" "}
               <span className={t.modalStrong}>{rejectModal.investorName}</span>'s request for{" "}
               <span className={t.modalStrong}>"{rejectModal.scriptTitle}"</span>.
-              Their reserved funds will be returned automatically.
+              They will be notified that the request was denied.
             </p>
             <label className={`block text-sm font-medium mb-1.5 ${t.modalLabel}`}>
               Reason <span className={t.muted}>(optional)</span>
@@ -238,7 +238,7 @@ export default function WriterPurchaseRequests() {
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 max-[380px]:px-3 max-[340px]:px-2.5 py-8">
 
         {/* ── Header ── */}
         <div className="mb-8">
@@ -273,16 +273,16 @@ export default function WriterPurchaseRequests() {
         )}
 
         {/* ── Filter Tabs ── */}
-        <div className={`flex gap-1 p-1 rounded-xl mb-6 w-fit ${t.filterBar}`}>
+        <div className={`flex gap-1 p-1 rounded-xl mb-6 w-fit max-[380px]:w-full max-[380px]:grid max-[380px]:grid-cols-2 ${t.filterBar}`}>
           {STATUS_FILTERS.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-all ${filter === f ? t.filterActive : t.filterIdle}`}
+              className={`inline-flex items-center justify-center px-4 max-[380px]:px-2.5 py-1.5 max-[380px]:py-2 rounded-lg text-sm max-[380px]:text-[12px] font-medium capitalize transition-all whitespace-nowrap max-[380px]:w-full ${filter === f ? t.filterActive : t.filterIdle}`}
             >
               {f === "rejected" ? "Declined" : f.charAt(0).toUpperCase() + f.slice(1)}
               {f === "pending" && stats.pending > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center bg-amber-500 text-white text-xs rounded-full w-4 h-4 font-bold">
+                <span className="ml-1.5 inline-flex items-center justify-center bg-amber-500 text-white text-xs max-[380px]:text-[10px] rounded-full w-4 h-4 max-[380px]:w-3.5 max-[380px]:h-3.5 font-bold">
                   {stats.pending}
                 </span>
               )}
@@ -422,20 +422,18 @@ export default function WriterPurchaseRequests() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           <p className={`text-xs ${t.noteText}`}>
-                            {req.paymentStatus === "escrow_held"
-                              ? "Payment is secured in escrow and will be settled automatically after your decision."
-                              : "Paid request received and awaiting your decision."}
+                            Payment will be requested from the buyer only after you approve.
                           </p>
                         </div>
                       )}
 
                       {/* Writer actions on pending */}
                       {isWriter && req.status === "pending" && (
-                        <div className="flex items-center gap-2 mt-4">
+                        <div className="flex items-center gap-2 mt-4 max-[380px]:flex-wrap">
                           <button
                             onClick={() => handleApprove(req._id)}
                             disabled={actionLoading === req._id}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60"
+                            className="flex items-center gap-1.5 px-4 py-2 max-[380px]:px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm max-[340px]:text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-60 max-[380px]:flex-1 max-[380px]:justify-center"
                           >
                             {actionLoading === req._id ? (
                               <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -449,7 +447,7 @@ export default function WriterPurchaseRequests() {
                           <button
                             onClick={() => setRejectModal({ id: req._id, scriptTitle: req.script?.title, investorName: req.investor?.name })}
                             disabled={actionLoading === req._id}
-                            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 ${t.declineBtn}`}
+                            className={`flex items-center gap-1.5 px-4 py-2 max-[380px]:px-3 text-sm max-[340px]:text-[13px] font-semibold rounded-xl transition-colors disabled:opacity-60 max-[380px]:flex-1 max-[380px]:justify-center ${t.declineBtn}`}
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -459,14 +457,33 @@ export default function WriterPurchaseRequests() {
                         </div>
                       )}
 
-                      {/* Investor: approved → view script */}
+                      {/* Writer: approved -> message investor */}
+                      {isWriter && req.status === "approved" && req.investor?._id && (
+                        <div className="mt-3">
+                          <Link
+                            to={`/messages?recipientId=${req.investor._id}&recipientName=${encodeURIComponent(req.investor?.name || "Investor")}&recipientRole=investor`}
+                            className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${t.viewLink}`}
+                          >
+                            Message Investor
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
+                        </div>
+                      )}
+
+                      {/* Investor: approved -> pay or view */}
                       {!isWriter && req.status === "approved" && (
                         <div className="mt-3">
                           <Link
-                            to={`/script/${req.script?._id}`}
+                            to={req.paymentStatus === "released" ? `/script/${req.script?._id}` : `/script/${req.script?._id}/pay`}
                             className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${t.viewLink}`}
                           >
-                            View Script
+                            {req.paymentStatus === "released"
+                              ? "View Script"
+                              : Number(req.amount || 0) > 0
+                              ? "Complete Payment"
+                              : "Confirm Free Access"}
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>

@@ -19,15 +19,55 @@ import {
 import multer from "multer";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const PDF_UPLOAD_MAX_BYTES = 30 * 1024 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: PDF_UPLOAD_MAX_BYTES },
+});
 
-router.post("/extract-pdf", protect, upload.single("pdf"), extractPdfText);
+const uploadPdfWithLimit = (req, res, next) => {
+  upload.single("pdf")(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ message: "PDF must be 30MB or smaller." });
+    }
+    if (err) {
+      return res.status(400).json({ message: err.message || "PDF upload failed." });
+    }
+    next();
+  });
+};
+
+const uploadThumbnailWithLimit = (req, res, next) => {
+  uploadThumbnail.single("thumbnail")(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ message: "Thumbnail must be 5MB or smaller." });
+    }
+    if (err) {
+      return res.status(400).json({ message: err.message || "Thumbnail upload failed." });
+    }
+    next();
+  });
+};
+
+const uploadTrailerWithLimit = (req, res, next) => {
+  uploadTrailer.single("trailer")(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ message: "Trailer must be 250MB or smaller." });
+    }
+    if (err) {
+      return res.status(400).json({ message: err.message || "Trailer upload failed." });
+    }
+    next();
+  });
+};
+
+router.post("/extract-pdf", protect, uploadPdfWithLimit, extractPdfText);
 router.post("/draft", protect, saveDraft);
 router.post("/upload", protect, uploadScript);
 
 // Thumbnail and Trailer upload routes
-router.post("/:id/upload-thumbnail", protect, uploadThumbnail.single("thumbnail"), uploadScriptThumbnail);
-router.post("/:id/upload-trailer", protect, uploadTrailer.single("trailer"), uploadScriptTrailer);
+router.post("/:id/upload-thumbnail", protect, uploadThumbnailWithLimit, uploadScriptThumbnail);
+router.post("/:id/upload-trailer", protect, uploadTrailerWithLimit, uploadScriptTrailer);
 router.post("/:id/request-ai-trailer", protect, requestScriptAITrailer);
 router.post("/:id/trailer-feedback", protect, submitTrailerFeedback);
 router.post("/:id/activate-spotlight", protect, activateProjectSpotlight);

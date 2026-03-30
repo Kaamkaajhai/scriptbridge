@@ -85,6 +85,7 @@ router.get("/", authMiddleware, async (req, res) => {
       const scriptQuery = {
         status: "published",
         isSold: { $ne: true },
+        isDeleted: { $ne: true },
         $or: [
           { purchaseRequestLocked: { $ne: true } },
           { purchaseRequestLockedBy: req.user._id },

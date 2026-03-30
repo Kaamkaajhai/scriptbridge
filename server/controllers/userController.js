@@ -1,17 +1,24 @@
 import User from "../models/User.js";
 import Post from "../models/Post.js";
 import Script from "../models/Script.js";
+import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
+import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
-import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
+import { sendOTPEmail } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { uploadToCloudinary } from "../config/cloudinary.js";
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
+const WRITER_REPRESENTATION_REQUIRING_AGENCY = ["agent", "manager_and_agent"];
+const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+const MAX_BANK_INVALID_ATTEMPTS = 5;
+const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
 
@@ -37,7 +44,7 @@ const sanitizeBankPayload = (bankDetails) => {
       ? bankDetails.accountNumber.replace(/\s+/g, "")
       : "",
     routingNumber: typeof bankDetails.routingNumber === "string"
-      ? bankDetails.routingNumber.replace(/\s+/g, "")
+      ? bankDetails.routingNumber.replace(/\s+/g, "").toUpperCase()
       : "",
     accountType: normalizeString(bankDetails.accountType) || "checking",
     swiftCode: normalizeString(bankDetails.swiftCode)?.toUpperCase() || "",
@@ -54,16 +61,87 @@ const sanitizeBankPayload = (bankDetails) => {
   return clean;
 };
 
+const getInvalidBankDetailsMessage = (bankDetails) => {
+  if (!ACCOUNT_NUMBER_REGEX.test(bankDetails.accountNumber || "")) {
+    return "Account number must be 8-20 digits";
+  }
+
+  if (!bankDetails.routingNumber) {
+    return "Routing / IFSC number is required";
+  }
+
+  if (bankDetails.country === "IN") {
+    if (!IFSC_REGEX.test(bankDetails.routingNumber)) {
+      return "Please enter a valid IFSC code (example: HDFC0001234)";
+    }
+  } else if (!GENERIC_ROUTING_REGEX.test(bankDetails.routingNumber)) {
+    return "Routing number must be 4-20 letters, numbers, or hyphen";
+  }
+
+  return "";
+};
+
+const ensureBankDetailsSecurity = (user) => {
+  if (!user.bankDetailsSecurity) {
+    user.bankDetailsSecurity = {};
+  }
+
+  if (typeof user.bankDetailsSecurity.invalidAttempts !== "number") {
+    user.bankDetailsSecurity.invalidAttempts = 0;
+  }
+
+  if (typeof user.bankDetailsSecurity.isLocked !== "boolean") {
+    user.bankDetailsSecurity.isLocked = false;
+  }
+
+  return user.bankDetailsSecurity;
+};
+
+const recordInvalidBankAttempt = async (user, reason = "Invalid bank details") => {
+  const security = ensureBankDetailsSecurity(user);
+  security.invalidAttempts = Number(security.invalidAttempts || 0) + 1;
+  security.lastInvalidAttemptAt = new Date();
+  security.lastInvalidReason = String(reason || "Invalid bank details");
+
+  if (security.invalidAttempts >= MAX_BANK_INVALID_ATTEMPTS) {
+    security.isLocked = true;
+    security.lockedAt = new Date();
+  }
+
+  user.markModified("bankDetailsSecurity");
+  await user.save();
+
+  return security;
+};
+
+const maskAccountNumber = (accountNumber = "") => {
+  if (!accountNumber) return "";
+  return `****${String(accountNumber).slice(-4)}`;
+};
+
+const sanitizeBankReviewForResponse = (bankDetailsReview) => {
+  if (!bankDetailsReview) return { status: "not_submitted" };
+
+  const plain = bankDetailsReview?.toObject ? bankDetailsReview.toObject() : bankDetailsReview;
+  const requested = plain?.requestedDetails || {};
+
+  return {
+    status: plain.status || "not_submitted",
+    submittedAt: plain.submittedAt,
+    dueAt: plain.dueAt,
+    reviewedAt: plain.reviewedAt,
+    adminNote: plain.adminNote || "",
+    requestedDetails: requested.accountNumber
+      ? {
+          ...requested,
+          accountNumber: maskAccountNumber(requested.accountNumber),
+        }
+      : null,
+  };
+};
+
 // Multer config for profile image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "..", "uploads", "profiles"));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${req.user._id}-${Date.now()}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -204,7 +282,10 @@ export const getCurrentUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(user);
+    const userObj = user.toObject();
+    userObj.profileCompletion = getProfileCompletion(userObj);
+
+    res.json(userObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -245,6 +326,12 @@ export const getUserProfile = async (req, res) => {
           blockedByProfile,
         });
       }
+
+      const isWriterProfile = ["writer", "creator"].includes(String(user?.role || "").toLowerCase());
+      if (isWriterProfile) {
+        await User.updateOne({ _id: user._id }, { $inc: { profileViews: 1 } });
+        user.profileViews = Number(user.profileViews || 0) + 1;
+      }
     }
 
     const posts = await Post.find({ user: req.params.id })
@@ -252,24 +339,60 @@ export const getUserProfile = async (req, res) => {
       .sort({ createdAt: -1 });
 
     const scriptQuery = isOwnProfile
-      ? { creator: req.params.id }
+      ? { creator: req.params.id, isDeleted: { $ne: true } }
       : {
           creator: req.params.id,
           status: { $ne: "draft" },
           purchaseRequestLocked: { $ne: true },
+          isDeleted: { $ne: true },
         };
 
     const scripts = await Script.find(scriptQuery)
       .populate("creator", "name profileImage role")
       .sort({ createdAt: -1 });
 
+    const isWriterUser = ["writer", "creator"].includes(user.role);
+
+    let deletedScripts = [];
+    if (isOwnProfile && isWriterUser) {
+      deletedScripts = await Script.find({ creator: req.params.id, isDeleted: true })
+        .populate("creator", "name profileImage role")
+        .select("_id title genre format coverImage logline isDeleted deletedAt createdAt publishedAt")
+        .sort({ deletedAt: -1, updatedAt: -1 });
+    }
+
     // Fetch scripts purchased by this user (only for own profile or investor/producer viewing)
     const isPro = ["investor", "producer", "director"].includes(user.role);
     let purchasedScripts = [];
     if (isOwnProfile && isPro) {
-      purchasedScripts = await Script.find({ unlockedBy: req.params.id })
+      const [approvedPurchaseScriptIds, convertedOptionScriptIds] = await Promise.all([
+        ScriptPurchaseRequest.distinct("script", { investor: req.params.id, status: "approved" }),
+        ScriptOption.distinct("script", { holder: req.params.id, status: "converted" }),
+      ]);
+
+      const linkedPurchaseScriptIds = [
+        ...approvedPurchaseScriptIds,
+        ...convertedOptionScriptIds,
+      ].filter(Boolean);
+
+      const purchasedQuery = linkedPurchaseScriptIds.length > 0
+        ? {
+            $or: [
+              { unlockedBy: req.params.id },
+              { purchasedBy: req.params.id },
+              { _id: { $in: linkedPurchaseScriptIds } },
+            ],
+          }
+        : {
+            $or: [
+              { unlockedBy: req.params.id },
+              { purchasedBy: req.params.id },
+            ],
+          };
+
+      purchasedScripts = await Script.find(purchasedQuery)
         .populate("creator", "name profileImage role")
-        .select("_id title genre format price coverImage creator premium createdAt logline unlockedBy")
+        .select("_id title genre format price coverImage creator premium createdAt publishedAt logline unlockedBy purchasedBy isDeleted deletedAt")
         .sort({ createdAt: -1 });
     }
 
@@ -278,6 +401,7 @@ export const getUserProfile = async (req, res) => {
       bookmarkedScripts = await Script.find({
         _id: { $in: user.favoriteScripts },
         status: "published",
+        isDeleted: { $ne: true },
         $or: [
           { purchaseRequestLocked: { $ne: true } },
           { purchaseRequestLockedBy: req.user._id },
@@ -299,8 +423,26 @@ export const getUserProfile = async (req, res) => {
 
     userObj.blockedByCurrent = blockedByCurrent;
     userObj.blockedByProfile = blockedByProfile;
+    userObj.shareMeta = buildUserShareMeta(req, userObj);
+    userObj.profileCompletion = getProfileCompletion(userObj);
 
-    res.json({ user: userObj, posts, scripts, purchasedScripts, bookmarkedScripts });
+    const attachScriptShareMeta = (list = []) => list.map((scriptDoc) => {
+      if (!scriptDoc) return scriptDoc;
+      const scriptObj = typeof scriptDoc.toObject === "function" ? scriptDoc.toObject() : scriptDoc;
+      return {
+        ...scriptObj,
+        shareMeta: buildScriptShareMeta(req, scriptObj),
+      };
+    });
+
+    res.json({
+      user: userObj,
+      posts,
+      scripts: attachScriptShareMeta(scripts),
+      deletedScripts: attachScriptShareMeta(deletedScripts),
+      purchasedScripts: attachScriptShareMeta(purchasedScripts),
+      bookmarkedScripts: attachScriptShareMeta(bookmarkedScripts),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -309,16 +451,15 @@ export const getUserProfile = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const {
-      name, bio, skills, profileImage, coverImage, writerProfile,
-      removeProfileImage, removeCoverImage,
+      name, bio, skills, profileImage, writerProfile,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
-      // Reader preferences (genres + contentTypes)
-      preferences,
       // onboarding completion
       onboardingComplete,
+      privacyPolicyAccepted,
+      privacyPolicyVersion,
       // investor profile fields
-      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange,
+      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
       // bank details
       bankDetails,
       // notification preferences
@@ -330,14 +471,12 @@ export const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    user.name = name || user.name;
-    user.bio = bio !== undefined ? bio : user.bio;
-    user.skills = skills || user.skills;
-    if (removeProfileImage) user.profileImage = "";
-    else if (profileImage !== undefined) user.profileImage = profileImage;
-
-    if (removeCoverImage) user.coverImage = "";
-    else if (coverImage !== undefined) user.coverImage = coverImage;
+    user.name = normalizeString(name) || user.name;
+    user.bio = bio !== undefined ? normalizeString(bio) : user.bio;
+    if (skills !== undefined) {
+      user.skills = normalizeStringArray(skills, 25);
+    }
+    user.profileImage = normalizeString(profileImage) || user.profileImage;
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
@@ -349,14 +488,6 @@ export const updateUserProfile = async (req, res) => {
       if (!user.industryProfile.mandates) user.industryProfile.mandates = {};
       user.industryProfile.mandates.genres = preferredGenres;
       user.markModified("industryProfile");
-    }
-
-    // Reader / generic preferences (genres + contentTypes)
-    if (preferences !== undefined) {
-      if (!user.preferences) user.preferences = {};
-      if (preferences.genres !== undefined) user.preferences.genres = preferences.genres;
-      if (preferences.contentTypes !== undefined) user.preferences.contentTypes = preferences.contentTypes;
-      user.markModified("preferences");
     }
     if (preferredBudgets !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
@@ -374,7 +505,7 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined) {
+    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
       if (subRole !== undefined) user.industryProfile.subRole = normalizeString(subRole);
       if (company !== undefined) user.industryProfile.company = normalizeString(company);
@@ -382,6 +513,14 @@ export const updateUserProfile = async (req, res) => {
       if (imdbUrl !== undefined) user.industryProfile.imdbUrl = normalizeString(imdbUrl);
       if (linkedInUrl !== undefined) user.industryProfile.linkedInUrl = normalizeString(linkedInUrl);
       if (otherUrl !== undefined) user.industryProfile.otherUrl = normalizeString(otherUrl);
+      if (socialLinks !== undefined) {
+        if (!user.industryProfile.socialLinks) user.industryProfile.socialLinks = {};
+        user.industryProfile.socialLinks.instagram = normalizeString(socialLinks?.instagram);
+        user.industryProfile.socialLinks.twitter = normalizeString(socialLinks?.twitter);
+        user.industryProfile.socialLinks.website = normalizeString(socialLinks?.website);
+        user.industryProfile.socialLinks.youtube = normalizeString(socialLinks?.youtube);
+        user.industryProfile.socialLinks.facebook = normalizeString(socialLinks?.facebook);
+      }
       if (previousCredits !== undefined) user.industryProfile.previousCredits = normalizeString(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
       user.markModified("industryProfile");
@@ -394,10 +533,19 @@ export const updateUserProfile = async (req, res) => {
         user.writerProfile.onboardingComplete = onboardingComplete;
         user.markModified("writerProfile");
       } else {
+        if (onboardingComplete === true && user.role === "investor" && !privacyPolicyAccepted && !user.privacyPolicyAccepted) {
+          return res.status(400).json({ message: "Privacy policy acceptance is required" });
+        }
         if (!user.industryProfile) user.industryProfile = {};
         user.industryProfile.onboardingComplete = onboardingComplete;
         user.markModified("industryProfile");
       }
+    }
+
+    if (privacyPolicyAccepted !== undefined) {
+      user.privacyPolicyAccepted = Boolean(privacyPolicyAccepted);
+      user.privacyPolicyAcceptedAt = privacyPolicyAccepted ? new Date() : undefined;
+      user.privacyPolicyVersion = normalizeString(privacyPolicyVersion) || user.privacyPolicyVersion || "registration-privacy-v1";
     }
 
     // Writer-specific fields
@@ -417,7 +565,7 @@ export const updateUserProfile = async (req, res) => {
         user.writerProfile.wgaMember = writerProfile.wgaMember;
       }
       if (writerProfile.genres !== undefined) {
-        user.writerProfile.genres = normalizeStringArray(writerProfile.genres, 12);
+        user.writerProfile.genres = normalizeStringArray(writerProfile.genres);
       }
       if (writerProfile.specializedTags !== undefined) {
         user.writerProfile.specializedTags = normalizeStringArray(writerProfile.specializedTags, 5);
@@ -433,7 +581,7 @@ export const updateUserProfile = async (req, res) => {
       }
 
       const currentStatus = user.writerProfile.representationStatus || "unrepresented";
-      if (["agent", "manager", "manager_and_agent"].includes(currentStatus) && !user.writerProfile.agencyName) {
+      if (WRITER_REPRESENTATION_REQUIRING_AGENCY.includes(currentStatus) && !user.writerProfile.agencyName) {
         return res.status(400).json({ message: "Agency name is required for represented writers" });
       }
 
@@ -442,46 +590,125 @@ export const updateUserProfile = async (req, res) => {
 
     // Bank details
     if (bankDetails) {
+      const security = ensureBankDetailsSecurity(user);
+      if (security.isLocked) {
+        return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+      }
+
       const sanitizedBankDetails = sanitizeBankPayload(bankDetails);
-      if (!user.bankDetails) user.bankDetails = {};
-      if (sanitizedBankDetails.accountHolderName !== undefined) {
-        user.bankDetails.accountHolderName = sanitizedBankDetails.accountHolderName;
-      }
-      if (sanitizedBankDetails.bankName !== undefined) {
-        user.bankDetails.bankName = sanitizedBankDetails.bankName;
-      }
-      if (sanitizedBankDetails.accountNumber !== undefined) {
-        user.bankDetails.accountNumber = sanitizedBankDetails.accountNumber;
-      }
-      if (sanitizedBankDetails.routingNumber !== undefined) {
-        user.bankDetails.routingNumber = sanitizedBankDetails.routingNumber;
-      }
-      if (sanitizedBankDetails.accountType !== undefined) {
-        user.bankDetails.accountType = sanitizedBankDetails.accountType;
-      }
-      if (sanitizedBankDetails.swiftCode !== undefined) {
-        user.bankDetails.swiftCode = sanitizedBankDetails.swiftCode;
-      }
-      if (sanitizedBankDetails.iban !== undefined) {
-        user.bankDetails.iban = sanitizedBankDetails.iban;
-      }
-      if (sanitizedBankDetails.country !== undefined) {
-        user.bankDetails.country = sanitizedBankDetails.country;
-      }
-      if (sanitizedBankDetails.currency !== undefined) {
-        user.bankDetails.currency = sanitizedBankDetails.currency;
-      }
+      const shouldQueueForReview = ["writer", "creator"].includes(user.role);
 
-      if (user.bankDetails.country === "IN" && user.bankDetails.currency !== "INR") {
-        user.bankDetails.currency = "INR";
-      }
+      if (shouldQueueForReview) {
+        const hasRequired = Boolean(
+          sanitizedBankDetails.accountHolderName &&
+          sanitizedBankDetails.bankName &&
+          sanitizedBankDetails.accountNumber &&
+          sanitizedBankDetails.routingNumber
+        );
 
-      // Set addedAt if this is the first time adding bank details
-      if (!user.bankDetails.addedAt) {
-        user.bankDetails.addedAt = new Date();
+        if (!hasRequired) {
+          const updatedSecurity = await recordInvalidBankAttempt(user, "Missing required bank details fields");
+          if (updatedSecurity.isLocked) {
+            return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+          }
+          return res.status(400).json({ message: "Account holder name, bank name, account number, and routing / IFSC number are required" });
+        }
+
+        const invalidBankDetailsMessage = getInvalidBankDetailsMessage(sanitizedBankDetails);
+        if (invalidBankDetailsMessage) {
+          const updatedSecurity = await recordInvalidBankAttempt(user, invalidBankDetailsMessage);
+          if (updatedSecurity.isLocked) {
+            return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+          }
+          return res.status(400).json({ message: invalidBankDetailsMessage });
+        }
+
+        if (sanitizedBankDetails.country === "IN") {
+          sanitizedBankDetails.currency = "INR";
+        }
+
+        const now = new Date();
+        user.bankDetailsReview = {
+          status: "pending",
+          requestedDetails: sanitizedBankDetails,
+          submittedAt: now,
+          dueAt: new Date(now.getTime() + BANK_REVIEW_WINDOW_MS),
+          reviewedAt: undefined,
+          reviewedBy: undefined,
+          adminNote: "",
+        };
+
+        security.invalidAttempts = 0;
+        security.lastInvalidAttemptAt = undefined;
+        security.lastInvalidReason = "";
+        user.markModified("bankDetailsSecurity");
+      } else {
+        if (!user.bankDetails) user.bankDetails = {};
+        if (sanitizedBankDetails.accountHolderName !== undefined) {
+          user.bankDetails.accountHolderName = sanitizedBankDetails.accountHolderName;
+        }
+        if (sanitizedBankDetails.bankName !== undefined) {
+          user.bankDetails.bankName = sanitizedBankDetails.bankName;
+        }
+        if (sanitizedBankDetails.accountNumber !== undefined) {
+          if (!ACCOUNT_NUMBER_REGEX.test(sanitizedBankDetails.accountNumber)) {
+            const updatedSecurity = await recordInvalidBankAttempt(user, "Account number must be 8-20 digits");
+            if (updatedSecurity.isLocked) {
+              return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+            }
+            return res.status(400).json({ message: "Account number must be 8-20 digits" });
+          }
+          user.bankDetails.accountNumber = sanitizedBankDetails.accountNumber;
+        }
+        if (sanitizedBankDetails.routingNumber !== undefined) {
+          const countryForRouting = sanitizedBankDetails.country || user.bankDetails.country || "IN";
+          if (countryForRouting === "IN") {
+            if (!IFSC_REGEX.test(sanitizedBankDetails.routingNumber)) {
+              const updatedSecurity = await recordInvalidBankAttempt(user, "Invalid IFSC code format");
+              if (updatedSecurity.isLocked) {
+                return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+              }
+              return res.status(400).json({ message: "Please enter a valid IFSC code (example: HDFC0001234)" });
+            }
+          } else if (!GENERIC_ROUTING_REGEX.test(sanitizedBankDetails.routingNumber)) {
+            const updatedSecurity = await recordInvalidBankAttempt(user, "Invalid routing number format");
+            if (updatedSecurity.isLocked) {
+              return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+            }
+            return res.status(400).json({ message: "Routing number must be 4-20 letters, numbers, or hyphen" });
+          }
+          user.bankDetails.routingNumber = sanitizedBankDetails.routingNumber;
+        }
+        if (sanitizedBankDetails.accountType !== undefined) {
+          user.bankDetails.accountType = sanitizedBankDetails.accountType;
+        }
+        if (sanitizedBankDetails.swiftCode !== undefined) {
+          user.bankDetails.swiftCode = sanitizedBankDetails.swiftCode;
+        }
+        if (sanitizedBankDetails.iban !== undefined) {
+          user.bankDetails.iban = sanitizedBankDetails.iban;
+        }
+        if (sanitizedBankDetails.country !== undefined) {
+          user.bankDetails.country = sanitizedBankDetails.country;
+        }
+        if (sanitizedBankDetails.currency !== undefined) {
+          user.bankDetails.currency = sanitizedBankDetails.currency;
+        }
+
+        if (user.bankDetails.country === "IN" && user.bankDetails.currency !== "INR") {
+          user.bankDetails.currency = "INR";
+        }
+
+        if (!user.bankDetails.addedAt) {
+          user.bankDetails.addedAt = new Date();
+        }
+        user.bankDetails.isVerified = false;
+
+        security.invalidAttempts = 0;
+        security.lastInvalidAttemptAt = undefined;
+        security.lastInvalidReason = "";
+        user.markModified("bankDetailsSecurity");
       }
-      // Reset verification when details change
-      user.bankDetails.isVerified = false;
     }
 
     // Notification preferences
@@ -501,9 +728,10 @@ export const updateUserProfile = async (req, res) => {
     if (user.bankDetails && user.bankDetails.accountNumber) {
       sanitizedBankDetails = {
         ...user.bankDetails.toObject(),
-        accountNumber: '****' + user.bankDetails.accountNumber.slice(-4)
+        accountNumber: maskAccountNumber(user.bankDetails.accountNumber)
       };
     }
+    const sanitizedBankReview = sanitizeBankReviewForResponse(user.bankDetailsReview);
 
     res.json({
       _id: user._id,
@@ -512,13 +740,14 @@ export const updateUserProfile = async (req, res) => {
       role: user.role,
       bio: user.bio,
       skills: user.skills,
-      profileImage: user.profileImage || "",
-      coverImage: user.coverImage || "",
+      profileImage: user.profileImage,
       writerProfile: user.writerProfile,
       industryProfile: user.industryProfile,
       preferences: user.preferences,
       notificationPrefs: user.notificationPrefs,
       bankDetails: sanitizedBankDetails,
+      bankDetailsReview: sanitizedBankReview,
+      profileCompletion: getProfileCompletion(user),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -584,12 +813,19 @@ export const uploadProfileImage = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const imageUrl = `/uploads/profiles/${req.file.filename}`;
-    const target = req.body?.target === "coverImage" ? "coverImage" : "profileImage";
-    user[target] = imageUrl;
+    const cloudUpload = await uploadToCloudinary(req.file.buffer, {
+      folder: "scriptbridge/profiles",
+      resource_type: "image",
+      public_id: `profile-${user._id}-${Date.now()}`,
+      originalFilename: req.file.originalname,
+      mimeType: req.file.mimetype,
+    });
+
+    const imageUrl = cloudUpload.secure_url;
+    user.profileImage = imageUrl;
     await user.save();
 
-    res.json({ [target]: imageUrl });
+    res.json({ profileImage: imageUrl });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -701,7 +937,7 @@ export const getWatchlist = async (req, res) => {
     const savedScriptIds = user.industryProfile?.savedScripts || [];
 
     // Populate the script details
-    const scripts = await Script.find({ _id: { $in: savedScriptIds } })
+    const scripts = await Script.find({ _id: { $in: savedScriptIds }, isDeleted: { $ne: true } })
       .populate("creator", "name profileImage")
       .sort({ createdAt: -1 });
 
@@ -844,15 +1080,6 @@ export const changeEmail = async (req, res) => {
       return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
     }
 
-    // Internal copy for compliance/audit visibility. Do not block user flow if this fails.
-    await sendEmailChangeOTPToCompany({
-      userName: user.name,
-      currentEmail: user.email,
-      newEmail: normalizedEmail,
-      otp,
-      trigger: "changeEmail",
-    });
-
     // Keep current email active until OTP verification succeeds.
     user.pendingEmail = normalizedEmail;
     user.emailVerificationToken = otp;
@@ -889,17 +1116,6 @@ export const sendEmailVerificationCode = async (req, res) => {
       return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
     }
 
-    // If user is verifying a pending email change, send a company copy as well.
-    if (user.pendingEmail) {
-      await sendEmailChangeOTPToCompany({
-        userName: user.name,
-        currentEmail: user.email,
-        newEmail: user.pendingEmail,
-        otp,
-        trigger: "resendEmailVerificationCode",
-      });
-    }
-
     res.json({ message: `Verification code sent to ${targetEmail}` });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -933,42 +1149,6 @@ export const verifyEmailVerificationCode = async (req, res) => {
     await user.save();
 
     res.json({ message: "Email verified successfully", emailVerified: true, email: user.email });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const deleteAccount = async (req, res) => {
-  try {
-    const { password, confirmationText } = req.body || {};
-
-    if (confirmationText !== "DELETE") {
-      return res.status(400).json({ message: "Invalid deletion confirmation" });
-    }
-
-    if (!password) {
-      return res.status(400).json({ message: "Password is required" });
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Current password is incorrect" });
-    }
-
-    await Promise.all([
-      Post.deleteMany({ user: req.user._id }),
-      Script.deleteMany({ creator: req.user._id }),
-      Notification.deleteMany({ $or: [{ user: req.user._id }, { from: req.user._id }] }),
-    ]);
-
-    await User.findByIdAndDelete(req.user._id);
-
-    res.json({ message: "Account deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

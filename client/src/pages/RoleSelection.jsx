@@ -4,8 +4,17 @@ import { FileText, Users, ArrowRight, ArrowLeft, BookOpen } from "lucide-react";
 
 const RoleSelection = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#112240] to-[#1a365d] flex items-center justify-center px-4">
-      <div className="max-w-5xl w-full">
+    <div className="min-h-screen bg-[#080e18] relative overflow-hidden flex items-center justify-center px-4">
+      <div
+        className="absolute inset-0 opacity-[0.035] pointer-events-none"
+        style={{
+          backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+      <div className="absolute top-0 left-0 w-[520px] h-[520px] bg-white/[0.025] rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[420px] h-[420px] bg-white/[0.02] rounded-full blur-3xl translate-x-1/3 translate-y-1/3 pointer-events-none" />
+      <div className="max-w-5xl w-full relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -15,7 +24,7 @@ const RoleSelection = () => {
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 tracking-tight">
             Join Ckript
           </h1>
-          <p className="text-xl text-white/70 font-medium">
+          <p className="text-xl text-[#8ea1b7] font-medium">
             Choose your path to get started
           </p>
         </motion.div>
@@ -30,61 +39,61 @@ const RoleSelection = () => {
             className="group"
           >
             <Link to="/writer-onboarding">
-              <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-100 hover:border-[#1a365d] transition-all duration-300 h-full">
-                <div className="flex flex-col items-center text-center">
+              <div className="bg-[#0d1520]/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-black/30 p-8 border border-[#1a2433] hover:border-[#31465e] transition-all duration-300 h-full">
+                <div className="flex h-full flex-col items-center text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-[#0f2544] to-[#1a365d] rounded-xl flex items-center justify-center mb-6">
                     <FileText className="text-white" size={32} strokeWidth={1.5} />
                   </div>
                   
-                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight">
+                  <h2 className="text-2xl font-extrabold text-white mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
                     I'm a Writer
                   </h2>
                   
-                  <p className="text-gray-600 mb-6 text-sm">
+                  <p className="text-[#7f8ea2] mb-6 text-sm min-h-[64px]">
                     Showcase your scripts to industry professionals
                   </p>
                   
-                  <ul className="text-left space-y-2 mb-8 w-full">
+                  <ul className="text-left space-y-2 w-full flex-1">
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Upload and host scripts</span>
+                      <span className="text-[#d2dde9]">Upload and host scripts</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Professional evaluations</span>
+                      <span className="text-[#d2dde9]">Professional evaluations</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Connect with producers</span>
+                      <span className="text-[#d2dde9]">Connect with producers</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Track analytics</span>
+                      <span className="text-[#d2dde9]">Track analytics</span>
                     </li>
                   </ul>
                   
-                  <div className="w-full bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
+                  <div className="w-full mt-8 bg-white text-[#08121d] py-3 rounded-lg font-semibold hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm">
                     Join as Writer
                     <ArrowRight size={16} />
                   </div>
                   
-                  <p className="text-xs text-gray-500 mt-4">
+                  <p className="text-xs text-[#5f6f83] mt-4">
                     Free to write
                   </p>
                 </div>
@@ -100,62 +109,62 @@ const RoleSelection = () => {
             whileHover={{ scale: 1.02, transition: { type: "tween", duration: 0.3 } }}
             className="group"
           >
-            <Link to="/investor-onboarding">
-              <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-100 hover:border-[#1a365d] transition-all duration-300 h-full">
-                <div className="flex flex-col items-center text-center">
+            <Link to="/producer-director-onboarding">
+              <div className="bg-[#0d1520]/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-black/30 p-8 border border-[#1a2433] hover:border-[#31465e] transition-all duration-300 h-full">
+                <div className="flex h-full flex-col items-center text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-[#0f2544] to-[#1a365d] rounded-xl flex items-center justify-center mb-6">
                     <Users className="text-white" size={32} strokeWidth={1.5} />
                   </div>
                   
-                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight">
-                    I'm a Producer/Investor
+                  <h2 className="text-2xl font-extrabold text-white mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
+                    I'm a Producer/Director
                   </h2>
                   
-                  <p className="text-gray-600 mb-6 text-sm">
+                  <p className="text-[#7f8ea2] mb-6 text-sm min-h-[64px]">
                     Fund projects and connect with talented writers
                   </p>
                   
-                  <ul className="text-left space-y-2 mb-8 w-full">
+                  <ul className="text-left space-y-2 w-full flex-1">
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Discover investment opportunities</span>
+                      <span className="text-[#d2dde9]">Discover investment opportunities</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Browse curated scripts</span>
+                      <span className="text-[#d2dde9]">Browse curated scripts</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Connect directly with writers</span>
+                      <span className="text-[#d2dde9]">Connect directly with writers</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#111111]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#111111]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Option & fund projects</span>
+                      <span className="text-[#d2dde9]">Option & fund projects</span>
                     </li>
                   </ul>
                   
-                  <div className="w-full bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
-                    Join as Producer/Investor
+                  <div className="w-full mt-8 bg-white text-[#08121d] py-3 rounded-lg font-semibold hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm">
+                    Join as Producer/Director
                     <ArrowRight size={16} />
                   </div>
                   
-                  <p className="text-xs text-gray-500 mt-4">
+                  <p className="text-xs text-[#5f6f83] mt-4">
                     Free to browse
                   </p>
                 </div>
@@ -172,61 +181,61 @@ const RoleSelection = () => {
             className="group"
           >
             <Link to="/signup?role=reader">
-              <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-gray-100 hover:border-[#1a365d] transition-all duration-300 h-full">
-                <div className="flex flex-col items-center text-center">
+              <div className="bg-[#0d1520]/95 backdrop-blur-sm rounded-2xl shadow-xl shadow-black/30 p-8 border border-[#1a2433] hover:border-[#31465e] transition-all duration-300 h-full">
+                <div className="flex h-full flex-col items-center text-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-[#0f2544] to-[#1a365d] rounded-xl flex items-center justify-center mb-6">
                     <BookOpen className="text-white" size={32} strokeWidth={1.5} />
                   </div>
                   
-                  <h2 className="text-2xl font-extrabold text-[#0a1628] mb-3 tracking-tight">
+                  <h2 className="text-2xl font-extrabold text-white mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
                     I'm a Reader
                   </h2>
                   
-                  <p className="text-gray-600 mb-6 text-sm">
+                  <p className="text-[#7f8ea2] mb-6 text-sm min-h-[64px]">
                     Explore scripts, write reviews & discover stories
                   </p>
                   
-                  <ul className="text-left space-y-2 mb-8 w-full">
+                  <ul className="text-left space-y-2 w-full flex-1">
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Browse & read scripts</span>
+                      <span className="text-[#d2dde9]">Browse & read scripts</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Write reviews & feedback</span>
+                      <span className="text-[#d2dde9]">Write reviews & feedback</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Save favorite scripts</span>
+                      <span className="text-[#d2dde9]">Save favorite scripts</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <div className="w-5 h-5 bg-[#1e3a5f]/[0.08] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3 h-3 text-[#1e3a5f]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="w-5 h-5 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-3 h-3 text-[#9db4cc]" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <span className="text-gray-700">Discover featured stories</span>
+                      <span className="text-[#d2dde9]">Discover featured stories</span>
                     </li>
                   </ul>
                   
-                  <div className="w-full bg-[#0f2544] text-white py-3 rounded-lg font-semibold hover:bg-[#1a365d] transition flex items-center justify-center gap-2 text-sm">
+                  <div className="w-full mt-8 bg-white text-[#08121d] py-3 rounded-lg font-semibold hover:bg-slate-100 transition flex items-center justify-center gap-2 text-sm">
                     Join as Reader
                     <ArrowRight size={16} />
                   </div>
                   
-                  <p className="text-xs text-gray-500 mt-4">
+                  <p className="text-xs text-[#5f6f83] mt-4">
                     Free to read
                   </p>
                 </div>
@@ -241,14 +250,14 @@ const RoleSelection = () => {
           transition={{ duration: 0.5, delay: 0.5 }}
           className="text-center mt-8"
         >
-          <p className="text-white/70 text-sm">
+          <p className="text-[#8ea1b7] text-sm">
             Already have an account?{" "}
-            <Link to="/login" className="text-white font-semibold hover:underline">
+            <Link to="/login" className="text-white font-semibold hover:text-slate-200">
               Log in
             </Link>
           </p>
           <p className="mt-3">
-            <Link to="/" className="text-white/50 hover:text-white/70 flex items-center justify-center gap-1 text-sm">
+            <Link to="/" className="text-[#5f6f83] hover:text-[#8ea1b7] flex items-center justify-center gap-1 text-sm transition-colors">
               <ArrowLeft size={14} /> Back to Home
             </Link>
           </p>

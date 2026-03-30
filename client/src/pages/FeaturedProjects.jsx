@@ -3,8 +3,26 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
+import ProjectCard from "../components/ProjectCard";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
+const resolveTrailerCandidates = (script) => {
+  const aiTrailerUrl = script?.trailerUrl || "";
+  const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
+
+  let ordered = [];
+  if (script?.trailerSource === "ai") ordered = [aiTrailerUrl, uploadedTrailerUrl];
+  else if (script?.trailerSource === "uploaded") ordered = [uploadedTrailerUrl, aiTrailerUrl];
+  else ordered = [aiTrailerUrl, uploadedTrailerUrl];
+
+  const uniqueSources = [...new Set(ordered.filter(Boolean))];
+  return uniqueSources.map((url) => resolveMediaUrl(url)).filter(Boolean);
+};
+
+const resolveTrailerUrl = (script) => {
+  const sources = resolveTrailerCandidates(script);
+  return sources[0] || "";
+};
 
 /* ── Icons ─────────────────────────────────────────── */
 const SparklesIcon = () => (
@@ -225,10 +243,10 @@ const AIDemo = ({ script, getImageUrl }) => {
         <div className="flex flex-col items-center gap-6 z-10 px-10 text-center w-full">
           {current && (
             <motion.div key={phase}
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.4 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
               className="flex flex-col items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">{current.label}</span>
               <p className={`text-white ${current.size} max-w-lg`}>{current.text}</p>
@@ -265,6 +283,26 @@ const AIDemo = ({ script, getImageUrl }) => {
 
 const TrailerModal = ({ script, onClose, getImageUrl }) => {
   const videoRef = useRef(null);
+  const trailerCandidates = resolveTrailerCandidates(script);
+  const [trailerSourceIndex, setTrailerSourceIndex] = useState(0);
+  const [trailerError, setTrailerError] = useState(false);
+  const trailerPlaybackUrl =
+    trailerCandidates[Math.min(trailerSourceIndex, Math.max(trailerCandidates.length - 1, 0))] || "";
+
+  const handleTrailerError = () => {
+    if (trailerSourceIndex < trailerCandidates.length - 1) {
+      setTrailerSourceIndex((prev) => prev + 1);
+      setTrailerError(false);
+      return;
+    }
+    setTrailerError(true);
+  };
+
+  useEffect(() => {
+    setTrailerSourceIndex(0);
+    setTrailerError(false);
+  }, [script?._id, script?.trailerUrl, script?.uploadedTrailerUrl, script?.trailerSource]);
+
   useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handleKey);
@@ -277,37 +315,47 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.92, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.92, opacity: 0, y: 20 }}
+          initial={{ scale: 0.96, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.96, opacity: 0 }}
           transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="relative w-full max-w-3xl rounded-2xl overflow-hidden bg-black shadow-2xl"
+          className="relative w-full max-w-3xl max-h-[88vh] rounded-2xl overflow-hidden bg-[#050b16] shadow-2xl border border-white/20 flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-[#081426]">
+            <p className="text-sm font-semibold text-white/90">Trailer Preview</p>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-lg border border-white/25 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-white/20 transition-colors"
+              aria-label="Close trailer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
           {/* Video or AI Demo */}
-          {script.trailerUrl ? (
-            <video
-              ref={videoRef}
-              src={script.trailerUrl.startsWith("http") ? script.trailerUrl : `http://localhost:5002${script.trailerUrl}`}
-              controls
-              autoPlay
-              className="w-full aspect-video"
-              poster={script.coverImage ? getImageUrl(script.coverImage) : undefined}
-            />
+          {trailerPlaybackUrl && !trailerError ? (
+            <div className="p-3 overflow-auto bg-[#020812]">
+              <video
+                key={trailerPlaybackUrl}
+                ref={videoRef}
+                src={trailerPlaybackUrl}
+                controls
+                controlsList="nodownload"
+                autoPlay
+                playsInline
+                preload="metadata"
+                onError={handleTrailerError}
+                className="w-full max-h-[calc(88vh-190px)] object-contain rounded-xl border border-white/10 bg-black"
+                poster={script.coverImage ? getImageUrl(script.coverImage) : undefined}
+              />
+            </div>
           ) : (
             <AIDemo script={script} getImageUrl={getImageUrl} />
           )}
@@ -329,7 +377,14 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+};
 
+/* ── Featured Carousel ─────────────────────────────── */
+const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
+  const SLIDES = scripts;
+  const [current, setCurrent] = useState(0);
+  const [paused, setPaused] = useState(false);
   const [direction, setDirection] = useState(1); // 1 = forward, -1 = back
   const timerRef = useRef(null);
 
@@ -339,17 +394,20 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
   }, [SLIDES.length]);
 
   const next = useCallback(() => goTo(current + 1, 1), [current, goTo]);
+  const prev = useCallback(() => goTo(current - 1, -1), [current, goTo]);
 
   // Auto-advance
   useEffect(() => {
+    if (paused) return;
     timerRef.current = setInterval(next, 5000);
     return () => clearInterval(timerRef.current);
-  }, [next]);
+  }, [paused, next]);
 
   const script = SLIDES[current];
+  const trailerPlaybackUrl = resolveTrailerUrl(script);
   const resolveImg = (url) => {
     if (!url) return null;
-    return url.startsWith("http") ? url : `http://localhost:5002${url}`;
+    return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
   };
 
   const slideVariants = {
@@ -395,38 +453,81 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
             <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-10">
               {/* Badges row */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="text-[11px] font-black text-white bg-[#111111] px-2.5 py-1 rounded-lg uppercase tracking-widest">
+                {(script.premium || script.isFeatured) && (
+                  <span className="flex items-center gap-1 text-[10px] font-black text-white bg-[#1e3a5f] border border-blue-400/50 px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-lg">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    Sponsored
+                  </span>
+                )}
+                {script.verifiedBadge && (
+                  <span className="flex items-center gap-1 text-[10px] font-black text-white bg-blue-600/90 border border-blue-300/60 px-2.5 py-1 rounded-lg uppercase tracking-widest shadow-lg">
+                    Verified
+                  </span>
+                )}
+                {!(script.premium || script.isFeatured) && (
+                  <span className="flex items-center gap-1 text-[10px] font-black text-white bg-gray-700 border border-gray-600 px-2.5 py-1 rounded-lg uppercase tracking-widest">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                    </svg>
+                    Trending
+                  </span>
+                )}
+                <span className="text-[10px] font-black text-white bg-[#111111] px-2.5 py-1 rounded-lg uppercase tracking-widest">
                   #{current + 1} Featured
                 </span>
                 {script.genre && (
-                  <span className="text-[11px] font-bold text-white/80 bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/10">
+                  <span className="text-[10px] font-bold text-white/80 bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/10">
                     {script.genre}
                   </span>
                 )}
                 {script.contentType && (
-                  <span className="text-[11px] font-bold text-white/80 bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/10 capitalize">
+                  <span className="text-[10px] font-bold text-white/80 bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/10 capitalize">
                     {script.contentType.replace(/_/g, " ")}
                   </span>
                 )}
                 {script.premium ? (
-                  <span className="text-[11px] font-black text-white bg-amber-500/90 px-2.5 py-1 rounded-lg">${script.price}</span>
+                  <span className="text-[10px] font-black text-white bg-gray-800 px-2.5 py-1 rounded-lg">${script.price}</span>
                 ) : (
-                  <span className="text-[11px] font-black text-white bg-emerald-500/80 px-2.5 py-1 rounded-lg">Free</span>
+                  <span className="text-[10px] font-black text-white bg-emerald-500/80 px-2.5 py-1 rounded-lg">Free</span>
                 )}
               </div>
 
               {/* Title */}
-              <h2 className="text-3xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight mb-2 drop-shadow-lg max-w-2xl line-clamp-2">
+              <h2 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight tracking-tight mb-2 drop-shadow-lg max-w-xl line-clamp-2">
                 {script.title}
               </h2>
 
               {/* Description */}
-              <p className="text-base sm:text-lg text-white/70 leading-relaxed line-clamp-2 max-w-2xl mb-5 hidden sm:block">
+              <p className="text-sm text-white/60 leading-relaxed line-clamp-2 max-w-lg mb-5 hidden sm:block">
                 {script.logline || script.description || script.synopsis || ""}
               </p>
 
-              {/* Creator */}
+              {/* Action buttons + creator */}
               <div className="flex items-center gap-3 flex-wrap">
+                <Link
+                  to={`/script/${script._id}`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#111111] rounded-xl text-sm font-bold hover:bg-white/90 transition-colors shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                  View Project
+                </Link>
+                {trailerPlaybackUrl && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onWatchPreview(script); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white rounded-xl text-sm font-bold transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5.14v14l11-7-11-7z" />
+                    </svg>
+                    Watch Trailer
+                  </button>
+                )}
+
                 {/* Creator */}
                 <div className="hidden sm:flex items-center gap-2 ml-auto">
                   <div className="w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 overflow-hidden flex items-center justify-center flex-shrink-0">
@@ -436,13 +537,13 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
                       <span className="text-[10px] font-bold text-white">{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</span>
                     )}
                   </div>
-                  <span className="text-sm text-white/75 font-medium">{script.creator?.name || "Unknown"}</span>
+                  <span className="text-xs text-white/70 font-medium">{script.creator?.name || "Unknown"}</span>
                   {script.scriptScore?.overall > 0 && (
                     <div className="flex items-center gap-1 ml-1 bg-black/30 backdrop-blur-sm px-2 py-1 rounded-lg">
                       <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm font-bold text-amber-300">{script.scriptScore.overall}</span>
+                      <span className="text-[11px] font-bold text-amber-300">{script.scriptScore.overall}</span>
                     </div>
                   )}
                 </div>
@@ -454,7 +555,7 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
         {/* Arrow nav */}
         <button
           onClick={(e) => { e.stopPropagation(); prev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 z-10"
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:text-white transition-all duration-200 hover:scale-110 z-10"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -462,64 +563,22 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); next(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white transition-all duration-200 hover:scale-110 z-10"
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:text-white transition-all duration-200 hover:scale-110 z-10"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
 
+        {/* Pause indicator */}
+        {paused && (
+          <div className="absolute top-4 right-16 flex items-center gap-1.5 px-2.5 py-1 bg-black/40 backdrop-blur-sm rounded-lg border border-white/10">
+            <span className="w-2 h-2 rounded-full bg-white/60" />
+            <span className="text-[10px] text-white/50 font-medium">paused</span>
+          </div>
+        )}
       </div>
 
-      {/* Dot pagination + progress */}
-      <div className={`flex items-center justify-center gap-2 py-3.5 ${dark ? "bg-[#080f1e]" : "bg-gray-50"}`}>
-        {SLIDES.map((s, i) => (
-          <div
-            key={i}
-            className="relative"
-          >
-            <div className={`rounded-full transition-all duration-300 ${
-              i === current
-                ? "w-6 h-2.5 bg-[#111111]"
-                : dark
-                  ? "w-2.5 h-2.5 bg-white/20 hover:bg-white/40"
-                  : "w-2.5 h-2.5 bg-gray-300 hover:bg-gray-400"
-            }`} />
-            {/* Auto-progress fill on active dot */}
-            {i === current && (
-              <motion.div
-                key={`progress-${current}`}
-                className="absolute inset-0 rounded-full bg-blue-400/60 origin-left"
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 5, ease: "linear" }}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Thumbnail strip */}
-      <div className={`hidden sm:flex gap-2 px-4 pb-4 ${dark ? "" : ""}`}>
-        {SLIDES.map((s, i) => (
-          <div
-            key={i}
-            className={`relative flex-1 h-14 rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-              i === current
-                ? "border-[#111111] shadow-lg shadow-[#111111]/30 scale-[1.02]"
-                : dark ? "border-transparent opacity-50 hover:opacity-80" : "border-transparent opacity-40 hover:opacity-70"
-            }`}
-          >
-            {s.coverImage ? (
-              <img src={resolveImg(s.coverImage)} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#0a1628] to-[#111111] flex items-center justify-center">
-                <span className="text-white/40 text-[9px] font-bold">#{i + 1}</span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
@@ -539,7 +598,7 @@ const CardSaveBtn = ({ scriptId, dark }) => {
   return (
     <button
       onClick={handle}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-200 ${
         saved
           ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
           : "bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm"
@@ -556,6 +615,101 @@ const CardSaveBtn = ({ scriptId, dark }) => {
   );
 };
 
+/* ══════════════════════════════════════════════════════════════ */
+/* ── CARD COMPONENTS ── */
+/* ══════════════════════════════════════════════════════════════ */
+
+const SponsoredCard = ({ script }) => (
+  <ProjectCard
+    project={{ ...script, status: script?.status || "published" }}
+    userName={script?.creator?.name}
+  />
+);
+
+// Trending Card (Horizontal Scroll)
+const TrendingCard = ({ script, getImageUrl, dark }) => (
+  <Link to={`/script/${script._id}`}>
+    <motion.div
+      whileHover={{ scale: 1.02, y: -4 }}
+      className={`group relative overflow-hidden rounded-2xl w-[360px] flex-shrink-0 border transition-all duration-400 ${
+        dark ? "bg-[#0a1628] border-[#1a3050] hover:border-blue-400/30 hover:shadow-xl hover:shadow-blue-500/10" : "bg-white border-gray-200/60 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/50"
+      }`}
+    >
+      <div className="relative h-[240px] overflow-hidden">
+        {script.coverImage ? (
+          <img
+            src={getImageUrl(script.coverImage)}
+            alt={script.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+        
+        {/* Trending Badge */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl shadow-lg">
+          <TrendingIcon />
+          <span className="text-white text-[10px] font-black tracking-[0.1em]">TRENDING</span>
+        </div>
+
+        {/* Genre tag */}
+        {script.genre && (
+          <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/10 border border-white/15 rounded-xl backdrop-blur-xl">
+            <span className="text-white text-[11px] font-semibold">{script.genre}</span>
+          </div>
+        )}
+
+        {/* Title Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          <h3 className="text-white font-black text-[17px] line-clamp-2 mb-2 leading-snug tracking-tight">
+            {script.title}
+          </h3>
+          <div className="flex items-center gap-3">
+            {script.rating && (
+              <div className="flex items-center gap-1">
+                <StarIcon filled />
+                <span className="text-white text-[13px] font-bold">{script.rating.toFixed(1)}</span>
+              </div>
+            )}
+            {script.views && (
+              <div className="flex items-center gap-1">
+                <EyeIcon />
+                <span className="text-white/80 text-[12px] font-medium">{script.views.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom info */}
+      <div className="px-4 py-3.5 flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          {script.logline && (
+            <p className={`text-[12px] line-clamp-1 ${dark ? "text-gray-400" : "text-gray-500"}`}>{script.logline}</p>
+          )}
+        </div>
+        <span className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition-colors ml-2 ${
+          dark ? "bg-blue-500/15 text-blue-400 group-hover:bg-blue-500/25" : "bg-blue-50 text-blue-600 group-hover:bg-blue-100"
+        }`}>View →</span>
+      </div>
+    </motion.div>
+  </Link>
+);
+
+// Horizontal Scroll Container
+const HorizontalScroll = ({ children }) => (
+  <div className="relative">
+    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
+      {children}
+    </div>
+    <style>{`
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    `}</style>
+  </div>
+);
+
 
 const FeaturedProjects = () => {
   const { isDarkMode: dark } = useDarkMode();
@@ -565,14 +719,14 @@ const FeaturedProjects = () => {
   const [heroScript, setHeroScript] = useState(null);
   const [heroSlides, setHeroSlides] = useState([]);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroDirection, setHeroDirection] = useState(1);
   const [sponsoredScripts, setSponsoredScripts] = useState([]);
   const [trendingPromotions, setTrendingPromotions] = useState([]);
-  const [newlyPromoted, setNewlyPromoted] = useState([]);
   
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewScript, setPreviewScript] = useState(null);  // trailer modal
+  const [showPromoteComingSoon, setShowPromoteComingSoon] = useState(false);
 
   /* Filter state */
   const [selectedGenre, setSelectedGenre] = useState("");
@@ -588,10 +742,17 @@ const FeaturedProjects = () => {
   useEffect(() => {
     if (heroSlides.length <= 1) return;
     const timer = setInterval(() => {
+      setHeroDirection(1);
       setHeroIndex(i => (i + 1) % heroSlides.length);
     }, 5000);
     return () => clearInterval(timer);
   }, [heroSlides.length]);
+
+  const heroSlideVariants = {
+    enter: (dir) => ({ opacity: 0, x: dir > 0 ? 60 : -60 }),
+    center: { opacity: 1, x: 0 },
+    exit: (dir) => ({ opacity: 0, x: dir > 0 ? -60 : 60 }),
+  };
 
   const activeFilterCount = [
     selectedGenre,
@@ -608,23 +769,24 @@ const FeaturedProjects = () => {
     setSelectedPremium("all");
   };
 
+  const handlePromoteClick = () => {
+    setShowPromoteComingSoon(true);
+  };
+
   useEffect(() => {
     fetchFeatured();
   }, [selectedSort, selectedGenre, selectedContentType, selectedBudget, selectedPremium]);
 
   const fetchFeatured = async () => {
     setLoading(true);
-    setLoadError("");
     try {
-      const [featuredRes, trendingRes, recentRes] = await Promise.all([
+      const [featuredRes, trendingRes] = await Promise.all([
         api.get("/scripts/featured"),
-        api.get("/scripts?sort=views&limit=12"),
-        api.get("/scripts?sort=createdAt&limit=8")
+        api.get("/scripts?sort=views&limit=12")
       ]);
 
       let allScripts = featuredRes.data || [];
       const trendingData = trendingRes.data || [];
-      const recentData = recentRes.data || [];
 
       // Separate sponsored/premium scripts
       const sponsored = allScripts.filter(s => s.premium || s.isFeatured);
@@ -632,7 +794,7 @@ const FeaturedProjects = () => {
 
       // Set hero (top sponsored or first featured)
       setHeroScript(sponsored[0] || allScripts[0] || null);
-      setHeroSlides(sponsored.length > 0 ? sponsored.slice(0, 5) : allScripts.slice(0, 5));
+      setHeroSlides(sponsored.length > 0 ? sponsored : allScripts);
 
       // Sponsored section (exclude hero)
       setSponsoredScripts(sponsored.slice(1, 7));
@@ -643,39 +805,40 @@ const FeaturedProjects = () => {
         .slice(0, 8);
       setTrendingPromotions(trending);
 
-      // Newly promoted (recent featured)
-      const recent = recentData
-        .filter(s => s.premium || s.isFeatured)
-        .slice(0, 6);
-      setNewlyPromoted(recent);
-
       setScripts(allScripts);
       const params = new URLSearchParams();
       params.append("sort", selectedSort);
-      params.append("limit", "24");
       if (selectedGenre) params.append("genre", selectedGenre);
       if (selectedContentType) params.append("contentType", selectedContentType);
       if (selectedBudget) params.append("budget", selectedBudget);
       if (selectedPremium === "premium") params.append("premium", "true");
       else if (selectedPremium === "free") params.append("premium", "false");
 
-      const { data } = await api.get(`/scripts?${params.toString()}`, { timeout: 10000 });
-      const rows = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.scripts)
-          ? data.scripts
-          : [];
-      setScripts(rows.slice(0, 24));
+      const { data } = await api.get(`/scripts?${params.toString()}`);
+      const raw = Array.isArray(data) ? data : [];
+
+      /*  Client-side sort guarantee  */
+      const sorted = [...raw].sort((a, b) => {
+        if (selectedSort === "views") return (b.views || 0) - (a.views || 0);
+        if (selectedSort === "score") return (b.scriptScore?.overall || 0) - (a.scriptScore?.overall || 0);
+        if (selectedSort === "price_high") return (Number(b.price) || 0) - (Number(a.price) || 0);
+        if (selectedSort === "price_low") return (Number(a.price) || 0) - (Number(b.price) || 0);
+        if (selectedSort === "createdAt") return new Date(b.createdAt) - new Date(a.createdAt);
+        /* engagement / trending default */
+        const engA = a.engagementScore || a.views || 0;
+        const engB = b.engagementScore || b.views || 0;
+        return engB - engA;
+      });
+
+      setScripts(sorted.slice(0, 24));
     } catch {
       setScripts([]);
-      setLoadError("Unable to load featured projects right now. Please retry.");
     }
     setLoading(false);
   };
 
   const getImageUrl = (url) => {
-    if (!url) return null;
-    return url.startsWith("http") ? url : `http://localhost:5002${url}`;
+    return resolveMediaUrl(url) || null;
   };
 
   const rankBadge = (index) => {
@@ -713,12 +876,14 @@ const FeaturedProjects = () => {
 
   /*  Pill Button Helper  */
   const Pill = ({ active, onClick, children, variant = "default" }) => {
-    const base = "px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap border cursor-pointer select-none";
+    const base = "px-4 py-[8px] rounded-xl text-[12px] font-semibold transition-all duration-250 whitespace-nowrap border cursor-pointer select-none";
     const styles = active
-      ? "bg-[#111111] text-white border-[#111111] shadow-sm shadow-[#111111]/15"
+      ? dark
+        ? "bg-white text-gray-900 border-white shadow-md shadow-white/10"
+        : "bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-900/15"
       : dark
-        ? "bg-white/[0.04] text-gray-300 border-[#444] hover:border-[#555] hover:text-gray-200"
-        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:shadow-sm";
+        ? "bg-white/[0.04] text-gray-300 border-white/[0.08] hover:border-white/15 hover:bg-white/[0.07] hover:text-gray-200"
+        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50";
     return (
       <button onClick={onClick} className={`${base} ${styles}`}>
         {children}
@@ -729,7 +894,7 @@ const FeaturedProjects = () => {
   /*  Filter Section Header  */
   const FilterSection = ({ label, children }) => (
     <div className="space-y-2.5">
-      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-0.5">{label}</h4>
+      <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-0.5">{label}</h4>
       <div className="flex flex-wrap gap-2">
         {children}
       </div>
@@ -737,63 +902,68 @@ const FeaturedProjects = () => {
   );
 
   return (
-    <div className="w-full px-0 pt-0 pb-0">
-      {/* ── Header ── */}
+    <div className="max-w-6xl mx-auto">
+      {/* ── Premium Header with Promote CTA ── */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease }}
-        className={`mb-6 rounded-2xl border p-6 relative overflow-hidden ${dark ? "bg-[#0d1926] border-[#1a2e47]" : "bg-white border-[#1e3a5f]/20 shadow-sm"}`}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease }}
+        className="px-1 sm:px-0 py-2 mb-8"
       >
-        <div className={`absolute inset-0 pointer-events-none ${dark
-          ? "bg-gradient-to-br from-[#1e3a5f]/10 via-transparent to-transparent"
-          : "bg-gradient-to-br from-[#1e3a5f]/[0.03] via-transparent to-transparent"
-        }`} />
-        <div className="relative flex items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-[#111111] to-[#3a7bd5]" />
-              <h1 className={`text-3xl lg:text-4xl font-extrabold tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>Featured Projects</h1>
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+        <div className="flex items-start justify-between gap-6 mb-2">
+          <div className="flex-1">
+            <div className="flex items-center gap-4 mb-3">
+              <div className={`relative w-10 h-10 rounded-xl border flex items-center justify-center ${
+                dark
+                  ? "bg-[#08203a]/78 border-[#6e98c3]/40"
+                  : "bg-white/82 border-[#c5d8ee]"
+              }`}>
+                <svg className={`w-4 h-4 ${dark ? "text-white/80" : "text-[#24486d]"}`} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="16" rx="3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 15l3-3 2.6 2.6L15.5 11 18 13.5" />
+                  <circle cx="16.5" cy="8.5" r="1.4" fill="currentColor" stroke="none" />
+                </svg>
+                <div className={`absolute -inset-1.5 rounded-2xl border pointer-events-none ${dark ? "border-white/10" : "border-[#315f8f]/20"}`} />
+              </div>
+              <div>
+                <h1 className={`text-[30px] sm:text-[34px] leading-none font-bold tracking-[-0.02em] ${dark ? "text-white" : "text-[#0f2745]"}`}>
+                    Featured Projects
+                  </h1>
+                <p className={`text-[14px] font-normal leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                  Spotlight scripts and sponsored picks designed for stronger discovery and faster investor reach.
+                </p>
+              </div>
             </div>
-            <p className="text-base text-gray-500 font-medium ml-[18px]">
-              Most talked-about scripts and highest-value projects
-            </p>
           </div>
-          <p className="text-base text-gray-500 font-medium tabular-nums hidden sm:block">
-            {scripts.length} project{scripts.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      </motion.div>
 
-      {/* ══ AD PAGE TOP HEADER BAR ══ */}
-      <div className={`rounded-2xl mb-6 overflow-hidden border ${
-        dark ? "bg-gradient-to-r from-[#0a1628] via-[#0d1f3a] to-[#0a1628] border-blue-500/20" : "bg-gradient-to-r from-[#0f2044] via-[#1a3a6e] to-[#0f2044] border-blue-400/30"
-      }`}>
-        <div className="flex items-center justify-between px-6 py-4 flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg">
-              <svg className="w-4 h-4 text-blue-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-              <span className="text-white text-xs font-black tracking-widest uppercase">Promoted Content</span>
-            </div>
-            <span className={`text-sm font-medium ${ dark ? "text-blue-200/70" : "text-blue-100/80"}`}>Premium placements for maximum visibility</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-white/70 text-xs font-semibold">Live Ads Running</span>
-            </div>
-            <Link to="/promote" className="flex items-center gap-2 px-4 py-2 bg-white text-[#0f2044] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all shadow-lg">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-              Advertise Your Project
-            </Link>
-          </div>
+          {/* Promote Your Project CTA */}
+          <button
+            onClick={handlePromoteClick}
+            className={`group flex items-center gap-2.5 px-5 py-2.5 rounded-[999px] font-semibold text-[13px] transition-all duration-200 whitespace-nowrap border ${
+              dark
+                ? "bg-white/8 border-white/20 text-white hover:bg-white/14 hover:border-white/30"
+                : "bg-white border-[#c8d9f0] text-[#15345a] hover:bg-[#f3f8ff] hover:border-[#aac4e6]"
+            }`}
+          >
+            <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Advertise at Top
+          </button>
         </div>
-      </div>
+
+        {showPromoteComingSoon && (
+          <div className={`mt-3 rounded-xl border px-4 py-3 text-sm font-semibold ${dark ? "bg-[#0f1d2f] border-[#2a4468] text-[#b6d4ff]" : "bg-[#eef6ff] border-[#c5dcfb] text-[#1e3a5f]"}`}>
+            Feature coming soon. Advertising tools are being prepared.
+          </div>
+        )}
+
+      </motion.div>
 
       {/* ══ FEATURED CAROUSEL ══ */}
       {heroSlides.length > 0 && (() => {
         const slide = heroSlides[heroIndex];
+        const useLightFallbackText = !dark && !slide.coverImage;
         return (
           <motion.div
             initial={{ opacity: 0 }}
@@ -801,14 +971,16 @@ const FeaturedProjects = () => {
             transition={{ duration: 0.5, delay: 0.1, ease }}
             className="mb-8"
           >
-            <div className="relative overflow-hidden rounded-2xl h-[560px] group border-2 border-blue-500/20 shadow-2xl shadow-blue-500/10">
+            <div className={`relative overflow-hidden rounded-2xl h-[300px] sm:h-[360px] group border ${dark ? "border-[#23324a] bg-[#0f1726]" : "border-[#d9e4f2] bg-[#f4f8ff]"}`}>
               {/* Slides */}
-              <AnimatePresence mode="wait">
+              <AnimatePresence custom={heroDirection} mode="wait">
                 <motion.div
                   key={slide._id}
-                  initial={{ opacity: 0, x: 60 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -60 }}
+                  custom={heroDirection}
+                  variants={heroSlideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
                   transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
                   className="absolute inset-0"
                 >
@@ -816,57 +988,76 @@ const FeaturedProjects = () => {
                   {slide.coverImage ? (
                     <>
                       <img src={getImageUrl(slide.coverImage)} alt={slide.title} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-transparent" />
                     </>
                   ) : (
-                    <div className={`w-full h-full ${dark ? "bg-gradient-to-br from-[#0a0e1a] via-[#111827] to-[#1e293b]" : "bg-gradient-to-br from-gray-900 via-[#0f1c30] to-[#1e3a5f]"}`} />
+                    <div className={`relative w-full h-full ${dark ? "bg-[#1a2a3d]" : "bg-[#cfd9e4]"}`}>
+                      <div className={`absolute -top-16 -left-14 w-60 h-60 rounded-full border ${dark ? "border-white/10" : "border-white/45"}`} />
+                      <div className={`absolute -bottom-20 -right-10 w-72 h-72 rounded-full border ${dark ? "border-white/10" : "border-white/45"}`} />
+                      <div className={`absolute top-8 right-16 w-32 h-32 rounded-full border ${dark ? "border-white/10" : "border-white/60"}`} />
+                      <div className={`absolute bottom-8 left-16 w-24 h-24 rounded-full border ${dark ? "border-white/10" : "border-white/60"}`} />
+
+                      <div className="absolute inset-0 flex items-center justify-center px-6">
+                        <div className="relative w-[250px] h-[250px] flex items-center justify-center">
+                          <div className={`absolute w-36 h-36 rounded-full border ${dark ? "border-white/10" : "border-white/70"}`} />
+                          <div className={`absolute w-24 h-24 rounded-full border ${dark ? "border-white/20" : "border-[#1e3a5f]/15"}`} />
+
+                          <div className={`relative w-24 h-24 rounded-3xl border backdrop-blur-xl flex items-center justify-center ${dark ? "bg-[#0a1628]/70 border-white/20 text-white/90" : "bg-white/80 border-white text-[#1e3a5f]"}`}>
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-2.25m-19.5 0v-9A2.25 2.25 0 014.5 4.5h15a2.25 2.25 0 012.25 2.25v9m-19.5 0l3.72-3.72a1.5 1.5 0 012.12 0l1.91 1.91m-2.03 2.03l4.78-4.78a1.5 1.5 0 012.12 0l4.88 4.88M15.75 8.25h.008v.008h-.008V8.25z" />
+                            </svg>
+                          </div>
+
+                          <div className={`absolute -bottom-1 -left-1 w-8 h-8 rounded-full border flex items-center justify-center ${dark ? "bg-[#1e3a5f]/60 border-white/20 text-white/80" : "bg-white border-[#1e3a5f]/20 text-[#1e3a5f]"}`}>
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {/* Content */}
-                  <div className="absolute inset-0 flex flex-col justify-end p-10">
+                  <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8">
                     {/* Top badges row */}
-                    <div className="absolute top-5 left-5 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 rounded-lg shadow-lg">
-                        <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                        <span className="text-white font-black text-[11px] tracking-widest uppercase">{slide.premium ? "Premium Ad" : "Sponsored"}</span>
-                      </div>
-                      {slide.genre && <span className="px-2.5 py-1.5 bg-black/40 backdrop-blur-sm text-white/90 text-[11px] font-bold rounded-lg border border-white/15">{slide.genre}</span>}
-                    </div>
-
-                    {/* Slide counter top-right */}
-                    <div className="absolute top-6 right-6 px-3 py-1.5 bg-black/40 backdrop-blur-sm rounded-full border border-white/20">
-                      <span className="text-white/80 text-xs font-semibold">{heroIndex + 1} / {heroSlides.length}</span>
+                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                      {(slide.verifiedBadge || slide.premium || slide.isFeatured) && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0f2f54]/72 border border-[#8db7e6]/40">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-white/95 font-semibold text-[10px] tracking-[0.15em] uppercase">Verified</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="max-w-3xl">
-                      <h2 className="text-5xl font-black text-white mb-4 leading-tight drop-shadow-2xl">
+                      <h2 className={`text-[28px] sm:text-[36px] font-semibold mb-2 leading-[1.02] tracking-[-0.01em] ${useLightFallbackText ? "text-[#0f2745]" : "text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.32)]"}`}>
                         {slide.title}
                       </h2>
-                      {slide.logline && (
-                        <p className="text-lg text-gray-200 font-medium mb-6 line-clamp-2 drop-shadow-lg">{slide.logline}</p>
+                      {(slide.logline || slide.description || slide.synopsis) && (
+                        <p className={`text-sm sm:text-[15px] font-normal mb-4 line-clamp-2 max-w-2xl ${useLightFallbackText ? "text-[#2d4866]" : "text-white/82"}`}>{slide.logline || slide.description || slide.synopsis}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-3 mb-8">
-                        {slide.genre && <span className="px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg text-white text-sm font-semibold border border-white/20">{slide.genre}</span>}
+                      <div className="flex flex-wrap items-center gap-2 mb-5">
+                        {slide.genre && <span className={`px-3 py-1 backdrop-blur-sm rounded-full text-xs sm:text-[13px] font-medium border ${useLightFallbackText ? "bg-white/70 border-[#b6cbe4] text-[#16395e]" : "bg-white/[0.08] border-white/15 text-white/90"}`}>{slide.genre}</span>}
                         {slide.rating && (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                          <div className={`flex items-center gap-1.5 px-3 py-1 backdrop-blur-sm rounded-full border ${useLightFallbackText ? "bg-white/70 border-[#b6cbe4]" : "bg-white/[0.08] border-white/15"}`}>
                             <StarIcon filled />
-                            <span className="text-white text-sm font-bold">{slide.rating.toFixed(1)}</span>
+                            <span className={`text-xs sm:text-[13px] font-semibold ${useLightFallbackText ? "text-[#16395e]" : "text-white/95"}`}>{slide.rating.toFixed(1)}</span>
                           </div>
                         )}
                         {slide.views && (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                          <div className={`flex items-center gap-1.5 px-3 py-1 backdrop-blur-sm rounded-full border ${useLightFallbackText ? "bg-white/70 border-[#b6cbe4]" : "bg-white/[0.08] border-white/15"}`}>
                             <EyeIcon />
-                            <span className="text-white text-sm font-semibold">{slide.views.toLocaleString()} views</span>
+                            <span className={`text-xs sm:text-[13px] font-medium ${useLightFallbackText ? "text-[#16395e]" : "text-white/90"}`}>{slide.views.toLocaleString()} views</span>
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Link to={`/scripts/${slide._id}`} className="px-8 py-4 bg-white text-gray-900 rounded-xl font-black text-base shadow-2xl hover:bg-blue-50 transition-all hover:scale-105">
+                      <div className="flex items-center gap-2.5">
+                        <Link to={`/script/${slide._id}`} className={`inline-flex items-center gap-2 text-[15px] sm:text-base font-semibold tracking-[0.01em] transition-all duration-200 hover:translate-x-0.5 ${useLightFallbackText ? "text-[#0f2745] hover:text-[#0a1d35]" : "text-white/95 hover:text-white"}`}>
                           View Project →
-                        </Link>
-                        <Link to={`/scripts/${slide._id}`} className="px-6 py-4 bg-blue-600/80 hover:bg-blue-600 backdrop-blur-sm text-white rounded-xl font-bold text-base border border-blue-400/50 transition-all">
-                          Quick Preview
                         </Link>
                       </div>
                     </div>
@@ -878,34 +1069,26 @@ const FeaturedProjects = () => {
               {heroSlides.length > 1 && (
                 <>
                   <button
-                    onClick={() => setHeroIndex(i => (i - 1 + heroSlides.length) % heroSlides.length)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white transition-all hover:scale-110"
+                    onClick={() => {
+                      setHeroDirection(-1);
+                      setHeroIndex(i => (i - 1 + heroSlides.length) % heroSlides.length);
+                    }}
+                    className={`absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full transition-all ${useLightFallbackText ? "text-[#15375d]/85 hover:text-[#15375d]" : "text-white/90 hover:text-white"}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                   </button>
                   <button
-                    onClick={() => setHeroIndex(i => (i + 1) % heroSlides.length)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white transition-all hover:scale-110"
+                    onClick={() => {
+                      setHeroDirection(1);
+                      setHeroIndex(i => (i + 1) % heroSlides.length);
+                    }}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full transition-all ${useLightFallbackText ? "text-[#15375d]/85 hover:text-[#15375d]" : "text-white/90 hover:text-white"}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
                   </button>
                 </>
               )}
 
-              {/* Dot indicators */}
-              {heroSlides.length > 1 && (
-                <div className="absolute bottom-5 right-10 flex items-center gap-2 z-20">
-                  {heroSlides.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setHeroIndex(i)}
-                      className={`transition-all duration-300 rounded-full ${
-                        i === heroIndex ? "w-7 h-2.5 bg-white" : "w-2.5 h-2.5 bg-white/40 hover:bg-white/70"
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
           </motion.div>
         );
@@ -923,274 +1106,37 @@ const FeaturedProjects = () => {
         >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1 bg-blue-600 rounded-lg">
-                <span className="text-white text-[11px] font-black tracking-widest">AD</span>
-              </div>
               <div>
-                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Sponsored Projects
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                  Spotlight
                 </h2>
-                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>Premium promoted content</p>
+                <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Handpicked promoted projects with spotlight placement</p>
               </div>
             </div>
-            <Link to="/promote" className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-              dark ? "border-blue-500/30 text-blue-400 hover:bg-blue-500/10" : "border-blue-300 text-blue-600 hover:bg-blue-50"
-            }`}>+ Promote your project</Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sponsoredScripts.map((script, idx) => (
-              <SponsoredCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── TRENDING PROMOTIONS CAROUSEL ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {trendingPromotions.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3, ease }}
-          className="mb-10"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg">
-                <TrendingIcon />
-                <span className="text-white text-[11px] font-black tracking-widest">TRENDING</span>
-              </div>
-              <div>
-                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Trending Promotions
-                </h2>
-                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>High engagement featured projects</p>
-              </div>
-            </div>
-          </div>
-
-          <HorizontalScroll>
-            {trendingPromotions.map((script) => (
-              <TrendingCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
-            ))}
-          </HorizontalScroll>
-        </motion.div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── NEWLY PROMOTED CAROUSEL ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {newlyPromoted.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4, ease }}
-          className="mb-10"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className={`h-8 w-1 rounded-full bg-gradient-to-b from-green-500 to-emerald-500`} />
-              <div>
-                <h2 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
-                  Newly Promoted
-                </h2>
-                <p className={`text-sm ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                  Recently featured projects
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <HorizontalScroll>
-            {newlyPromoted.map((script) => (
-              <NewlyPromotedCard key={script._id} script={script} getImageUrl={getImageUrl} dark={dark} />
-            ))}
-          </HorizontalScroll>
-        </motion.div>
-      )}
-
-      {/* ── Filter bar ── */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, delay: 0.08, ease }}
-        className="mb-6"
-      >
-        {/* Top row — filter toggle + sort + results count */}
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <div className="flex items-center gap-3">
-            {/* Filter toggle button */}
-            <button
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 border ${filtersOpen || activeFilterCount > 0
-                ? "bg-[#111111] text-white border-[#111111] shadow-sm"
-                : dark
-                  ? "bg-white/[0.04] text-gray-300 border-[#444] hover:border-[#555]"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
-                }`}
-            >
-              <FilterIcon />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 bg-white/20 rounded-md text-xs font-bold">
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown open={filtersOpen} />
+            <button onClick={handlePromoteClick} className={`group flex items-center gap-1.5 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all duration-200 ${
+              dark ? "border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400/35" : "border-[#1e3a5f]/20 text-[#1e3a5f] hover:bg-[#1e3a5f]/[0.05] hover:border-[#1e3a5f]/30"
+            }`}>
+              <svg className="w-3.5 h-3.5 transition-transform group-hover:rotate-90 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Promote yours
             </button>
-
-            {/* Active filter tags */}
-            {activeFilterCount > 0 && (
-              <div className="hidden sm:flex items-center gap-2">
-                {selectedGenre && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-xs font-bold">
-                    {selectedGenre}
-                    <button onClick={() => setSelectedGenre("")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                {selectedContentType && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-xs font-bold">
-                    {CONTENT_TYPES.find(c => c.key === selectedContentType)?.label || selectedContentType}
-                    <button onClick={() => setSelectedContentType("")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                {selectedBudget && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-xs font-bold">
-                    {budgetLabel[selectedBudget]} Budget
-                    <button onClick={() => setSelectedBudget("")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                {selectedPremium !== "all" && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#111111]/[0.06] text-[#111111] rounded-lg text-xs font-bold">
-                    {selectedPremium === "premium" ? "Premium" : "Free"}
-                    <button onClick={() => setSelectedPremium("all")} className="hover:bg-[#111111]/10 rounded p-0.5 transition-colors"><XIcon /></button>
-                  </span>
-                )}
-                <button
-                  onClick={clearAllFilters}
-                  className="text-sm font-semibold text-gray-500 hover:text-red-500 transition-colors px-2 py-1"
-                >
-                  Clear all
-                </button>
-              </div>
-            )}
           </div>
 
-
-        </div>
-
-        {/*  Collapsible filter panel  */}
-        <AnimatePresence>
-          {filtersOpen && (
-            <motion.div
-              ref={filterRef}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-              className="overflow-hidden"
-            >
-              <div className={`${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"} rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 border`}>
-                {/* Sort By */}
-                <FilterSection label="Sort By">
-                  {SORT_OPTIONS.map((opt) => (
-                    <Pill
-                      key={opt.key}
-                      active={selectedSort === opt.key}
-                      onClick={() => setSelectedSort(opt.key)}
-                    >
-                      <span className="flex items-center">{opt.label}</span>
-                    </Pill>
-                  ))}
-                </FilterSection>
-
-                <div className={`border-t ${dark ? "border-[#333]" : "border-gray-100"}`} />
-
-                {/* Genre */}
-                <FilterSection label="Genre">
-                  <Pill active={!selectedGenre} onClick={() => setSelectedGenre("")}>All Genres</Pill>
-                  {GENRES.map((g) => (
-                    <Pill
-                      key={g}
-                      active={selectedGenre === g}
-                      onClick={() => setSelectedGenre(selectedGenre === g ? "" : g)}
-                    >
-                      {g}
-                    </Pill>
-                  ))}
-                </FilterSection>
-
-                <div className={`border-t ${dark ? "border-[#333]" : "border-gray-100"}`} />
-
-                {/* Content Type */}
-                <FilterSection label="Content Type">
-                  <Pill active={!selectedContentType} onClick={() => setSelectedContentType("")}>All Types</Pill>
-                  {CONTENT_TYPES.map((ct) => (
-                    <Pill
-                      key={ct.key}
-                      active={selectedContentType === ct.key}
-                      onClick={() => setSelectedContentType(selectedContentType === ct.key ? "" : ct.key)}
-                    >
-                      {ct.label}
-                    </Pill>
-                  ))}
-                </FilterSection>
-
-                <div className={`border-t ${dark ? "border-[#333]" : "border-gray-100"}`} />
-
-                {/* Budget + Premium row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FilterSection label="Budget Range">
-                    <Pill active={!selectedBudget} onClick={() => setSelectedBudget("")}>Any</Pill>
-                    {BUDGETS.map((b) => (
-                      <Pill
-                        key={b.key}
-                        active={selectedBudget === b.key}
-                        onClick={() => setSelectedBudget(selectedBudget === b.key ? "" : b.key)}
-                      >
-                        {b.label}
-                      </Pill>
-                    ))}
-                  </FilterSection>
-
-                  <FilterSection label="Pricing">
-                    {PREMIUM_OPTIONS.map((p) => (
-                      <Pill
-                        key={p.key}
-                        active={selectedPremium === p.key}
-                        onClick={() => setSelectedPremium(p.key)}
-                      >
-                        {p.label}
-                      </Pill>
-                    ))}
-                  </FilterSection>
-                </div>
-
-                {/* Clear All (mobile) */}
-                {activeFilterCount > 0 && (
-                  <div className="flex sm:hidden justify-end pt-2">
-                    <button
-                      onClick={clearAllFilters}
-                      className={`text-sm font-semibold transition-colors px-3 py-1.5 rounded-xl ${dark ? "text-red-400 hover:text-red-300 border border-red-500/30 bg-red-500/10" : "text-red-500 hover:text-red-600 border border-red-200 bg-red-50"}`}
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {sponsoredScripts.map((script, idx) => (
+              <SponsoredCard key={script._id} script={script} />
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/*  Loading  */}
       {loading && (
-        <div className="flex items-center justify-center py-28">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-[2.5px] border-gray-200 border-t-[#111111] rounded-full animate-spin"></div>
-            <p className="text-base text-gray-500 font-medium">Loading projects…</p>
+        <div className="flex items-center justify-center py-32">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative w-10 h-10">
+              <div className={`absolute inset-0 border-[2.5px] rounded-full animate-spin ${dark ? "border-white/10 border-t-blue-400" : "border-gray-200 border-t-[#1e3a5f]"}`} />
+            </div>
+            <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-400"}`}>Discovering featured projects…</p>
           </div>
         </div>
       )}
@@ -1198,33 +1144,17 @@ const FeaturedProjects = () => {
       {/*  Empty state  */}
       {!loading && scripts.length === 0 && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className={`text-center py-24 rounded-2xl border ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`text-center py-28 rounded-2xl border ${dark ? "bg-[#0a1628] border-[#1a3050]" : "bg-white border-gray-100"}`}
         >
-          <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
-            <svg className={`w-8 h-8 ${dark ? "text-gray-500" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <div className={`w-16 h-16 mx-auto mb-5 rounded-2xl flex items-center justify-center ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
+            <svg className={`w-7 h-7 ${dark ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
           </div>
-          <p className={`text-2xl font-extrabold mb-1 ${dark ? "text-gray-200" : "text-gray-700"}`}>{loadError ? "Couldn’t load Featured Projects" : "No projects found"}</p>
-          <p className="text-base text-gray-500 mb-4">{loadError || "Try adjusting your filters or check back later"}</p>
-          {loadError && (
-            <button
-              onClick={fetchFeatured}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111111] text-white rounded-xl text-base font-semibold hover:bg-[#000000] transition-colors shadow-sm mr-2"
-            >
-              Retry loading
-            </button>
-          )}
-          {activeFilterCount > 0 && (
-            <button
-              onClick={clearAllFilters}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111111] text-white rounded-xl text-base font-semibold hover:bg-[#000000] transition-colors shadow-sm"
-            >
-              Clear all filters
-            </button>
-          )}
+          <p className={`text-lg font-black mb-1.5 ${dark ? "text-gray-200" : "text-gray-700"}`}>No Projects Found</p>
+          <p className={`text-[13px] font-medium mb-5 ${dark ? "text-gray-500" : "text-gray-400"}`}>No promoted projects are available right now.</p>
         </motion.div>
       )}
 
@@ -1239,343 +1169,6 @@ const FeaturedProjects = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Hero card (top #1) ── */}
-      {!loading && scripts.length > 0 && (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${selectedSort}-${selectedGenre}-${selectedContentType}-${selectedBudget}-${selectedPremium}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease }}
-          >
-            {/* ── Featured Carousel (top 5) ── */}
-            <FeaturedCarousel
-              scripts={scripts}
-              dark={dark}
-              getImageUrl={getImageUrl}
-              onWatchPreview={setPreviewScript}
-            />
-
-            {/* ── Grid cards (#6+, or all if carousel didn't consume them) ── */}
-            {scripts.length > 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {scripts.slice(1).map((script, idx) => {
-                  const rank = rankBadge(idx + 1);
-                  const metric = getFeaturedMetric(script);
-                  const hasCover = !!script.coverImage;
-                  const isHovered = hoveredCard === (script._id || idx);
-                  // Popularity bar relative to top metric
-                  const allMetricVals = scripts.slice(1).map(s => {
-                    const m = getFeaturedMetric(s);
-                    return typeof m.value === "string" ? parseFloat(m.value.replace(/[$,]/g, "")) || 0 : Number(m.value) || 0;
-                  });
-                  const maxMetric = Math.max(...allMetricVals, 1);
-                  const thisVal = typeof metric.value === "string" ? parseFloat(metric.value.replace(/[$,]/g, "")) || 0 : Number(metric.value) || 0;
-                  const popularityPct = Math.round((thisVal / maxMetric) * 100);
-
-                  return (
-                    <motion.div
-                      key={script._id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: Math.min(idx * 0.04, 0.4), duration: 0.3, ease }}
-                      onMouseEnter={() => setHoveredCard(script._id || idx)}
-                      onMouseLeave={() => setHoveredCard(null)}
-                    >
-                      <Link
-                        to={`/script/${script._id}`}
-                        className={`group block rounded-2xl overflow-hidden hover:-translate-y-1.5 transition-all duration-300 shadow-sm hover:shadow-2xl border ${
-                          dark
-                            ? `border-[#1a3050] bg-[#080f1e] hover:border-[#2a4570] hover:shadow-blue-500/10`
-                            : `border-gray-100 bg-white hover:border-[#111111]/20 hover:shadow-gray-200/60`
-                        }`}
-                      >
-                        {/* ── Cover Section ── */}
-                        <div className="relative h-[300px] bg-gradient-to-br from-[#091a2f] via-[#0f2d52] to-[#1a4a7a] overflow-hidden">
-                          {hasCover ? (
-                            <>
-                              <img src={getImageUrl(script.coverImage)} alt={script.title} className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-                            </>
-                          ) : (
-                            <>
-                              <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full border border-white/[0.04]" />
-                              <div className="absolute bottom-12 -left-4 w-20 h-20 rounded-full border border-white/[0.03]" />
-                              <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-6">
-                                <h4 className="text-xl font-extrabold text-white leading-tight line-clamp-2 tracking-tight mb-1.5">{script.title}</h4>
-                                <p className="text-sm text-white/50 line-clamp-2 leading-relaxed">{script.logline || script.description || script.synopsis || ""}</p>
-                              </div>
-                            </>
-                          )}
-
-                          {/* Rank badge */}
-                          <div className="absolute top-3 left-3">
-                            {rank ? (
-                              <div className={`w-8 h-8 ${rank.bg} rounded-lg flex items-center justify-center shadow-lg ring-1 ring-white/10`}>
-                                <span className={`text-xs font-extrabold ${rank.text}`}>{rank.label}</span>
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 bg-black/30 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/15">
-                                <span className="text-xs font-bold text-white">#{idx + 2}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Rating badge top-right */}
-                          {script.scriptScore?.overall > 0 && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/10">
-                              <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-sm font-bold text-amber-300 tabular-nums">{script.scriptScore.overall}</span>
-                            </div>
-                          )}
-
-                          {/* Price / free tag */}
-                          {script.premium ? (
-                            <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm rounded-lg">
-                              <span className="text-sm font-extrabold text-white">${script.price}</span>
-                            </div>
-                          ) : (
-                            <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-emerald-500/80 backdrop-blur-sm rounded-lg">
-                              <span className="text-xs font-bold text-white">Free</span>
-                            </div>
-                          )}
-
-                          {/* Genre tag */}
-                          {(script.genre || script.primaryGenre) && (
-                            <span className="absolute bottom-3 left-3 text-xs font-bold text-white/90 bg-white/15 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
-                              {script.primaryGenre || script.genre}
-                            </span>
-                          )}
-
-                          {/* Hover overlay */}
-                          <AnimatePresence>
-                            {isHovered && (
-                              <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.18 }}
-                                className="absolute inset-0 bg-[#0a1628]/85 backdrop-blur-sm flex flex-col justify-end p-4 z-20"
-                                onClick={(e) => e.preventDefault()}
-                              >
-                                {/* Preview text */}
-                                {(script.logline || script.description || script.synopsis) && (
-                                  <p className="text-sm text-white/75 leading-relaxed line-clamp-3 mb-3">
-                                    {script.logline || script.description || script.synopsis}
-                                  </p>
-                                )}
-                                {/* Action buttons */}
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <CardSaveBtn scriptId={script._id} dark={dark} />
-                                  <button
-                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewScript(script); }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm transition-colors"
-                                  >
-                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M8 5.14v14l11-7-11-7z" />
-                                    </svg>
-                                    {script.trailerUrl ? "Trailer" : "Preview"}
-                                  </button>
-                                  <Link
-                                    to={`/script/${script._id}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold bg-[#111111] hover:bg-[#2a5080] text-white transition-colors"
-                                  >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                                    </svg>
-                                    Details
-                                  </Link>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        {/* ── Info Section ── */}
-                        <div className="p-4">
-                          {/* Title */}
-                          <h3 className={`text-xl font-bold leading-snug line-clamp-1 mb-2 transition-colors ${
-                            dark ? "text-gray-100 group-hover:text-blue-400" : "text-gray-900 group-hover:text-[#111111]"
-                          }`}>
-                            {script.title}
-                          </h3>
-
-                          {/* Popularity bar */}
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className={`text-xs font-bold uppercase tracking-widest ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                                {SORT_OPTIONS.find(o => o.key === selectedSort)?.label || "Score"}
-                              </span>
-                              <span className={`text-sm font-extrabold tabular-nums ${dark ? "text-gray-200" : "text-gray-700"}`}>
-                                {metric.value}
-                              </span>
-                            </div>
-                            <div className={`h-1 rounded-full overflow-hidden ${dark ? "bg-[#1a3050]" : "bg-gray-100"}`}>
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${popularityPct}%` }}
-                                transition={{ duration: 0.7, delay: idx * 0.04 + 0.2, ease: "easeOut" }}
-                                className="h-full rounded-full bg-gradient-to-r from-[#111111] to-[#3a7bd5]"
-                              />
-                            </div>
-                          </div>
-
-                          <div className={`border-t mb-3 ${dark ? "border-[#1a3050]" : "border-gray-100"}`} />
-
-                          {/* Creator + stats row */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center overflow-hidden ring-1 shrink-0 ${
-                                dark ? "bg-[#111111]/20 ring-[#333]" : "bg-[#111111]/[0.08] ring-gray-100"
-                              }`}>
-                                {script.creator?.profileImage ? (
-                                  <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-[9px] font-bold text-[#111111]">{script.creator?.name?.charAt(0)?.toUpperCase() || "?"}</span>
-                                )}
-                              </div>
-                              <span className={`text-sm font-semibold truncate ${dark ? "text-gray-400" : "text-gray-500"}`}>
-                                {script.creator?.name || "Unknown"}
-                              </span>
-                            </div>
-
-                            {/* Stats */}
-                            <div className={`flex items-center gap-2.5 shrink-0 ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                              <div className="flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span className="text-sm font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
-                              </div>
-                              {script.pageCount && (
-                                <div className="flex items-center gap-1">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                  </svg>
-                                  <span className="text-sm font-semibold tabular-nums">{script.pageCount}p</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/*  Info panel  */}
-                        <div className="p-5">
-                          {/* Title */}
-                          <h4 className={`text-[15px] font-extrabold leading-snug mb-1.5 line-clamp-2 ${dark ? "text-white" : "text-gray-900"}`}>
-                            {script.title}
-                          </h4>
-
-                          {/* Logline / description */}
-                          {(script.logline || script.description || script.synopsis) && (
-                            <p className={`text-[12px] leading-relaxed line-clamp-2 mb-3 ${dark ? "text-white/40" : "text-gray-500"}`}>
-                              {script.logline || script.description || script.synopsis}
-                            </p>
-                          )}
-
-                          {/* Badges row */}
-                          <div className="flex items-center gap-2 flex-wrap mb-4">
-                            {script.genre && (
-                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-                                dark ? "bg-[#1e3a5f]/20 text-[#7aafff] border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"
-                              }`}>{script.genre}</span>
-                            )}
-                            {script.contentType && (
-                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${
-                                dark ? "bg-white/[0.05] text-white/40 border-white/[0.07]" : "bg-gray-100 text-gray-500 border-gray-200"
-                              }`}>{script.contentType.replace(/_/g, " ")}</span>
-                            )}
-                            {script.budget && (
-                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border capitalize ${
-                                dark ? "bg-white/[0.04] text-white/30 border-white/[0.06]" : "bg-gray-50 text-gray-400 border-gray-100"
-                              }`}>{script.budget} budget</span>
-                            )}
-                          </div>
-
-                          {/* Rank bar */}
-                          <div className="mb-4">
-                            <div className={`flex items-center justify-between mb-1`}>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/25" : "text-gray-400"}`}>
-                                {SORT_OPTIONS.find(s => s.key === selectedSort)?.label || "Rank"}
-                              </span>
-                              <span className={`text-[11px] font-bold tabular-nums ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>
-                                {getRankValue(script)}
-                              </span>
-                            </div>
-                            <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>
-                              <div
-                                className="h-full rounded-full bg-gradient-to-r from-[#1e3a5f] to-[#3a7bd5] transition-all duration-700"
-                                style={{ width: `${getRankBarPct(script)}%` }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Stats row */}
-                          <div className={`flex items-center gap-4 pb-4 mb-4 border-b ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                            <div className={`flex items-center gap-1.5 ${dark ? "text-white/35" : "text-gray-400"}`}>
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.007-9.963-7.178z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              <span className="text-[12px] font-semibold tabular-nums">{(script.views || 0).toLocaleString()}</span>
-                            </div>
-                            {script.pageCount && (
-                              <div className={`flex items-center gap-1.5 ${dark ? "text-white/35" : "text-gray-400"}`}>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
-                                <span className="text-[12px] font-semibold tabular-nums">{script.pageCount}pp</span>
-                              </div>
-                            )}
-                            {script.scriptScore?.overall > 0 && (
-                              <div className={`ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
-                                dark ? "bg-[#1e3a5f]/15 border-[#1e3a5f]/25" : "bg-[#1e3a5f]/[0.05] border-[#1e3a5f]/10"
-                              }`}>
-                                <svg className={`w-3.5 h-3.5 ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`} fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-                                </svg>
-                                <span className={`text-[12px] font-bold ${dark ? "text-[#7aafff]" : "text-[#1e3a5f]"}`}>{script.scriptScore.overall}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Creator row + CTA */}
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-full overflow-hidden ring-2 shrink-0 ${dark ? "ring-white/10" : "ring-gray-200"}`}>
-                              {script.creator?.profileImage ? (
-                                <img src={getImageUrl(script.creator.profileImage)} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className={`w-full h-full flex items-center justify-center text-[11px] font-bold ${dark ? "bg-[#1e3a5f] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"}`}>
-                                  {script.creator?.name?.charAt(0)?.toUpperCase() || "?"}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-[12px] font-semibold truncate ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.creator?.name || "Unknown"}</p>
-                              <p className={`text-[10px] ${dark ? "text-white/25" : "text-gray-400"}`}>Author</p>
-                            </div>
-                            <span className={`text-[12px] font-bold px-4 py-2 rounded-xl border transition-all group-hover:scale-105 ${
-                              dark
-                                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]/60 group-hover:bg-[#243f6a]"
-                                : "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-sm group-hover:bg-[#162d4a]"
-                            }`}>Read →</span>
-                          </div>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-                </div>
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
-      )}
     </div>
   );
 };

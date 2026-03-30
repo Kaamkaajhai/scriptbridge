@@ -33,13 +33,34 @@ const scriptSchema = new mongoose.Schema({
   contentType: { type: String, enum: ["movie", "tv_series", "anime", "documentary", "short_film", "web_series", "book", "startup"], default: "movie" },
   status: { type: String, enum: ["draft", "published", "pending_approval", "rejected"], default: "draft" },
   adminApproved: { type: Boolean, default: false },
+  publishedAt: { type: Date },
 
   // Enhanced metadata for writer onboarding
   format: {
     type: String,
-    enum: ["feature", "feature_film", "tv_1hour", "tv_pilot_1hour", "tv_halfhour", "tv_pilot_halfhour", "play", "short", "short_film", "web_series"],
+    enum: [
+      "feature",
+      "feature_film",
+      "tv_1hour",
+      "tv_pilot_1hour",
+      "tv_halfhour",
+      "tv_pilot_halfhour",
+      "play",
+      "short",
+      "short_film",
+      "web_series",
+      "limited_series",
+      "documentary",
+      "drama_school",
+      "anime",
+      "movie",
+      "tv_serial",
+      "cartoon",
+      "other",
+    ],
     default: "feature_film"
   },
+  formatOther: { type: String, trim: true, maxlength: 120 },
   primaryGenre: { type: String },
   subGenres: [{ type: String }],
 
@@ -67,11 +88,13 @@ const scriptSchema = new mongoose.Schema({
   services: {
     hosting: { type: Boolean, default: true },
     evaluation: { type: Boolean, default: false },
-    aiTrailer: { type: Boolean, default: false }
+    aiTrailer: { type: Boolean, default: false },
+    spotlight: { type: Boolean, default: false }
   },
   billing: {
     evaluationCreditsCharged: { type: Number, default: 0 },
     aiTrailerCreditsCharged: { type: Number, default: 0 },
+    spotlightCreditsChargedAtUpload: { type: Number, default: 0 },
     evaluationCreditsChargedAtUpload: { type: Number, default: 0 },
     aiTrailerCreditsChargedAtUpload: { type: Number, default: 0 },
     evaluationCreditsRefunded: { type: Number, default: 0 },
@@ -85,18 +108,23 @@ const scriptSchema = new mongoose.Schema({
     enum: ["none", "requested", "completed"],
     default: "none",
   },
+  evaluationRequestedAt: { type: Date },
 
   // Legal & Compliance
   legal: {
     agreedToTerms: { type: Boolean, default: false },
     timestamp: { type: Date },
-    ipAddress: { type: String }
+    ipAddress: { type: String },
+    termsVersion: { type: String },
+    customInvestorTerms: { type: String, default: "", trim: true, maxlength: 3000 },
+    customInvestorTermsUpdatedAt: { type: Date },
   },
 
   premium: { type: Boolean, default: false },
   verifiedBadge: { type: Boolean, default: false },
   promotion: {
     spotlightActive: { type: Boolean, default: false },
+    pendingSpotlightActivation: { type: Boolean, default: false },
     spotlightStartAt: { type: Date },
     spotlightEndAt: { type: Date },
     lastSpotlightPurchaseAt: { type: Date },
@@ -108,6 +136,9 @@ const scriptSchema = new mongoose.Schema({
   purchaseRequestLockedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   purchaseRequestLockedAt: { type: Date },
   unlockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  purchasedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  isDeleted: { type: Boolean, default: false, index: true },
+  deletedAt: { type: Date },
   // AI Trailer (Text-to-Trailer)
   trailerUrl: { type: String },
   trailerThumbnail: { type: String },

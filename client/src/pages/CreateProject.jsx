@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Cropper from "react-easy-crop";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -11,11 +11,16 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
+import { jsPDF } from "jspdf";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "lucide-react";
 import api from "../services/api";
 import { formatCurrency } from "../utils/currency";
+import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
+
+const DRAFT_ENDPOINT = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api/scripts/draft`;
+const LOCAL_WORKING_DRAFT_KEY = "create-project-working-draft-v1";
 
 /* -- Constants --------------------------------------- */
 const formats = [
@@ -25,6 +30,13 @@ const formats = [
   { value: "short", label: "Short Film", icon: "SHORT" },
   { value: "limited_series", label: "Limited Series", icon: "SERIES" },
   { value: "documentary", label: "Documentary", icon: "DOC" },
+  { value: "web_series", label: "Web Series", icon: "SERIES" },
+  { value: "drama_school", label: "Drama School", icon: "DOC" },
+  { value: "anime", label: "Anime", icon: "TV" },
+  { value: "movie", label: "Movie", icon: "FILM" },
+  { value: "tv_serial", label: "TV Serial", icon: "TV" },
+  { value: "cartoon", label: "Cartoon", icon: "SHORT" },
+  { value: "other", label: "Other", icon: "DOC" },
 ];
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Fantasy",
@@ -49,10 +61,12 @@ const settingOptions = [
   "Big City", "Wilderness", "Ocean/Sea", "Desert", "Medieval", "Future",
 ];
 const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
-const SERVICE_PRICES = { hosting: 0, evaluation: 10, aiTrailer: 15 };
+const SERVICE_PRICES = { hosting: 0, evaluation: 50, aiTrailer: 120, spotlight: 310 };
 const THUMBNAIL_ASPECT = 3 / 4;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
+const MAX_THUMBNAIL_SOURCE_SIZE = 25 * 1024 * 1024;
 const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
+const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
 
 const createImage = (url) => new Promise((resolve, reject) => {
   const image = new Image();
@@ -72,7 +86,7 @@ const getRotatedSize = (width, height, rotation) => {
   };
 };
 
-const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
+const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0, outputType = "image/jpeg", jpegQuality = 0.92) => {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -108,7 +122,8 @@ const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
   );
 
   return new Promise((resolve) => {
-    cropCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92);
+    const quality = outputType === "image/jpeg" ? jpegQuality : undefined;
+    cropCanvas.toBlob((blob) => resolve(blob), outputType, quality);
   });
 };
 
@@ -120,8 +135,15 @@ const FORMAT_PAGE_RANGES = {
   short: { min: 1, max: 40, typical: "5-25", label: "Short Film", wordsPerPage: 250 },
   limited_series: { min: 45, max: 75, typical: "50-65", label: "Limited Series", wordsPerPage: 250 },
   documentary: { min: 60, max: 120, typical: "70-100", label: "Documentary", wordsPerPage: 250 },
+  web_series: { min: 20, max: 80, typical: "25-45", label: "Web Series", wordsPerPage: 250 },
+  drama_school: { min: 10, max: 60, typical: "15-35", label: "Drama School", wordsPerPage: 250 },
+  anime: { min: 18, max: 65, typical: "22-45", label: "Anime", wordsPerPage: 250 },
+  movie: { min: 70, max: 180, typical: "90-120", label: "Movie", wordsPerPage: 250 },
+  tv_serial: { min: 18, max: 50, typical: "20-35", label: "TV Serial", wordsPerPage: 250 },
+  cartoon: { min: 7, max: 45, typical: "10-25", label: "Cartoon", wordsPerPage: 250 },
+  other: { min: 1, max: 250, typical: "Varies", label: "Other", wordsPerPage: 250 },
 };
-const LEGAL_AGREEMENT = `SUBMISSION RELEASE AGREEMENT\n\nBy submitting your script ("Work") to Ckript ("Platform"), you agree to these terms:\n\n1. OWNERSHIP AND AUTHORITY\nYou confirm that you own the Work or have legal authority to publish it.\n\n2. ORIGINALITY AND NON-INFRINGEMENT\nYou confirm the Work is original and does not violate third-party rights.\n\n3. PLATFORM LICENSE\nYou grant Ckript a non-exclusive, worldwide, royalty-free license to host, display, distribute, and promote the Work on the Platform.\n\n4. FEES AND REFUNDS\nHosting fees are recurring and non-refundable. One-time service fees are non-refundable once processing starts.\n\n5. YOUR RIGHTS\nYou keep ownership of your Work.\n\n6. REMOVAL\nYou may request removal of your Work from the Platform at any time, subject to platform policy and completed transactions.\n\nBy selecting "I agree," you confirm that you read and accept this agreement.\n\nLast Updated: ${new Date().toLocaleDateString()}`;
+const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
 
 const TEXT_COLORS = [
   { label: "Default", value: null },
@@ -158,7 +180,7 @@ const STEPS = [
   { num: 2, label: "Details", desc: "Genre & media" },
   { num: 3, label: "Classify", desc: "Tones & themes" },
   { num: 4, label: "Publish", desc: "Pricing & services" },
-  { num: 5, label: "Review", desc: "Final review & invoice" },
+  { num: 5, label: "Review", desc: "Final review" },
 ];
 
 /* -- Toolbar Icon Button ---------------------------- */
@@ -385,6 +407,7 @@ const CreateProject = () => {
   const navigate = useNavigate();
   const { draftId } = useParams();
   const agreementRef = useRef(null);
+  const reviewRedirectTimerRef = useRef(null);
 
   // Wizard state
   const [step, setStep] = useState(1);
@@ -400,8 +423,12 @@ const CreateProject = () => {
   const [charCount, setCharCount] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showUnderReviewModal, setShowUnderReviewModal] = useState(false);
   const [grammarLoading, setGrammarLoading] = useState(false);
   const [grammarNotes, setGrammarNotes] = useState([]);
+  const lastDraftSignatureRef = useRef("");
+  const autoSaveInFlightRef = useRef(false);
+  const localDraftHydratedRef = useRef(false);
 
   // Grammar credit confirmation + undo/keep
   const GRAMMAR_COST = 5;
@@ -412,7 +439,7 @@ const CreateProject = () => {
   const [showUndoBar, setShowUndoBar] = useState(false);
 
   // Step 2: Details
-  const [formData, setFormData] = useState({ format: "feature", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
+  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
 
   // File Upload State
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -432,6 +459,8 @@ const CreateProject = () => {
   const [thumbnailRotation, setThumbnailRotation] = useState(0);
   const [thumbnailCropPixels, setThumbnailCropPixels] = useState(null);
   const [thumbnailApplying, setThumbnailApplying] = useState(false);
+  const [thumbnailSourceName, setThumbnailSourceName] = useState("thumbnail");
+  const [thumbnailSourceType, setThumbnailSourceType] = useState("image/jpeg");
 
   const resetThumbnailEditor = useCallback(() => {
     setIsThumbnailEditorOpen(false);
@@ -452,12 +481,14 @@ const CreateProject = () => {
       setError("Please select an image file for thumbnail.");
       return;
     }
-    if (file.size > MAX_THUMBNAIL_SIZE) {
-      setError("Thumbnail must be an image under 5MB.");
+    if (file.size > MAX_THUMBNAIL_SOURCE_SIZE) {
+      setError("Thumbnail source image is too large. Please choose an image under 25MB.");
       return;
     }
 
     setError("");
+    setThumbnailSourceName(file.name || "thumbnail");
+    setThumbnailSourceType(file.type || "image/jpeg");
     const sourceUrl = URL.createObjectURL(file);
     setThumbnailSourceUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -483,20 +514,46 @@ const CreateProject = () => {
 
     setThumbnailApplying(true);
     try {
-      const croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation);
+      const preferredType = ["image/png", "image/webp", "image/gif", "image/jpeg", "image/jpg"].includes(thumbnailSourceType)
+        ? thumbnailSourceType.replace("image/jpg", "image/jpeg")
+        : "image/jpeg";
+
+      let outputType = preferredType;
+      let croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, outputType);
+
+      if (!croppedBlob && outputType !== "image/jpeg") {
+        outputType = "image/jpeg";
+        croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, outputType);
+      }
+
       if (!croppedBlob) throw new Error("thumbnail-processing-failed");
+
+      if (croppedBlob.size > MAX_THUMBNAIL_SIZE && outputType !== "image/jpeg") {
+        outputType = "image/jpeg";
+        croppedBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, outputType, 0.9);
+      }
+
+      if (croppedBlob?.size > MAX_THUMBNAIL_SIZE && outputType === "image/jpeg") {
+        for (let quality = 0.82; quality >= 0.6; quality -= 0.08) {
+          const retryBlob = await getCroppedThumbnailBlob(thumbnailSourceUrl, thumbnailCropPixels, thumbnailRotation, "image/jpeg", quality);
+          if (retryBlob) croppedBlob = retryBlob;
+          if (croppedBlob?.size <= MAX_THUMBNAIL_SIZE) break;
+        }
+      }
+
       if (croppedBlob.size > MAX_THUMBNAIL_SIZE) {
-        setError("Processed thumbnail exceeds 5MB. Reduce zoom/area and retry.");
+        setError("Processed thumbnail is still above 5MB. Crop a smaller area and retry.");
         return;
       }
 
-      const baseName = (thumbnailFile?.name || "thumbnail").replace(/\.[^/.]+$/, "");
-      const processedFile = new File([croppedBlob], `${baseName}-cover.jpg`, { type: "image/jpeg" });
+      const baseName = (thumbnailSourceName || "thumbnail").replace(/\.[^/.]+$/, "");
+      const ext = outputType === "image/png" ? "png" : outputType === "image/webp" ? "webp" : outputType === "image/gif" ? "gif" : "jpg";
+      const processedFile = new File([croppedBlob], `${baseName}-cover.${ext}`, { type: outputType });
       setThumbnailFile(processedFile);
       setError("");
       resetThumbnailEditor();
-    } catch {
-      setError("Could not process thumbnail. Please try another image.");
+    } catch (err) {
+      setError(err?.message || "Could not process thumbnail. Please try another image.");
     } finally {
       setThumbnailApplying(false);
     }
@@ -589,6 +646,12 @@ const CreateProject = () => {
     return () => window.cancelAnimationFrame(frameId);
   }, [step]);
 
+  useEffect(() => () => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+    }
+  }, []);
+
   // Auto-calculated page count from word count + format
   const formatInfo = FORMAT_PAGE_RANGES[formData.format] || FORMAT_PAGE_RANGES.feature;
   const estimatedPages = Math.max(1, Math.round(wordCount / formatInfo.wordsPerPage));
@@ -596,7 +659,7 @@ const CreateProject = () => {
   const renderPageMarkers = () => Array.from({ length: Math.max(estimatedPages, 1) }, (_, pageIndex) => (
     <div
       key={pageIndex}
-      className="absolute left-3 flex items-center justify-center"
+      className="absolute left-3 flex items-center justify-center max-[1200px]:hidden"
       style={{ top: pageIndex * 1122 + 48, height: 28 }}
     >
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-[#0d1520] text-gray-600 border border-[#182840]" : "bg-white text-gray-400 border border-gray-300 shadow-sm"}`}>
@@ -611,19 +674,17 @@ const CreateProject = () => {
   const [classification, setClassification] = useState({ tones: [], themes: [], settings: [] });
 
   // Step 4: Services & Legal
-  const [services, setServices] = useState({ hosting: true, evaluation: false, aiTrailer: false });
-  const [legal, setLegal] = useState({ agreedToTerms: false });
+  const [services, setServices] = useState({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
+  const [legal, setLegal] = useState({ agreedToTerms: false, customInvestorTerms: "" });
   const [creditsBalance, setCreditsBalance] = useState(0);
 
   // Step 4: Script pricing
-  const PRICE_PRESETS = [5, 10, 15, 25, 50];
-  const PLATFORM_FEE = 0.2; // 20%
+  const PLATFORM_FEE = 0.05; // 5%
   const [isPremium, setIsPremium] = useState(false);
   const [scriptPrice, setScriptPrice] = useState(10);
-  const [customPriceInput, setCustomPriceInput] = useState("");
-  const [useCustomPrice, setUseCustomPrice] = useState(false);
-  const effectivePrice = isPremium ? (useCustomPrice ? Number(customPriceInput) || 0 : scriptPrice) : 0;
-  const writerEarns = Math.round(effectivePrice * (1 - PLATFORM_FEE) * 100) / 100;
+  const effectivePrice = isPremium ? Number(scriptPrice) || 0 : 0;
+  const platformFeeAmount = Math.round(effectivePrice * PLATFORM_FEE * 100) / 100;
+  const writerEarns = Math.round((effectivePrice - platformFeeAmount) * 100) / 100;
   const FORMAT_PRICE_GUIDE = {
     feature: { label: "Feature Film", min: 15, max: 50, suggest: 25 },
     tv_1hour: { label: "TV 1-Hour", min: 10, max: 30, suggest: 15 },
@@ -640,7 +701,7 @@ const CreateProject = () => {
       TextStyle, Color, Underline,
       Placeholder.configure({ placeholder: "Start writing your script here...  e.g.  INT. LIVING ROOM - DAY" }),
     ],
-    editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[1056px] px-16 py-14 ${dark ? "prose-invert" : ""}` } },
+    editorProps: { attributes: { class: `prose max-w-none focus:outline-none min-h-[1056px] px-16 max-[1200px]:px-10 py-14 max-[1200px]:py-12 max-[640px]:px-6 max-[520px]:px-4 max-[420px]:px-3 max-[640px]:py-10 text-[15px] max-[520px]:text-[14px] leading-[1.65] ${dark ? "prose-invert" : ""}` } },
     onUpdate: ({ editor }) => {
       const t = editor.getText();
       setWordCount(t.split(/\s+/).filter(Boolean).length);
@@ -668,6 +729,7 @@ const CreateProject = () => {
       setTitle(data.title || ""); setScriptId(data._id);
       if (editor && data.textContent) editor.commands.setContent(data.textContent);
       if (data.format) setFormData(f => ({ ...f, format: data.format }));
+      if (data.formatOther !== undefined) setFormData(f => ({ ...f, formatOther: data.formatOther || "" }));
       if (data.pageCount) setFormData(f => ({ ...f, pageCount: String(data.pageCount) }));
       if (data.classification?.primaryGenre || data.genre) setFormData(f => ({ ...f, primaryGenre: data.classification?.primaryGenre || data.genre || "" }));
       if (data.logline) setFormData(f => ({ ...f, logline: data.logline }));
@@ -687,28 +749,246 @@ const CreateProject = () => {
         })));
       }
       if (data.classification) setClassification({ tones: data.classification.tones || [], themes: data.classification.themes || [], settings: data.classification.settings || [] });
+      setLegal((prev) => ({
+        ...prev,
+        agreedToTerms: Boolean(data?.legal?.agreedToTerms),
+        customInvestorTerms: data?.legal?.customInvestorTerms || "",
+      }));
+      lastDraftSignatureRef.current = `${(data.title || "Untitled Draft").trim()}::${String(data.textContent || "").length}:${String(data.textContent || "").slice(0, 120)}:${String(data.textContent || "").slice(-120)}`;
+      setSaved(true);
       setShowDrafts(false);
     } catch { }
   }, [editor]);
   useEffect(() => { if (draftId && editor) loadDraft(draftId); }, [draftId, editor, loadDraft]);
 
-  // Auto-save every 30s
-  useEffect(() => {
-    if (!editor) return;
-    const iv = setInterval(() => { if (!saved && editor.getHTML().length > 15) handleSave(true); }, 30000);
-    return () => clearInterval(iv);
-  }, [editor, saved]);
+  const buildDraftPayload = useCallback(() => {
+    if (!editor) return null;
+    return {
+      title: title?.trim() ? title.trim() : "Untitled Draft",
+      textContent: editor.getHTML(),
+      legal: {
+        agreedToTerms: Boolean(legal.agreedToTerms),
+        termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+        customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
+      },
+      ...(scriptId ? { scriptId } : {}),
+    };
+  }, [editor, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
+
+  const getDraftSignature = useCallback((payload) => {
+    if (!payload) return "";
+    const html = String(payload.textContent || "");
+    return `${payload.title || ""}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
+  }, []);
+
+  const hasMeaningfulDraft = useCallback((payload) => {
+    if (!payload) return false;
+    const htmlText = String(payload.textContent || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return Boolean((payload.title || "").trim() || htmlText.length >= 10);
+  }, []);
+
+  const queueKeepaliveDraftSave = useCallback((reason = "close") => {
+    const payload = buildDraftPayload();
+    if (!hasMeaningfulDraft(payload)) return false;
+
+    const signature = getDraftSignature(payload);
+    if (!signature || signature === lastDraftSignatureRef.current) return false;
+
+    const stored = localStorage.getItem("user");
+    let token = "";
+    if (stored) {
+      try {
+        token = JSON.parse(stored)?.token || "";
+      } catch {
+        token = "";
+      }
+    }
+
+    fetch(DRAFT_ENDPOINT, {
+      method: "POST",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "X-Draft-Save-Reason": reason,
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+
+    lastDraftSignatureRef.current = signature;
+    return true;
+  }, [buildDraftPayload, getDraftSignature, hasMeaningfulDraft]);
 
   // Save draft
-  const handleSave = async (auto = false) => {
-    if (!editor) return; setSaving(true);
+  const handleSave = useCallback(async (auto = false) => {
+    if (!editor) return;
+    if (auto && autoSaveInFlightRef.current) return;
+
+    const payload = buildDraftPayload();
+    if (!hasMeaningfulDraft(payload)) return;
+
+    const signature = getDraftSignature(payload);
+    if (auto && signature === lastDraftSignatureRef.current) {
+      setSaved(true);
+      return;
+    }
+
+    if (auto) {
+      autoSaveInFlightRef.current = true;
+    } else {
+      setSaving(true);
+    }
+
     try {
-      const body = { title: title || "Untitled Draft", textContent: editor.getHTML(), ...(scriptId ? { scriptId } : {}) };
-      const { data } = await api.post("/scripts/draft", body);
-      setScriptId(data._id); setSaved(true); setLastSaved(new Date());
+      const { data } = await api.post("/scripts/draft", payload);
+      setScriptId(data._id);
+      setSaved(true);
+      setLastSaved(new Date());
+      lastDraftSignatureRef.current = signature;
       if (!auto) fetchDrafts();
-    } catch (err) { console.error("Save failed:", err); } finally { setSaving(false); }
-  };
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      if (auto) {
+        autoSaveInFlightRef.current = false;
+      } else {
+        setSaving(false);
+      }
+    }
+  }, [buildDraftPayload, editor, fetchDrafts, getDraftSignature, hasMeaningfulDraft]);
+
+  const clearLocalWorkingDraft = useCallback(() => {
+    try {
+      localStorage.removeItem(LOCAL_WORKING_DRAFT_KEY);
+    } catch {
+      // Ignore localStorage failures in private mode/restricted environments.
+    }
+  }, []);
+
+  const restoreLocalWorkingDraft = useCallback(() => {
+    if (!editor || localDraftHydratedRef.current || draftId) return;
+
+    localDraftHydratedRef.current = true;
+    try {
+      const raw = localStorage.getItem(LOCAL_WORKING_DRAFT_KEY);
+      if (!raw) return;
+
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== "object") return;
+      if (data.userId && user?._id && data.userId !== user._id) return;
+
+      if (typeof data.title === "string") {
+        setTitle(data.title);
+      }
+
+      if (typeof data.textContent === "string" && data.textContent.trim()) {
+        editor.commands.setContent(data.textContent);
+      }
+
+      if (typeof data.step === "number" && data.step >= 1 && data.step <= 5) {
+        setStep(data.step);
+      }
+
+      if (typeof data.scriptId === "string" && data.scriptId.trim()) {
+        setScriptId(data.scriptId);
+      }
+    } catch {
+      // Ignore invalid/stale local snapshots.
+    }
+  }, [draftId, editor, user?._id]);
+
+  useEffect(() => {
+    restoreLocalWorkingDraft();
+  }, [restoreLocalWorkingDraft]);
+
+  useEffect(() => {
+    if (!editor || draftId) return;
+
+    const html = editor.getHTML();
+    const plainText = String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const trimmedTitle = title.trim();
+    const hasContent = Boolean(trimmedTitle || plainText.length >= 10);
+
+    if (!hasContent) {
+      clearLocalWorkingDraft();
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          LOCAL_WORKING_DRAFT_KEY,
+          JSON.stringify({
+            userId: user?._id || null,
+            scriptId: scriptId || null,
+            title,
+            textContent: html,
+            step,
+            updatedAt: Date.now(),
+          })
+        );
+      } catch {
+        // Ignore localStorage write failures.
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [charCount, clearLocalWorkingDraft, draftId, editor, scriptId, step, title, user?._id, wordCount]);
+
+  // Debounced autosave while typing title/content.
+  useEffect(() => {
+    if (!editor) return;
+    const payload = buildDraftPayload();
+    if (!hasMeaningfulDraft(payload)) return;
+
+    const timeoutId = setTimeout(() => {
+      handleSave(true);
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [title, charCount, wordCount, editor, buildDraftPayload, handleSave, hasMeaningfulDraft]);
+
+  // Interval fallback autosave every 3 seconds.
+  useEffect(() => {
+    if (!editor) return;
+    const iv = setInterval(() => {
+      handleSave(true);
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [editor, handleSave]);
+
+  // Save draft when user closes tab, switches away, or navigates away.
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleBeforeUnload = (event) => {
+      const queued = queueKeepaliveDraftSave("beforeunload");
+      if (!queued) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const handlePageHide = () => {
+      queueKeepaliveDraftSave("pagehide");
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        queueKeepaliveDraftSave("hidden");
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      queueKeepaliveDraftSave("unmount");
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [editor, queueKeepaliveDraftSave]);
 
   // Delete draft
   const handleDeleteDraft = async (id) => {
@@ -718,8 +998,76 @@ const CreateProject = () => {
     } catch { }
   };
 
+  const sanitizePdfFileName = (value = "") => {
+    const safe = String(value)
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/\s+/g, " ");
+    return safe || "script";
+  };
+
+  const handleDownloadMainContentPdf = () => {
+    if (!editor) return;
+
+    const plainText = editor.getText({ blockSeparator: "\n\n" }).trim();
+    if (!plainText) {
+      setError("Write some main content before downloading PDF.");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const marginX = 48;
+      const marginTop = 56;
+      const lineHeight = 16;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const usableWidth = pageWidth - marginX * 2;
+      const usableHeight = pageHeight - marginTop * 2;
+
+      const scriptTitle = title?.trim() || "Untitled Draft";
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      const titleLines = doc.splitTextToSize(scriptTitle, usableWidth);
+      let y = marginTop;
+      doc.text(titleLines, marginX, y);
+      y += titleLines.length * 22;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      const contentLines = doc.splitTextToSize(plainText, usableWidth);
+
+      for (const line of contentLines) {
+        if (y + lineHeight > marginTop + usableHeight) {
+          doc.addPage();
+          y = marginTop;
+        }
+        doc.text(line, marginX, y);
+        y += lineHeight;
+      }
+
+      const fileBase = sanitizePdfFileName(scriptTitle);
+      doc.save(`${fileBase}.pdf`);
+    } catch {
+      setError("Failed to generate PDF. Please try again.");
+    }
+  };
+
   // Form handlers
-  const handleChange = e => { const { name, value } = e.target; setFormData(f => ({ ...f, [name]: value })); };
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((f) => {
+      if (name === "format") {
+        return {
+          ...f,
+          format: value,
+          formatOther: value === "other" ? f.formatOther : "",
+        };
+      }
+      return { ...f, [name]: value };
+    });
+  };
   const addRole = () => {
     setRoles((prev) => ([
       ...prev,
@@ -745,26 +1093,76 @@ const CreateProject = () => {
   const removeRole = (index) => {
     setRoles((prev) => prev.filter((_, i) => i !== index));
   };
+  const getInvalidRoleAgeRangeMessage = () => {
+    const invalidIndex = roles.findIndex((role) => {
+      const min = role?.ageRange?.min;
+      const max = role?.ageRange?.max;
+      if (min === "" || max === "" || min === undefined || max === undefined || min === null || max === null) {
+        return false;
+      }
+      const minAge = Number(min);
+      const maxAge = Number(max);
+      if (!Number.isFinite(minAge) || !Number.isFinite(maxAge)) {
+        return true;
+      }
+      return maxAge < minAge;
+    });
+
+    if (invalidIndex >= 0) {
+      return `Role ${invalidIndex + 1}: Max age must be greater than or equal to min age.`;
+    }
+
+    return "";
+  };
   const toggleChip = (cat, val) => {
     setClassification(prev => {
       const arr = prev[cat]; return { ...prev, [cat]: arr.includes(val) ? arr.filter(v => v !== val) : arr.length < 3 ? [...arr, val] : arr };
     });
   };
-  const calculateTotal = () => (services.evaluation ? SERVICE_PRICES.evaluation : 0) + (services.aiTrailer ? SERVICE_PRICES.aiTrailer : 0);
+  const calculateTotal = () =>
+    (services.evaluation ? SERVICE_PRICES.evaluation : 0)
+    + (services.aiTrailer ? SERVICE_PRICES.aiTrailer : 0)
+    + (services.spotlight ? SERVICE_PRICES.spotlight : 0);
   const totalServiceCost = calculateTotal();
   const selectedPublishServices = [
     { key: "hosting", name: "Hosting & Discovery", price: 0, enabled: true, desc: "Listed in the marketplace for discovery" },
-    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader" },
+    { key: "spotlight", name: "Activate Spotlight", price: SERVICE_PRICES.spotlight, enabled: services.spotlight, desc: "Priority visibility boost in marketplace placements" },
     { key: "aiTrailer", name: "AI Concept Trailer", price: SERVICE_PRICES.aiTrailer, enabled: services.aiTrailer, desc: "60-second cinematic concept trailer" },
+    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader" },
   ];
   const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
   const creditsAfterPublish = creditsBalance - totalServiceCost;
-  const publishInvoiceRows = [
+  const trailerWorkflowHint = services.aiTrailer
+    ? trailerFile
+      ? {
+          tone: "info",
+          title: "Trailer workflow",
+          text: "Your uploaded trailer is used immediately after publish. AI Concept Trailer will replace it only when AI output is approved and ready.",
+        }
+      : {
+          tone: "warn",
+          title: "Trailer workflow",
+          text: "AI Concept Trailer is selected without an uploaded trailer. Your project may show no trailer until the AI trailer is generated.",
+        }
+    : trailerFile
+      ? {
+          tone: "success",
+          title: "Trailer workflow",
+          text: "Your uploaded trailer will be shown in your project after publish.",
+        }
+      : null;
+  const publishSummaryRows = [
     {
       item: "Script Access",
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
       type: "Revenue Setting",
       amount: isPremium ? formatCurrency(effectivePrice) : "Free",
+    },
+    {
+      item: `Platform Fee (${Math.round(PLATFORM_FEE * 100)}%)`,
+      detail: isPremium ? "Charged by platform per premium purchase" : "No platform fee on free access",
+      type: "Platform Fee",
+      amount: isPremium ? formatCurrency(platformFeeAmount) : formatCurrency(0),
     },
     {
       item: "Optional Services",
@@ -780,44 +1178,14 @@ const CreateProject = () => {
     },
   ];
 
-  const handleInvoicePdfAction = async (invoiceId, invoiceNo, action = "open") => {
-    const { data } = await api.get(`/invoices/${invoiceId}/pdf`, {
-      params: action === "download" ? { download: 1 } : {},
-      responseType: "blob",
-    });
-    const blobUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
-
-    if (action === "download") {
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `${invoiceNo || "invoice"}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-      return;
-    }
-
-    window.open(blobUrl, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
-  };
-
-  const offerInvoiceActions = async (invoice) => {
-    if (!invoice?._id) return;
-
-    const shouldOpen = window.confirm("Project submitted for admin approval. Open your saved invoice PDF now?");
-    if (shouldOpen) {
-      await handleInvoicePdfAction(invoice._id, invoice.invoiceNumber, "open");
-    }
-
-    const shouldDownload = window.confirm("Download this invoice PDF as well?");
-    if (shouldDownload) {
-      await handleInvoicePdfAction(invoice._id, invoice.invoiceNumber, "download");
-    }
-  };
-
   const publishReviewItems = [
-    { label: "Format", value: formats.find((item) => item.value === formData.format)?.label || "Not selected" },
+    {
+      label: "Format",
+      value:
+        formData.format === "other"
+          ? (String(formData.formatOther || "").trim() || "Other")
+          : (formats.find((item) => item.value === formData.format)?.label || "Not selected"),
+    },
     { label: "Primary Genre", value: formData.primaryGenre || "Not selected" },
     { label: "Estimated Pages", value: `${estimatedPages} pages` },
     { label: "Access", value: isPremium ? "Premium paid access" : "Free public access" },
@@ -840,14 +1208,24 @@ const CreateProject = () => {
     }
     if (s === 2) {
       if (!formData.format) { setError("Format is required."); return false; }
+      if (formData.format === "other" && !String(formData.formatOther || "").trim()) {
+        setError("Please specify the format when selecting Other.");
+        return false;
+      }
       if (!formData.primaryGenre) { setError("Primary genre is required."); return false; }
       if (formData.logline && formData.logline.length > 50) { setError("Logline must be 50 chars or less."); return false; }
       if (!formData.synopsis || !formData.synopsis.trim()) { setError("Synopsis is required."); return false; }
+      const ageRangeError = getInvalidRoleAgeRangeMessage();
+      if (ageRangeError) { setError(ageRangeError); return false; }
       return true;
     }
     if (s === 3) return true;
     if (s === 5) {
       if (!legal.agreedToTerms) { setError("You must agree to the terms."); return false; }
+      if (String(legal.customInvestorTerms || "").trim().length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+        setError(`Custom investor terms cannot exceed ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters.`);
+        return false;
+      }
       return true;
     }
     return true;
@@ -855,9 +1233,60 @@ const CreateProject = () => {
   const handleNext = () => { if (validateStep(step) && step < 5) { setStep(step + 1); setError(""); } };
   const handleBack = () => { if (step > 1) { setStep(step - 1); setError(""); } };
 
+  const uploadSelectedProjectMedia = async (targetScriptId) => {
+    if (!targetScriptId) return;
+
+    const tasks = [];
+
+    if (thumbnailFile) {
+      const thumbnailFormData = new FormData();
+      thumbnailFormData.append("thumbnail", thumbnailFile);
+      tasks.push(api.post(`/scripts/${targetScriptId}/upload-thumbnail`, thumbnailFormData));
+    }
+
+    if (trailerFile) {
+      const trailerFormData = new FormData();
+      trailerFormData.append("trailer", trailerFile);
+      tasks.push(api.post(`/scripts/${targetScriptId}/upload-trailer`, trailerFormData));
+    }
+
+    if (tasks.length === 0) return;
+
+    const results = await Promise.allSettled(tasks);
+    const failed = results.find((result) => result.status === "rejected");
+
+    if (failed?.status === "rejected") {
+      const reason = failed.reason;
+      const message = reason?.response?.data?.message || reason?.message || "Failed to upload project media.";
+      throw new Error(message);
+    }
+  };
+
+  const openUnderReviewModal = (redirectPath = "/dashboard") => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+    }
+
+    setShowUnderReviewModal(true);
+    reviewRedirectTimerRef.current = setTimeout(() => {
+      navigate(redirectPath);
+    }, 2400);
+  };
+
+  const handleUnderReviewContinue = () => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+      reviewRedirectTimerRef.current = null;
+    }
+    setShowUnderReviewModal(false);
+    navigate("/dashboard");
+  };
+
   // Publish
   const handlePublish = async () => {
-    if (!validateStep(4)) return;
+    if (!validateStep(5)) return;
+    const ageRangeError = getInvalidRoleAgeRangeMessage();
+    if (ageRangeError) { setError(ageRangeError); return; }
     const creditsNeeded = calculateTotal();
     if (creditsNeeded > creditsBalance) { setError(`Insufficient credits. Need ${creditsNeeded} but have ${creditsBalance}.`); return; }
     setLoading(true); setError("");
@@ -869,6 +1298,7 @@ const CreateProject = () => {
         synopsis: formData.synopsis,
         description: formData.synopsis,
         format: formData.format,
+        formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
         classification: { primaryGenre: formData.primaryGenre, secondaryGenre: null, tones: classification.tones, themes: classification.themes, settings: classification.settings },
         roles: roles
@@ -883,17 +1313,23 @@ const CreateProject = () => {
               max: role.ageRange?.max === "" ? undefined : Number(role.ageRange?.max),
             },
           })),
-        services: { hosting: services.hosting, evaluation: services.evaluation, aiTrailer: services.aiTrailer },
-        legal: { agreedToTerms: legal.agreedToTerms, timestamp: new Date().toISOString() },
+        services: { hosting: services.hosting, evaluation: services.evaluation, aiTrailer: services.aiTrailer, spotlight: services.spotlight },
+        legal: {
+          agreedToTerms: legal.agreedToTerms,
+          timestamp: new Date().toISOString(),
+          termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+          customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
+        },
         premium: isPremium && effectivePrice > 0,
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
         ...(scriptId ? { scriptId } : {}),
       };
       const { data } = await api.post("/scripts/upload", payload);
-      if (scriptId) { try { await api.delete(`/scripts/${scriptId}`); } catch { } }
-      await offerInvoiceActions(data?.invoice);
-      navigate("/dashboard");
-    } catch (err) { setError(err.response?.data?.message || "Failed to publish."); } finally { setLoading(false); }
+      await uploadSelectedProjectMedia(data?._id);
+
+      clearLocalWorkingDraft();
+      openUnderReviewModal("/dashboard");
+    } catch (err) { setError(err.response?.data?.message || err.message || "Failed to publish."); } finally { setLoading(false); }
   };
 
   const escapeHtml = (str = "") =>
@@ -1013,10 +1449,10 @@ const CreateProject = () => {
     : dark ? "bg-white/[0.05] text-gray-400 hover:bg-white/[0.08] border border-[#1d3350]" : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"}`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-4">
+    <div className="max-w-5xl mx-auto px-4 max-[380px]:px-2.5 py-4 overflow-x-hidden">
       {/* -- Header -------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/dashboard")} className={`p-2 rounded-xl transition ${dark ? "hover:bg-white/[0.06] text-gray-400" : "hover:bg-gray-100 text-gray-400"}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -1026,9 +1462,9 @@ const CreateProject = () => {
               <p className={`text-xs mt-0.5 ${dark ? "text-gray-500" : "text-gray-400"}`}>Write, classify, and publish your script - all in one place</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-[640px]:w-full max-[640px]:flex-wrap max-[640px]:justify-between max-[380px]:gap-1.5">
             <button onClick={() => setShowDrafts(!showDrafts)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${dark
+              className={`flex items-center gap-2 px-4 max-[380px]:px-3 py-2 max-[380px]:py-1.5 rounded-xl text-xs font-semibold border transition-all ${dark
                 ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
               Drafts {drafts.length > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${dark ? "bg-white/[0.08]" : "bg-gray-100"}`}>{drafts.length}</span>}
@@ -1044,30 +1480,30 @@ const CreateProject = () => {
 
         {/* -- Step Indicator -- */}
         <div className={`mt-5 rounded-2xl border p-4 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
-          <div className="flex items-center">
+          <div className="flex items-center max-[640px]:grid max-[640px]:grid-cols-5 max-[640px]:gap-1.5">
             {STEPS.map((s, i) => (
-              <div key={s.num} className="flex items-center flex-1">
+              <div key={s.num} className="flex items-center flex-1 min-w-0 max-[640px]:flex-col max-[640px]:items-stretch max-[640px]:gap-1">
                 <button
                   onClick={() => s.num < step && setStep(s.num)}
                   disabled={s.num > step}
-                  className={`flex items-center gap-2.5 transition-all ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
+                  className={`flex items-center gap-2.5 transition-all max-[640px]:flex-col max-[640px]:gap-1 max-[640px]:justify-center ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
                 >
-                  <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
+                  <span className={`w-8 h-8 max-[640px]:w-7 max-[640px]:h-7 rounded-xl flex items-center justify-center text-xs max-[640px]:text-[11px] font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
                       : step > s.num ? dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
                         : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-200 text-gray-400"
                     }`}>
                     {step > s.num ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> : s.num}
                   </span>
-                  <div className="hidden sm:block text-left">
-                    <p className={`text-xs font-bold leading-none ${step === s.num ? dark ? "text-white" : "text-gray-900"
+                  <div className="text-left max-[640px]:text-center max-[420px]:hidden">
+                    <p className={`text-xs max-[640px]:text-[10px] font-bold max-[640px]:font-semibold leading-none truncate ${step === s.num ? dark ? "text-white" : "text-gray-900"
                         : step > s.num ? dark ? "text-emerald-400" : "text-emerald-700"
                           : dark ? "text-gray-600" : "text-gray-400"
                       }`}>{s.label}</p>
-                    <p className={`text-[10px] mt-0.5 ${dark ? "text-gray-700" : "text-gray-400"}`}>{s.desc}</p>
+                    <p className={`text-[10px] mt-0.5 max-[640px]:hidden ${dark ? "text-gray-700" : "text-gray-400"}`}>{s.desc}</p>
                   </div>
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div className={`flex-1 h-[2px] mx-3 rounded-full ${step > s.num ? dark ? "bg-emerald-500/40" : "bg-emerald-300" : dark ? "bg-white/[0.06]" : "bg-gray-200"
+                  <div className={`flex-1 h-[2px] mx-3 max-[640px]:hidden rounded-full ${step > s.num ? dark ? "bg-emerald-500/40" : "bg-emerald-300" : dark ? "bg-white/[0.06]" : "bg-gray-200"
                     }`} />
                 )}
               </div>
@@ -1083,7 +1519,7 @@ const CreateProject = () => {
             <div className={`${cardCls} p-4`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>My Drafts</h3>
-                <button onClick={() => { setScriptId(null); setTitle(""); editor?.commands.clearContent(); setShowDrafts(false); setStep(1); }}
+                <button onClick={() => { setScriptId(null); setTitle(""); editor?.commands.clearContent(); clearLocalWorkingDraft(); setShowDrafts(false); setStep(1); }}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${dark ? "text-gray-400 hover:bg-white/[0.06]" : "text-gray-500 hover:bg-gray-100"}`}>+ New Draft</button>
               </div>
               {loadingDrafts ? <div className="flex gap-3">{[1, 2, 3].map(i => <div key={i} className={`h-16 flex-1 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-100"}`} />)}</div>
@@ -1234,6 +1670,56 @@ const CreateProject = () => {
         document.body
       )}
 
+      {showUnderReviewModal && createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="under-review-modal-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+            style={{ background: "rgba(3, 10, 19, 0.72)", backdropFilter: "blur(6px)" }}
+          >
+            <motion.div
+              key="under-review-modal"
+              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.96 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${dark ? "bg-[#091322] border-white/[0.08]" : "bg-white border-gray-200"}`}
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-300 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+
+              <h3 className={`text-lg font-extrabold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+                Script Submitted Successfully
+              </h3>
+              <p className={`text-sm mt-2 leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                Your script is now under review. Please wait for admin approval. You will be notified once it is approved.
+              </p>
+
+              <div className={`mt-4 rounded-xl border px-3 py-2.5 text-xs ${dark ? "border-white/[0.08] bg-white/[0.03] text-gray-400" : "border-gray-200 bg-gray-50 text-gray-600"}`}>
+                Redirecting automatically...
+              </div>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleUnderReviewContinue}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition"
+                >
+                  Continue
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
       {/* --- Undo/Keep Bar - fixed bottom (always visible) --- */}
       {showUndoBar && createPortal(
         <AnimatePresence>
@@ -1243,9 +1729,9 @@ const CreateProject = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={{ type: "spring", damping: 22, stiffness: 300 }}
-            className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2"
+            className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 max-[420px]:left-2 max-[420px]:right-2 max-[420px]:bottom-3 max-[420px]:translate-x-0"
           >
-            <div className={`rounded-2xl shadow-2xl px-5 py-3.5 flex items-center gap-4 min-w-[340px] max-w-[520px] ${
+            <div className={`rounded-2xl shadow-2xl px-5 py-3.5 flex items-center gap-4 min-w-[340px] max-w-[520px] w-full max-[420px]:min-w-0 max-[420px]:max-w-none max-[420px]:px-3 max-[420px]:py-2.5 max-[420px]:gap-2.5 max-[420px]:flex-col max-[420px]:items-stretch ${
               dark
                 ? "bg-[#0c1424] border border-white/[0.12] shadow-black/60"
                 : "bg-white border border-gray-200 shadow-gray-300/40"
@@ -1274,7 +1760,7 @@ const CreateProject = () => {
               <button
                 type="button"
                 onClick={handleGrammarUndo}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 max-[420px]:w-full ${
                   dark
                     ? "text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-400/40"
                     : "text-amber-600 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300"
@@ -1290,7 +1776,7 @@ const CreateProject = () => {
               <button
                 type="button"
                 onClick={handleGrammarKeep}
-                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.96] shrink-0 max-[420px]:w-full ${
                   dark
                     ? "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-400/40"
                     : "text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
@@ -1471,25 +1957,32 @@ const CreateProject = () => {
             <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-white border-gray-200 shadow-sm"}`}>
 
               {/* -- Top Bar: title + save -- */}
-              <div className={`flex items-center gap-3 px-5 py-3 border-b ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
+              <div className={`flex items-center gap-3 px-5 max-[380px]:px-3 py-3 border-b max-[860px]:flex-col max-[860px]:items-stretch ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
                 <div className="flex-1 min-w-0">
                   <input
                     type="text"
                     value={title}
                     onChange={e => { setTitle(e.target.value); setSaved(false); }}
                     placeholder="Untitled Script"
-                    className={`w-full text-base font-bold bg-transparent outline-none truncate ${dark ? "text-gray-100 placeholder:text-gray-700" : "text-gray-900 placeholder:text-gray-300"}`}
+                    className={`w-full text-base max-[520px]:text-[15px] font-bold bg-transparent outline-none truncate ${dark ? "text-gray-100 placeholder:text-gray-700" : "text-gray-900 placeholder:text-gray-300"}`}
                   />
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {saving && <span className={`flex items-center gap-1.5 text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving...</span>}
-                  {saved && !saving && <span className={`flex items-center gap-1 text-xs ${dark ? "text-emerald-400" : "text-emerald-600"}`}><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
+                <div className="flex items-center gap-2 shrink-0 max-[860px]:w-full max-[860px]:grid max-[860px]:grid-cols-3 max-[860px]:gap-2 max-[419px]:grid-cols-1 max-[380px]:gap-1.5">
+                  {saving && <span className={`flex items-center gap-1.5 text-xs max-[860px]:col-span-3 max-[419px]:col-span-1 ${dark ? "text-gray-500" : "text-gray-400"}`}><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Saving...</span>}
+                  {saved && !saving && <span className={`flex items-center gap-1 text-xs max-[860px]:col-span-3 max-[419px]:col-span-1 ${dark ? "text-emerald-400" : "text-emerald-600"}`}><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Saved</span>}
                   <button onClick={() => handleSave(false)} disabled={saving}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
+                    className={`px-3 py-1.5 max-[520px]:py-2 rounded-lg text-xs font-semibold border transition max-[860px]:w-full ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
                     Save Draft
                   </button>
+                  <button
+                    onClick={handleDownloadMainContentPdf}
+                    disabled={saving}
+                    className={`px-3 py-1.5 max-[520px]:py-2 rounded-lg text-xs font-semibold border transition max-[860px]:w-full ${dark ? "border-[#1d3350] text-gray-400 hover:bg-white/[0.06] hover:text-white" : "border-gray-200 text-gray-500 hover:bg-gray-100"}`}
+                  >
+                    Download PDF
+                  </button>
                   <button onClick={handleGrammarClick} disabled={grammarLoading || saving}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition disabled:opacity-40 ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 max-[520px]:py-2 rounded-lg text-xs font-bold border transition disabled:opacity-40 max-[860px]:w-full ${dark ? "border-emerald-500/25 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
                     {grammarLoading ? <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Fixing...</> : <>AI Fix Grammar <span className={`text-[9px] px-1 py-0.5 rounded ${dark ? "bg-amber-500/15 text-amber-400" : "bg-amber-50 text-amber-600"}`}>{GRAMMAR_COST}cr</span></>}
                   </button>
                 </div>
@@ -1499,7 +1992,7 @@ const CreateProject = () => {
               <EditorToolbar editor={editor} dark={dark} />
 
               {/* -- Page Gutter + Document Canvas -- */}
-              <div className={`relative overflow-y-auto max-h-[72vh] ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`}
+              <div className={`relative overflow-y-auto overflow-x-auto max-[1200px]:overflow-x-hidden max-h-[72vh] ${dark ? "bg-[#05090f]" : "bg-[#e8eaed]"}`}
                 style={{ backgroundImage: dark ? "radial-gradient(circle, #1a2a3a 1px, transparent 1px)" : "radial-gradient(circle, #c8cdd5 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
 
                 {/* Page number gutter labels */}
@@ -1508,10 +2001,10 @@ const CreateProject = () => {
                 </div>
 
                 {/* The actual page(s) */}
-                <div className="flex flex-col items-center gap-0 py-8 px-14">
+                <div className="flex flex-col items-center max-[1200px]:items-start gap-0 py-8 max-[580px]:py-4 px-14 max-[1200px]:px-2 max-[380px]:px-1">
                   <div
-                    className={`relative w-full shadow-2xl ${dark ? "bg-[#111827]" : "bg-white"}`}
-                    style={{ maxWidth: 760, minHeight: Math.max(estimatedPages, 1) * 1056 + "px" }}>
+                    className={`relative w-full max-w-[760px] max-[1200px]:max-w-none shadow-2xl ${dark ? "bg-[#111827]" : "bg-white"}`}
+                    style={{ minHeight: Math.max(estimatedPages, 1) * 1056 + "px" }}>
 
                     {/* Page break lines */}
                     {Array.from({ length: Math.max(estimatedPages - 1, 0) }).map((_, i) => (
@@ -1593,6 +2086,17 @@ const CreateProject = () => {
                   <select name="format" value={formData.format} onChange={handleChange} className={inputCls}>
                     {formats.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                   </select>
+                  {formData.format === "other" && (
+                    <input
+                      type="text"
+                      name="formatOther"
+                      value={formData.formatOther}
+                      onChange={handleChange}
+                      required
+                      placeholder="Please specify format"
+                      className={`${inputCls} mt-2`}
+                    />
+                  )}
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Estimated Pages</label>
@@ -1734,116 +2238,53 @@ const CreateProject = () => {
               </div>
 
               {/* Media Uploads */}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
-                {/* Thumbnail Upload */}
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
-                    Script Thumbnail <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
-                  </label>
-                  {!thumbnailFile ? (
-                    <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
-                      <ImageIcon className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
-                      <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
-                      <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
-                      <input
-                        ref={thumbnailInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={(e) => {
-                          handleThumbnailSelect(e.target.files?.[0]);
-                          e.target.value = "";
-                        }}
-                        className="hidden"
-                      />
-                    </div>
-                  ) : (
-                    <div className={`border rounded-xl p-3 flex items-center gap-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
-                      <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
-                        <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB - Cover ready</p>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openThumbnailEditor(thumbnailFile)}
-                          className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
-                        >
-                          Adjust
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setThumbnailFile(null);
-                            setError("");
-                          }}
-                          className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  )}
+              <div className={`rounded-2xl border p-4 sm:p-5 ${dark ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
+                <div className="mb-4">
+                  <h3 className={`text-sm font-semibold ${dark ? "text-white" : "text-[#1e3a5f]"}`}>Visual Assets</h3>
+                  <p className={`text-xs mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Add a cover image and trailer to improve profile quality and discovery.</p>
                 </div>
 
-                {/* Trailer Upload */}
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
-                    Trailer Video <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
-                  </label>
-                  <input
-                    ref={trailerInputRef}
-                    type="file"
-                    accept="video/mp4,video/mpeg,video/quicktime,video/webm,video/x-m4v"
-                    onChange={(e) => {
-                      handleTrailerSelect(e.target.files?.[0]);
-                      e.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-
-                  {!trailerFile ? (
-                    <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
-                      <Film className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
-                      <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
-                      <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
-                      <p className={`text-[10px] mt-1 ${dark ? "text-gray-600" : "text-gray-400"}`}>Best results: 1080p+, H.264/H.265</p>
-                    </div>
-                  ) : (
-                    <div className={`border rounded-xl p-3 space-y-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
-                      <div className="relative overflow-hidden rounded-lg">
-                        <video
-                          src={trailerPreviewUrl}
-                          controls
-                          preload="metadata"
-                          className="w-full h-44 object-contain bg-black"
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${dark ? "border-white/[0.06]" : "border-gray-100"}`}>
+                  {/* Thumbnail Upload */}
+                  <div className={`rounded-2xl border p-4 ${dark ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                      Script Thumbnail <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                    </label>
+                    {!thumbnailFile ? (
+                      <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                        <ImageIcon className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
+                        <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
+                        <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
+                        <input
+                          ref={thumbnailInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => {
+                            handleThumbnailSelect(e.target.files?.[0]);
+                            e.target.value = "";
+                          }}
+                          className="hidden"
                         />
                       </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
-                          <CheckCircle2 className="w-6 h-6 text-green-500" />
-                        </div>
+                    ) : (
+                      <div className={`border rounded-xl p-3 flex items-center gap-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                        <img src={thumbnailPreviewUrl} alt="Thumbnail Preview" className="w-12 h-16 object-cover rounded" />
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
-                          <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>
-                            {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
-                            {trailerMetaLoading ? " - reading video info..." : trailerMeta ? ` - ${formatDuration(trailerMeta.duration)} - ${trailerMeta.width}x${trailerMeta.height}` : ""}
-                          </p>
-                          <p className={`text-[10px] mt-1 ${dark ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
+                          <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{thumbnailFile.name}</p>
+                          <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>{(thumbnailFile.size / 1024).toFixed(1)} KB - Cover ready</p>
                         </div>
                         <div className="flex flex-col gap-1.5">
                           <button
                             type="button"
-                            onClick={() => trailerInputRef.current?.click()}
+                            onClick={() => openThumbnailEditor(thumbnailFile)}
                             className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
                           >
-                            Replace
+                            Adjust
                           </button>
                           <button
                             type="button"
                             onClick={() => {
-                              setTrailerFile(null);
+                              setThumbnailFile(null);
                               setError("");
                             }}
                             className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
@@ -1852,8 +2293,77 @@ const CreateProject = () => {
                           </button>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  {/* Trailer Upload */}
+                  <div className={`rounded-2xl border p-4 ${dark ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                      Trailer Video <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
+                    </label>
+                    <input
+                      ref={trailerInputRef}
+                      type="file"
+                      accept="video/mp4,video/mpeg,video/quicktime,video/webm,video/x-m4v"
+                      onChange={(e) => {
+                        handleTrailerSelect(e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+
+                    {!trailerFile ? (
+                      <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                        <Film className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
+                        <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
+                        <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
+                      </div>
+                    ) : (
+                      <div className={`border rounded-xl p-3 space-y-3 ${dark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200"}`}>
+                        <div className="relative overflow-hidden rounded-lg">
+                          <video
+                            src={trailerPreviewUrl}
+                            controls
+                            preload="metadata"
+                            className="w-full h-44 object-contain bg-black"
+                          />
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-6 h-6 text-green-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-bold truncate ${dark ? "text-green-400" : "text-green-700"}`}>{trailerFile.name}</p>
+                            <p className={`text-[10px] ${dark ? "text-green-500/80" : "text-green-600/80"}`}>
+                              {(trailerFile.size / 1024 / 1024).toFixed(1)} MB
+                              {trailerMetaLoading ? " - reading video info..." : trailerMeta ? ` - ${formatDuration(trailerMeta.duration)} - ${trailerMeta.width}x${trailerMeta.height}` : ""}
+                            </p>
+                            <p className={`text-[10px] mt-1 ${dark ? "text-green-500/80" : "text-green-700/80"}`}>Original quality will be preserved on upload.</p>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => trailerInputRef.current?.click()}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-blue-300 border-blue-500/20 hover:bg-white/[0.12]" : "bg-white text-[#1e3a5f] border-blue-200 hover:bg-blue-50"}`}
+                            >
+                              Replace
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTrailerFile(null);
+                                setError("");
+                              }}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-md border transition ${dark ? "bg-white/[0.08] text-red-400 border-red-500/20 hover:bg-white/[0.12]" : "bg-white text-red-500 border-red-200 hover:bg-red-50"}`}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1884,63 +2394,55 @@ const CreateProject = () => {
         {step === 4 && (
           <motion.div key="s4" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             <div className="space-y-6">
-                <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
+                <div className={`${cardCls} p-4 min-[420px]:p-5 sm:p-8 space-y-5 min-[420px]:space-y-6`}>
                   <div>
                     <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
                     <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
                   </div>
 
-                  <div className={`rounded-2xl border p-5 sm:p-6 space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
-                    <div className="flex items-start justify-between gap-4">
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 space-y-4 min-[420px]:space-y-5 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-start min-[460px]:justify-between">
                       <div>
-                        <h3 className={`text-base font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
-                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
+                        <h3 className={`text-[15px] min-[420px]:text-base font-bold mt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
+                        <p className={`text-[11px] min-[420px]:text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
                       </div>
-                      <div className={`px-3 py-2 rounded-xl text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                      <div className={`w-full min-[460px]:w-auto px-3 py-2 rounded-xl text-left min-[460px]:text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
                         <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-gray-500" : "text-gray-400"}`}>Current Plan</p>
                         <p className={`text-sm font-bold mt-1 ${isPremium ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-blue-300" : "text-blue-700"}`}>{isPremium ? "Premium Access" : "Free Public Access"}</p>
                       </div>
                     </div>
 
-                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 p-1.5 rounded-2xl ${dark ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
+                    <div className={`grid grid-cols-1 min-[446px]:grid-cols-2 gap-2.5 min-[420px]:gap-3 p-1.5 rounded-2xl ${dark ? "bg-white/[0.04]" : "bg-white border border-gray-200"}`}>
                       <button type="button" onClick={() => setIsPremium(false)}
-                        className={`text-left rounded-xl px-4 py-4 border transition-all ${!isPremium
+                        className={`text-left rounded-xl px-3.5 min-[420px]:px-4 py-3.5 min-[420px]:py-4 border transition-all ${!isPremium
                           ? dark ? "bg-[#122338] border-[#24456b] text-white shadow-lg shadow-black/20" : "bg-[#1e3a5f] border-[#1e3a5f] text-white shadow-sm"
                           : dark ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
                         }`}>
-                        <div className="flex items-center gap-2.5 mb-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${!isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-blue-50"}`}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        <div className="flex items-center gap-2 min-[420px]:gap-2.5">
+                          <div className={`w-8 h-8 min-[420px]:w-9 min-[420px]:h-9 rounded-xl flex items-center justify-center ${!isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-blue-50"}`}>
+                            <svg className="w-3.5 h-3.5 min-[420px]:w-4 min-[420px]:h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
                           <div>
-                            <p className="text-sm font-bold">Free Access</p>
-                            <p className={`text-[11px] ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
+                            <p className="text-[15px] min-[420px]:text-sm font-bold">Free Access</p>
+                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
                           </div>
                         </div>
-                        <ul className={`space-y-1.5 text-[12px] leading-relaxed ${!isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
-                          <li>Anyone can read the full script</li>
-                          <li>Good for early audience growth</li>
-                        </ul>
                       </button>
 
                       <button type="button" onClick={() => setIsPremium(true)}
-                        className={`text-left rounded-xl px-4 py-4 border transition-all ${isPremium
+                        className={`text-left rounded-xl px-3.5 min-[420px]:px-4 py-3.5 min-[420px]:py-4 border transition-all ${isPremium
                           ? dark ? "bg-emerald-600/15 border-emerald-500/40 text-white shadow-lg shadow-black/20" : "bg-emerald-600 border-emerald-600 text-white shadow-sm"
                           : dark ? "border-transparent text-gray-400 hover:bg-white/[0.04]" : "border-transparent text-gray-600 hover:bg-gray-50"
                         }`}>
-                        <div className="flex items-center gap-2.5 mb-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-emerald-50"}`}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        <div className="flex items-center gap-2 min-[420px]:gap-2.5">
+                          <div className={`w-8 h-8 min-[420px]:w-9 min-[420px]:h-9 rounded-xl flex items-center justify-center ${isPremium ? "bg-white/15" : dark ? "bg-white/[0.06]" : "bg-emerald-50"}`}>
+                            <svg className="w-3.5 h-3.5 min-[420px]:w-4 min-[420px]:h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
                           <div>
-                            <p className="text-sm font-bold">Premium Access</p>
-                            <p className={`text-[11px] ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
+                            <p className="text-[15px] min-[420px]:text-sm font-bold">Premium Access</p>
+                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
                           </div>
                         </div>
-                        <ul className={`space-y-1.5 text-[12px] leading-relaxed ${isPremium ? "text-white/85" : dark ? "text-gray-400" : "text-gray-600"}`}>
-                          <li>You set the main script price investors pay</li>
-                          <li>Best for monetization-ready scripts</li>
-                        </ul>
                       </button>
                     </div>
 
@@ -1954,50 +2456,19 @@ const CreateProject = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {FORMAT_PRICE_GUIDE[formData.format] && (
-                          <div className={`flex items-start gap-2.5 px-4 py-3 rounded-xl ${dark ? "bg-amber-500/10 border border-amber-500/20 text-amber-300" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
-                            <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
-                            <div className="text-[12px] leading-relaxed">
-                              <p className="font-semibold">Suggested range for {FORMAT_PRICE_GUIDE[formData.format].label}</p>
-                              <p className="mt-0.5">Use ₹${FORMAT_PRICE_GUIDE[formData.format].min}-₹${FORMAT_PRICE_GUIDE[formData.format].max}. Recommended start: ₹${FORMAT_PRICE_GUIDE[formData.format].suggest}.</p>
-                            </div>
-                          </div>
-                        )}
-
                         <div>
-                          <p className={`text-[11px] font-bold uppercase tracking-[0.16em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Choose Price</p>
-                          <div className="flex flex-wrap gap-2">
-                            {PRICE_PRESETS.map(p => (
-                              <button key={p} type="button"
-                                onClick={() => { setScriptPrice(p); setUseCustomPrice(false); setCustomPriceInput(""); }}
-                                className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${!useCustomPrice && scriptPrice === p
-                                  ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                  : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
-                                }`}>
-                                ₹{p}
-                              </button>
-                            ))}
-                            <button type="button"
-                              onClick={() => { setUseCustomPrice(true); setCustomPriceInput(String(scriptPrice)); }}
-                              className={`px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${useCustomPrice
-                                ? "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                : dark ? "border-[#1d3350] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-300" : "border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700"
-                              }`}>
-                              Custom
-                            </button>
-                          </div>
-                        </div>
-
-                        {useCustomPrice && (
                           <div className={`rounded-xl p-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
-                            <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Custom Price</label>
+                            <label className={`block text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>Set Price</label>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                               <div className="relative w-full sm:w-40">
                                 <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>₹</span>
                                 <input
                                   type="number" min="1" max="500" step="1"
-                                  value={customPriceInput}
-                                  onChange={e => setCustomPriceInput(e.target.value)}
+                                  value={scriptPrice}
+                                  onChange={(e) => {
+                                    const normalized = String(e.target.value || "").replace(/^0+(?=\d)/, "");
+                                    setScriptPrice(Number(normalized) || 0);
+                                  }}
                                   placeholder="0"
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
@@ -2005,12 +2476,12 @@ const CreateProject = () => {
                               <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
                             </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-center gap-2.5 mb-5">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                         <svg className={`w-4 h-4 ${dark ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h16.5A2.25 2.25 0 0122.5 5.25V9M3.75 3l5.25 5.25m0 0L12 11.25m-3-3L6 11.25m3-3v8.25" /></svg>
@@ -2021,48 +2492,81 @@ const CreateProject = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 min-[416px]:space-y-3">
                       {[
                         { key: "hosting", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" /></svg>, name: "Hosting & Discovery", price: "FREE", desc: "Marketplace listing and public discovery", locked: true },
-                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses" },
+                        { key: "spotlight", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.75.75 0 011.04 0l1.838 1.783a.75.75 0 00.384.2l2.53.36a.75.75 0 01.607.51l.806 2.435a.75.75 0 00.286.37l2.108 1.498a.75.75 0 010 1.227l-2.108 1.498a.75.75 0 00-.286.37l-.806 2.435a.75.75 0 01-.607.51l-2.53.36a.75.75 0 00-.384.2l-1.838 1.783a.75.75 0 01-1.04 0l-1.838-1.783a.75.75 0 00-.384-.2l-2.53-.36a.75.75 0 01-.607-.51l-.806-2.435a.75.75 0 00-.286-.37L2.92 11.882a.75.75 0 010-1.227L5.028 9.157a.75.75 0 00.286-.37l.806-2.435a.75.75 0 01.607-.51l2.53-.36a.75.75 0 00.384-.2L11.48 3.5z" /></svg>, name: "Activate Spotlight", price: `${SERVICE_PRICES.spotlight} credits`, desc: "Verified badge, evaluation + trailer service, and featured top placement" },
                         { key: "aiTrailer", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>, name: "AI Concept Trailer", price: `${SERVICE_PRICES.aiTrailer} credits`, desc: "60-second cinematic teaser", badge: "BETA" },
+                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses" },
                       ].map((service) => (
                         <button
                           key={service.key}
                           type="button"
                           onClick={() => !service.locked && setServices((current) => ({ ...current, [service.key]: !current[service.key] }))}
-                          className={`w-full text-left rounded-2xl border px-4 py-4 transition-all ${service.locked
+                          className={`w-full text-left rounded-2xl border px-3.5 min-[416px]:px-4 py-3.5 min-[416px]:py-4 transition-all ${service.locked
                             ? dark ? "border-[#22405f] bg-[#0e2032] cursor-default" : "border-blue-100 bg-blue-50/70 cursor-default"
                             : services[service.key]
                               ? dark ? "border-[#2b5d8f] bg-[#122338]" : "border-[#1e3a5f]/25 bg-[#1e3a5f]/[0.05]"
                               : dark ? "border-[#182840] hover:border-[#22405f] hover:bg-white/[0.02]" : "border-gray-200 hover:border-gray-300 hover:bg-white"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${services[service.key] || service.locked ? dark ? "bg-white/[0.08] text-white" : "bg-white text-[#1e3a5f]" : dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+                          <div className="flex items-start gap-2.5 min-[416px]:gap-3">
+                            <div className={`w-9 h-9 min-[416px]:w-10 min-[416px]:h-10 rounded-xl flex items-center justify-center shrink-0 ${services[service.key] || service.locked ? dark ? "bg-white/[0.08] text-white" : "bg-white text-[#1e3a5f]" : dark ? "bg-white/[0.04] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
                               {service.icon}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
-                                {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
-                                {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 min-[416px]:gap-2">
+                                    <h4 className={`text-[13px] min-[416px]:text-sm font-bold leading-tight ${dark ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
+                                    {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
+                                    {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                                  </div>
+                                </div>
+                                <div className="hidden min-[416px]:block text-right shrink-0">
+                                  <p className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
+                                  {!service.locked && (
+                                    <p className={`text-[11px] mt-1 ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
+                                  )}
+                                </div>
                               </div>
-                              <p className={`text-[12px] mt-1 ${dark ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
-                              {!service.locked && (
-                                <p className={`text-[11px] mt-1 ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
-                              )}
+                              <p className={`text-[12px] mt-1.5 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
+                              <div className="mt-2 min-[416px]:hidden flex items-center justify-between gap-2">
+                                <p className={`text-[13px] font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
+                                {!service.locked && (
+                                  <p className={`text-[11px] ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </button>
                       ))}
                     </div>
+
+                    {trailerWorkflowHint && (
+                      <div className={`mt-4 rounded-xl border px-3.5 py-3 ${trailerWorkflowHint.tone === "warn"
+                        ? dark
+                          ? "bg-amber-500/8 border-amber-400/25"
+                          : "bg-amber-50 border-amber-200"
+                        : trailerWorkflowHint.tone === "success"
+                          ? dark
+                            ? "bg-emerald-500/8 border-emerald-400/20"
+                            : "bg-emerald-50 border-emerald-200"
+                          : dark
+                            ? "bg-blue-500/8 border-blue-400/20"
+                            : "bg-blue-50 border-blue-200"
+                        }`}>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                          {trailerWorkflowHint.title}
+                        </p>
+                        <p className={`text-[12px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>
+                          {trailerWorkflowHint.text}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className={`rounded-2xl border p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-center gap-2.5 mb-4">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                         <svg className={`w-4 h-4 ${dark ? "text-purple-300" : "text-purple-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h3.75A2.625 2.625 0 0116.5 4.875v1.5H7.5v-1.5A2.625 2.625 0 0110.125 2.25zM7.5 9h9m-9 0v8.625A2.625 2.625 0 0010.125 20.25h3.75A2.625 2.625 0 0016.5 17.625V9m-9 0h9" /></svg>
@@ -2092,10 +2596,20 @@ const CreateProject = () => {
                       <pre className="whitespace-pre-wrap font-sans">{LEGAL_AGREEMENT}</pre>
                     </div>
 
+                    <p className={`text-xs mb-3 ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                      Review the full legal document:
+                      {" "}
+                      <Link to="/script-upload-terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-500 hover:text-blue-400 underline underline-offset-2">
+                        Script Upload Terms & Conditions
+                      </Link>
+                    </p>
+
                     <label className="flex items-start gap-3 cursor-pointer mt-4">
-                      <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal({ agreedToTerms: e.target.checked })}
+                      <input type="checkbox" checked={legal.agreedToTerms} onChange={e => setLegal((prev) => ({ ...prev, agreedToTerms: e.target.checked }))}
                         className="w-5 h-5 rounded mt-0.5 accent-[#1e3a5f]" />
-                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I confirm I own or control the rights to this script and agree to the Submission Release Agreement.</span>
+                      <span className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                        I confirm I own or control the rights to this script and agree to the Script Upload Terms & Conditions (v{SCRIPT_UPLOAD_TERMS_VERSION}).
+                      </span>
                     </label>
                   </div>
                 </div>
@@ -2109,31 +2623,35 @@ const CreateProject = () => {
             <div className={`${cardCls} p-6 sm:p-8 space-y-6`}>
               <div>
                 <h2 className={`text-lg font-bold mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>Final Review</h2>
-                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate your invoice and submission details, then submit your project for admin review.</p>
+                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate submission details, then submit your project for admin review.</p>
               </div>
 
               <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
-                <div className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
-                  <span>Invoice Item</span>
+                <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+                  <span>Summary Item</span>
                   <span>Type</span>
                   <span className="text-right">Amount</span>
                 </div>
                 <div>
-                  {publishInvoiceRows.map((row) => (
-                    <div key={row.item} className={`grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                  {publishSummaryRows.map((row) => (
+                    <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
                       <div>
                         <p className={`font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
                         <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
                       </div>
-                      <div className="pt-0.5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
+                      <div className="pt-0.5 max-[520px]:pt-0">
+                        <span className={`inline-flex whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
                           ? dark ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                          : row.type === "Revenue Setting"
+                            ? dark ? "bg-indigo-500/14 text-indigo-300" : "bg-indigo-100 text-indigo-700"
+                          : row.type === "Platform Fee"
+                            ? dark ? "bg-amber-500/12 text-amber-300" : "bg-amber-100 text-amber-700"
                           : row.type === "Future Earnings"
                             ? dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
                             : dark ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
                           }`}>{row.type}</span>
                       </div>
-                      <p className={`text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
+                      <p className={`text-left min-[521px]:text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
                     </div>
                   ))}
                 </div>
@@ -2141,7 +2659,7 @@ const CreateProject = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className={`rounded-xl px-4 py-4 ${dark ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-blue-300" : "text-blue-700"}`}>Publish Cost</p>
                   <p className={`text-xl font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : dark ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
                   <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Charged from current balance</p>
                 </div>
@@ -2158,6 +2676,28 @@ const CreateProject = () => {
               </div>
 
               <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
+                <div className="mb-3">
+                  <p className={`text-[12px] font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>
+                    Writer Custom Terms For Investors (Optional)
+                  </p>
+                  <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                    Investors must accept these custom terms before they can pay for your script.
+                  </p>
+                  <textarea
+                    value={legal.customInvestorTerms}
+                    onChange={(e) => setLegal((prev) => ({
+                      ...prev,
+                      customInvestorTerms: e.target.value.slice(0, MAX_CUSTOM_INVESTOR_TERMS_LENGTH),
+                    }))}
+                    rows={6}
+                    placeholder="Example: Payment grants reading access only. Rights transfer requires a separate signed agreement."
+                    className={`mt-3 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors resize-y ${dark ? "bg-[#050b14] border-[#182840] text-gray-200 placeholder:text-gray-600 focus:border-[#2a4a6e]" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-gray-400"}`}
+                  />
+                  <p className={`text-[11px] mt-2 text-right ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                    {String(legal.customInvestorTerms || "").length}/{MAX_CUSTOM_INVESTOR_TERMS_LENGTH}
+                  </p>
+                </div>
+
                 <div className="flex items-start gap-2.5">
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>
                     {legal.agreedToTerms ? (
@@ -2176,10 +2716,12 @@ const CreateProject = () => {
                         <input
                           type="checkbox"
                           checked={legal.agreedToTerms}
-                          onChange={e => setLegal({ agreedToTerms: e.target.checked })}
+                          onChange={e => setLegal((prev) => ({ ...prev, agreedToTerms: e.target.checked }))}
                           className="w-4 h-4 rounded mt-0.5 accent-[#1e3a5f]"
                         />
-                        <span className={`text-[11px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>I agree to the Submission Release Agreement and confirm publishing rights.</span>
+                        <span className={`text-[11px] leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                          I agree to the Script Upload Terms & Conditions (v{SCRIPT_UPLOAD_TERMS_VERSION}) and confirm publishing rights.
+                        </span>
                       </label>
                     )}
                   </div>
@@ -2190,7 +2732,7 @@ const CreateProject = () => {
                 className="w-full py-3.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white shadow-md">
                 {loading ? "Submitting..." : "Submit for Approval"}
               </button>
-              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing, services, and invoice settings.</p>
+              <p className={`text-[11px] text-center ${dark ? "text-gray-500" : "text-gray-400"}`}>Submitting will send your project for admin approval with the current pricing and services.</p>
             </div>
           </motion.div>
         )}

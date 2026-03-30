@@ -18,7 +18,16 @@ const contactSubmissionSchema = new mongoose.Schema(
     reason: {
       type: String,
       required: true,
-      enum: ["doubt", "team", "general", "email"],
+      enum: ["doubt", "team", "general", "email", "other"],
+    },
+    otherReason: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      required() {
+        return this.reason === "other";
+      },
+      default: "",
     },
     message: {
       type: String,

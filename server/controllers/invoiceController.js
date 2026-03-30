@@ -1,10 +1,5 @@
-import path from "path";
-import { fileURLToPath } from "url";
 import Invoice from "../models/Invoice.js";
 import { generateAndSaveInvoicePdf } from "../utils/invoicePdf.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const canAccessInvoice = (invoice, user) => {
   if (!invoice || !user) return false;
@@ -26,7 +21,11 @@ export const getInvoicePdf = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (!invoice.pdfPath) {
+    const hasRemotePdf = /^https?:\/\//i.test(String(invoice.pdfPath || ""));
+    const refreshFlag = String(req.query.refresh || req.query.regenerate || "").toLowerCase();
+    const shouldRegenerate = ["1", "true", "yes"].includes(refreshFlag);
+
+    if (!hasRemotePdf || shouldRegenerate) {
       const generated = await generateAndSaveInvoicePdf({
         invoice,
         creatorName: invoice.creator?.name,
@@ -35,18 +34,33 @@ export const getInvoicePdf = async (req, res) => {
         scriptTitle: invoice.script?.title,
         scriptSid: invoice.scriptSid || invoice.script?.sid,
       });
-      invoice.pdfPath = generated.relativePath;
+
+      if (generated.relativePath && invoice.pdfPath !== generated.relativePath) {
+        invoice.pdfPath = generated.relativePath;
+      }
+
       invoice.pdfGeneratedAt = new Date();
       await invoice.save();
     }
 
-    const absolutePdfPath = path.join(__dirname, "..", invoice.pdfPath.replace(/^\//, ""));
+    if (!invoice.pdfPath || !/^https?:\/\//i.test(String(invoice.pdfPath))) {
+      return res.status(500).json({ message: "Invoice PDF URL is unavailable" });
+    }
+
+    const pdfResponse = await fetch(invoice.pdfPath);
+    if (!pdfResponse.ok) {
+      throw new Error("Unable to fetch invoice PDF from cloud storage");
+    }
+
+    const pdfArrayBuffer = await pdfResponse.arrayBuffer();
+    const pdfBuffer = Buffer.from(pdfArrayBuffer);
+
     const isDownload = String(req.query.download || "").toLowerCase() === "1";
     const disposition = isDownload ? "attachment" : "inline";
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `${disposition}; filename=\"${invoice.invoiceNumber}.pdf\"`);
-    return res.sendFile(absolutePdfPath);
+    return res.send(pdfBuffer);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

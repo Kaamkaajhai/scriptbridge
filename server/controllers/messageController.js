@@ -2,13 +2,8 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Script from "../models/Script.js";
 import multer from "multer";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const messageUploadsDir = path.join(__dirname, "..", "uploads", "messages");
+import { uploadToCloudinary } from "../config/cloudinary.js";
 
 const detectFileType = (mimetype = "") => {
   if (mimetype.startsWith("image/")) return "image";
@@ -17,15 +12,60 @@ const detectFileType = (mimetype = "") => {
   return "document";
 };
 
-export const uploadMessageAttachment = multer({
+const isAllowedAttachmentMime = (mimetype = "") => {
+  if (!mimetype) return false;
+  if (mimetype.startsWith("image/")) return true;
+  if (mimetype.startsWith("video/")) return true;
+  if (mimetype.startsWith("audio/")) return true;
+
+  const allowedDocs = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/x-zip-compressed",
+  ]);
+
+  return allowedDocs.has(mimetype);
+};
+
+const rawUploadMessageAttachment = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (isAllowedAttachmentMime(file?.mimetype)) return cb(null, true);
+    return cb(new Error("Unsupported file type. Please upload image, video, audio, PDF, Office, text, CSV, or ZIP files."));
+  },
 }).single("file");
+
+export const uploadMessageAttachment = (req, res, next) => {
+  rawUploadMessageAttachment(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "Attachment is too large. Maximum size is 25MB." });
+      }
+      return res.status(400).json({ message: err.message || "Attachment upload failed." });
+    }
+
+    return res.status(400).json({ message: err.message || "Attachment upload failed." });
+  });
+};
 
 const buildChatId = (idA, idB) => {
   const sorted = [idA.toString(), idB.toString()].sort();
   return `${sorted[0]}_${sorted[1]}`;
 };
+
+const hasBlockedUser = (blockedUsers = [], userId) =>
+  blockedUsers?.some((id) => id?.toString() === userId?.toString());
 
 /* ── Send a message ─────────────────────────────────────────── */
 export const sendMessage = async (req, res) => {
@@ -34,32 +74,53 @@ export const sendMessage = async (req, res) => {
     if (!receiverId) return res.status(400).json({ message: "receiverId is required." });
     if (!text?.trim() && !fileUrl) return res.status(400).json({ message: "Message cannot be empty." });
 
-    const sender = req.user;
-    const receiver = await User.findById(receiverId).select("role name");
+    const sender = await User.findById(req.user._id).select("_id role blockedUsers");
+    if (!sender) return res.status(404).json({ message: "Sender not found." });
+
+    const receiver = await User.findById(receiverId).select("_id role name blockedUsers");
     if (!receiver) return res.status(404).json({ message: "Recipient not found." });
 
-    const chatId = buildChatId(sender._id, receiverId);
+    const blockedBySender = hasBlockedUser(sender.blockedUsers, receiver._id);
+    const blockedByReceiver = hasBlockedUser(receiver.blockedUsers, sender._id);
+    if (blockedBySender || blockedByReceiver) {
+      return res.status(403).json({
+        message: "Messaging is unavailable because one of you has blocked the other.",
+        code: "USER_BLOCKED",
+      });
+    }
+
+    const chatId = buildChatId(sender._id, receiver._id);
     const existingMessageCount = await Message.countDocuments({ chatId });
 
     if (existingMessageCount === 0) {
       const isInvestor = sender.role === "investor";
       const isWriter = ["writer", "creator"].includes(sender.role);
+      const isAdmin = sender.role === "admin";
       const isReceiverInvestor = receiver.role === "investor";
       const isReceiverWriter = ["writer", "creator"].includes(receiver.role);
+      const isReceiverAdmin = receiver.role === "admin";
 
-      if (!((isInvestor && isReceiverWriter) || (isWriter && isReceiverInvestor))) {
-        return res.status(403).json({ message: "Conversations can only be started between writers and investors." });
-      }
+      const isAdminWriterConversation =
+        (isAdmin && isReceiverWriter) ||
+        (isReceiverAdmin && isWriter);
 
-      const investorId = isInvestor ? sender._id : receiverId;
-      const writerId = isWriter ? sender._id : receiverId;
+      if (isAdminWriterConversation) {
+        // Admin can initiate direct discussions with writers for workflow coordination.
+      } else {
+        if (!((isInvestor && isReceiverWriter) || (isWriter && isReceiverInvestor))) {
+          return res.status(403).json({ message: "Conversations can only be started between writers and investors." });
+        }
 
-      const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
-      if (!hasPurchased) {
-        return res.status(403).json({
-          message: "Messaging is locked. An investor must first purchase a script from the writer.",
-          code: "PURCHASE_REQUIRED",
-        });
+        const investorId = isInvestor ? sender._id : receiverId;
+        const writerId = isWriter ? sender._id : receiverId;
+
+        const hasPurchased = await Script.exists({ creator: writerId, unlockedBy: investorId });
+        if (!hasPurchased) {
+          return res.status(403).json({
+            message: "Messaging is locked until an investor purchases a script from this writer.",
+            code: "PURCHASE_REQUIRED",
+          });
+        }
       }
     }
 
@@ -93,8 +154,6 @@ export const uploadAttachment = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded." });
     }
 
-    await mkdir(messageUploadsDir, { recursive: true });
-
     const ext = path.extname(req.file.originalname || "") || ".bin";
     const baseName = path
       .basename(req.file.originalname || "attachment", ext)
@@ -102,13 +161,16 @@ export const uploadAttachment = async (req, res) => {
       .replace(/-+/g, "-")
       .slice(0, 60) || "attachment";
 
-    const storedName = `${Date.now()}-${baseName}${ext}`;
-    const fullPath = path.join(messageUploadsDir, storedName);
-
-    await writeFile(fullPath, req.file.buffer);
+    const uploadResult = await uploadToCloudinary(req.file.buffer, {
+      folder: "scriptbridge/messages",
+      resource_type: "auto",
+      public_id: `message-${Date.now()}-${baseName}`,
+      originalFilename: req.file.originalname,
+      mimeType: req.file.mimetype,
+    });
 
     return res.status(201).json({
-      fileUrl: `/uploads/messages/${storedName}`,
+      fileUrl: uploadResult.secure_url,
       fileType: detectFileType(req.file.mimetype),
       fileName: req.file.originalname,
       fileSize: req.file.size,
@@ -208,14 +270,37 @@ export const checkCanMessage = async (req, res) => {
     const user = req.user;
     const { targetId } = req.params;
 
-    const targetUser = await User.findById(targetId).select("role");
+    const currentUser = await User.findById(user._id).select("_id role blockedUsers");
+    if (!currentUser) return res.status(404).json({ message: "User not found." });
+
+    const targetUser = await User.findById(targetId).select("_id role blockedUsers");
     if (!targetUser) return res.status(404).json({ message: "User not found." });
 
-    const isUserInvestor = user.role === "investor";
-    const isUserWriter = ["writer", "creator"].includes(user.role);
+    const blockedByCurrent = hasBlockedUser(currentUser.blockedUsers, targetUser._id);
+    const blockedByTarget = hasBlockedUser(targetUser.blockedUsers, currentUser._id);
+    if (blockedByCurrent || blockedByTarget) {
+      return res.json({
+        allowed: false,
+        reason: "Messaging is unavailable because one of you has blocked the other.",
+        code: "USER_BLOCKED",
+      });
+    }
+
+    const isUserInvestor = currentUser.role === "investor";
+    const isUserWriter = ["writer", "creator"].includes(currentUser.role);
+    const isUserAdmin = currentUser.role === "admin";
     
     const isTargetInvestor = targetUser.role === "investor";
     const isTargetWriter = ["writer", "creator"].includes(targetUser.role);
+    const isTargetAdmin = targetUser.role === "admin";
+
+    const isAdminWriterConversation =
+      (isUserAdmin && isTargetWriter) ||
+      (isTargetAdmin && isUserWriter);
+
+    if (isAdminWriterConversation) {
+      return res.json({ allowed: true });
+    }
 
     if (!((isUserInvestor && isTargetWriter) || (isUserWriter && isTargetInvestor))) {
          return res.json({ allowed: false, reason: "Conversations are only between investors and writers." });
@@ -228,7 +313,7 @@ export const checkCanMessage = async (req, res) => {
     if (!hasPurchased)
       return res.json({
         allowed: false,
-        reason: "An investor must purchase a project from the writer to unlock messaging.",
+        reason: "Messaging unlocks only after an investor purchases a project from this writer.",
         code: "PURCHASE_REQUIRED",
       });
 

@@ -1,15 +1,17 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import compression from "compression";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Server } from "socket.io";
+import User from "./models/User.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load env variables
+// Load environment variables from server/.env regardless of process working directory
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 import connectDB from "./config/db.js";
@@ -34,7 +36,6 @@ import creditsRoutes from "./routes/creditsRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import scriptPitchRoutes from "./routes/scriptPitchRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
-
 import {
   applyGlobalSecurity,
   apiLimiter,
@@ -42,71 +43,96 @@ import {
   paymentLimiter,
 } from "./middleware/securityMiddleware.js";
 
-connectDB().catch((err) => {
-  console.error("Database connection failed:", err.message);
-});
+const ensureDefaultAdmin = async () => {
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@ckript.com").trim().toLowerCase();
+  const adminPassword = (process.env.ADMIN_PASSWORD || "admin123").trim();
+
+  if (!adminEmail || !adminPassword) {
+    console.warn("Skipping admin bootstrap due to missing ADMIN_EMAIL or ADMIN_PASSWORD.");
+    return;
+  }
+
+  try {
+    const existingAdmin = await User.findOne({ email: adminEmail });
+
+    if (!existingAdmin) {
+      await User.create({
+        name: process.env.ADMIN_NAME || "Admin",
+        email: adminEmail,
+        password: adminPassword,
+        role: "admin",
+        emailVerified: true,
+      });
+      console.log(`Default admin created: ${adminEmail}`);
+      return;
+    }
+
+    let hasChanges = false;
+
+    if (existingAdmin.role !== "admin") {
+      existingAdmin.role = "admin";
+      hasChanges = true;
+    }
+
+    if (!existingAdmin.emailVerified) {
+      existingAdmin.emailVerified = true;
+      hasChanges = true;
+    }
+
+    // Keep admin panel credentials valid when DB resets or password drifts.
+    const passwordMatches = await existingAdmin.matchPassword(adminPassword);
+    if (!passwordMatches) {
+      existingAdmin.password = adminPassword;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      await existingAdmin.save();
+      console.log(`Default admin account synchronized: ${adminEmail}`);
+    }
+  } catch (error) {
+    console.error("Default admin bootstrap failed:", error.message);
+  }
+};
+
+connectDB()
+  .then(() => ensureDefaultAdmin())
+  .catch((error) => {
+    console.error("Database bootstrap failed:", error.message);
+  });
 
 const app = express();
 const isVercel = Boolean(process.env.VERCEL);
 
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
 applyGlobalSecurity(app);
 
-const allowedOrigins = [
-  "http://localhost:3000",
+const localOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
+  "http://localhost:5176",
   "http://127.0.0.1:5173",
-  process.env.CLIENT_URL,
-].filter(Boolean);
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:5176",
+];
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+const envOrigins = [process.env.CLIENT_URL, process.env.CORS_ORIGINS]
+  .filter(Boolean)
+  .flatMap((value) => String(value).split(","))
+  .map((value) => value.trim())
+  .filter(Boolean);
 
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+const allowedOrigins = [...new Set([...localOrigins, ...envOrigins])];
 
-app.use("/api", apiLimiter);
-
-// Static uploads
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-// Test API
-app.get("/api/test", (req, res) => {
-  res.json({ message: "API working successfully 🚀" });
-});
-
-
-// ---------------- ROUTES ----------------
-
-app.use("/api/auth", authLimiter, authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/posts", postRoutes);
-app.use("/api/scripts", scriptRoutes);
-app.use("/api/payment", paymentLimiter, paymentRoutes);
-app.use("/api/messages", messageRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/search", searchRoutes);
-app.use("/api/ai", aiRoutes);
-app.use("/api/match", matchRoutes);
-app.use("/api/auditions", auditionRoutes);
-app.use("/api/tags", tagRoutes);
-app.use("/api/onboarding", onboardingRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/reviews", reviewRoutes);
-app.use("/api/contact", contactRoutes);
-app.use("/api/transactions", transactionRoutes);
-app.use("/api/credits", paymentLimiter, creditsRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/script-pitches", scriptPitchRoutes);
-app.use("/api/invoices", invoiceRoutes);
-
-
-// ---------------- SOCKET.IO ----------------
+const corsOrigin = (origin, callback) => {
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error("Not allowed by CORS"));
+};
 
 const createRealtimeServer = () => {
   const server = http.createServer(app);
@@ -123,10 +149,12 @@ const createRealtimeServer = () => {
 
     socket.on("join-chat", (chatId) => {
       socket.join(chatId);
+      console.log(`User ${socket.id} joined chat: ${chatId}`);
     });
 
     socket.on("join-notifications", (userId) => {
       socket.join(`notifications-${userId}`);
+      console.log(`User ${socket.id} joined notifications for: ${userId}`);
     });
 
     socket.on("send-message", (data) => {
@@ -149,16 +177,64 @@ const createRealtimeServer = () => {
   return server;
 };
 
+// CORS Configuration - MUST be before routes
+app.use(cors({
+  origin: corsOrigin,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+app.use(compression());
+
+// Body parsing middleware
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Baseline abuse protection (route-level limiters remain stricter for sensitive endpoints)
+app.use("/api", apiLimiter);
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
+  maxAge: "7d",
+  etag: true,
+  lastModified: true,
+}));
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API is working!' });
+});
+
+// Routes
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/posts", postRoutes);
+app.use("/api/scripts", scriptRoutes);
+app.use("/api/payment", paymentLimiter, paymentRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/match", matchRoutes);
+app.use("/api/auditions", auditionRoutes);
+app.use("/api/tags", tagRoutes);
+app.use("/api/onboarding", onboardingRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/transactions", transactionRoutes);
+app.use("/api/credits", paymentLimiter, creditsRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/script-pitches", scriptPitchRoutes);
+app.use("/api/invoices", invoiceRoutes);
+
 export default app;
-
-
-// ---------------- START SERVER ----------------
 
 if (!isVercel) {
   const server = createRealtimeServer();
   const PORT = process.env.PORT || 5002;
-
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }

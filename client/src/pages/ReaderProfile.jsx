@@ -1,12 +1,14 @@
 import { useState, useEffect, useContext, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Heart, MessageSquare, Pencil, ArrowLeft, X, Camera, Save, Loader2, Users, UserPlus, Flame, LayoutDashboard, FolderOpen, Info, Settings, Mail, CalendarDays, ShieldCheck, Star, SlidersHorizontal, TrendingUp, CheckCircle2, ChevronRight } from "lucide-react";
+import { BookOpen, Heart, MessageSquare, Pencil, ArrowLeft, X, Camera, Save, Loader2 } from "lucide-react";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
 import ReviewCard from "../components/ReviewCard";
+import SocialShareButton from "../components/SocialShareButton";
+import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 
 /* ── Edit Profile Modal ─────────────────────────────── */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
@@ -17,20 +19,15 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const [skills, setSkills] = useState(profile.skills?.join(", ") || "");
   const [previewImage, setPreviewImage] = useState(null);
   const [imageFile, setImageFile] = useState(null);
-  const [imageRemoved, setImageRemoved] = useState(false);
-  const [previewCoverImage, setPreviewCoverImage] = useState(null);
-  const [coverImageFile, setCoverImageFile] = useState(null);
-  const [coverImageRemoved, setCoverImageRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef(null);
-  const coverInputRef = useRef(null);
 
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:")) return url;
-    return `http://localhost:5002${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   const handleImageChange = (e) => {
@@ -42,35 +39,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     }
     setImageFile(file);
     setPreviewImage(URL.createObjectURL(file));
-    setImageRemoved(false);
     setError("");
-  };
-
-  const handleRemoveImage = () => {
-    setPreviewImage(null);
-    setImageFile(null);
-    setImageRemoved(true);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleCoverImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Cover image must be under 5MB");
-      return;
-    }
-    setCoverImageFile(file);
-    setPreviewCoverImage(URL.createObjectURL(file));
-    setCoverImageRemoved(false);
-    setError("");
-  };
-
-  const handleRemoveCoverImage = () => {
-    setPreviewCoverImage(null);
-    setCoverImageFile(null);
-    setCoverImageRemoved(true);
-    if (coverInputRef.current) coverInputRef.current.value = "";
   };
 
   const handleSave = async () => {
@@ -78,8 +47,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     setSaving(true);
     setError("");
     try {
-      let profileImageUrl = imageRemoved ? null : profile.profileImage;
-      let coverImageUrl = coverImageRemoved ? null : profile.coverImage;
+      let profileImageUrl = profile.profileImage;
 
       // Upload image first if changed
       if (imageFile) {
@@ -89,17 +57,6 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
           headers: { "Content-Type": "multipart/form-data" },
         });
         profileImageUrl = imgData.profileImage;
-      }
-
-      // Upload cover image if changed
-      if (coverImageFile) {
-        const formData = new FormData();
-        formData.append("profileImage", coverImageFile);
-        formData.append("target", "coverImage");
-        const { data: imgData } = await api.post("/users/upload-image", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        coverImageUrl = imgData.coverImage;
       }
 
       // Update profile
@@ -113,25 +70,16 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
         bio: bio.trim(),
         skills: skillsArr,
         profileImage: profileImageUrl,
-        coverImage: coverImageUrl,
-        removeProfileImage: imageRemoved,
-        removeCoverImage: coverImageRemoved,
       });
 
-      const normalizedData = {
-        ...data,
-        profileImage: imageRemoved ? "" : (data.profileImage ?? profileImageUrl ?? ""),
-        coverImage: coverImageRemoved ? "" : (data.coverImage ?? coverImageUrl ?? ""),
-      };
-
       // Update AuthContext
-      const updatedUser = { ...user, ...normalizedData };
+      const updatedUser = { ...user, ...data };
       setUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
       setSuccess(true);
       setTimeout(() => {
-        onSaved(normalizedData);
+        onSaved(data);
         onClose();
       }, 600);
     } catch (err) {
@@ -140,8 +88,7 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
     setSaving(false);
   };
 
-  const currentImage = imageRemoved ? "" : (previewImage || resolveImage(profile.profileImage));
-  const currentCoverImage = coverImageRemoved ? "" : (previewCoverImage || resolveImage(profile.coverImage));
+  const currentImage = previewImage || resolveImage(profile.profileImage);
 
   return (
     <motion.div
@@ -212,74 +159,12 @@ const EditProfileModal = ({ profile, onClose, onSaved }) => {
             <div className="flex-1">
               <p className="text-sm font-bold text-gray-700">Profile Photo</p>
               <p className="text-[11px] text-gray-400 mt-0.5">JPG, PNG or GIF. Max 5MB.</p>
-              <div className="mt-2 flex items-center gap-3">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-[12px] font-bold text-[#1e3a5f] hover:text-[#162d4a] transition-colors"
-                >
-                  Change photo
-                </button>
-                {currentImage && (
-                  <>
-                    <span className="text-gray-300 text-[10px]">·</span>
-                    <button
-                      onClick={handleRemoveImage}
-                      className="text-[12px] font-bold text-red-400 hover:text-red-500 transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Cover Upload */}
-          <div>
-            <p className="text-sm font-bold text-gray-700">Cover Image</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Shown in your profile header. JPG, PNG or GIF. Max 5MB.</p>
-
-            <div className="mt-3">
-              <div
-                className="relative h-24 w-full rounded-xl border border-gray-200 overflow-hidden"
-                style={currentCoverImage
-                  ? {
-                      backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.45) 100%), url(\"${currentCoverImage}\")`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }
-                  : { background: "linear-gradient(135deg, #061020 0%, #0f2444 40%, #1a3d6b 70%, #1e5090 100%)" }}
-              />
-
-              <div className="mt-2 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => coverInputRef.current?.click()}
-                  className="text-[12px] font-bold text-[#1e3a5f] hover:text-[#162d4a] transition-colors"
-                >
-                  Change cover
-                </button>
-                {currentCoverImage && (
-                  <>
-                    <span className="text-gray-300 text-[10px]">·</span>
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoverImage}
-                      className="text-[12px] font-bold text-red-400 hover:text-red-500 transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <input
-                ref={coverInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleCoverImageChange}
-                className="hidden"
-              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2 text-[12px] font-bold text-[#1e3a5f] hover:text-[#162d4a] transition-colors"
+              >
+                Change photo
+              </button>
             </div>
           </div>
 
@@ -393,7 +278,6 @@ const ReaderProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("read");
-  const [dashboardTab, setDashboardTab] = useState("overview");
   const [readScripts, setReadScripts] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -406,7 +290,7 @@ const ReaderProfile = () => {
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5002${url}`;
+    return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
 
   useEffect(() => { fetchProfile(); }, [profileId]);
@@ -484,7 +368,12 @@ const ReaderProfile = () => {
   const memberSince = profile.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
     : null;
-  const coverImageUrl = resolveImage(profile.coverImage);
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const readerShare = {
+    url: profile?.shareMeta?.url || (profile?._id ? `${browserOrigin}/reader/profile/${profile._id}` : ""),
+    title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | ScriptBridge`,
+    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on ScriptBridge.`,
+  };
 
   const tabs = [
     { key: "read", label: "Scripts Read", icon: BookOpen, count: profile.scriptsRead?.length || 0 },
@@ -492,526 +381,232 @@ const ReaderProfile = () => {
     { key: "reviews", label: "Reviews", icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];
 
-  /* ── Derived helpers ── */
-  const daysActive = profile.createdAt
-    ? Math.max(1, Math.floor((Date.now() - new Date(profile.createdAt)) / 86_400_000))
-    : 0;
-  const streak = Math.min(daysActive, 30);
-  const streakPct = Math.round((streak / 30) * 100);
-  const today = new Date().getDay(); // 0=Sun
-  const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-  const navTabs = [
-    { key: "overview",  label: "Overview",  icon: LayoutDashboard },
-    { key: "projects",  label: "Projects",  icon: FolderOpen },
-    { key: "about",     label: "About",     icon: Info },
-    { key: "settings",  label: "Settings",  icon: Settings },
-  ];
-
-  const colorMap = {
-    blue:    dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20"      : "bg-blue-50 text-blue-600 border-blue-100",
-    violet:  dark ? "bg-violet-500/10 text-violet-400 border-violet-500/20": "bg-violet-50 text-violet-600 border-violet-100",
-    emerald: dark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20": "bg-emerald-50 text-emerald-600 border-emerald-100",
-    amber:   dark ? "bg-amber-500/10 text-amber-400 border-amber-500/20"   : "bg-amber-50 text-amber-600 border-amber-100",
-    rose:    dark ? "bg-rose-500/10 text-rose-400 border-rose-500/20"      : "bg-rose-50 text-rose-500 border-rose-100",
-  };
-
-  /* ── card wrapper shorthand ── */
-  const card = `rounded-2xl border ${
-    dark ? "bg-[#0b1929] border-[#16263d] shadow-[0_2px_12px_rgba(0,0,0,0.35)]" : "bg-white border-gray-100/90 shadow-sm"
-  }`;
+  const profileCompletion = profile?.profileCompletion;
+  const showProfileCompletion = isOwnProfile && profileCompletion && !profileCompletion.isComplete;
 
   return (
-    <div className={`min-h-screen pb-20 px-4 sm:px-6 pt-6 ${ dark ? "bg-[#050d18]" : "bg-[#f4f6fa]" }`}>
-    <div className="max-w-6xl mx-auto">
-      {/* ── Back Button ── */}
-      <Link to="/reader" className={`inline-flex items-center gap-2 text-[15px] font-semibold mb-7 transition-colors group ${ dark ? "text-gray-500 hover:text-gray-300" : "text-gray-400 hover:text-gray-700" }`}>
-        <span className={`p-1.5 rounded-lg transition-colors ${ dark ? "bg-white/[0.05] group-hover:bg-white/[0.1]" : "bg-white group-hover:bg-gray-100 shadow-sm border border-gray-200" }`}>
-          <ArrowLeft size={14} />
+    <div className="max-w-5xl mx-auto pb-16 px-4 pt-6">
+      {/* Back Button */}
+      <Link to="/reader" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1e3a5f] text-sm font-bold mb-6 transition-colors group">
+        <span className="p-1.5 rounded-lg bg-gray-100 group-hover:bg-[#1e3a5f]/10 transition-colors">
+          <ArrowLeft size={16} />
         </span>
         Back to Reader
       </Link>
 
-      {/* ══════════════════════════════════════════════════
-           PROFILE HEADER CARD
-      ══════════════════════════════════════════════════ */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className={`rounded-3xl overflow-hidden mb-6 ${ dark ? "bg-[#0b1929] border border-[#16263d] shadow-[0_4px_24px_rgba(0,0,0,0.4)]" : "bg-white border border-gray-100 shadow-md" }`}
-      >
-        {/* ── Banner ── */}
-        <div
-          className="relative h-40 overflow-hidden"
-          style={coverImageUrl
-            ? {
-                backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.45) 100%), url("${coverImageUrl}")`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }
-            : { background: "linear-gradient(135deg, #061020 0%, #0f2444 40%, #1a3d6b 70%, #1e5090 100%)" }}
-        >
-          {!coverImageUrl && (
-            <>
-              {/* Geometric shapes */}
-              <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl" />
-              <div className="absolute -bottom-20 left-1/4 w-80 h-80 rounded-full bg-sky-400/8 blur-3xl" />
-              <div className="absolute top-6 right-1/4 w-32 h-32 rounded-full bg-indigo-500/15 blur-2xl" />
-              {/* Subtle line texture */}
-              <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-            </>
-          )}
-          {/* Bottom fade */}
-          <div className={`absolute bottom-0 left-0 right-0 h-16 ${ dark ? "bg-gradient-to-t from-[#0b1929] to-transparent" : "bg-gradient-to-t from-white/20 to-transparent" }`} />
+      <ProfileCompletionBanner
+        completion={showProfileCompletion ? profileCompletion : null}
+        subtitle="Your profile is incomplete. Add a few more details to finish it."
+        ctaLabel="Edit Profile"
+        onCta={() => setEditOpen(true)}
+        className="mb-8"
+      />
+
+      {/* Main Profile Header Card */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-3xl border shadow-sm overflow-hidden mb-8 ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
+        {/* Decorative Gradient Banner */}
+        <div className="h-32 bg-gradient-to-tr from-[#0f1c2e] via-[#1e3a5f] to-[#3a6ea5] relative overflow-hidden">
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-16 left-1/4 w-64 h-64 rounded-full bg-[#60a5fa]/20 blur-3xl" />
+          </div>
         </div>
 
-        {/* ── Header body ── */}
-        <div className="px-6 sm:px-8 pb-7 -mt-16 relative">
-
-          {/* Row: avatar + identity + edit btn */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-7">
-
-            {/* Avatar + Identity */}
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4">
+        {/* Profile Content */}
+        <div className="px-6 sm:px-10 pb-8 -mt-16 relative">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5">
               {/* Avatar */}
-              <div className="relative shrink-0">
+              <div className="relative">
                 {profile.profileImage ? (
-                  <img src={resolveImage(profile.profileImage)} alt={profile.name}
-                    className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-2xl ring-4 transition-transform duration-300 hover:scale-[1.03] ${ dark ? "ring-[#0b1929]" : "ring-white" }`} />
+                  <img
+                    src={resolveImage(profile.profileImage)}
+                    alt={profile.name}
+                    className="w-32 h-32 rounded-2xl object-cover ring-4 ring-white shadow-xl bg-white"
+                  />
                 ) : (
-                  <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center shadow-2xl ring-4 transition-transform duration-300 hover:scale-[1.03] ${ dark ? "ring-[#0b1929] bg-gradient-to-br from-[#1a3a68] to-[#2d5a8e]" : "ring-white bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e]" }`}>
-                    <span className="text-3xl font-black text-white/80 select-none tracking-tight">{profile.name?.charAt(0)?.toUpperCase() || "U"}</span>
+                  <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center ring-4 ring-white shadow-xl border border-gray-200">
+                    <span className="text-4xl font-black text-gray-400">
+                      {profile.name?.charAt(0)?.toUpperCase() || "U"}
+                    </span>
                   </div>
                 )}
-                <span className={`absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 ring-2 ${ dark ? "ring-[#0b1929]" : "ring-white" }`} />
               </div>
 
-              {/* Identity */}
-              <div className="text-center sm:text-left pb-0.5">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 mb-2">
-                  <h1 className={`text-[30px] sm:text-[34px] font-black tracking-tight leading-none ${ dark ? "text-white" : "text-gray-900" }`}>
+              {/* Title & Role */}
+              <div className="text-center sm:text-left pb-1">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-1.5">
+                    <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>
                     {profile.name || "User Profile"}
                   </h1>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[12px] font-bold uppercase tracking-widest ${ dark ? "bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/20" : "bg-blue-50 text-blue-600 ring-1 ring-blue-200" }`}>
-                    <ShieldCheck size={10} strokeWidth={2.5} />
-                    {profile.role === "professional" ? "Industry Pro" : profile.role || "Reader"}
+                  <span className="px-2.5 py-1 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-xs font-bold uppercase tracking-widest border border-[#1e3a5f]/10 shadow-sm w-max mx-auto sm:mx-0">
+                    {profile.role || "Reader"}
                   </span>
                 </div>
-                <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-[14px] font-medium ${ dark ? "text-gray-500" : "text-gray-400" }`}>
-                  {profile.email && (
-                    <span className="flex items-center gap-1.5">
-                      <Mail size={12} strokeWidth={2} className="shrink-0" />
-                      {profile.email}
-                    </span>
-                  )}
-                  {memberSince && (
-                    <span className="flex items-center gap-1.5">
-                      <CalendarDays size={12} strokeWidth={2} className="shrink-0" />
-                      Joined {memberSince}
-                    </span>
-                  )}
-                </div>
+                {memberSince && (
+                  <p className="text-sm text-gray-400 font-semibold">Member since {memberSince}</p>
+                )}
               </div>
             </div>
 
-            {/* Edit button */}
-            {isOwnProfile && (
-              <button onClick={() => setEditOpen(true)}
-                className={`group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[15px] font-semibold border transition-all duration-200 active:scale-95 ${ dark ? "bg-white/[0.06] hover:bg-white/[0.1] text-gray-200 border-white/[0.08] hover:border-white/[0.15]" : "bg-white hover:bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 shadow-sm" }`}>
-                <Pencil size={14} strokeWidth={2.5} className="transition-transform duration-200 group-hover:rotate-[-10deg]" />
-                Edit Profile
-              </button>
-            )}
+            {/* Action Buttons */}
+            <div className="flex shrink-0 justify-center sm:justify-start gap-2">
+              <SocialShareButton
+                share={readerShare}
+                buttonLabel="Share"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
+              />
+              {isOwnProfile && (
+                <button
+                  onClick={() => setEditOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
+                >
+                  <Pencil size={16} strokeWidth={2.5} />
+                  Edit Profile
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* ── Stat pills row ── */}
-          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 border-t ${ dark ? "border-white/[0.06]" : "border-gray-100" }`}>
-            {[
-              { label: "Scripts Read", value: profile.scriptsRead?.length || 0, icon: BookOpen,    color: "blue" },
-              { label: "Followers",    value: profile.followers?.length   || 0, icon: Users,       color: "violet" },
-              { label: "Following",    value: profile.following?.length   || 0, icon: UserPlus,    color: "emerald" },
-              { label: "Year Joined",  value: memberSince?.split(" ")[1]  || "—", icon: CalendarDays, color: "amber" },
-            ].map(({ label, value, icon: SI, color }) => (
-              <div key={label} className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all duration-200 ${ dark ? "bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1]" : "bg-gray-50 border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm" }`}>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${colorMap[color]}`}>
-                  <SI size={15} strokeWidth={2} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-[22px] font-black tabular-nums leading-none ${ dark ? "text-white" : "text-gray-900" }`}>{value}</p>
-                  <p className={`text-[11.5px] font-semibold uppercase tracking-wider mt-0.5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>{label}</p>
-                </div>
+          {/* Bio */}
+          {profile.bio && (
+            <div className={`rounded-2xl p-5 mb-8 border ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">About Me</h3>
+              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{profile.bio}</p>
+            </div>
+          )}
+
+          {/* Skills */}
+          {profile.skills?.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Interests & Skills</h3>
+              <div className="flex flex-wrap gap-2">
+                {profile.skills.map((skill, i) => (
+                  <span key={i} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-blue-300 border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.04] text-[#1e3a5f] border-[#1e3a5f]/8"}`}>
+                    {skill}
+                  </span>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Interactive Stat Tabs */}
+          <div className={`flex flex-wrap items-center gap-3 pt-4 border-t ${dark ? "border-[#182840]" : "border-gray-100"}`}>
+            {tabs.map((t) => {
+              const Icon = t.icon;
+              const isActive = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${isActive
+                    ? "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/20 scale-105"
+                    : dark
+                      ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08] hover:scale-105 border border-transparent hover:border-[#1d3350]"
+                      : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:scale-105 border border-transparent hover:border-gray-200"
+                    }`}
+                >
+                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? "text-blue-200" : "text-gray-400"} />
+                  <span>{t.label}</span>
+                  <div className={`ml-1.5 px-2 py-0.5 rounded-md text-[11px] font-black ${isActive ? "bg-white/20 text-white" : dark ? "bg-white/[0.06] border border-[#1d3350] text-gray-400" : "bg-white border border-gray-200 text-gray-600 shadow-sm"
+                    }`}>
+                    {t.count}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </motion.div>
 
-      {/* ══════════════════════════════════════════════════
-           NAVIGATION TAB BAR
-      ══════════════════════════════════════════════════ */}
-      <div className={`flex items-center gap-1 mb-7 rounded-2xl p-1 ${ dark ? "bg-[#0b1929] border border-[#16263d]" : "bg-white border border-gray-100 shadow-sm" }`}>
-        {navTabs.map(({ key, label, icon: TabIcon }) => {
-          const active = dashboardTab === key;
-          return (
-            <button key={key} onClick={() => setDashboardTab(key)}
-              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[15px] font-semibold transition-all duration-200 ${ active
-                ? dark
-                  ? "bg-[#1e3a5f] text-white shadow-lg shadow-[#1e3a5f]/30"
-                  : "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/20"
-                : dark
-                  ? "text-gray-500 hover:text-gray-300 hover:bg-white/[0.05]"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}>
-              <TabIcon size={14} strokeWidth={active ? 2.5 : 2} />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ══════════════════════════════════════════════════
-           DASHBOARD BODY  (two-column layout)
-      ══════════════════════════════════════════════════ */}
+      {/* Main Tab Content */}
       <AnimatePresence mode="wait">
-        {dashboardTab === "overview" && (
-          <motion.div
-            key="overview"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.25 }}
-            className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5"
-          >
-            {/* ════════ LEFT COLUMN ════════ */}
-            <div className="flex flex-col gap-5">
-
-              {/* ── Currently Reading ── */}
-              <div className={card}>
-                <div className={`flex items-center justify-between px-6 py-4 border-b ${ dark ? "border-[#16263d]" : "border-gray-100" }`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap.blue}`}>
-                      <BookOpen size={14} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <p className={`text-[16px] font-bold ${ dark ? "text-white" : "text-gray-900" }`}>Currently Reading</p>
-                      <p className={`text-[13px] mt-0.5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>{readScripts.length} script{readScripts.length !== 1 ? "s" : ""} in your list</p>
-                    </div>
+        {dataLoading ? (
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className={`rounded-2xl border h-[280px] animate-pulse shadow-sm ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`} />
+            ))}
+          </motion.div>
+        ) : (
+          <div className="min-h-[400px]">
+            {activeTab === "read" && (
+              <motion.div key="read" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                {readScripts.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {readScripts.map((s) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
                   </div>
-                  <Link to="/reader" className={`inline-flex items-center gap-1 text-[14px] font-semibold transition-colors px-3 py-1.5 rounded-lg ${ dark ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-600 hover:bg-blue-50" }`}>
-                    Browse <ChevronRight size={12} />
-                  </Link>
-                </div>
-                <div className="p-4">
-                  {readScripts.length > 0 ? (
-                    <div className="space-y-2">
-                      {readScripts.slice(0, 5).map((s) => (
-                        <Link key={s._id} to={`/reader/script/${s._id}`}
-                          className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl transition-all duration-150 ${ dark ? "hover:bg-white/[0.04]" : "hover:bg-gray-50" }`}>
-                          {s.thumbnail ? (
-                            <img src={s.thumbnail.startsWith("http") ? s.thumbnail : `http://localhost:5002${s.thumbnail}`} alt={s.title} className="w-9 h-12 rounded-lg object-cover shrink-0" />
-                          ) : (
-                            <div className={`w-9 h-12 rounded-lg flex items-center justify-center shrink-0 ${ dark ? "bg-blue-500/10" : "bg-blue-50" }`}>
-                              <BookOpen size={14} className={dark ? "text-blue-400" : "text-blue-500"} />
-                            </div>
+                ) : (
+                  <EmptyState
+                    icon={BookOpen}
+                    title="No scripts read yet"
+                    subtitle={isOwnProfile ? "Discover new scripts and dive into a reading adventure!" : "This user hasn't made their reading list public."}
+                    action={isOwnProfile ? <Link to="/reader" className="mt-4 inline-block px-6 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-bold hover:bg-[#162d4a] transition-colors shadow-sm">Explore Scripts</Link> : null}
+                  />
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === "favorites" && (
+              <motion.div key="favorites" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                {favorites.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {favorites.map((s) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={Heart}
+                    title="No favorites saved"
+                    subtitle={isOwnProfile ? "Save your favorite scripts by tapping the heart icon!" : "This user hasn't saved any favorites."}
+                  />
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === "reviews" && (
+              <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                {reviews.length > 0 ? (
+                  <div className="columns-1 md:columns-2 gap-6 space-y-6 max-w-5xl">
+                    {reviews.map((r) => (
+                      <div key={r._id} className="break-inside-avoid">
+                        <div className={`rounded-2xl border shadow-sm p-5 hover:shadow-md transition-shadow ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
+                          {r.script && (
+                            <Link to={`/reader/script/${r.script._id || r.script}`} className={`flex items-center justify-between mb-4 pb-4 border-b group ${dark ? "border-[#182840]" : "border-gray-50"}`}>
+                              <span className={`text-sm font-black group-hover:text-[#1e3a5f] transition-colors truncate pr-4 ${dark ? "text-gray-100" : "text-gray-900"}`}>
+                                {r.script.title || "View Script"}
+                              </span>
+                              <span className="text-gray-300 group-hover:text-[#1e3a5f] transition-colors">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                              </span>
+                            </Link>
                           )}
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-[15px] font-semibold truncate ${ dark ? "text-gray-100" : "text-gray-900" }`}>{s.title}</p>
-                            <p className={`text-[12.5px] truncate mt-0.5 ${ dark ? "text-gray-500" : "text-gray-400" }`}>{s.genre || "Script"}</p>
-                          </div>
-                          <ChevronRight size={13} className={dark ? "text-gray-700" : "text-gray-300"} />
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className={`flex flex-col items-center justify-center py-12 rounded-xl border border-dashed ${ dark ? "border-[#16263d]" : "border-gray-200" }`}>
-                      <BookOpen size={28} strokeWidth={1.5} className={dark ? "text-gray-700 mb-3" : "text-gray-300 mb-3"} />
-                      <p className={`text-[15px] font-semibold mb-1 ${ dark ? "text-gray-400" : "text-gray-600" }`}>No scripts yet</p>
-                      <p className={`text-[13px] mb-5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Start reading to see your list here</p>
-                      <Link to="/reader" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1e3a5f] text-white text-[14px] font-semibold hover:bg-[#162d4a] transition-colors">
-                        <BookOpen size={12} /> Explore Scripts
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Favorites (conditional) ── */}
-              {favorites.length > 0 && (
-                <div className={card}>
-                  <div className={`flex items-center justify-between px-6 py-4 border-b ${ dark ? "border-[#16263d]" : "border-gray-100" }`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap.rose}`}>
-                        <Heart size={14} strokeWidth={2.5} />
-                      </div>
-                      <div>
-                        <p className={`text-[16px] font-bold ${ dark ? "text-white" : "text-gray-900" }`}>Favorites</p>
-                        <p className={`text-[13px] mt-0.5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>{favorites.length} saved script{favorites.length !== 1 ? "s" : ""}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {favorites.slice(0, 4).map((s) => (
-                      <Link key={s._id} to={`/reader/script/${s._id}`}
-                        className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 ${ dark ? "hover:bg-white/[0.04]" : "hover:bg-gray-50" }`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${ dark ? "bg-rose-500/10" : "bg-rose-50" }`}>
-                          <Heart size={13} className="text-rose-400" strokeWidth={2} />
+                          <ReviewCard review={r} currentUserId={user?._id} />
                         </div>
-                        <p className={`text-[15px] font-semibold truncate flex-1 ${ dark ? "text-gray-100" : "text-gray-800" }`}>{s.title}</p>
-                        <ChevronRight size={13} className={dark ? "text-gray-700" : "text-gray-300"} />
-                      </Link>
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* ════════ RIGHT COLUMN ════════ */}
-            <div className="flex flex-col gap-5">
-
-              {/* ── Reading Streak ── */}
-              <div className={card}>
-                <div className={`flex items-center gap-3 px-5 py-4 border-b ${ dark ? "border-[#16263d]" : "border-gray-100" }`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap.amber}`}>
-                    <Flame size={14} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <p className={`text-[16px] font-bold ${ dark ? "text-white" : "text-gray-900" }`}>Reading Streak</p>
-                    <p className={`text-[13px] mt-0.5 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Keep your momentum going</p>
-                  </div>
-                </div>
-                <div className="px-5 pt-7 pb-5">
-                  {/* Arc ring */}
-                  <div className="flex flex-col items-center mb-6">
-                    <div className="relative w-32 h-32">
-                      {/* Glow layer */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-20 h-20 rounded-full bg-orange-500/10 blur-xl" />
-                      </div>
-                      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 relative z-10">
-                        <circle cx="50" cy="50" r="38" fill="none" stroke={ dark ? "#16263d" : "#f3f4f6" } strokeWidth="6" />
-                        <circle cx="50" cy="50" r="38" fill="none"
-                          stroke="url(#streakGrad)" strokeWidth="6"
-                          strokeLinecap="round"
-                          strokeDasharray={`${streakPct * 2.39} 238.7`} />
-                        <defs>
-                          <linearGradient id="streakGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#fb923c" />
-                            <stop offset="100%" stopColor="#f97316" />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                        <span className={`text-4xl font-black leading-none tabular-nums ${ dark ? "text-white" : "text-gray-900" }`}>{streak}</span>
-                        <span className={`text-[11px] font-bold uppercase tracking-widest mt-1 ${ dark ? "text-gray-600" : "text-gray-400" }`}>days</span>
-                      </div>
-                    </div>
-                    <p className={`text-[13px] font-medium mt-3 ${ dark ? "text-gray-500" : "text-gray-400" }`}>
-                      {streak >= 30 ? "Max streak reached!" : `${30 - streak} days to next milestone`}
-                    </p>
-                  </div>
-
-                  {/* Weekly bar chart */}
-                  <div className={`rounded-xl px-4 pt-3.5 pb-4 ${ dark ? "bg-white/[0.03] border border-[#16263d]" : "bg-gray-50 border border-gray-100" }`}>
-                    <p className={`text-[12px] font-semibold uppercase tracking-widest mb-3 ${ dark ? "text-gray-600" : "text-gray-400" }`}>This Week</p>
-                    <div className="flex items-end gap-2 h-10">
-                      {weekDays.map((d, i) => {
-                        const isToday = i === today;
-                        const past = i < today;
-                        return (
-                          <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5">
-                            <div className={`w-full rounded-md transition-all ${
-                              isToday ? "h-10 bg-gradient-to-t from-orange-500 to-orange-400 shadow-sm shadow-orange-500/30"
-                              : past ? "h-6 bg-orange-400/30"
-                              : dark ? "h-2 bg-white/[0.06]" : "h-2 bg-gray-200"
-                            }`} />
-                            <span className={`text-[11px] font-bold ${ isToday ? "text-orange-400" : dark ? "text-gray-700" : "text-gray-400" }`}>{d}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── PROJECTS TAB ── */}
-        {dashboardTab === "projects" && (
-          <motion.div key="projects" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}>
-            {/* Sub-tabs: Scripts Read / Favorites / Reviews */}
-            <div className="flex flex-wrap items-center gap-2 mb-6">
-              {tabs.map((t) => {
-                const Icon = t.icon;
-                const isActive = activeTab === t.key;
-                return (
-                  <button key={t.key} onClick={() => setActiveTab(t.key)}
-                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 ${ isActive ? "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/25" : dark ? "bg-white/[0.03] text-gray-400 hover:bg-white/[0.07] hover:text-gray-200 border border-[#1d3350]" : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-gray-200" }`}>
-                    <Icon size={15} strokeWidth={isActive ? 2.5 : 2} className={isActive ? "text-blue-300" : "text-gray-400"} />
-                    {t.label}
-                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${ isActive ? "bg-white/20 text-white" : dark ? "bg-white/[0.06] border border-[#1d3350] text-gray-500" : "bg-white border border-gray-200 text-gray-500 shadow-sm" }`}>{t.count}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <AnimatePresence mode="wait">
-              {dataLoading ? (
-                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className={`rounded-2xl border h-[280px] animate-pulse ${ dark ? "bg-[#0d1b2e] border-[#182840]" : "bg-white border-gray-100" }`} />
-                  ))}
-                </motion.div>
-              ) : (
-                <div className="min-h-[400px]">
-                  {activeTab === "read" && (
-                    <motion.div key="read" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      {readScripts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {readScripts.map((s) => <ScriptCard key={s._id} script={s} />)}
-                        </div>
-                      ) : (
-                        <EmptyState icon={BookOpen} title="No scripts read yet"
-                          subtitle={isOwnProfile ? "Discover new scripts and dive into a reading adventure!" : "This user hasn't made their reading list public."}
-                          action={isOwnProfile ? <Link to="/reader" className="mt-4 inline-block px-6 py-2.5 bg-[#1e3a5f] text-white rounded-xl text-sm font-bold hover:bg-[#162d4a] transition-colors shadow-sm">Explore Scripts</Link> : null} />
-                      )}
-                    </motion.div>
-                  )}
-                  {activeTab === "favorites" && (
-                    <motion.div key="favorites" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      {favorites.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {favorites.map((s) => <ScriptCard key={s._id} script={s} />)}
-                        </div>
-                      ) : (
-                        <EmptyState icon={Heart} title="No favorites saved"
-                          subtitle={isOwnProfile ? "Save your favorite scripts by tapping the heart icon!" : "This user hasn't saved any favorites."} />
-                      )}
-                    </motion.div>
-                  )}
-                  {activeTab === "reviews" && (
-                    <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                      {reviews.length > 0 ? (
-                        <div className="columns-1 md:columns-2 gap-6 space-y-6">
-                          {reviews.map((r) => (
-                            <div key={r._id} className="break-inside-avoid">
-                              <div className={`rounded-2xl border shadow-sm p-5 hover:shadow-md transition-shadow ${ dark ? "bg-[#0d1b2e] border-[#182840]" : "bg-white border-gray-100" }`}>
-                                {r.script && (
-                                  <Link to={`/reader/script/${r.script._id || r.script}`} className={`flex items-center justify-between mb-4 pb-4 border-b group ${ dark ? "border-[#182840]" : "border-gray-50" }`}>
-                                    <span className={`text-sm font-black group-hover:text-[#1e3a5f] transition-colors truncate pr-4 ${ dark ? "text-gray-100" : "text-gray-900" }`}>{r.script.title || "View Script"}</span>
-                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-[#1e3a5f] transition-colors shrink-0" />
-                                  </Link>
-                                )}
-                                <ReviewCard review={r} currentUserId={user?._id} />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <EmptyState icon={MessageSquare} title="No reviews left"
-                          subtitle={isOwnProfile ? "Help writers by sharing your thoughtful feedback!" : "This user hasn't reviewed any scripts."} />
-                      )}
-                    </motion.div>
-                  )}
-                </div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-
-        {/* ── ABOUT TAB ── */}
-        {dashboardTab === "about" && (
-          <motion.div key="about" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl">
-            {profile.bio && (
-              <div className={`${card} p-6 md:col-span-2`}>
-                <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Bio</p>
-                <p className={`text-sm leading-relaxed font-medium ${ dark ? "text-gray-300" : "text-gray-600" }`}>{profile.bio}</p>
-              </div>
+                ) : (
+                  <EmptyState
+                    icon={MessageSquare}
+                    title="No reviews left"
+                    subtitle={isOwnProfile ? "Help writers by sharing your thoughtful feedback!" : "This user hasn't reviewed any scripts."}
+                  />
+                )}
+              </motion.div>
             )}
-            {profile.skills?.length > 0 && (
-              <div className={`${card} p-6 md:col-span-2`}>
-                <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Interests & Skills</p>
-                <div className="flex flex-wrap gap-2">
-                  {profile.skills.map((s, i) => (
-                    <span key={i} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border ${ dark ? "bg-[#1e3a5f]/25 text-[#7aafff] border-[#2a4a6e]/60" : "bg-[#1e3a5f]/[0.05] text-[#1e3a5f] border-[#1e3a5f]/12" }`}>{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className={`${card} p-6`}>
-              <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Member Info</p>
-              <div className="space-y-3">
-                {[{ icon: CalendarDays, label: "Joined", value: memberSince || "—" }, { icon: ShieldCheck, label: "Role", value: profile.role === "professional" ? "Industry Pro" : profile.role || "Reader" }].map(({ icon: EI, label, value }) => (
-                  <div key={label} className="flex items-center gap-3">
-                    <EI size={15} strokeWidth={2} className={`shrink-0 ${ dark ? "text-gray-500" : "text-gray-400" }`} />
-                    <span className={`text-[13px] font-medium flex-1 ${ dark ? "text-gray-500" : "text-gray-400" }`}>{label}</span>
-                    <span className={`text-[13px] font-bold ${ dark ? "text-gray-200" : "text-gray-800" }`}>{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className={`${card} p-6`}>
-              <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Preferences</p>
-              {(profile.preferences?.genres?.length > 0 || profile.preferences?.contentTypes?.length > 0) ? (
-                <div className="flex flex-wrap gap-2">
-                  {[...(profile.preferences.genres || []), ...(profile.preferences.contentTypes || [])].map((p, i) => (
-                    <span key={i} className={`px-2.5 py-1 rounded-lg text-[11.5px] font-bold border ${ dark ? "bg-[#1e3a5f]/25 text-[#7aafff] border-[#2a4a6e]/60" : "bg-[#1e3a5f]/[0.05] text-[#1e3a5f] border-[#1e3a5f]/12" }`}>{p}</span>
-                  ))}
-                </div>
-              ) : (
-                <p className={`text-[13px] font-medium ${ dark ? "text-gray-500" : "text-gray-400" }`}>No preferences set.</p>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── SETTINGS TAB ── */}
-        {dashboardTab === "settings" && isOwnProfile && (
-          <motion.div key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}
-            className="max-w-xl">
-            <div className={`${card} p-6`}>
-              <p className={`text-[11px] font-bold uppercase tracking-widest mb-4 ${ dark ? "text-gray-600" : "text-gray-400" }`}>Account Settings</p>
-              <div className="space-y-3">
-                <button onClick={() => setEditOpen(true)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:scale-[1.01] ${ dark ? "border-[#182840] hover:border-[#2a4060] hover:bg-white/[0.03]" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50" }`}>
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${colorMap.blue}`}><Pencil size={15} strokeWidth={2.5} /></div>
-                  <div className="flex-1">
-                    <p className={`text-[13.5px] font-bold ${ dark ? "text-gray-100" : "text-gray-900" }`}>Edit Profile</p>
-                    <p className={`text-[11.5px] ${ dark ? "text-gray-500" : "text-gray-400" }`}>Update name, bio, photo and skills</p>
-                  </div>
-                  <ChevronRight size={15} className="text-gray-400" />
-                </button>
-                <Link to="/reader/onboarding"
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all hover:scale-[1.01] ${ dark ? "border-[#182840] hover:border-[#2a4060] hover:bg-white/[0.03]" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50" }`}>
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${colorMap.emerald}`}><SlidersHorizontal size={15} strokeWidth={2.5} /></div>
-                  <div className="flex-1">
-                    <p className={`text-[13.5px] font-bold ${ dark ? "text-gray-100" : "text-gray-900" }`}>Update Preferences</p>
-                    <p className={`text-[11.5px] ${ dark ? "text-gray-500" : "text-gray-400" }`}>Genres, content types & reading goals</p>
-                  </div>
-                  <ChevronRight size={15} className="text-gray-400" />
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
-        {dashboardTab === "settings" && !isOwnProfile && (
-          <motion.div key="settings-na" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-xl">
-            <EmptyState icon={Settings} title="Settings unavailable" subtitle="You can only manage settings for your own profile." />
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
       {/* Edit Profile Modal */}
       <AnimatePresence>
         {editOpen && (
-          <EditProfileModal profile={profile} onClose={() => setEditOpen(false)} onSaved={handleProfileSaved} />
+          <EditProfileModal
+            profile={profile}
+            onClose={() => setEditOpen(false)}
+            onSaved={handleProfileSaved}
+          />
         )}
       </AnimatePresence>
-    </div>
     </div>
   );
 };

@@ -111,45 +111,93 @@ const Credits = () => {
 
   const getTxConf = (type) => txConfig[type] || { label: type, icon: Coins, darkCls: "text-gray-400 bg-gray-500/10", lightCls: "text-gray-600 bg-gray-50" };
 
-  const getServiceIcon = (key) => {
-    switch (key) {
-      case "aiEvaluation":
-        return <Zap className="w-5 h-5" />;
-      case "aiTrailer":
-        return <Sparkles className="w-5 h-5" />;
-      case "scriptAnalysis":
-        return <FileText className="w-5 h-5" />;
-      case "premiumReport":
-        return <BarChart3 className="w-5 h-5" />;
-      case "consultation":
-        return <MessageSquare className="w-5 h-5" />;
-      default:
-        return <Star className="w-5 h-5" />;
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className={`w-10 h-10 border-[3px] rounded-full animate-spin ${dark ? "border-white/10 border-t-blue-400" : "border-gray-200 border-t-blue-600"}`} />
+          <p className={`text-sm font-medium ${dark ? "text-white/40" : "text-gray-400"}`}>Loading credits...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const getServiceColor = (key) => {
-    const colors = {
-      aiEvaluation: dark
-        ? "from-yellow-500/20 to-amber-500/10 text-yellow-400"
-        : "from-yellow-50 to-amber-50 text-yellow-600",
-      aiTrailer: dark
-        ? "from-purple-500/20 to-pink-500/10 text-purple-400"
-        : "from-purple-50 to-pink-50 text-purple-600",
-      scriptAnalysis: dark
-        ? "from-blue-500/20 to-cyan-500/10 text-blue-400"
-        : "from-blue-50 to-cyan-50 text-blue-600",
-      premiumReport: dark
-        ? "from-emerald-500/20 to-teal-500/10 text-emerald-400"
-        : "from-emerald-50 to-teal-50 text-emerald-600",
-      consultation: dark
-        ? "from-rose-500/20 to-orange-500/10 text-rose-400"
-        : "from-rose-50 to-orange-50 text-rose-600",
-    };
-    return colors[key] || (dark ? "from-gray-500/20 to-gray-500/10 text-gray-400" : "from-gray-50 to-gray-50 text-gray-600");
-  };
+  const usagePercent = balance?.totalPurchased > 0
+    ? Math.round((balance.totalSpent / balance.totalPurchased) * 100) : 0;
+  const canBuyCredits = balance?.canPurchaseCredits !== false;
 
-  //  Loading State 
+  const getCredits = (key, fallback) => pricing?.[key]?.credits ?? fallback;
+
+  const services = [
+    {
+      key: "evaluation", icon: Award,
+      label: "Script Evaluation", tag: "Professional",
+      desc: "Industry-standard reader coverage with detailed scores across 6 dimensions.",
+      credits: getCredits("aiEvaluation", 50),
+      color: { dark: "text-amber-400", light: "text-amber-600", iconDark: "bg-amber-400/10", iconLight: "bg-amber-100", badgeDark: "bg-amber-400/10 text-amber-300", badgeLight: "bg-amber-50 text-amber-700", btnDark: "bg-amber-500 hover:bg-amber-400 text-white", btnLight: "bg-amber-500 hover:bg-amber-600 text-white" },
+      features: ["Score across 6 dimensions", "Strengths & weaknesses", "Market assessment", "Editorial feedback"],
+      onUse: async () => { try { const { data } = await api.get("/scripts/mine"); const w = (data||[]).find(s=>!s.services?.evaluation); navigate(w ? `/upload?edit=${w._id}` : "/upload"); } catch { navigate("/upload"); } },
+    },
+    {
+      key: "aiScript", icon: Brain,
+      label: "AI Script Analysis", tag: "AI Powered",
+      desc: "Deep AI intelligence dissects plot structure, character arcs, and marketability.",
+      credits: getCredits("scriptAnalysis", 30),
+      color: { dark: "text-blue-400", light: "text-blue-600", iconDark: "bg-blue-400/10", iconLight: "bg-blue-100", badgeDark: "bg-blue-400/10 text-blue-300", badgeLight: "bg-blue-50 text-blue-700", btnDark: "bg-blue-500 hover:bg-blue-400 text-white", btnLight: "bg-blue-600 hover:bg-blue-700 text-white" },
+      features: ["Plot & pacing score", "Character arc analysis", "Dialogue rating", "Genre fit index"],
+      onUse: () => navigate("/upload"),
+    },
+    {
+      key: "aiTrailer", icon: Video,
+      label: "AI Concept Trailer", tag: "Text to Trailer",
+      desc: "Turn your screenplay into a cinematic 60-second teaser automatically.",
+      credits: getCredits("aiTrailer", 80),
+      beta: true,
+      color: { dark: "text-violet-400", light: "text-violet-600", iconDark: "bg-violet-400/10", iconLight: "bg-violet-100", badgeDark: "bg-violet-400/10 text-violet-300", badgeLight: "bg-violet-50 text-violet-700", btnDark: "bg-violet-500 hover:bg-violet-400 text-white", btnLight: "bg-violet-600 hover:bg-violet-700 text-white" },
+      features: ["AI voiceover & narration", "Scene matching", "Title card generation", "Shareable link"],
+      onUse: () => navigate("/upload"),
+    },
+    {
+      key: "hosting", icon: Rocket,
+      label: "Script Hosting", tag: "Free Forever",
+      desc: "List your script in our marketplace — visible to producers and studios.",
+      credits: 0,
+      color: { dark: "text-emerald-400", light: "text-emerald-600", iconDark: "bg-emerald-400/10", iconLight: "bg-emerald-100", badgeDark: "bg-emerald-400/10 text-emerald-300", badgeLight: "bg-emerald-50 text-emerald-700", btnDark: "bg-emerald-500 hover:bg-emerald-400 text-white", btnLight: "bg-emerald-600 hover:bg-emerald-700 text-white" },
+      features: ["Visible to producers", "SEO-optimised profile", "Download requests", "Lifetime page"],
+      onUse: () => navigate("/upload"),
+    },
+  ];
+
+  return (
+    <>
+      <BuyCreditsModal isOpen={showBuyModal} onClose={() => setShowBuyModal(false)} onSuccess={handlePurchaseSuccess} />
+
+      <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* ── Page Header ── */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className={`text-2xl font-black tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>
+              Credits
+            </h1>
+            <p className={`text-sm mt-1 ${dark ? "text-gray-500" : "text-gray-400"}`}>
+              Manage your credits balance and unlock professional tools
+            </p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            onClick={() => setShowBuyModal(true)}
+            disabled={!canBuyCredits}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-shadow"
+          >
+            <Plus className="w-4 h-4" />
+            Buy Credits
+          </motion.button>
+        </div>
+
+        {/* ── Balance Cards ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Main balance */}
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             className={`relative rounded-2xl border p-5 overflow-hidden col-span-1 sm:col-span-1 ${dark ? "bg-[#0d1b2e] border-[#1a2e48]" : "bg-gradient-to-br from-blue-50 to-white border-blue-100"}`}
@@ -211,16 +259,9 @@ const Credits = () => {
           </motion.div>
         </div>
 
-        {/*  Tabs  */}
-        <div
-          className={`flex gap-1 p-1 rounded-xl ${
-            dark ? "bg-white/[0.04]" : "bg-gray-100"
-          }`}
-        >
-          {[
-            { id: "overview", label: "Services", icon: Zap },
-            { id: "history", label: "History", icon: History },
-          ].map((tab) => (
+        {/* ── Tabs ── */}
+        <div className={`flex gap-1 p-1 rounded-xl w-fit ${dark ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+          {[{ id: "services", label: "Services", icon: Zap }, { id: "history", label: "History", icon: History }].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -236,27 +277,17 @@ const Credits = () => {
           ))}
         </div>
 
-        {/*  Services Tab  */}
+        {/* ── Tab Content ── */}
         <AnimatePresence mode="wait">
-          {activeTab === "overview" && (
-            <motion.div
-              key="overview"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              {/*  Hero banner  */}
-              <div className={`relative overflow-hidden rounded-2xl p-6 sm:p-8 ${
-                dark
-                  ? "bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-transparent border border-white/[0.06]"
-                  : "bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-800"
-              }`}>
-                <div className="absolute inset-0 opacity-10 pointer-events-none">
-                  <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full bg-white blur-3xl" />
-                  <div className="absolute -bottom-4 -left-4 w-32 h-32 rounded-full bg-purple-300 blur-2xl" />
-                </div>
-                <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+          {/* SERVICES TAB */}
+          {activeTab === "services" && (
+            <motion.div key="services" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+
+              {/* Hero */}
+              <div className={`relative overflow-hidden rounded-2xl p-6 ${dark ? "bg-gradient-to-br from-blue-600/15 via-violet-600/8 to-transparent border border-white/[0.06]" : "bg-gradient-to-r from-blue-600 to-violet-700"}`}>
+                <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
                   <div>
                     <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3 ${dark ? "bg-white/10 text-white/60" : "bg-white/20 text-white"}`}>
                       <Flame className="w-3 h-3" /> Spend Your Credits
@@ -275,133 +306,27 @@ const Credits = () => {
                 </div>
               </div>
 
-              {/*  Service cards  */}
-              {(() => {
-                const getCredits = (key, fallback) =>
-                  pricing?.[key]?.credits ?? fallback;
-
-                const services = [
-                  {
-                    key: "evaluation",
-                    icon: Award,
-                    label: "PROFESSIONAL EVALUATION",
-                    name: "Script Evaluation",
-                    tagline: "Industry-standard reader coverage on your screenplay.",
-                    credits: getCredits("aiEvaluation", 50),
-                    gradient: dark
-                      ? "from-amber-500/25 to-yellow-500/10 border-amber-500/20"
-                      : "from-amber-50 to-yellow-50 border-amber-200/70",
-                    iconColor: dark ? "bg-amber-500/20 text-amber-400" : "bg-amber-100 text-amber-600",
-                    badge: dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700",
-                    btnClass: dark
-                      ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30"
-                      : "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20",
-                    features: [
-                      "Detailed score across 6 dimensions",
-                      "Strengths & weaknesses breakdown",
-                      "Market potential & audience assessment",
-                      "Platform editorial feedback",
-                    ],
-                    onUse: async () => {
-                      try {
-                        const { data } = await api.get("/scripts/mine");
-                        const without = (data || []).find((s) => !s.services?.evaluation);
-                        navigate(without ? `/upload?edit=${without._id}` : "/upload");
-                      } catch {
-                        navigate("/upload");
-                      }
-                    },
-                  },
-                  {
-                    key: "scriptAnalysis",
-                    icon: Brain,
-                    label: "AI POWERED",
-                    name: "AI Script Analysis",
-                    tagline: "Deep AI intelligence dissects every layer of your script.",
-                    credits: getCredits("scriptAnalysis", 30),
-                    gradient: dark
-                      ? "from-blue-500/25 to-cyan-500/10 border-blue-500/20"
-                      : "from-blue-50 to-cyan-50 border-blue-200/70",
-                    iconColor: dark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-600",
-                    badge: dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700",
-                    btnClass: dark
-                      ? "bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30"
-                      : "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20",
-                    features: [
-                      "Plot structure & pacing score",
-                      "Character arc depth analysis",
-                      "Dialogue quality rating",
-                      "Marketability & genre fit index",
-                    ],
-                    onUse: () => navigate("/upload"),
-                  },
-                  {
-                    key: "aiTrailer",
-                    icon: Video,
-                    label: "TEXT TO TRAILER",
-                    name: "AI Concept Trailer",
-                    tagline: "Turn your script into a cinematic 60-second teaser.",
-                    credits: getCredits("aiTrailer", 80),
-                    gradient: dark
-                      ? "from-purple-500/25 to-pink-500/10 border-purple-500/20"
-                      : "from-purple-50 to-pink-50 border-purple-200/70",
-                    iconColor: dark ? "bg-purple-500/20 text-purple-400" : "bg-purple-100 text-purple-600",
-                    badge: dark ? "bg-purple-500/15 text-purple-300" : "bg-purple-100 text-purple-700",
-                    btnClass: dark
-                      ? "bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30"
-                      : "bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20",
-                    features: [
-                      "AI voiceover & narration",
-                      "Stock footage scene matching",
-                      "Cinematic title card generation",
-                      "Shareable & embeddable trailer link",
-                    ],
-                    beta: true,
-                    onUse: () => navigate("/upload"),
-                  },
-                  {
-                    key: "hosting",
-                    icon: Rocket,
-                    label: "FREE FOREVER",
-                    name: "Script Hosting & Discovery",
-                    tagline: "List your script in our live marketplace — forever free.",
-                    credits: 0,
-                    gradient: dark
-                      ? "from-emerald-500/25 to-teal-500/10 border-emerald-500/20"
-                      : "from-emerald-50 to-teal-50 border-emerald-200/70",
-                    iconColor: dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-600",
-                    badge: dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700",
-                    btnClass: dark
-                      ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30"
-                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20",
-                    features: [
-                      "Visible to producers & studios",
-                      "SEO-optimised script profile",
-                      "Download & audition requests",
-                      "Lifetime project page",
-                    ],
-                    onUse: () => navigate("/upload"),
-                  },
-                ];
-
-                return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {services.map((svc, idx) => {
-                      const IconComp = svc.icon;
-                      const canAfford = svc.credits === 0 || (balance?.balance || 0) >= svc.credits;
-                      return (
-                        <motion.div
-                          key={svc.key}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.07 }}
-                          className={`group relative rounded-2xl border p-6 flex flex-col gap-4 bg-gradient-to-br transition-all hover:shadow-xl ${
-                            dark ? "hover:shadow-black/30" : "hover:shadow-gray-200/80"
-                          } ${svc.gradient}`}
-                        >
-                          {svc.beta && (
-                            <span className="absolute top-4 right-4 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500 text-white tracking-wide">
-                              BETA
+              {/* Service Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {services.map((svc, i) => {
+                  const IconComp = svc.icon;
+                  const canAfford = svc.credits === 0 || (balance?.balance || 0) >= svc.credits;
+                  const c = svc.color;
+                  return (
+                    <motion.div
+                      key={svc.key}
+                      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
+                      className={`rounded-2xl border p-5 flex flex-col gap-4 transition-all hover:shadow-lg ${dark ? "bg-[#0d1b2e] border-[#1a2e48] hover:border-[#264a70] hover:shadow-black/30" : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-gray-100/80"}`}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start gap-3.5">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${dark ? c.iconDark : c.iconLight}`}>
+                          <IconComp className={`w-5 h-5 ${dark ? c.dark : c.light}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-black tracking-widest uppercase px-2 py-0.5 rounded-md ${dark ? c.badgeDark : c.badgeLight}`}>
+                              {svc.tag}
                             </span>
                             {svc.beta && (
                               <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white tracking-wide">BETA</span>
@@ -449,86 +374,13 @@ const Credits = () => {
                 })}
               </div>
 
-                          {/* Features */}
-                          <ul className="space-y-1.5">
-                            {svc.features.map((f) => (
-                              <li key={f} className="flex items-center gap-2">
-                                <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${
-                                  dark ? "text-white/30" : "text-gray-400"
-                                }`} />
-                                <span className={`text-xs ${
-                                  dark ? "text-white/55" : "text-gray-600"
-                                }`}>{f}</span>
-                              </li>
-                            ))}
-                          </ul>
-
-                          {/* CTA footer */}
-                          <div className={`pt-3 border-t flex items-center justify-between ${
-                            dark ? "border-white/[0.07]" : "border-black/[0.06]"
-                          }`}>
-                            <div>
-                              {svc.credits === 0 ? (
-                                <span className={`text-lg font-black ${
-                                  dark ? "text-emerald-400" : "text-emerald-600"
-                                }`}>FREE</span>
-                              ) : (
-                                <>
-                                  <span className={`text-2xl font-black tabular-nums ${
-                                    dark ? "text-white" : "text-gray-900"
-                                  }`}>{svc.credits}</span>
-                                  <span className={`text-xs font-semibold ml-1 ${
-                                    dark ? "text-white/40" : "text-gray-500"
-                                  }`}>credits</span>
-                                </>
-                              )}
-                              {svc.credits > 0 && (
-                                <p className={`text-[10px] mt-0.5 ${
-                                  canAfford
-                                    ? dark ? "text-emerald-400" : "text-emerald-600"
-                                    : dark ? "text-orange-400" : "text-orange-500"
-                                }`}>
-                                  {canAfford ? " You can afford this" : `Need ${svc.credits - (balance?.balance || 0)} more`}
-                                </p>
-                              )}
-                            </div>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.97 }}
-                              onClick={() => svc.onUse ? svc.onUse() : navigate("/upload")}
-                              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${svc.btnClass}`}
-                            >
-                              Use Now
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {/*  Bottom tip  */}
-              <div className={`rounded-xl p-4 flex items-start gap-3 ${
-                dark
-                  ? "bg-white/[0.03] border border-white/[0.06]"
-                  : "bg-gray-50 border border-gray-200/80"
-              }`}>
-                <Info className={`w-4 h-4 shrink-0 mt-0.5 ${
-                  dark ? "text-white/30" : "text-gray-400"
-                }`} />
-                <p className={`text-xs leading-relaxed ${
-                  dark ? "text-white/40" : "text-gray-500"
-                }`}>
-                  Services are applied at the time of project submission.{" "}
-                  <button
-                    onClick={() => navigate("/upload")}
-                    className={`font-bold underline underline-offset-2 ${
-                      dark ? "text-blue-400" : "text-blue-600"
-                    }`}
-                  >
-                    Start a new project
+              {/* Info strip */}
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${dark ? "bg-white/[0.02] border-white/[0.05]" : "bg-gray-50 border-gray-100"}`}>
+                <Info className={`w-4 h-4 shrink-0 ${dark ? "text-gray-600" : "text-gray-400"}`} />
+                <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                  Services are activated when you submit a project.{" "}
+                  <button onClick={() => navigate("/upload")} className={`font-semibold underline underline-offset-2 ${dark ? "text-blue-400" : "text-blue-600"}`}>
+                    Start a project
                   </button>{" "}
                   to select a service.
                 </p>
@@ -536,7 +388,7 @@ const Credits = () => {
             </motion.div>
           )}
 
-          {/*  History Tab  */}
+          {/* HISTORY TAB */}
           {activeTab === "history" && (
             <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1b2e] border-[#1a2e48]" : "bg-white border-gray-100"}`}>

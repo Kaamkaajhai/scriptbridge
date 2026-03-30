@@ -1,8 +1,27 @@
 import Review from "../models/Review.js";
+import Script from "../models/Script.js";
 
 export const createReview = async (req, res) => {
   try {
     const { script, rating, comment } = req.body;
+
+    const scriptDoc = await Script.findById(script).select("creator status isDeleted");
+    if (!scriptDoc) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    if (scriptDoc.isDeleted) {
+      return res.status(410).json({ message: "This project is deleted and cannot be reviewed." });
+    }
+
+    if (scriptDoc.status !== "published") {
+      return res.status(400).json({ message: "Only published projects can be reviewed." });
+    }
+
+    if (scriptDoc.creator?.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "You cannot review your own project." });
+    }
+
     const existing = await Review.findOne({ user: req.user._id, script });
     if (existing) return res.status(400).json({ message: "You already reviewed this script" });
 
@@ -18,13 +37,24 @@ export const getReviewsByScript = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const total = await Review.countDocuments({ script: req.params.scriptId });
-    const reviews = await Review.find({ script: req.params.scriptId })
-      .populate("user", "name profileImage role")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-    res.json({ reviews, totalPages: Math.ceil(total / limit), page, total });
+    const [total, reviews, myReview] = await Promise.all([
+      Review.countDocuments({ script: req.params.scriptId }),
+      Review.find({ script: req.params.scriptId })
+        .populate("user", "name profileImage role")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Review.findOne({ script: req.params.scriptId, user: req.user._id })
+        .populate("user", "name profileImage role"),
+    ]);
+
+    res.json({
+      reviews,
+      totalPages: Math.ceil(total / limit),
+      page,
+      total,
+      myReview,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

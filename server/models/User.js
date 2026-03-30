@@ -14,6 +14,15 @@ const userSchema = new mongoose.Schema({
   sid: { type: String, unique: true, sparse: true, index: true },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  phone: { type: String },
+  dateOfBirth: { type: Date },
+  address: {
+    street: { type: String },
+    city: { type: String },
+    state: { type: String },
+    zipCode: { type: String },
+    formatted: { type: String },
+  },
   pendingEmail: { type: String },
   password: { type: String, required: true },
   role: { type: String, enum: ["creator", "investor", "producer", "director", "actor", "reader", "writer", "industry", "professional", "admin"], required: true },
@@ -32,8 +41,14 @@ const userSchema = new mongoose.Schema({
   emailVerificationToken: { type: String },
   emailVerificationExpires: { type: Date },
 
+  // Legal acceptance tracking
+  privacyPolicyAccepted: { type: Boolean, default: false },
+  privacyPolicyAcceptedAt: { type: Date },
+  privacyPolicyVersion: { type: String },
+
   // Writer-specific profile fields
   writerProfile: {
+    username: { type: String },
     legalName: { type: String },
     representationStatus: {
       type: String,
@@ -51,13 +66,57 @@ const userSchema = new mongoose.Schema({
     // Diversity data (optional)
     diversity: {
       gender: { type: String },
+      nationality: { type: String },
       ethnicity: { type: String },
       lgbtqStatus: { type: String },
       disabilityStatus: { type: String },
     },
+    links: {
+      portfolio: { type: String },
+      instagram: { type: String },
+      twitter: { type: String },
+      linkedin: { type: String },
+      imdb: { type: String },
+      facebook: { type: String },
+    },
+    accomplishments: [{ type: String }],
+    representation: {
+      filmTv: {
+        agency: { type: String },
+        agent: { type: String },
+        managementCompany: { type: String },
+        manager: { type: String },
+        lawFirm: { type: String },
+        lawyer: { type: String },
+      },
+      theater: {
+        agency: { type: String },
+        agent: { type: String },
+        managementCompany: { type: String },
+        manager: { type: String },
+        lawFirm: { type: String },
+        lawyer: { type: String },
+      },
+      literary: {
+        agency: { type: String },
+        agent: { type: String },
+        managementCompany: { type: String },
+        manager: { type: String },
+        lawFirm: { type: String },
+        lawyer: { type: String },
+      },
+    },
+    demographicPrivacy: {
+      type: String,
+      enum: ["searchable", "private"],
+      default: "searchable",
+    },
     // Onboarding completion tracking
     onboardingComplete: { type: Boolean, default: false },
     onboardingStep: { type: Number, default: 0 }, // Track which step they're on
+    writerOnboardingTermsAccepted: { type: Boolean, default: false },
+    writerOnboardingTermsAcceptedAt: { type: Date },
+    writerOnboardingTermsVersion: { type: String },
   },
 
   // Industry Professional Profile
@@ -70,6 +129,13 @@ const userSchema = new mongoose.Schema({
     jobTitle: { type: String },
     imdbUrl: { type: String },
     linkedInUrl: { type: String },
+    socialLinks: {
+      instagram: { type: String },
+      twitter: { type: String },
+      website: { type: String },
+      youtube: { type: String },
+      facebook: { type: String },
+    },
     otherUrl: { type: String },
     previousCredits: { type: String },
     investmentRange: { type: String },
@@ -89,6 +155,7 @@ const userSchema = new mongoose.Schema({
 
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  profileViews: { type: Number, default: 0 },
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   // Smart Match preferences
   preferences: {
@@ -164,6 +231,42 @@ const userSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
     verifiedAt: { type: Date },
     addedAt: { type: Date }
+  },
+  bankDetailsReview: {
+    status: {
+      type: String,
+      enum: ["not_submitted", "pending", "approved", "rejected"],
+      default: "not_submitted",
+    },
+    requestedDetails: {
+      accountHolderName: { type: String },
+      bankName: { type: String },
+      accountNumber: { type: String },
+      routingNumber: { type: String },
+      accountType: {
+        type: String,
+        enum: ["checking", "savings", "business"],
+        default: "checking",
+      },
+      swiftCode: { type: String },
+      iban: { type: String },
+      country: { type: String, default: "IN" },
+      currency: { type: String, default: "INR" },
+    },
+    submittedAt: { type: Date },
+    dueAt: { type: Date },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    adminNote: { type: String },
+  },
+  bankDetailsSecurity: {
+    invalidAttempts: { type: Number, default: 0 },
+    isLocked: { type: Boolean, default: false },
+    lockedAt: { type: Date },
+    lastInvalidAttemptAt: { type: Date },
+    lastInvalidReason: { type: String },
+    unlockedAt: { type: Date },
+    unlockedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   wallet: {
     balance: { type: Number, default: 0 },

@@ -51,6 +51,9 @@ const scriptPurchaseRequestSchema = new mongoose.Schema(
     settledAt: {
       type: Date,
     },
+    paymentDueAt: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected", "cancelled"],
@@ -59,6 +62,14 @@ const scriptPurchaseRequestSchema = new mongoose.Schema(
     note: {
       type: String,
       default: "",
+    },
+    termsAcceptance: {
+      platformTermsAccepted: { type: Boolean, default: false },
+      writerTermsAccepted: { type: Boolean, default: false },
+      customWriterTermsAccepted: { type: Boolean, default: false },
+      customWriterTermsSnapshot: { type: String, default: "" },
+      acceptedAt: { type: Date },
+      acceptedIp: { type: String, default: "" },
     },
   },
   { timestamps: true }

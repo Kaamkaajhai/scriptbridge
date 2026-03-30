@@ -4,6 +4,121 @@ import Script from "../models/Script.js";
 import ScriptOption from "../models/ScriptOption.js";
 
 const normalizedCurrency = "INR";
+const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+const MAX_BANK_INVALID_ATTEMPTS = 5;
+const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
+
+const maskAccountNumber = (accountNumber = "") => {
+  if (!accountNumber) return "";
+  const last4 = String(accountNumber).slice(-4);
+  return `****${last4}`;
+};
+
+const sanitizeBankDetailsForResponse = (bankDetails) => {
+  if (!bankDetails || !bankDetails.accountNumber) return null;
+  const plain = bankDetails?.toObject ? bankDetails.toObject() : bankDetails;
+  return {
+    ...plain,
+    accountNumber: maskAccountNumber(plain.accountNumber),
+  };
+};
+
+const sanitizeBankReviewForResponse = (bankDetailsReview) => {
+  if (!bankDetailsReview) {
+    return { status: "not_submitted" };
+  }
+
+  const plain = bankDetailsReview?.toObject ? bankDetailsReview.toObject() : bankDetailsReview;
+  const requested = plain?.requestedDetails || {};
+
+  return {
+    status: plain.status || "not_submitted",
+    submittedAt: plain.submittedAt,
+    dueAt: plain.dueAt,
+    reviewedAt: plain.reviewedAt,
+    adminNote: plain.adminNote || "",
+    requestedDetails: requested.accountNumber
+      ? {
+          ...requested,
+          accountNumber: maskAccountNumber(requested.accountNumber),
+        }
+      : null,
+  };
+};
+
+const sanitizeBankSecurityForResponse = (bankDetailsSecurity) => ({
+  invalidAttempts: Number(bankDetailsSecurity?.invalidAttempts || 0),
+  isLocked: Boolean(bankDetailsSecurity?.isLocked),
+  lockedAt: bankDetailsSecurity?.lockedAt,
+});
+
+const normalizeIncomingBankDetails = (payload = {}) => ({
+  accountHolderName: String(payload.accountHolderName || "").trim(),
+  bankName: String(payload.bankName || "").trim(),
+  accountNumber: String(payload.accountNumber || "").replace(/\s+/g, ""),
+  routingNumber: String(payload.routingNumber || "").replace(/\s+/g, "").toUpperCase(),
+  accountType: payload.accountType || "checking",
+  swiftCode: String(payload.swiftCode || "").trim().toUpperCase(),
+  iban: String(payload.iban || "").trim().toUpperCase(),
+  country: String(payload.country || "IN").trim().toUpperCase(),
+  currency: String(payload.currency || "INR").trim().toUpperCase(),
+});
+
+const getInvalidBankDetailsMessage = (bankDetails) => {
+  if (!ACCOUNT_NUMBER_REGEX.test(bankDetails.accountNumber || "")) {
+    return "Account number must be 8-20 digits";
+  }
+
+  if (!bankDetails.routingNumber) {
+    return "Routing / IFSC number is required";
+  }
+
+  if (bankDetails.country === "IN") {
+    if (!IFSC_REGEX.test(bankDetails.routingNumber)) {
+      return "Please enter a valid IFSC code (example: HDFC0001234)";
+    }
+  } else if (!GENERIC_ROUTING_REGEX.test(bankDetails.routingNumber)) {
+    return "Routing number must be 4-20 letters, numbers, or hyphen";
+  }
+
+  return "";
+};
+
+const ensureBankDetailsSecurity = (user) => {
+  if (!user.bankDetailsSecurity) {
+    user.bankDetailsSecurity = {};
+  }
+
+  if (typeof user.bankDetailsSecurity.invalidAttempts !== "number") {
+    user.bankDetailsSecurity.invalidAttempts = 0;
+  }
+
+  if (typeof user.bankDetailsSecurity.isLocked !== "boolean") {
+    user.bankDetailsSecurity.isLocked = false;
+  }
+
+  return user.bankDetailsSecurity;
+};
+
+const recordInvalidBankAttempt = async (user, reason = "Invalid bank details") => {
+  const security = ensureBankDetailsSecurity(user);
+  security.invalidAttempts = Number(security.invalidAttempts || 0) + 1;
+  security.lastInvalidAttemptAt = new Date();
+  security.lastInvalidReason = String(reason || "Invalid bank details");
+
+  if (security.invalidAttempts >= MAX_BANK_INVALID_ATTEMPTS) {
+    security.isLocked = true;
+    security.lockedAt = new Date();
+  }
+
+  user.markModified("bankDetailsSecurity");
+  await user.save();
+
+  return security;
+};
 
 const serializeTransaction = (transaction) => {
   const plainTransaction = transaction?.toObject ? transaction.toObject() : transaction;
@@ -146,45 +261,69 @@ export const requestWithdrawal = async (req, res) => {
 // @access  Private
 export const updateBankDetails = async (req, res) => {
   try {
-    const {
-      accountHolderName,
-      bankName,
-      accountNumber,
-      routingNumber,
-      accountType,
-      swiftCode,
-      iban,
-      country,
-      currency
-    } = req.body;
-    
     const user = await User.findById(req.user._id);
-    
-    user.bankDetails = {
-      accountHolderName,
-      bankName,
-      accountNumber,
-      routingNumber,
-      accountType: accountType || 'checking',
-      swiftCode,
-      iban,
-      country: country || 'IN',
-      currency: currency || 'INR',
-      isVerified: false, // Reset verification on update
-      addedAt: user.bankDetails?.addedAt || new Date()
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const security = ensureBankDetailsSecurity(user);
+    if (security.isLocked) {
+      return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+    }
+
+    const requestedDetails = normalizeIncomingBankDetails(req.body);
+    if (!requestedDetails.accountHolderName || !requestedDetails.bankName || !requestedDetails.accountNumber || !requestedDetails.routingNumber) {
+      const updatedSecurity = await recordInvalidBankAttempt(user, "Missing required bank details fields");
+      if (updatedSecurity.isLocked) {
+        return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+      }
+      return res.status(400).json({ message: "Account holder name, bank name, account number, and routing / IFSC number are required" });
+    }
+
+    if (requestedDetails.accountNumber.startsWith("****") || requestedDetails.accountNumber.includes("*")) {
+      const updatedSecurity = await recordInvalidBankAttempt(user, "Masked account number submitted");
+      if (updatedSecurity.isLocked) {
+        return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+      }
+      return res.status(400).json({ message: "Please enter the full account number (masked values are not allowed)" });
+    }
+
+    const invalidBankDetailsMessage = getInvalidBankDetailsMessage(requestedDetails);
+    if (invalidBankDetailsMessage) {
+      const updatedSecurity = await recordInvalidBankAttempt(user, invalidBankDetailsMessage);
+      if (updatedSecurity.isLocked) {
+        return res.status(403).json({ message: BANK_DETAILS_BLOCKED_MESSAGE });
+      }
+      return res.status(400).json({ message: invalidBankDetailsMessage });
+    }
+
+    if (requestedDetails.country === "IN") {
+      requestedDetails.currency = "INR";
+    }
+
+    const now = new Date();
+    user.bankDetailsReview = {
+      status: "pending",
+      requestedDetails,
+      submittedAt: now,
+      dueAt: new Date(now.getTime() + BANK_REVIEW_WINDOW_MS),
+      reviewedAt: undefined,
+      reviewedBy: undefined,
+      adminNote: "",
     };
+
+    security.invalidAttempts = 0;
+    security.lastInvalidAttemptAt = undefined;
+    security.lastInvalidReason = "";
+    user.markModified("bankDetailsSecurity");
     
     await user.save();
-    
-    // Return sanitized bank details (hide full account number)
-    const sanitizedDetails = {
-      ...user.bankDetails.toObject(),
-      accountNumber: '****' + accountNumber.slice(-4)
-    };
-    
+
     res.json({ 
-      message: "Bank details updated successfully",
-      bankDetails: sanitizedDetails 
+      message: "Bank details submitted for admin review. Review completes within 2 days.",
+      bankDetails: sanitizeBankDetailsForResponse(user.bankDetails),
+      bankDetailsReview: sanitizeBankReviewForResponse(user.bankDetailsReview),
+      bankDetailsSecurity: sanitizeBankSecurityForResponse(user.bankDetailsSecurity),
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -196,19 +335,19 @@ export const updateBankDetails = async (req, res) => {
 // @access  Private
 export const getBankDetails = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('bankDetails');
-    
-    if (!user.bankDetails || !user.bankDetails.accountNumber) {
-      return res.json({ bankDetails: null });
+    const user = await User.findById(req.user._id).select('bankDetails bankDetailsReview bankDetailsSecurity');
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
-    
-    // Return sanitized bank details
-    const sanitizedDetails = {
-      ...user.bankDetails.toObject(),
-      accountNumber: '****' + user.bankDetails.accountNumber.slice(-4)
-    };
-    
-    res.json({ bankDetails: sanitizedDetails });
+
+    const bankDetails = sanitizeBankDetailsForResponse(user.bankDetails);
+    const bankDetailsReview = sanitizeBankReviewForResponse(user.bankDetailsReview);
+
+    res.json({
+      bankDetails,
+      bankDetailsReview,
+      bankDetailsSecurity: sanitizeBankSecurityForResponse(user.bankDetailsSecurity),
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

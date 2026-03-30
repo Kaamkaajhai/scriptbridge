@@ -6,7 +6,9 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { Film, BadgeCheck } from "lucide-react";
 import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
+import SocialShareButton from "../components/SocialShareButton";
 import { formatCurrency } from "../utils/currency";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 const ScriptDetail = () => {
   const { id } = useParams();
@@ -17,8 +19,9 @@ const ScriptDetail = () => {
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [coverError, setCoverError] = useState(false);
+  const [trailerError, setTrailerError] = useState(false);
+  const [trailerSourceIndex, setTrailerSourceIndex] = useState(0);
   const [showHoldModal, setShowHoldModal] = useState(false);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [holdLoading, setHoldLoading] = useState(false);
   const [trailerLoading, setTrailerLoading] = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -28,7 +31,6 @@ const ScriptDetail = () => {
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [paymentType, setPaymentType] = useState("purchase"); // "purchase" or "hold"
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]); // for creator view on this script
@@ -37,7 +39,31 @@ const ScriptDetail = () => {
   const [rejectNoteModal, setRejectNoteModal] = useState(null); // { id, investorName }
   const [rejectNoteText, setRejectNoteText] = useState("");
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [notice, setNotice] = useState(null); // { type: "success" | "error", message: string }
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [reviewsTotalPages, setReviewsTotalPages] = useState(1);
+  const [reviewsTotal, setReviewsTotal] = useState(0);
+  const [myReview, setMyReview] = useState(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const viewStartRef = useRef(Date.now());
+  const noticeTimerRef = useRef(null);
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+
+  const scriptShare = {
+    url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/script/${script._id}` : ""),
+    title: script?.shareMeta?.title || `${script?.title || "Project"} | ScriptBridge`,
+    text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on ScriptBridge."),
+  };
+
+  const showNotice = (message, type = "success") => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    setNotice({ type, message });
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 4500);
+  };
 
   /* ── Handlers ─────────────────────────────────────────── */
 
@@ -54,11 +80,7 @@ const ScriptDetail = () => {
     }
   };
 
-  const resolveImage = (url) => {
-    if (!url) return "";
-    if (url.startsWith("http") || url.startsWith("data:")) return url;
-    return `http://localhost:5002${url}`;
-  };
+  const resolveImage = resolveMediaUrl;
 
   const handlePrint = () => {
     const raw = script?.textContent || "";
@@ -104,10 +126,55 @@ const ScriptDetail = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleInvoicePdfAction = async (invoice, action = "open") => {
+    if (!invoice?._id) return;
+
+    const { data } = await api.get(`/invoices/${invoice._id}/pdf`, {
+      params: action === "download" ? { download: 1 } : {},
+      responseType: "blob",
+    });
+
+    const blobUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
+    if (action === "download") {
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${invoice.invoiceNumber || "invoice"}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      return;
+    }
+
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+  };
+
   useEffect(() => {
     fetchScript();
     setCoverError(false);
+    setTrailerError(false);
   }, [id]);
+
+  useEffect(() => {
+    setTrailerError(false);
+    setTrailerSourceIndex(0);
+  }, [script?.trailerUrl, script?.uploadedTrailerUrl, script?.trailerSource]);
+
+  useEffect(() => {
+    if (!script?._id) return;
+    if (script?.evaluationStatus !== "requested" || script?.scriptScore?.overall) return;
+
+    let attempts = 0;
+    const maxAttempts = 36; // 3 minutes
+    const timer = setInterval(async () => {
+      attempts += 1;
+      await fetchScript({ silent: true });
+      if (attempts >= maxAttempts) clearInterval(timer);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [script?._id, script?.evaluationStatus, script?.scriptScore?.overall]);
 
   useEffect(() => {
     if (!id) return;
@@ -128,6 +195,12 @@ const ScriptDetail = () => {
   }, [id]);
 
   useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     const favoriteIds = user?.favoriteScripts || [];
     const hasBookmark = Array.isArray(favoriteIds)
       ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === id)
@@ -142,9 +215,23 @@ const ScriptDetail = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script?._id, script?.isCreator]);
 
-  const fetchScript = async () => {
+  useEffect(() => {
+    if (!script?._id) return;
+    fetchReviews({ page: 1 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [script?._id, user?._id]);
+
+  useEffect(() => {
+    if (activeTab !== "reviews" || !script?._id) return;
+    fetchReviews({ page: 1 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, script?._id, user?._id]);
+
+  const fetchScript = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const { data } = await api.get(`/scripts/${id}`);
       setScript(data);
     } catch {
@@ -222,42 +309,52 @@ const ScriptDetail = () => {
         readsCount: 56,
       });
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
   const handleHold = async () => {
-    setPaymentType("hold");
     setShowHoldModal(true);
-  };
-
-  const handlePurchase = async () => {
-    setPaymentType("purchase");
-    setShowPurchaseModal(true);
   };
 
   const handlePaymentSuccess = async (paymentData) => {
     // Refresh script data after successful payment
     await fetchScript();
 
-    // Show success message
-    if (paymentType === "purchase") {
-      alert(paymentData.message || "Payment captured and sent to writer for approval.");
-    } else {
-      alert(`Hold placed successfully! ${paymentData.message || ""}`);
-    }
+    alert(`Hold placed successfully! ${paymentData.message || ""}`);
 
     // Close modal
     setShowHoldModal(false);
-    setShowPurchaseModal(false);
   };
 
   const handleGenerateTrailer = async () => {
+    if (!script?._id || trailerLoading) return;
     setTrailerLoading(true);
     try {
-      await api.post("/ai/generate-trailer", { scriptId: script._id });
-      await fetchScript();
-      alert("✅ Trailer request received! Your AI trailer will be ready in approximately 2 business days. We\'ll notify you once it\'s live.");
+      const { data } = await api.post(`/scripts/${script._id}/request-ai-trailer`, { note: "" });
+
+      // Immediately reflect queue state in UI while preserving uploaded trailer visibility.
+      setScript((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          services: {
+            ...(prev.services || {}),
+            aiTrailer: true,
+          },
+          trailerStatus: "requested",
+          trailerWriterFeedback: {
+            status: "pending",
+            note: prev.trailerWriterFeedback?.note || "",
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      });
+
+      await fetchScript({ silent: true });
+      alert(data?.message || "✅ AI trailer request received! Your uploaded trailer will remain visible while AI trailer is in queue.");
     } catch (err) {
       alert(err.response?.data?.message || "Failed to generate trailer");
     } finally {
@@ -266,11 +363,42 @@ const ScriptDetail = () => {
   };
 
   const handleGenerateScore = async () => {
+    if (!script?._id || scoreLoading) return;
     setActiveTab("evaluation");
     setScoreLoading(true);
     try {
       const { data } = await api.post("/ai/script-score", { scriptId: script._id });
-      await fetchScript();
+
+      // Keep UI in sync immediately so both trigger buttons feel consistent.
+      if (data?.score) {
+        setScript((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            scriptScore: data.score,
+            services: {
+              ...(prev.services || {}),
+              evaluation: true,
+            },
+            evaluationStatus: "completed",
+          };
+        });
+      } else if (data?.pending) {
+        setScript((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            services: {
+              ...(prev.services || {}),
+              evaluation: true,
+            },
+            evaluationStatus: "requested",
+            evaluationRequestedAt: new Date().toISOString(),
+          };
+        });
+      }
+
+      await fetchScript({ silent: true });
       if (data?.message) {
         alert(data.message);
       } else {
@@ -285,6 +413,22 @@ const ScriptDetail = () => {
 
   const handleActivateSpotlight = async () => {
     if (!script?._id) return;
+
+    if (isSoldScript) {
+      showNotice("Spotlight cannot be activated after a script is sold.", "error");
+      return;
+    }
+
+    if (!isOwner) {
+      showNotice("Only the script creator can activate spotlight.", "error");
+      return;
+    }
+
+    if (script?.status !== "published") {
+      showNotice("Publish the project before activating spotlight.", "error");
+      return;
+    }
+
     setSpotlightLoading(true);
     try {
       const endpointAttempts = [
@@ -333,10 +477,15 @@ const ScriptDetail = () => {
       const refunded = Number(data?.package?.creditsRefunded || 0);
       const refundNote = refunded > 0 ? ` Refunded ${refunded} AI trailer credits based on spotlight policy.` : "";
       const isExtension = Boolean(data?.package?.isExtension);
-      alert(
+      const spotlightScript = data?.script || {};
+      const spotlightHasAnyTrailer = Boolean(spotlightScript.trailerUrl || spotlightScript.uploadedTrailerUrl);
+      const spotlightQueuedAiTrailer =
+        ["requested", "generating"].includes(spotlightScript.trailerStatus) && !spotlightHasAnyTrailer;
+      showNotice(
         isExtension
           ? `Project Spotlight extended: featured top placement is extended for 1 month.${refundNote}`
-          : `Project Spotlight activated: verified badge is now permanent, free evaluation started, AI trailer queued (2-3 business days), and featured top placement is live for 1 month.${refundNote}`
+          : `Project Spotlight activated: verified badge is now permanent, free evaluation started${spotlightQueuedAiTrailer ? ", AI trailer queued (2-3 business days)" : ""}, and featured top placement is live for 1 month.${refundNote}`,
+        "success"
       );
     } catch (err) {
       const status = err?.response?.status;
@@ -348,7 +497,7 @@ const ScriptDetail = () => {
         message = "Unable to reach backend. Please check API URL/server status.";
       }
 
-      alert(message);
+      showNotice(message, "error");
     } finally {
       setSpotlightLoading(false);
     }
@@ -397,7 +546,10 @@ const ScriptDetail = () => {
   const handleRequestPurchase = async () => {
     setRequestLoading(true);
     try {
-      await api.post("/scripts/purchase-request", { scriptId: script._id });
+      await api.post("/scripts/purchase-request", {
+        scriptId: script._id,
+        note: "I like your synopsis and I want to buy your project.",
+      });
       setShowRequestModal(false);
       await fetchScript();
     } catch (err) {
@@ -417,6 +569,65 @@ const ScriptDetail = () => {
       // silent
     } finally {
       setPendingReqLoading(false);
+    }
+  };
+
+  const fetchReviews = async ({ page = 1 } = {}) => {
+    if (!script?._id) return;
+    setReviewsLoading(true);
+    try {
+      const { data } = await api.get(`/reviews/${script._id}?page=${page}&limit=8`);
+      setReviews(Array.isArray(data?.reviews) ? data.reviews : []);
+      setReviewsPage(Number(data?.page || page));
+      setReviewsTotalPages(Number(data?.totalPages || 1));
+      setReviewsTotal(Number(data?.total || 0));
+      setMyReview(data?.myReview || null);
+    } catch {
+      setReviews([]);
+      setReviewsPage(1);
+      setReviewsTotalPages(1);
+      setReviewsTotal(0);
+      setMyReview(null);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!canSubmitReview) return;
+
+    const trimmedComment = String(reviewComment || "").trim();
+    if (!reviewRating) {
+      showNotice("Please select a rating before submitting.", "error");
+      return;
+    }
+    if (trimmedComment.length < 5) {
+      showNotice("Please write at least 5 characters for your review.", "error");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      await api.post("/reviews", {
+        script: script._id,
+        rating: reviewRating,
+        comment: trimmedComment,
+      });
+
+      setReviewRating(0);
+      setReviewComment("");
+
+      await Promise.all([
+        fetchScript({ silent: true }),
+        fetchReviews({ page: 1 }),
+      ]);
+
+      showNotice("Review submitted successfully.", "success");
+    } catch (err) {
+      showNotice(err?.response?.data?.message || "Failed to submit review.", "error");
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -457,6 +668,17 @@ const ScriptDetail = () => {
         year: "numeric",
         month: "long",
         day: "numeric",
+      })
+      : "N/A";
+
+  const formatDateTime = (d) =>
+    d
+      ? new Date(d).toLocaleString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       })
       : "N/A";
 
@@ -563,22 +785,74 @@ const ScriptDetail = () => {
   /* ── Computed values ──────────────────────────────────── */
 
   const score = script.scriptScore || {};
-  const isOwner = script.creator?._id === user?._id;
+  const creatorId = script?.creator?._id || script?.creator;
+  const viewerId = user?._id || user?.id;
+  const isOwner = Boolean(script?.isCreator || (creatorId && viewerId && String(creatorId) === String(viewerId)));
+  const isSoldScript = Boolean(script?.isSold || script?.holdStatus === "sold");
   const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
-  const trailerSourceUrl = script.trailerSource === "uploaded" ? script.uploadedTrailerUrl : script.trailerUrl;
-  const hasTrailer = Boolean(trailerSourceUrl);
-  const heroImage = hasTrailer ? (script.trailerThumbnail || script.coverImage) : null;
-  const showCoverPlaceholder = !hasTrailer || !heroImage || coverError;
+  const canSubmitReview = Boolean(
+    user?._id &&
+    !isOwner &&
+    script?.status === "published"
+  );
+  const trailerSources = (() => {
+    const aiTrailerUrl = script?.trailerUrl || "";
+    const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
+
+    let ordered = [];
+
+    if (script?.trailerSource === "ai") ordered = [aiTrailerUrl, uploadedTrailerUrl];
+    else if (script?.trailerSource === "uploaded") ordered = [uploadedTrailerUrl, aiTrailerUrl];
+    else ordered = [aiTrailerUrl, uploadedTrailerUrl];
+
+    const uniqueSources = [...new Set(ordered.filter(Boolean))];
+    return uniqueSources.map((url) => resolveImage(url)).filter(Boolean);
+  })();
+
+  const trailerSourceUrl =
+    trailerSources[Math.min(trailerSourceIndex, Math.max(trailerSources.length - 1, 0))] || "";
+
+  const handleTrailerPlaybackError = () => {
+    if (trailerSourceIndex < trailerSources.length - 1) {
+      setTrailerSourceIndex((prev) => prev + 1);
+      setTrailerError(false);
+      return;
+    }
+
+    setTrailerError(true);
+  };
+
+  const trailerPlaybackUrl = trailerSourceUrl;
+  const hasTrailer = trailerSources.length > 0;
+  const canPlayTrailer = hasTrailer && !trailerError;
+  const heroImage = script.trailerThumbnail || script.coverImage || "";
+  const resolvedHeroImage = resolveImage(heroImage);
+  const showCoverPlaceholder = !resolvedHeroImage || coverError;
   const spotlightEndsAt = script?.promotion?.spotlightEndAt ? new Date(script.promotion.spotlightEndAt) : null;
   const spotlightActive = Boolean(spotlightEndsAt && spotlightEndsAt >= new Date());
+  const spotlightPendingApproval = Boolean(script?.promotion?.pendingSpotlightActivation && script?.status !== "published");
+  const spotlightPaidAtUpload = Number(script?.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
+  const spotlightIncludesAiTrailer = Boolean(
+    spotlightActive || spotlightPendingApproval || spotlightPaidAtUpload || script?.services?.spotlight
+  );
   const hasEvaluationService = Boolean(script?.services?.evaluation);
+  const evaluationRequestedAtMs = script?.evaluationRequestedAt
+    ? new Date(script.evaluationRequestedAt).getTime()
+    : 0;
+  const evaluationRequestInFlight =
+    !score?.overall &&
+    script?.evaluationStatus === "requested" &&
+    evaluationRequestedAtMs > 0 &&
+    Date.now() - evaluationRequestedAtMs < 10 * 60 * 1000;
   const evaluationPending = !score?.overall && (script?.evaluationStatus === "requested" || hasEvaluationService);
   const cl = script.classification || {};
   const ci = script.contentIndicators || {};
+  const publishedAtValue = script?.publishedAt || script?.createdAt;
 
   const tabs = [
     { id: "overview", label: "Overview" },
+    { id: "reviews", label: `Reviews (${script.reviewCount || 0})` },
     { id: "classification", label: "Classification" },
     { id: "evaluation", label: "Evaluation" },
     { id: "roles", label: "Roles" },
@@ -590,7 +864,9 @@ const ScriptDetail = () => {
 
   const stats = [
     { label: "Views", value: script.views || 0, g: isDarkMode ? "from-blue-500/10 to-blue-500/5" : "from-blue-50 to-white", c: "text-blue-500", b: isDarkMode ? "border-white/[0.06]" : "border-blue-100" },
-    { label: "Reviews", value: script.reviewCount || 0, g: isDarkMode ? "from-emerald-500/10 to-emerald-500/5" : "from-emerald-50 to-white", c: "text-emerald-600", b: isDarkMode ? "border-white/[0.06]" : "border-emerald-100" },
+    { label: "Reader Reviews", value: script?.reviewBreakdown?.reader || 0, g: isDarkMode ? "from-sky-500/10 to-sky-500/5" : "from-sky-50 to-white", c: "text-sky-500", b: isDarkMode ? "border-white/[0.06]" : "border-sky-100" },
+    { label: "Writer Reviews", value: script?.reviewBreakdown?.writer || 0, g: isDarkMode ? "from-fuchsia-500/10 to-fuchsia-500/5" : "from-fuchsia-50 to-white", c: "text-fuchsia-500", b: isDarkMode ? "border-white/[0.06]" : "border-fuchsia-100" },
+    { label: "Investor Reviews", value: script?.reviewBreakdown?.investor || 0, g: isDarkMode ? "from-teal-500/10 to-teal-500/5" : "from-teal-50 to-white", c: "text-teal-500", b: isDarkMode ? "border-white/[0.06]" : "border-teal-100" },
   ];
 
   /* ══════════════════════════════════════════════════════════
@@ -599,6 +875,32 @@ const ScriptDetail = () => {
 
   return (
     <div className={`min-h-screen ${t.page}`}>
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-5 right-5 z-[120] max-w-md"
+          >
+            <div className={`rounded-2xl border shadow-2xl px-4 py-3 backdrop-blur-md ${notice.type === "success" ? (isDarkMode ? "bg-emerald-500/15 border-emerald-400/30 text-emerald-100" : "bg-emerald-50 border-emerald-200 text-emerald-900") : (isDarkMode ? "bg-rose-500/15 border-rose-400/30 text-rose-100" : "bg-rose-50 border-rose-200 text-rose-900")}`}>
+              <div className="flex items-start gap-3">
+                <span className={`mt-0.5 w-2.5 h-2.5 rounded-full shrink-0 ${notice.type === "success" ? "bg-emerald-400" : "bg-rose-400"}`} />
+                <p className="text-sm font-medium leading-relaxed">{notice.message}</p>
+                <button
+                  onClick={() => setNotice(null)}
+                  className={`ml-1 text-xs font-semibold transition-colors ${isDarkMode ? "text-white/70 hover:text-white" : "text-gray-500 hover:text-gray-800"}`}
+                  aria-label="Close notification"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -621,16 +923,17 @@ const ScriptDetail = () => {
 
             {/* Cover / Trailer */}
             <div className={`relative h-52 sm:h-72 ${isDarkMode ? "bg-gradient-to-br from-[#060c17] via-[#0c1a2d] to-[#0f2035]" : "bg-gradient-to-br from-slate-100 via-blue-50 to-slate-200"}`}>
-              {hasTrailer ? (
+              {canPlayTrailer ? (
                 <>
                   <video
-                    src={resolveImage(trailerSourceUrl)}
-                    poster={heroImage ? resolveImage(heroImage) : undefined}
+                    src={trailerPlaybackUrl}
+                    poster={resolvedHeroImage || undefined}
                     muted
                     loop
                     autoPlay
                     playsInline
                     preload="metadata"
+                    onError={handleTrailerPlaybackError}
                     className="w-full h-full object-cover absolute inset-0"
                   />
                   <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t ${isDarkMode ? "from-black/35 via-black/10" : "from-white/25 via-transparent"} to-transparent`} />
@@ -647,7 +950,7 @@ const ScriptDetail = () => {
                 </div>
               ) : (
                 <img
-                  src={resolveImage(heroImage)}
+                  src={resolvedHeroImage}
                   alt={script.title}
                   onError={() => setCoverError(true)}
                   className="w-full h-full object-cover absolute inset-0"
@@ -655,7 +958,7 @@ const ScriptDetail = () => {
               )}
 
               {/* Play overlay */}
-              {hasTrailer && (
+              {canPlayTrailer && (
                 <button onClick={() => setShowTrailer(true)} className="absolute inset-0 flex items-center justify-center group">
                   <div className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md inline-flex items-center gap-2 ring-1 ring-white/15">
                     <span className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
@@ -670,11 +973,6 @@ const ScriptDetail = () => {
 
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-wrap gap-2">
-                {script.premium && (
-                  <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-[11px] font-bold">
-                    &#9733; Premium
-                  </span>
-                )}
                 {script.verifiedBadge && (
                   <span
                     className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 p-[1.5px] shadow-[0_8px_20px_rgba(30,64,175,0.45)]"
@@ -729,9 +1027,16 @@ const ScriptDetail = () => {
                 <div className="flex-1 min-w-0 space-y-4">
                   <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
                     <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Project Overview</p>
-                    <h1 className={`text-2xl sm:text-3xl font-bold mb-4 tracking-tight leading-tight ${t.title}`}>
-                      {script.title}
-                    </h1>
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight leading-tight ${t.title}`}>
+                        {script.title}
+                      </h1>
+                      <SocialShareButton
+                        share={scriptShare}
+                        buttonLabel="Share"
+                        className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold transition w-fit ${isDarkMode ? "bg-white/[0.04] border-white/[0.09] text-white/80 hover:bg-white/[0.08]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+                      />
+                    </div>
 
                     <div className={`flex flex-wrap items-center gap-2.5 text-xs mb-5 ${t.muted}`}>
                       <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{fmtFormat(script.format)}</span>
@@ -791,6 +1096,134 @@ const ScriptDetail = () => {
                       )}
                     </div>
                   )}
+
+                  <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${t.label}`}>Reviews</p>
+                        <h3 className={`text-base font-bold tracking-tight ${t.title}`}>Project Feedback</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("reviews")}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition ${t.btnSec}`}
+                      >
+                        View All
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+                      <div className={`rounded-xl border px-3.5 py-3 ${t.inset}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${t.label}`}>Average</p>
+                        <p className="text-lg font-extrabold text-amber-500 tabular-nums">&#9733; {Number(script.rating || 0).toFixed(1)}</p>
+                      </div>
+                      <div className={`rounded-xl border px-3.5 py-3 ${t.inset}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${t.label}`}>Total Reviews</p>
+                        <p className={`text-lg font-extrabold tabular-nums ${t.title}`}>{script.reviewCount || 0}</p>
+                      </div>
+                      <div className={`rounded-xl border px-3.5 py-3 ${t.inset}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${t.label}`}>Top Segment</p>
+                        <p className={`text-sm font-bold ${t.sub}`}>
+                          {(() => {
+                            const reader = Number(script?.reviewBreakdown?.reader || 0);
+                            const writer = Number(script?.reviewBreakdown?.writer || 0);
+                            const investor = Number(script?.reviewBreakdown?.investor || 0);
+                            if (reader >= writer && reader >= investor) return `Reader (${reader})`;
+                            if (writer >= reader && writer >= investor) return `Writer (${writer})`;
+                            return `Investor (${investor})`;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {canSubmitReview && !myReview && (
+                      <form onSubmit={handleSubmitReview} className={`rounded-xl border p-4 mb-4 ${t.inset}`}>
+                        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setReviewRating(star)}
+                              className="p-0.5"
+                              aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                            >
+                              <svg
+                                className={`w-5 h-5 transition-colors ${star <= reviewRating ? "text-amber-400 fill-amber-400" : (isDarkMode ? "text-white/15 fill-white/15" : "text-gray-200 fill-gray-200")}`}
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            </button>
+                          ))}
+                        </div>
+
+                        <textarea
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          rows={3}
+                          maxLength={2000}
+                          placeholder="Share your review..."
+                          className={`w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors ${isDarkMode ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/20 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-gray-400"}`}
+                        />
+
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span className={`text-[11px] ${t.muted}`}>{reviewComment.length}/2000</span>
+                          <button
+                            type="submit"
+                            disabled={reviewSubmitting}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 ${t.btnPrim}`}
+                          >
+                            {reviewSubmitting ? "Submitting..." : "Submit Review"}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {canSubmitReview && myReview && (
+                      <div className={`rounded-xl border px-4 py-3 mb-4 text-sm font-medium ${t.inset}`}>
+                        You already reviewed this project.
+                      </div>
+                    )}
+
+                    {!canSubmitReview && (
+                      <div className={`rounded-xl border px-4 py-3 mb-4 text-sm ${t.inset}`}>
+                        {isOwner ? "You cannot review your own project." : "Reviews are available after the project is published."}
+                      </div>
+                    )}
+
+                    <div className="space-y-2.5">
+                      {reviewsLoading ? (
+                        <div className="py-5 flex justify-center">
+                          <div className={`w-6 h-6 border-2 rounded-full animate-spin ${isDarkMode ? "border-white/10 border-t-white/60" : "border-gray-200 border-t-gray-500"}`} />
+                        </div>
+                      ) : reviews.length > 0 ? (
+                        reviews.slice(0, 3).map((review) => (
+                          <div key={review._id} className={`rounded-xl border p-3.5 ${t.inset}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className={`text-sm font-bold ${t.title}`}>{review.user?.name || "Anonymous"}</p>
+                                <p className={`text-[11px] capitalize ${t.muted}`}>{review.user?.role || "user"}</p>
+                              </div>
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <svg
+                                    key={star}
+                                    className={`w-3.5 h-3.5 ${star <= Number(review.rating || 0) ? "text-amber-400 fill-amber-400" : (isDarkMode ? "text-white/10 fill-white/10" : "text-gray-200 fill-gray-200")}`}
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                  </svg>
+                                ))}
+                              </div>
+                            </div>
+                            <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}>{review.comment}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className={`py-4 text-sm ${t.muted}`}>No reviews yet. Be the first to review this project.</div>
+                      )}
+                    </div>
+                  </div>
 
                   {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation || script.tags?.length > 0) && (
                     <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
@@ -877,7 +1310,7 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
-                    {isOwner && (
+                    {isOwner && !isSoldScript && script?.status === "published" && !spotlightActive && !spotlightPendingApproval && !spotlightPaidAtUpload && (
                       <button
                         onClick={handleActivateSpotlight}
                         disabled={spotlightLoading}
@@ -894,6 +1327,24 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
+                    {isOwner && isSoldScript && (
+                      <div className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold border text-center ${t.inset}`}>
+                        Spotlight unavailable after sale
+                      </div>
+                    )}
+
+                    {isOwner && spotlightPendingApproval && (
+                      <div className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold border text-center ${t.inset}`}>
+                        Spotlight already purchased at upload. It will auto-activate after admin approval.
+                      </div>
+                    )}
+
+                    {isOwner && spotlightPaidAtUpload && !spotlightActive && script?.status === "published" && (
+                      <div className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold border text-center ${t.inset}`}>
+                        Spotlight package already paid at upload. Activation is being synced without additional credits.
+                      </div>
+                    )}
+
                     {isOwner && (
                       <div className={`w-full px-3 py-2 rounded-xl border text-[11px] ${t.inset}`}>
                         <p className={`font-bold ${t.sub}`}>Project Spotlight includes:</p>
@@ -908,50 +1359,47 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && (
-                      <button
-                        onClick={() => navigate(`/upload?edit=${script._id}`)}
-                        className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${t.btnSec}`}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                        Edit &amp; Republish
-                      </button>
-                    )}
-
                     {/* Purchase / Request Button for non-owners */}
                     {!isOwner && script.canPurchase && !script.isUnlocked && (
                       script.myPendingRequest ? (
-                        <div className="w-full px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl">
-                          <div className="flex items-center justify-center gap-2 text-amber-700 text-sm font-bold">
-                            <svg className="w-4 h-4 animate-pulse flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Awaiting Writer Approval
+                        script.myPendingRequest?.status === "approved" &&
+                        script.myPendingRequest?.paymentStatus !== "released" ? (
+                          <div className="space-y-1.5">
+                            <button
+                              onClick={() => navigate(`/script/${script._id}/pay`)}
+                              className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
+                            >
+                              {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                ? `Pay & Get Full Script — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
+                                : "Get Full Script (Free)"}
+                            </button>
+                            <p className="text-[11px] text-amber-700/90 text-center">
+                              {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                ? "Payment window: 72 hours after approval."
+                                : "Approval granted. Confirm free access to unlock full script."}
+                            </p>
                           </div>
-                          {script.myPendingRequest?.paymentStatus === "escrow_held" && (
-                            <p className="text-xs text-amber-700/90 text-center mt-1">Payment is secured in escrow.</p>
-                          )}
-                        </div>
+                        ) : (
+                          <div className="w-full px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl">
+                            <div className="flex items-center justify-center gap-2 text-amber-700 text-sm font-bold">
+                              <svg className="w-4 h-4 animate-pulse flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Awaiting Writer Approval
+                            </div>
+                            <p className="text-xs text-amber-700/90 text-center mt-1">You can pay after the writer approves your request.</p>
+                          </div>
+                        )
                       ) : (
                         <button
-                          onClick={() => {
-                            if (script.price > 0) {
-                              setPaymentType("purchase");
-                              setShowPurchaseModal(true);
-                              return;
-                            }
-                            setShowRequestModal(true);
-                          }}
+                          onClick={() => setShowRequestModal(true)}
                           className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                         >
                           <div className="flex items-center justify-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
+                            {script.price > 0 ? `Send Purchase Request — ₹${script.price}` : "Request Access"}
                           </div>
                         </button>
                       )
@@ -990,18 +1438,22 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && !script.trailerUrl && !script.uploadedTrailerUrl && !["requested", "generating", "ready"].includes(script.trailerStatus) && (
+                    {isOwner && !hasTrailer && !["requested", "generating"].includes(script.trailerStatus) && (
                       <button
                         onClick={handleGenerateTrailer}
                         disabled={trailerLoading}
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
                       >
                         <Film size={14} />
-                        {trailerLoading ? "Submitting request..." : "Generate AI Trailer — 15 credits"}
+                        {trailerLoading
+                          ? "Submitting request..."
+                          : spotlightIncludesAiTrailer
+                          ? "Generate Included AI Trailer"
+                          : "Generate AI Trailer - 120 credits"}
                       </button>
                     )}
 
-                    {["requested", "generating"].includes(script.trailerStatus) && (
+                    {["requested", "generating"].includes(script.trailerStatus) && !hasTrailer && (
                       <div className={`w-full px-4 py-3 rounded-xl text-xs font-bold text-center border flex flex-col items-center justify-center gap-1.5 ${t.inset}`}>
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 border-2 rounded-full animate-spin ${isDarkMode ? "border-neutral-600 border-t-amber-400" : "border-gray-300 border-t-amber-500"}`} />
@@ -1013,14 +1465,21 @@ const ScriptDetail = () => {
 
                     {isOwner && !score?.overall && (
                       <button
+                        type="button"
                         onClick={handleGenerateScore}
-                        disabled={scoreLoading}
+                        disabled={scoreLoading || evaluationRequestInFlight}
                         className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-50 flex items-center justify-center gap-2 border ${t.btnGhost}`}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path d="M18 20V10M12 20V4M6 20v-6" />
                         </svg>
-                        {scoreLoading ? "Scoring..." : hasEvaluationService ? "Generate Included Evaluation" : "Get Script Score \u2014 10 credits"}
+                        {scoreLoading
+                          ? "Scoring..."
+                          : evaluationRequestInFlight
+                          ? "Evaluation In Progress"
+                          : hasEvaluationService
+                          ? "Generate Included Evaluation"
+                          : "Get Script Score \u2014 50 credits"}
                       </button>
                     )}
 
@@ -1067,7 +1526,7 @@ const ScriptDetail = () => {
                   )}
 
                   <div className={`rounded-2xl p-3 border text-center ${t.priceSub}`}>
-                    <p className={`text-[11px] font-medium ${t.muted}`}>Uploaded {formatDate(script.createdAt)}</p>
+                    <p className={`text-[11px] font-medium ${t.muted}`}>Published {formatDateTime(publishedAtValue)}</p>
                     {script?.sid && (
                       <p className={`text-[10px] font-semibold mt-1 ${t.sub}`}>SID: {script.sid}</p>
                     )}
@@ -1126,7 +1585,7 @@ const ScriptDetail = () => {
                       { label: "Budget Level", value: fmtBudget(script.budget) },
                       { label: "Hold Fee", value: script.holdFee ? `₹${script.holdFee}` : null },
                       { label: "Hold Status", value: script.holdStatus?.charAt(0).toUpperCase() + script.holdStatus?.slice(1) },
-                      { label: "Uploaded", value: formatDate(script.createdAt) },
+                      { label: "Published", value: formatDateTime(publishedAtValue) },
                     ]
                       .filter((i) => i.value && i.value !== "\u2014")
                       .map((item, idx) => (
@@ -1585,12 +2044,26 @@ const ScriptDetail = () => {
                           : "This project hasn't been evaluated yet."}
                       </p>
                       {isOwner && (
-                        <button onClick={handleGenerateScore} disabled={scoreLoading}
-                          className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 inline-flex items-center gap-2 ${t.btnPrim}`}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGenerateScore();
+                          }}
+                          disabled={scoreLoading || evaluationRequestInFlight}
+                          className={`relative z-10 px-5 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 inline-flex items-center gap-2 ${t.btnPrim}`}
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                           </svg>
-                          {scoreLoading ? "Evaluating…" : hasEvaluationService ? "Generate Included Evaluation" : "Get Evaluation — 10 credits"}
+                          {scoreLoading
+                            ? "Evaluating…"
+                            : evaluationRequestInFlight
+                            ? "Evaluation In Progress"
+                            : hasEvaluationService
+                            ? "Generate Included Evaluation"
+                            : "Get Evaluation — 50 credits"}
                         </button>
                       )}
                     </div>
@@ -1598,6 +2071,139 @@ const ScriptDetail = () => {
                 </motion.div>
               );
             })()}
+
+            {/* ── Reviews ─────────────────────────────────── */}
+            {activeTab === "reviews" && (
+              <motion.div key="reviews" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+                <div className={`rounded-xl border p-5 ${t.card}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className={`text-base font-bold ${t.title}`}>Project Reviews</h3>
+                    <span className={`text-xs font-semibold ${t.muted}`}>{reviewsTotal || script.reviewCount || 0} total</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2.5">
+                    <span className="text-amber-500 text-lg font-extrabold tabular-nums">&#9733; {Number(script.rating || 0).toFixed(1)}</span>
+                    <span className={`text-xs ${t.muted}`}>from {script.reviewCount || 0} review{(script.reviewCount || 0) === 1 ? "" : "s"}</span>
+                  </div>
+                </div>
+
+                {canSubmitReview && !myReview && (
+                  <form onSubmit={handleSubmitReview} className={`rounded-xl border p-5 space-y-3 ${t.card}`}>
+                    <h4 className={`text-sm font-bold ${t.title}`}>Write a Review</h4>
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setReviewRating(star)}
+                          className="p-0.5"
+                          aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                        >
+                          <svg
+                            className={`w-6 h-6 transition-colors ${star <= reviewRating ? "text-amber-400 fill-amber-400" : (isDarkMode ? "text-white/15 fill-white/15" : "text-gray-200 fill-gray-200")}`}
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+
+                    <textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      rows={4}
+                      maxLength={2000}
+                      placeholder="Share your honest feedback about this project..."
+                      className={`w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors ${isDarkMode ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/20 focus:border-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-gray-400"}`}
+                    />
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-[11px] ${t.muted}`}>{reviewComment.length}/2000</span>
+                      <button
+                        type="submit"
+                        disabled={reviewSubmitting}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 ${t.btnPrim}`}
+                      >
+                        {reviewSubmitting ? "Submitting..." : "Submit Review"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {canSubmitReview && myReview && (
+                  <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${t.inset}`}>
+                    You already reviewed this project.
+                  </div>
+                )}
+
+                {!canSubmitReview && (
+                  <div className={`rounded-xl border px-4 py-3 text-sm ${t.inset}`}>
+                    {isOwner ? "You cannot review your own project." : "Reviews are available after the project is published."}
+                  </div>
+                )}
+
+                <div className={`rounded-xl border p-5 ${t.card}`}>
+                  <h4 className={`text-sm font-bold mb-3 ${t.title}`}>Recent Reviews</h4>
+
+                  {reviewsLoading ? (
+                    <div className="py-8 flex justify-center">
+                      <div className={`w-7 h-7 border-2 rounded-full animate-spin ${isDarkMode ? "border-white/10 border-t-white/60" : "border-gray-200 border-t-gray-500"}`} />
+                    </div>
+                  ) : reviews.length > 0 ? (
+                    <div className="space-y-3">
+                      {reviews.map((review) => (
+                        <div key={review._id} className={`rounded-xl border p-4 ${t.inset}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className={`text-sm font-bold ${t.title}`}>{review.user?.name || "Anonymous"}</p>
+                              <p className={`text-[11px] capitalize ${t.muted}`}>{review.user?.role || "user"}</p>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <svg
+                                  key={star}
+                                  className={`w-3.5 h-3.5 ${star <= Number(review.rating || 0) ? "text-amber-400 fill-amber-400" : (isDarkMode ? "text-white/10 fill-white/10" : "text-gray-200 fill-gray-200")}`}
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              ))}
+                            </div>
+                          </div>
+
+                          <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}>{review.comment}</p>
+                          <p className={`mt-2 text-[11px] ${t.muted}`}>{formatDate(review.createdAt)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`py-8 text-center text-sm ${t.muted}`}>No reviews yet. Be the first to review this project.</div>
+                  )}
+
+                  {reviewsTotalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={reviewsPage <= 1 || reviewsLoading}
+                        onClick={() => fetchReviews({ page: Math.max(1, reviewsPage - 1) })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 ${t.btnSec}`}
+                      >
+                        Previous
+                      </button>
+                      <span className={`text-xs ${t.muted}`}>Page {reviewsPage} / {reviewsTotalPages}</span>
+                      <button
+                        type="button"
+                        disabled={reviewsPage >= reviewsTotalPages || reviewsLoading}
+                        onClick={() => fetchReviews({ page: Math.min(reviewsTotalPages, reviewsPage + 1) })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 ${t.btnSec}`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
 
             {/* ── Roles ────────────────────────────────────── */}
             {activeTab === "roles" && (
@@ -1630,13 +2236,14 @@ const ScriptDetail = () => {
             {/* ── Full Script (owner or purchased) ────────── */}
             {activeTab === "content" && (isOwner || script.isUnlocked) && (
               <motion.div key="content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <div className={`flex items-center justify-between mb-4 rounded-xl border px-5 py-3 ${t.card}`}>
-                  <div className="flex items-center gap-3">
+                <div className={`mb-4 rounded-xl border px-3 py-3 sm:px-5 ${t.card}`}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-gray-100"}`}>
                       <Film size={16} className={t.muted} />
                     </div>
-                    <div>
-                      <p className={`text-[13px] font-bold ${t.title}`}>{script.title}</p>
+                    <div className="min-w-0">
+                      <p className={`text-[13px] font-bold truncate ${t.title}`}>{script.title}</p>
                       <p className={`text-[11px] ${t.muted}`}>
                         {(() => {
                           const raw = script.textContent || "";
@@ -1648,14 +2255,14 @@ const ScriptDetail = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full sm:w-auto items-center gap-2 overflow-x-auto pb-1 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <button
                       onClick={() => {
                         const raw = script.textContent || "";
                         const plain = raw.replace(/<[^>]*>/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
                         navigator.clipboard.writeText(plain);
                       }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -1665,7 +2272,7 @@ const ScriptDetail = () => {
                     </button>
                     <button
                       onClick={handlePrint}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <polyline points="6 9 6 2 18 2 18 9" />
@@ -1676,7 +2283,7 @@ const ScriptDetail = () => {
                     </button>
                     <button
                       onClick={handleDownload}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isDarkMode ? "bg-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200"}`}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -1685,6 +2292,7 @@ const ScriptDetail = () => {
                       </svg>
                       Download
                     </button>
+                  </div>
                   </div>
                 </div>
 
@@ -1766,7 +2374,7 @@ const ScriptDetail = () => {
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (
                             <div>
-                              <p className={`text-sm mb-4 ${t.muted}`}>For paid scripts, complete checkout first. Your payment is held in escrow until the writer approves.</p>
+                              <p className={`text-sm mb-4 ${t.muted}`}>Send your request first. Once the writer approves, payment is enabled and full access unlocks instantly after successful payment.</p>
                               {script.isUnlocked ? (
                                 <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1775,30 +2383,48 @@ const ScriptDetail = () => {
                                   Access Granted
                                 </div>
                               ) : script.myPendingRequest ? (
-                                <div className="flex flex-col items-center gap-2">
-                                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold">
-                                    <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Request Pending — Awaiting Writer Approval
+                                script.myPendingRequest?.status === "approved" &&
+                                script.myPendingRequest?.paymentStatus !== "released" ? (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                        ? "Approved — Complete Payment to Unlock"
+                                        : "Approved — Confirm Free Access to Unlock"}
+                                    </div>
+                                    <button
+                                      onClick={() => navigate(`/script/${script._id}/pay`)}
+                                      className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
+                                    >
+                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                        ? `Pay Now — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
+                                        : "Get Full Script (Free)"}
+                                    </button>
+                                    <p className={`text-xs ${t.muted}`}>
+                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                        ? "Payment window: 72 hours after approval."
+                                        : "Approval granted. Confirm free access to unlock instantly."}
+                                    </p>
                                   </div>
-                                  {script.myPendingRequest?.paymentStatus === "escrow_held" && (
-                                    <p className={`text-xs ${t.muted}`}>Payment secured in escrow and will auto-settle on writer decision.</p>
-                                  )}
-                                </div>
+                                ) : (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold">
+                                      <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Request Pending — Awaiting Writer Approval
+                                    </div>
+                                    <p className={`text-xs ${t.muted}`}>Payment becomes available after approval.</p>
+                                  </div>
+                                )
                               ) : (
                                 <button
-                                  onClick={() => {
-                                    if (script.price > 0) {
-                                      setPaymentType("purchase");
-                                      setShowPurchaseModal(true);
-                                      return;
-                                    }
-                                    setShowRequestModal(true);
-                                  }}
+                                  onClick={() => setShowRequestModal(true)}
                                   className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                 >
-                                  {script.price > 0 ? `Pay & Request Approval — ₹${script.price}` : "Request Access"}
+                                  {script.price > 0 ? `Send Purchase Request — ₹${script.price}` : "Request Access"}
                                 </button>
                               )}
                             </div>
@@ -1837,7 +2463,7 @@ const ScriptDetail = () => {
                         ) : (
                           <div className="space-y-3">
                             {pendingRequests.map((pr) => (
-                              <div key={pr._id} className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${t.inset}`}>
+                              <div key={pr._id} className={`rounded-xl border px-4 py-3 flex items-center max-[380px]:items-stretch max-[380px]:flex-col gap-3 ${t.inset}`}>
                                 {pr.investor?.profileImage ? (
                                   <img src={pr.investor.profileImage} alt={pr.investor.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                                 ) : (
@@ -1853,18 +2479,18 @@ const ScriptDetail = () => {
                                     {new Date(pr.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                   </p>
                                 </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
+                                <div className="flex items-center gap-2 flex-shrink-0 max-[380px]:w-full max-[380px]:flex-wrap">
                                   <button
                                     onClick={() => handleApproveRequest(pr._id)}
                                     disabled={pendingReqActionId === pr._id}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-50 max-[380px]:flex-1 max-[380px]:text-center"
                                   >
                                     {pendingReqActionId === pr._id ? "..." : "Approve"}
                                   </button>
                                   <button
                                     onClick={() => setRejectNoteModal({ id: pr._id, investorName: pr.investor?.name })}
                                     disabled={pendingReqActionId === pr._id}
-                                    className="px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50 max-[380px]:flex-1 max-[380px]:text-center"
                                   >
                                     Decline
                                   </button>
@@ -1909,13 +2535,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` ₹${script.price} will be held in escrow until the writer reviews your request.`
+                ? ` If the writer approves, you will then be asked to pay ₹${script.price} to unlock full access.`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
               <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Approved = released to writer, rejected = refunded to your original payment method.</p>}
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Request first • Pay after writer approval • Access unlocks immediately after successful payment.</p>}
             </div>
             <button
               onClick={handleRequestPurchase}
@@ -1947,7 +2573,7 @@ const ScriptDetail = () => {
           >
             <h3 className={`text-base font-bold mb-1 ${t.title}`}>Decline Purchase Request</h3>
             <p className={`text-sm mb-4 ${t.muted}`}>
-              Declining <strong>{rejectNoteModal.investorName}</strong>'s request. Their reserved funds will be returned.
+              Declining <strong>{rejectNoteModal.investorName}</strong>'s request. They will be notified that the request was denied.
             </p>
             <label className={`block text-xs font-semibold mb-1 ${t.muted}`}>Reason (optional)</label>
             <textarea
@@ -1978,21 +2604,48 @@ const ScriptDetail = () => {
 
       {/* Trailer modal */}
       {showTrailer && hasTrailer && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTrailer(false)}>
-          <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-end mb-2">
-              <button onClick={() => setShowTrailer(false)} className="w-8 h-8 rounded-lg bg-white/10 text-white/80 hover:text-white flex items-center justify-center transition">
-                &#10005;
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[160] p-4" onClick={() => setShowTrailer(false)}>
+          <div className="max-w-4xl w-full max-h-[88vh] rounded-2xl border border-white/20 bg-[#050b16] shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.03]">
+              <p className="text-sm font-semibold text-white/90">Trailer Preview</p>
+              <button
+                onClick={() => setShowTrailer(false)}
+                className="w-9 h-9 rounded-lg border border-white/25 bg-white/10 text-white/85 hover:text-white hover:bg-white/15 transition flex items-center justify-center"
+                aria-label="Close trailer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            <div className="rounded-xl overflow-hidden ring-1 ring-white/10">
-              <video
-                src={resolveImage(trailerSourceUrl)}
-                poster={script.trailerThumbnail ? resolveImage(script.trailerThumbnail) : undefined}
-                controls
-                autoPlay
-                className="w-full"
-              />
+            <div className="p-3 overflow-auto">
+              <div className="rounded-xl overflow-hidden ring-1 ring-white/15 border border-white/10">
+                {trailerError ? (
+                  resolvedHeroImage ? (
+                    <img
+                      src={resolvedHeroImage}
+                      alt={script.title}
+                      className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
+                    />
+                  ) : (
+                    <div className="w-full max-h-[calc(88vh-150px)] min-h-[220px] flex items-center justify-center bg-black text-white/70 text-sm px-6 text-center">
+                      Trailer is unavailable on this device. Please try another browser.
+                    </div>
+                  )
+                ) : (
+                  <video
+                    src={trailerPlaybackUrl}
+                    poster={resolvedHeroImage || undefined}
+                    controls
+                    controlsList="nodownload"
+                    autoPlay
+                    playsInline
+                    preload="metadata"
+                    onError={handleTrailerPlaybackError}
+                    className="w-full max-h-[calc(88vh-150px)] object-contain bg-black"
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2017,7 +2670,7 @@ const ScriptDetail = () => {
               <p className={`text-sm mb-1 text-center ${t.muted}`}>
                 &ldquo;<span className={`font-semibold ${t.sub}`}>{script.title}</span>&rdquo; will be removed from your profile and all listings.
               </p>
-              <p className={`text-xs text-center mb-6 ${t.label}`}>Uploaded files are kept in storage. This action cannot be undone.</p>
+              <p className={`text-xs text-center mb-6 ${t.label}`}>This action cannot be undone.</p>
               <div className="flex gap-3">
                 <button onClick={() => setShowDeleteModal(false)} disabled={deleteLoading}
                   className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 border ${t.btnSec}`}>
@@ -2041,15 +2694,6 @@ const ScriptDetail = () => {
         onClose={() => setShowHoldModal(false)}
         script={script}
         type="hold"
-        onSuccess={handlePaymentSuccess}
-      />
-
-      {/* Purchase modal */}
-      <RazorpayScriptPayment
-        isOpen={showPurchaseModal}
-        onClose={() => setShowPurchaseModal(false)}
-        script={script}
-        type="purchase"
         onSuccess={handlePaymentSuccess}
       />
     </div>

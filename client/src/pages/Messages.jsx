@@ -8,7 +8,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import {
   MessageCircle, ChevronLeft, Send, Lock, Info, Search, X,
   Check, CheckCheck, Smile, Trash2, Video, FileText, Paperclip, Loader2, Download,
-  ShieldCheck, ArrowRight,
+  ShieldCheck, ArrowRight, ChevronDown,
 } from "lucide-react";
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
@@ -89,33 +89,72 @@ const Messages = () => {
   const [trailerActionLoading, setTrailerActionLoading] = useState("");
   const [attachment, setAttachment] = useState(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
 
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const activeChatRef = useRef(null);
+  const shouldAutoScrollRef = useRef(false);
+  const previousChatIdRef = useRef("");
+
+  const scrollMessagesToBottom = (behavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+    setShowScrollToBottomButton(false);
+  };
+
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowScrollToBottomButton(distanceFromBottom > 96);
+  };
 
   const isWriter = user && ["writer", "creator"].includes(user.role);
   const isInvestor = user && user.role === "investor";
 
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
   /* ── Socket setup ────────────────────────────────────────── */
   useEffect(() => {
-    const sock = io("http://localhost:5002");
+    if (!user?._id) return;
+
+    const sock = io(API_ORIGIN);
     setSocket(sock);
 
     sock.on("receive-message", (msg) => {
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === msg._id)) return prev;
-        return [...prev, msg];
+      const currentChat = activeChatRef.current;
+      const senderId = msg?.sender?._id || msg?.sender;
+      const isMine = senderId?.toString() === user?._id?.toString();
+      const isActiveThread = currentChat?.chatId === msg?.chatId;
+
+      // Only append directly to the currently open thread.
+      if (isActiveThread) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+      }
+
+      // Refresh conversation preview/unread and keep the updated chat at top.
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.chatId === msg.chatId);
+        if (index === -1) return prev;
+
+        const current = prev[index];
+        const updated = {
+          ...current,
+          lastMessage: getMessagePreview(msg),
+          timestamp: msg.createdAt || new Date().toISOString(),
+          unreadCount: isMine || isActiveThread ? 0 : (current.unreadCount || 0) + 1,
+        };
+
+        return [updated, ...prev.filter((_, i) => i !== index)];
       });
-      // Update conversation last message
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.chatId === msg.chatId
-            ? { ...c, lastMessage: getMessagePreview(msg), timestamp: msg.createdAt || new Date() }
-            : c
-        )
-      );
     });
 
     sock.on("user-typing", ({ chatId, userId }) => {
@@ -134,8 +173,7 @@ const Messages = () => {
 
     loadConversations();
     return () => sock.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?._id]);
 
   /* Re-listen when activeChat changes */
   useEffect(() => {
@@ -155,7 +193,8 @@ const Messages = () => {
     if (loading) return;
     const recipientId = searchParams.get("recipientId");
     const recipientName = searchParams.get("recipientName") || "Writer";
-    if (!recipientId || !isInvestor) return;
+    const recipientRole = searchParams.get("recipientRole") || (isInvestor ? "writer" : "investor");
+    if (!recipientId || !(isInvestor || isWriter)) return;
 
     const chatId = buildChatId(user._id, recipientId);
     const existing = conversations.find((c) => c.chatId === chatId);
@@ -163,7 +202,7 @@ const Messages = () => {
 
     const pendingChat = {
       chatId,
-      user: { _id: recipientId, name: recipientName, role: "writer", profileImage: "" },
+      user: { _id: recipientId, name: recipientName, role: recipientRole, profileImage: "" },
       lastMessage: "",
       timestamp: new Date().toISOString(),
       isPending: true,
@@ -182,8 +221,36 @@ const Messages = () => {
 
   /* ── Scroll to bottom ───────────────────────────────────── */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+    const currentChatId = activeChat?.chatId || "";
+    if (!currentChatId) {
+      previousChatIdRef.current = "";
+      shouldAutoScrollRef.current = false;
+      setShowScrollToBottomButton(false);
+      return;
+    }
+
+    const chatChanged = previousChatIdRef.current !== currentChatId;
+    if (chatChanged) {
+      previousChatIdRef.current = currentChatId;
+      shouldAutoScrollRef.current = true;
+      scrollMessagesToBottom("auto");
+      return;
+    }
+
+    if (!shouldAutoScrollRef.current) return;
+    shouldAutoScrollRef.current = false;
+    scrollMessagesToBottom("smooth");
+  }, [activeChat?.chatId, messages.length]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!activeChat?.chatId || !container) {
+      setShowScrollToBottomButton(false);
+      return;
+    }
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowScrollToBottomButton(distanceFromBottom > 96);
+  }, [activeChat?.chatId, messages.length, isTyping]);
 
   /* ── Filter conversations by search query ───────────────── */
   useEffect(() => {
@@ -193,31 +260,51 @@ const Messages = () => {
   }, [searchQuery, conversations]);
 
   /* ── Load conversations ─────────────────────────────────── */
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const { data } = await api.get("/messages/conversations");
-      setConversations(data);
-      setFilteredConvs(data);
+      const next = Array.isArray(data) ? data : [];
+      setConversations(next);
+
+      // Keep active chat metadata fresh (name/avatar/role/timestamp/unread).
+      const activeId = activeChatRef.current?.chatId;
+      if (activeId) {
+        const refreshed = next.find((c) => c.chatId === activeId);
+        if (refreshed) {
+          setActiveChat((curr) => (curr ? { ...curr, ...refreshed } : curr));
+        }
+      }
     } catch {
-      setConversations([]);
-      setFilteredConvs([]);
+      if (!silent) {
+        setConversations([]);
+        setFilteredConvs([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   /* ── Load messages ──────────────────────────────────────── */
-  const loadMessages = async (chatId) => {
-    setMessagesLoading(true);
+  const loadMessages = useCallback(async (chatId, { silent = false } = {}) => {
+    if (!chatId) return;
+    if (!silent) setMessagesLoading(true);
     try {
       const { data } = await api.get(`/messages/${chatId}`);
-      setMessages(data);
+      const next = Array.isArray(data) ? data : [];
+      setMessages((prev) => {
+        const sameLength = prev.length === next.length;
+        const sameFirst = prev[0]?._id === next[0]?._id;
+        const sameLast = prev[prev.length - 1]?._id === next[next.length - 1]?._id;
+        if (sameLength && sameFirst && sameLast) return prev;
+        return next;
+      });
     } catch {
-      setMessages([]);
+      if (!silent) setMessages([]);
     } finally {
-      setMessagesLoading(false);
+      if (!silent) setMessagesLoading(false);
     }
-  };
+  }, []);
 
   /* ── Select conversation ────────────────────────────────── */
   const handleSelectChat = useCallback((conv) => {
@@ -231,18 +318,28 @@ const Messages = () => {
       prev.map((c) => (c.chatId === conv.chatId ? { ...c, unreadCount: 0 } : c))
     );
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+  }, [loadMessages]);
+
+  // Silent background sync so investors/writers see updates without refresh.
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const interval = setInterval(async () => {
+      await loadConversations({ silent: true });
+      const activeId = activeChatRef.current?.chatId;
+      if (activeId) {
+        await loadMessages(activeId, { silent: true });
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [user?._id, loadConversations, loadMessages]);
 
   /* ── Send message ───────────────────────────────────────── */
   const sendTextMessage = async (textToSend, extraPayload = {}) => {
     setSendError("");
     const hasAttachment = Boolean(extraPayload?.fileUrl);
     if ((!textToSend?.trim() && !hasAttachment) || !activeChat) return false;
-
-    if (isWriter && !messagesLoading && messages.length === 0) {
-      setSendError("You cannot initiate a conversation. Only investors can message first.");
-      return false;
-    }
 
     const tempId = `temp_${Date.now()}`;
     const optimistic = {
@@ -259,6 +356,7 @@ const Messages = () => {
       read: false,
     };
 
+    shouldAutoScrollRef.current = true;
     setMessages((prev) => [...prev, optimistic]);
     const sentText = textToSend;
 
@@ -339,9 +437,7 @@ const Messages = () => {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const { data } = await api.post("/messages/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const { data } = await api.post("/messages/upload", formData);
       setAttachment(data);
     } catch (err) {
       setSendError(err.response?.data?.message || "Failed to upload attachment.");
@@ -412,7 +508,7 @@ const Messages = () => {
   /* ── Avatar URL helper ──────────────────────────────────── */
   const avatar = (u) =>
     u?.profileImage
-      ? u.profileImage.startsWith("http") ? u.profileImage : `http://localhost:5002${u.profileImage}`
+      ? u.profileImage.startsWith("http") ? u.profileImage : `${API_ORIGIN}${u.profileImage}`
       : `https://placehold.co/48x48/1e3a5f/ffffff?text=${encodeURIComponent(u?.name?.charAt(0) || "U")}`;
 
   /* ── Theme shorthand ────────────────────────────────────── */
@@ -458,11 +554,9 @@ const Messages = () => {
         <div className={`px-4 py-4 border-b ${dark ? "border-[#151f2e]" : "border-gray-100"}`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className={`text-lg font-extrabold tracking-tight ${t.title}`}>Messages</h2>
-            {isWriter && (
-              <span className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.04] text-[#8896a7]" : "bg-gray-100 text-gray-500"}`}>
-                <Lock size={10} /> Reply only
-              </span>
-            )}
+            <span className={`flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${dark ? "bg-white/[0.04] text-[#8896a7]" : "bg-gray-100 text-gray-500"}`}>
+              <Lock size={10} /> Purchase unlocked
+            </span>
           </div>
           {/* Search */}
           <div className="relative">
@@ -494,7 +588,7 @@ const Messages = () => {
               </p>
               {isWriter && !searchQuery && (
                 <p className={`text-xs mt-1.5 leading-relaxed ${t.muted}`}>
-                  Investors will message you after purchasing your projects.
+                  After an approved purchase, you or the investor can start the conversation.
                 </p>
               )}
               {isInvestor && !searchQuery && (
@@ -558,7 +652,7 @@ const Messages = () => {
           RIGHT — Chat Area
       ════════════════════════════════════════ */}
       <div className={[
-        "flex-1 flex-col overflow-hidden",
+        "relative flex-1 flex-col overflow-hidden",
         t.chat,
         !showList ? "flex" : "hidden md:flex",
       ].join(" ")}>
@@ -574,7 +668,7 @@ const Messages = () => {
               {isInvestor
                 ? "Select a conversation or purchase a project to unlock messaging with its writer."
                 : isWriter
-                ? "Investors will message you here after purchasing one of your projects."
+                ? "After a purchase is approved, you can start a conversation with that investor here."
                 : "Select a conversation from the left to start chatting."}
             </p>
             {isInvestor && (
@@ -608,7 +702,11 @@ const Messages = () => {
             </div>
 
             {/* ── Messages List ── */}
-            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 sm:px-6 py-4 space-y-1">
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleMessagesScroll}
+              className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 sm:px-6 py-4 space-y-1"
+            >
               {messagesLoading ? (
                 <div className="flex justify-center items-center h-32">
                   <div className={`w-7 h-7 border-[3px] rounded-full animate-spin ${dark ? "border-[#0d1520] border-t-[#8896a7]" : "border-gray-200 border-t-[#1e3a5f]"}`} />
@@ -616,7 +714,7 @@ const Messages = () => {
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 gap-2">
                   <p className={`text-sm ${t.sub}`}>No messages yet.</p>
-                  {isInvestor && (
+                  {(isInvestor || isWriter) && (
                     <p className={`text-xs ${t.muted}`}>Send the first message to start the conversation.</p>
                   )}
                 </div>
@@ -837,6 +935,18 @@ const Messages = () => {
               </AnimatePresence>
               <div ref={messagesEndRef} />
             </div>
+
+            {showScrollToBottomButton && (
+              <button
+                type="button"
+                onClick={() => scrollMessagesToBottom("smooth")}
+                aria-label="Scroll to latest message"
+                title="Scroll to latest"
+                className={`absolute right-4 bottom-[82px] sm:bottom-[86px] z-20 w-10 h-10 rounded-full flex items-center justify-center shadow-md border ${dark ? "bg-[#132744] border-[#1c2a3a] text-gray-200 hover:bg-[#1a3354]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"}`}
+              >
+                <ChevronDown size={18} />
+              </button>
+            )}
 
             {/* ── Input Area ── */}
             {isWriter && !messagesLoading && messages.length === 0 ? (

@@ -14,6 +14,7 @@ const invoiceRowSchema = new mongoose.Schema(
 const invoiceSchema = new mongoose.Schema(
   {
     invoiceNumber: { type: String, required: true, unique: true, index: true },
+    paymentReference: { type: String, unique: true, sparse: true },
     invoiceDate: { type: Date, required: true, default: Date.now },
     creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     creatorSid: { type: String, default: "" },
