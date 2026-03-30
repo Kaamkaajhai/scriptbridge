@@ -112,6 +112,7 @@ const THUMBNAIL_ASPECT = 3 / 4;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
 const MAX_PDF_SIZE = 30 * 1024 * 1024;
+const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
 
 const createImage = (url) => new Promise((resolve, reject) => {
   const image = new Image();
@@ -210,6 +211,7 @@ const ScriptUpload = () => {
   const fileInputRef = useRef(null);
   const thumbnailInputRef = useRef(null);
   const trailerInputRef = useRef(null);
+  const reviewRedirectTimerRef = useRef(null);
 
   // Thumbnail and Trailer states
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -227,6 +229,8 @@ const ScriptUpload = () => {
   const [thumbnailRotation, setThumbnailRotation] = useState(0);
   const [thumbnailCropPixels, setThumbnailCropPixels] = useState(null);
   const [thumbnailApplying, setThumbnailApplying] = useState(false);
+  const [showUnderReviewModal, setShowUnderReviewModal] = useState(false);
+  const [postSubmitRedirectPath, setPostSubmitRedirectPath] = useState("/dashboard");
 
   // Form data
   const [formData, setFormData] = useState({
@@ -257,6 +261,7 @@ const ScriptUpload = () => {
   // Legal data
   const [legal, setLegal] = useState({
     agreedToTerms: false,
+    customInvestorTerms: "",
   });
 
   // Tags as comma-separated input
@@ -344,7 +349,10 @@ const ScriptUpload = () => {
           aiTrailer: data.services?.aiTrailer ?? false,
           spotlight: data.services?.spotlight ?? false,
         });
-        setLegal({ agreedToTerms: true });
+        setLegal({
+          agreedToTerms: Boolean(data?.legal?.agreedToTerms),
+          customInvestorTerms: data?.legal?.customInvestorTerms || "",
+        });
       } catch {
         // proceed normally
       }
@@ -382,6 +390,11 @@ const ScriptUpload = () => {
             },
           })));
         }
+        setLegal((prev) => ({
+          ...prev,
+          agreedToTerms: Boolean(data?.legal?.agreedToTerms),
+          customInvestorTerms: data?.legal?.customInvestorTerms || "",
+        }));
         setFromDraft(true);
       } catch {
         // Draft not found, proceed normally
@@ -654,6 +667,12 @@ const ScriptUpload = () => {
     return () => URL.revokeObjectURL(previewUrl);
   }, [thumbnailFile]);
 
+  useEffect(() => () => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (!trailerFile) {
       setTrailerPreviewUrl("");
@@ -800,6 +819,10 @@ const ScriptUpload = () => {
           setError("You must agree to the terms to continue.");
           return false;
         }
+        if (String(legal.customInvestorTerms || "").trim().length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+          setError(`Custom investor terms cannot exceed ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters.`);
+          return false;
+        }
         return true;
 
       default:
@@ -854,7 +877,12 @@ const ScriptUpload = () => {
           tones: classification.tones,
           themes: classification.themes,
           settings: classification.settings,
-        }
+        },
+        legal: {
+          agreedToTerms: legal.agreedToTerms,
+          termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+          customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
+        },
       };
 
       await api.post("/scripts/draft", payload);
@@ -869,6 +897,28 @@ const ScriptUpload = () => {
   };
 
   // Handle final submission
+  const openUnderReviewModal = (redirectPath) => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+    }
+
+    setPostSubmitRedirectPath(redirectPath);
+    setShowUnderReviewModal(true);
+
+    reviewRedirectTimerRef.current = setTimeout(() => {
+      navigate(redirectPath);
+    }, 2400);
+  };
+
+  const handleUnderReviewContinue = () => {
+    if (reviewRedirectTimerRef.current) {
+      clearTimeout(reviewRedirectTimerRef.current);
+      reviewRedirectTimerRef.current = null;
+    }
+    setShowUnderReviewModal(false);
+    navigate(postSubmitRedirectPath);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -934,6 +984,7 @@ const ScriptUpload = () => {
           agreedToTerms: legal.agreedToTerms,
           timestamp: new Date().toISOString(),
           termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+          customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
         },
         premium: isPremium && effectivePrice > 0,
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
@@ -972,7 +1023,7 @@ const ScriptUpload = () => {
       if (editId) {
         await api.put(`/scripts/${editId}`, payload);
         await uploadMediaForScript(editId, "updated");
-        navigate(`/script/${editId}`);
+        openUnderReviewModal(`/script/${editId}`);
       } else {
         const response = await api.post("/scripts/upload", payload);
         const newScriptId = response.data._id;
@@ -981,7 +1032,7 @@ const ScriptUpload = () => {
         // Refresh credits balance after successful upload
         const { data: creditsData } = await api.get("/credits/balance");
         setCreditsBalance(creditsData.balance || 0);
-        navigate("/dashboard");
+        openUnderReviewModal("/dashboard");
       }
     } catch (err) {
       const errorMsg = err.response?.data?.message || "Failed to upload script. Please try again.";
@@ -2075,7 +2126,7 @@ const ScriptUpload = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className={`rounded-xl px-4 py-4 ${isDarkMode ? "bg-blue-500/10 border border-blue-500/15" : "bg-blue-50 border border-blue-100"}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>Due Now</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>Publish Cost</p>
                       <p className={`text-xl font-black mt-1 ${totalServiceCost > creditsBalance ? "text-red-400" : isDarkMode ? "text-white" : "text-gray-900"}`}>{totalServiceCost} cr</p>
                       <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Charged from current balance</p>
                     </div>
@@ -2149,6 +2200,28 @@ const ScriptUpload = () => {
                           </label>
                         </div>
                       </div>
+                    </div>
+
+                    <div className={`rounded-xl px-4 py-4 mt-4 ${isDarkMode ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
+                      <p className={`text-[12px] font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                        Writer Custom Terms For Investors (Optional)
+                      </p>
+                      <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
+                        Add deal-specific terms investors must accept before they can pay for this script.
+                      </p>
+                      <textarea
+                        value={legal.customInvestorTerms}
+                        onChange={(e) => setLegal({
+                          ...legal,
+                          customInvestorTerms: e.target.value.slice(0, MAX_CUSTOM_INVESTOR_TERMS_LENGTH),
+                        })}
+                        rows={6}
+                        placeholder="Example: Payment grants non-exclusive reading rights only. Rights transfer requires a separate signed agreement."
+                        className={`mt-3 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors resize-y ${isDarkMode ? "bg-[#050b14] border-[#182840] text-gray-200 placeholder:text-gray-600 focus:border-[#2a4a6e]" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-gray-400"}`}
+                      />
+                      <p className={`text-[11px] mt-2 text-right ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
+                        {String(legal.customInvestorTerms || "").length}/{MAX_CUSTOM_INVESTOR_TERMS_LENGTH}
+                      </p>
                     </div>
                   </div>
 
@@ -2304,6 +2377,56 @@ const ScriptUpload = () => {
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed bg-[#1e3a5f] hover:bg-[#162d4a] text-white"
                 >
                   {thumbnailApplying ? "Saving Cover..." : "Save Cover"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {showUnderReviewModal && createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="under-review-modal-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+            style={{ background: "rgba(3, 10, 19, 0.72)", backdropFilter: "blur(6px)" }}
+          >
+            <motion.div
+              key="under-review-modal"
+              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.96 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDarkMode ? "bg-[#091322] border-white/[0.08]" : "bg-white border-gray-200"}`}
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-500/15 text-amber-300 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+
+              <h3 className={`text-lg font-extrabold tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                Script Submitted Successfully
+              </h3>
+              <p className={`text-sm mt-2 leading-relaxed ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>
+                Your script is now under review. Please wait for admin approval. You will be notified once it is approved.
+              </p>
+
+              <div className={`mt-4 rounded-xl border px-3 py-2.5 text-xs ${isDarkMode ? "border-white/[0.08] bg-white/[0.03] text-gray-400" : "border-gray-200 bg-gray-50 text-gray-600"}`}>
+                Redirecting automatically...
+              </div>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleUnderReviewContinue}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition"
+                >
+                  Continue
                 </button>
               </div>
             </motion.div>

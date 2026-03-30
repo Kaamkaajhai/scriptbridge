@@ -115,7 +115,9 @@ const scriptSchema = new mongoose.Schema({
     agreedToTerms: { type: Boolean, default: false },
     timestamp: { type: Date },
     ipAddress: { type: String },
-    termsVersion: { type: String }
+    termsVersion: { type: String },
+    customInvestorTerms: { type: String, default: "", trim: true, maxlength: 3000 },
+    customInvestorTermsUpdatedAt: { type: Date },
   },
 
   premium: { type: Boolean, default: false },

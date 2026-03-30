@@ -8,6 +8,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
 import ReviewCard from "../components/ReviewCard";
 import SocialShareButton from "../components/SocialShareButton";
+import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 
 /* ── Edit Profile Modal ─────────────────────────────── */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
@@ -380,6 +381,9 @@ const ReaderProfile = () => {
     { key: "reviews", label: "Reviews", icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];
 
+  const profileCompletion = profile?.profileCompletion;
+  const showProfileCompletion = isOwnProfile && profileCompletion && !profileCompletion.isComplete;
+
   return (
     <div className="max-w-5xl mx-auto pb-16 px-4 pt-6">
       {/* Back Button */}
@@ -389,6 +393,14 @@ const ReaderProfile = () => {
         </span>
         Back to Reader
       </Link>
+
+      <ProfileCompletionBanner
+        completion={showProfileCompletion ? profileCompletion : null}
+        subtitle="Your profile is incomplete. Add a few more details to finish it."
+        ctaLabel="Edit Profile"
+        onCta={() => setEditOpen(true)}
+        className="mb-8"
+      />
 
       {/* Main Profile Header Card */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-3xl border shadow-sm overflow-hidden mb-8 ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>

@@ -288,9 +288,7 @@ export const generateAndSaveInvoicePdf = async ({
 
     const summaryX = left + metaW + 26;
     doc.font("Helvetica-Bold").fontSize(12).fillColor("#0F172A").text("Summary", summaryX, y + 12, { width: summaryW - 36 });
-    doc.font("Helvetica").fontSize(10).fillColor("#334155").text(`Due Now: ${invoice.totalCreditsRequired || 0} credits`, summaryX, y + 36, { width: summaryW - 36 });
-    doc.text(`Balance After: ${invoice.creditsBalanceAfter ?? 0} credits`, summaryX, y + 54, { width: summaryW - 36 });
-    doc.font("Helvetica-Bold").fillColor("#0F172A").text(`Net Per Premium Sale: ${asCurrency(invoice.writerEarnsPerSale || 0)}`, summaryX, y + 74, {
+    doc.font("Helvetica-Bold").fillColor("#0F172A").text(`Net Per Premium Sale: ${asCurrency(invoice.writerEarnsPerSale || 0)}`, summaryX, y + 36, {
       width: summaryW - 36,
     });
 

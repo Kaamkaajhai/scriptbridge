@@ -1,8 +1,9 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
-import { sendOTPEmail, sendWelcomeEmail, sendSignupOTPToCompany } from "../utils/emailService.js";
+import { sendOTPEmail, sendWelcomeEmail } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 
 const generateToken = (id) => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "30d";
@@ -138,14 +139,6 @@ export const join = async (req, res) => {
           });
         }
 
-        // Best-effort company copy (does not block user flow)
-        await sendSignupOTPToCompany({
-          userName: userExists.name || name,
-          userEmail: email,
-          userRole: userExists.role,
-          otp,
-        });
-        
         return res.status(200).json({ 
           message: "User already exists but not verified. New OTP sent to email.",
           requiresVerification: true,
@@ -182,14 +175,6 @@ export const join = async (req, res) => {
       });
     }
 
-    // Best-effort company copy (does not block signup)
-    await sendSignupOTPToCompany({
-      userName: name,
-      userEmail: email,
-      userRole: role,
-      otp,
-    });
-    
     console.log('User created successfully, OTP sent:', user._id);
     res.status(201).json({
       message: "Account created successfully. Please check your email for verification code.",
@@ -263,6 +248,7 @@ export const login = async (req, res) => {
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
         profileImage: user.profileImage || user.profilePicture || "",
+        profileCompletion: getProfileCompletion(user),
         token,
         expiresAt,
       });
@@ -366,6 +352,7 @@ export const verifyOTP = async (req, res) => {
         name: user.name,
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
+        profileCompletion: getProfileCompletion(user),
         token,
         expiresAt,
       });
@@ -380,6 +367,7 @@ export const verifyOTP = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      profileCompletion: getProfileCompletion(user),
       token,
       expiresAt,
     });
@@ -573,6 +561,7 @@ export const getMe = async (req, res) => {
       profileImage: user.profileImage || user.profilePicture || "",
       profilePicture: user.profilePicture,
       bio: user.bio,
+      profileCompletion: getProfileCompletion(user),
       expiresAt: decoded.exp * 1000,
     });
   } catch (error) {
