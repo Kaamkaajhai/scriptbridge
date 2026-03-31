@@ -64,6 +64,12 @@ const Login = () => {
       navigateAfterLogin(storedUser || userData || {});
     } catch (err) {
       const data = err.response?.data;
+      if (data?.requiresVerification) {
+        setUserEmail(data.email || email);
+        setShowOTPVerification(true);
+        setLoading(false);
+        return;
+      }
       if (data?.pendingApproval) {
         navigate("/?investorReview=pending");
         setLoading(false);

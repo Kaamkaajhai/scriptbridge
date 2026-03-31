@@ -1153,3 +1153,76 @@ export const verifyEmailVerificationCode = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const deleteAccount = async (req, res) => {
+  try {
+    const { password, confirmationText } = req.body || {};
+
+    if (confirmationText !== "DELETE") {
+      return res.status(400).json({ message: "Confirmation text must be DELETE" });
+    }
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isPasswordValid = await user.matchPassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    const userId = user._id;
+
+    const ownedScripts = await Script.find({ creator: userId }).select("_id").lean();
+    const ownedScriptIds = ownedScripts.map((s) => s._id);
+
+    await Promise.all([
+      Post.deleteMany({ user: userId }),
+      Notification.deleteMany({ $or: [{ user: userId }, { from: userId }] }),
+      ScriptPurchaseRequest.deleteMany({ $or: [{ investor: userId }, { writer: userId }] }),
+      ScriptOption.deleteMany({ holder: userId }),
+      Script.updateMany(
+        { _id: { $nin: ownedScriptIds } },
+        {
+          $pull: {
+            unlockedBy: userId,
+            purchasedBy: userId,
+          },
+        }
+      ),
+      Script.updateMany(
+        { purchaseRequestLockedBy: userId },
+        {
+          $set: {
+            purchaseRequestLocked: false,
+            purchaseRequestLockedBy: null,
+          },
+        }
+      ),
+      User.updateMany(
+        { _id: { $ne: userId } },
+        {
+          $pull: {
+            followers: userId,
+            following: userId,
+            blockedUsers: userId,
+            favoriteScripts: { $in: ownedScriptIds },
+            "industryProfile.savedScripts": { $in: ownedScriptIds },
+          },
+        }
+      ),
+    ]);
+
+    await Script.deleteMany({ creator: userId });
+    await User.findByIdAndDelete(userId);
+
+    return res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

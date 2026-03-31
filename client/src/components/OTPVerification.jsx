@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Shield, ArrowLeft, Loader } from 'lucide-react';
 import axios from 'axios';
+import { getApiBaseUrl } from '../utils/apiOrigin';
 
-const API_BASE_URL = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api`;
+const API_BASE_URL = getApiBaseUrl();
 
 const OTPVerification = ({ email, onSuccess, onBack }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
