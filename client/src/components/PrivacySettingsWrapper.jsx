@@ -8,15 +8,25 @@ import PrivacySettingsUI from "./PrivacySettingsVanilla";
 const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, api }) => {
   const containerRef = useRef(null);
   const uiInstanceRef = useRef(null);
+  const lastSyncedStateRef = useRef("");
 
+  // Initialize PrivacySettingsUI instance on mount
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Pass the DOM element directly, not a selector string, along with userId and api service
-    uiInstanceRef.current = new PrivacySettingsUI(containerRef.current, dark, userId, api);
+    const instance = new PrivacySettingsUI(
+      containerRef.current,
+      dark,
+      userId,
+      api
+    );
 
+    uiInstanceRef.current = instance;
+
+    // Set initial state from parent if provided
     if (privacySettings) {
-      uiInstanceRef.current.updateState(privacySettings);
+      instance.updateState(privacySettings);
+      lastSyncedStateRef.current = JSON.stringify(privacySettings);
     }
 
     return () => {
@@ -24,19 +34,36 @@ const PrivacySettings = ({ dark, privacySettings, setPrivacySettings, userId, ap
     };
   }, [dark, userId, api]);
 
+  // Track incoming properties and update vanilla instance
   useEffect(() => {
     if (!uiInstanceRef.current || !privacySettings) return;
+
+    const incoming = JSON.stringify(privacySettings);
+    const current = JSON.stringify(uiInstanceRef.current.getState());
+
+    // Skip no-op updates to avoid constant DOM re-renders
+    if (incoming === current) {
+      lastSyncedStateRef.current = incoming;
+      return;
+    }
+
+    lastSyncedStateRef.current = incoming;
     uiInstanceRef.current.updateState(privacySettings);
   }, [privacySettings]);
 
-  // Sync state changes back to React parent
+  // Sync state from vanilla component back to React parent (polling)
   useEffect(() => {
-    if (!uiInstanceRef.current || !setPrivacySettings) return;
+    if (!uiInstanceRef.current) return;
 
-    // Create an interval to check for state changes
     const syncInterval = setInterval(() => {
       const currentState = uiInstanceRef.current.getState();
-      setPrivacySettings(currentState);
+      const stateJSON = JSON.stringify(currentState);
+
+      // Only update if state has actually changed
+      if (stateJSON !== lastSyncedStateRef.current) {
+        lastSyncedStateRef.current = stateJSON;
+        setPrivacySettings(currentState);
+      }
     }, 500);
 
     return () => clearInterval(syncInterval);

@@ -3,19 +3,19 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 
-/* ═══════════════════════════════════════════════════════════════════════════════
+/* 
    AI WRITING ASSISTANT — Direct-Apply Flow
    Click action → AI runs → content applied instantly → Undo/Keep bar
-   ═══════════════════════════════════════════════════════════════════════════════ */
+    */
 
 const AI_ACTIONS = [
-  { key: "improve",      label: "Improve",         icon: "✨", desc: "More engaging & compelling",     accent: "#a78bfa" },
-  { key: "professional", label: "Professional",     icon: "🎬", desc: "Studio-ready polish",           accent: "#60a5fa" },
-  { key: "grammar",      label: "Fix Grammar",      icon: "📝", desc: "Spelling, grammar & flow",      accent: "#34d399" },
-  { key: "dialogue",     label: "Better Dialogue",  icon: "💬", desc: "Natural voices & subtext",      accent: "#fbbf24" },
-  { key: "emotional",    label: "Add Emotion",      icon: "❤️", desc: "Deeper feelings & arcs",        accent: "#f472b6" },
-  { key: "shorten",      label: "Shorten",          icon: "✂️", desc: "Cut filler, tighten prose",     accent: "#fb923c" },
-  { key: "expand",       label: "Expand",           icon: "📖", desc: "Richer detail & atmosphere",    accent: "#2dd4bf" },
+  { key: "improve",      label: "Improve",         icon: "", desc: "More engaging & compelling",     accent: "#a78bfa" },
+  { key: "professional", label: "Professional",     icon: "", desc: "Studio-ready polish",           accent: "#60a5fa" },
+  { key: "grammar",      label: "Fix Grammar",      icon: "", desc: "Spelling, grammar & flow",      accent: "#34d399" },
+  { key: "dialogue",     label: "Better Dialogue",  icon: "", desc: "Natural voices & subtext",      accent: "#fbbf24" },
+  { key: "emotional",    label: "Add Emotion",      icon: "", desc: "Deeper feelings & arcs",        accent: "#f472b6" },
+  { key: "shorten",      label: "Shorten",          icon: "", desc: "Cut filler, tighten prose",     accent: "#fb923c" },
+  { key: "expand",       label: "Expand",           icon: "", desc: "Richer detail & atmosphere",    accent: "#2dd4bf" },
 ];
 
 const LOADING_TIPS = [
@@ -200,7 +200,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
   return (
     <div className="relative" ref={panelRef}>
 
-      {/* ━━ Grammar Credit Confirmation Modal (portal) ━━━━━━━━━━━━━━━━━━━━ */}
+      {/*  Grammar Credit Confirmation Modal (portal)  */}
       {showGrammarModal && createPortal(
         <AnimatePresence>
           <motion.div
@@ -225,7 +225,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
               <div className="px-5 pt-5 pb-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-600/20 border border-emerald-500/20 flex items-center justify-center">
-                    <span className="text-xl">📝</span>
+                    
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">AI Grammar Fix</h3>
@@ -242,7 +242,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
                 {/* Cost row */}
                 <div className="flex items-center justify-between px-3 py-2.5 bg-white/[0.03] border border-white/[0.05] rounded-xl">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">⚡</span>
+                    
                     <span className="text-xs text-neutral-300 font-medium">Cost</span>
                   </div>
                   <span className="text-sm font-bold text-amber-300">{GRAMMAR_COST} credits</span>
@@ -251,7 +251,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
                 {/* Balance row */}
                 <div className="flex items-center justify-between px-3 py-2.5 bg-white/[0.03] border border-white/[0.05] rounded-xl">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">💰</span>
+                    
                     <span className="text-xs text-neutral-300 font-medium">Your Balance</span>
                   </div>
                   {creditLoading ? (
@@ -299,7 +299,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
         document.body
       )}
 
-      {/* ━━ Undo/Keep Bar — fixed at bottom of screen (always visible) ━━━ */}
+      {/*  Undo/Keep Bar — fixed at bottom of screen (always visible)  */}
       {showUndoBar && createPortal(
         <AnimatePresence>
           <motion.div
@@ -353,7 +353,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
         document.body
       )}
 
-      {/* ━━ Trigger Bar ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/*  Trigger Bar  */}
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -367,7 +367,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
           {!isOpen && (
             <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           )}
-          <span className="text-base">🤖</span>
+          
           <span>AI Assistant</span>
           {isLoading && (
             <span className="w-1.5 h-1.5 rounded-full bg-violet-300 animate-pulse" />
@@ -395,7 +395,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
         )}
       </div>
 
-      {/* ━━ AI Panel (dropdown) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/*  AI Panel (dropdown)  */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -405,12 +405,12 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="absolute left-0 top-full mt-2 z-50 w-[380px] max-w-[calc(100vw-2rem)] bg-[#080e1a] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
           >
-            {/* ── Header ──────────────────────────────────────────────────── */}
+            {/*  Header  */}
             <div className="px-5 py-3.5 border-b border-white/[0.06] bg-gradient-to-r from-violet-600/10 via-indigo-600/8 to-transparent">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-                    <span className="text-sm">🤖</span>
+                    
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white tracking-tight">AI Writing Assistant</h3>
@@ -432,7 +432,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
               </div>
             </div>
 
-            {/* ── Error ───────────────────────────────────────────────────── */}
+            {/*  Error  */}
             <AnimatePresence>
               {error && (
                 <motion.div
@@ -442,7 +442,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
                   className="overflow-hidden"
                 >
                   <div className="mx-4 mt-3 px-3 py-2.5 bg-red-500/10 border border-red-500/15 rounded-xl flex items-start gap-2">
-                    <span className="text-red-400 mt-0.5 shrink-0 text-xs">⚠</span>
+                    
                     <div className="flex-1">
                       <p className="text-xs text-red-300 leading-relaxed">{error}</p>
                       <button
@@ -458,7 +458,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
               )}
             </AnimatePresence>
 
-            {/* ── Loading State ────────────────────────────────────────────── */}
+            {/*  Loading State  */}
             {isLoading && (
               <div className="px-5 py-10">
                 <div className="flex flex-col items-center">
@@ -467,7 +467,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
                     <div className="absolute inset-1 rounded-full border-2 border-indigo-500/20 animate-ping" style={{ animationDuration: "2.5s" }} />
                     <div className="absolute inset-2 rounded-full border-2 border-t-violet-400 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin" style={{ animationDuration: "1s" }} />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-lg">🤖</span>
+                      
                     </div>
                   </div>
                   <p className="text-sm font-semibold text-white mb-1">Applying {actionLabel}...</p>
@@ -492,7 +492,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
               </div>
             )}
 
-            {/* ── Action Grid (no preview — direct apply) ──────────────────── */}
+            {/*  Action Grid (no preview — direct apply)  */}
             {!isLoading && (
               <div className="p-4 space-y-3">
                 {/* Word count indicator */}
@@ -547,7 +547,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
                       className="group text-left p-3 rounded-xl border border-dashed border-white/[0.06] bg-transparent hover:bg-white/[0.03] hover:border-white/[0.12] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm">🎯</span>
+                        
                         <span className="text-xs font-bold text-white/90">Custom</span>
                       </div>
                       <p className="text-[10px] text-neutral-500 leading-tight">Your own instruction</p>
@@ -597,7 +597,7 @@ const AiWritingAssistant = ({ textContent, onApply, isDarkMode }) => {
                 {/* Footer tip */}
                 <div className="flex items-center gap-2 pt-1 px-1">
                   <div className="w-4 h-4 rounded-md bg-violet-500/10 flex items-center justify-center shrink-0">
-                    <span className="text-[8px]">💡</span>
+                    
                   </div>
                   <p className="text-[10px] text-neutral-600 leading-snug">
                     Click any action — AI will apply changes directly. You can always undo.
