@@ -2623,10 +2623,9 @@ export const getInvestorHomeFeed = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getTopList = async (req, res) => {
   try {
-    const now = new Date();
-    const { genre, contentType, budget, sort = "platform", premium } = req.query;
-    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
-    const match = { ...PUBLIC_SCRIPT_FILTER };
+    const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
+    const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
+    const match = { status: "published", isSold: { $ne: true } };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;
@@ -2730,6 +2729,7 @@ export const getTopList = async (req, res) => {
       },
     });
     pipeline.push({ $unwind: { path: "$creator", preserveNullAndEmptyArrays: true } });
+    pipeline.push({ $limit: parsedLimit });
 
     const scripts = await Script.aggregate(pipeline);
     const sanitized = scripts.map((s) => ({

@@ -83,7 +83,7 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
+              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#111111] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
               rows="5"
               placeholder="Share your thoughts, scripts, or updates..."
             />
@@ -97,7 +97,7 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
               type="url"
               value={image}
               onChange={(e) => setImage(e.target.value)}
-              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
+              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#111111] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
               placeholder="https://..."
             />
           </div>
@@ -110,7 +110,7 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
               type="url"
               value={video}
               onChange={(e) => setVideo(e.target.value)}
-              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
+              className={`w-full p-3.5 border rounded-lg focus:ring-2 focus:ring-[#111111] focus:border-transparent text-base ${dark ? 'bg-[#242424] border-[#444] text-gray-200 placeholder-gray-600' : 'border-gray-300'}`}
               placeholder="https://..."
             />
           </div>
@@ -154,7 +154,7 @@ const CreatePostModal = ({ onClose, onPostCreated }) => {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition disabled:opacity-50 text-base font-bold"
+              className="flex-1 px-6 py-3 bg-[#111111] text-white rounded-lg hover:bg-[#000000] transition disabled:opacity-50 text-base font-bold"
             >
               {loading ? "Posting..." : "Post"}
             </button>
