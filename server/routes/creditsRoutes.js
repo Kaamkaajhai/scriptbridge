@@ -10,7 +10,8 @@ import {
   getServicePricing,
   grantBonusCredits,
   createRazorpayOrder,
-  verifyRazorpayPayment
+  verifyRazorpayPayment,
+  validateDiscount
 } from "../controllers/creditsController.js";
 
 const router = express.Router();
@@ -28,6 +29,7 @@ router.get("/check/:amount", checkCredits);
 router.post("/purchase", purchaseCredits);
 router.post("/use", useCredits);
 router.post("/bonus", grantBonusCredits); // TODO: Add admin middleware
+router.post("/validate-discount", validateDiscount);
 
 // Razorpay routes
 router.post("/create-order", createRazorpayOrder);

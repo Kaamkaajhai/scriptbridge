@@ -41,6 +41,7 @@ const TABS = [
     { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
     { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
+    { key: "discount-codes", label: "Discount Codes", icon: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" },
 ];
 
 const Icon = ({ d, className = "w-5 h-5" }) => (
@@ -360,6 +361,7 @@ const SEARCH_PLACEHOLDER_BY_TAB = {
     invoices: "Search invoices...",
     payments: "Search payments...",
     scores: "Search scores...",
+    "discount-codes": "Search discount codes...",
     approvals: "Search approvals...",
     trailers: "Search AI trailers...",
     messages: "Search writer messages...",
@@ -485,6 +487,113 @@ const writePdfSections = ({ fileName, title, sections }) => {
     doc.save(fileName);
 };
 
+const DiscountCodeFormModal = ({ initial, onClose, onSave, isDark }) => {
+    const isEdit = Boolean(initial && initial._id);
+    const [formData, setFormData] = useState({
+        code: initial?.code || "",
+        discountType: initial?.discountType || "percentage",
+        discountValue: initial?.discountValue || "",
+        maxUses: initial?.maxUses || 0,
+        maxUsesPerUser: initial?.maxUsesPerUser || 1,
+        minPurchaseAmount: initial?.minPurchaseAmount || 0,
+        maxDiscountAmount: initial?.maxDiscountAmount || 0,
+        validUntil: initial?.validUntil ? new Date(initial.validUntil).toISOString().split('T')[0] : "",
+        description: initial?.description || "",
+        isActive: initial?.isActive !== undefined ? initial.isActive : true,
+        ...(isEdit ? { _id: initial._id } : {}),
+    });
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={onClose}>
+            <div className={`w-full max-w-xl mx-auto rounded-2xl p-6 ${isDark ? "bg-[#0f1d35] border border-[#1a3050]" : "bg-white shadow-2xl"}`} onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{isEdit ? "Edit Discount Code" : "Create Discount Code"}</h3>
+                    <button onClick={onClose} className={`p-2 rounded-xl transition-colors ${isDark ? "text-gray-400 hover:bg-[#1a3050] hover:text-white" : "text-gray-500 hover:bg-gray-100"}`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Code (e.g. WELCOME50)</label>
+                            <input required type="text" name="code" value={formData.code} onChange={handleChange} className={`w-full uppercase rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} placeholder="DISCOUNT20" />
+                        </div>
+                        
+                        <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Type</label>
+                            <select name="discountType" value={formData.discountType} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200" : "bg-gray-50 border-gray-200 text-gray-800"}`}>
+                                <option value="percentage">Percentage (%)</option>
+                                <option value="flat">Flat Amount (₹)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Value</label>
+                            <input required type="number" min="1" step="any" name="discountValue" value={formData.discountValue} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} placeholder={formData.discountType === "percentage" ? "1-100" : "Amount in ₹"} />
+                        </div>
+
+                        <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Max Uses Globally (0 = unlimited)</label>
+                            <input type="number" min="0" name="maxUses" value={formData.maxUses} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} />
+                        </div>
+
+                        <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Max Uses Per User (0 = unlimited)</label>
+                            <input type="number" min="0" name="maxUsesPerUser" value={formData.maxUsesPerUser} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} />
+                        </div>
+
+                        <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Min Purchase (₹) (0 = none)</label>
+                            <input type="number" min="0" name="minPurchaseAmount" value={formData.minPurchaseAmount} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} />
+                        </div>
+
+                        <div>
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Max Discount (₹) (0 = none)</label>
+                            <input type="number" min="0" name="maxDiscountAmount" value={formData.maxDiscountAmount} onChange={handleChange} disabled={formData.discountType === 'flat'} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border disabled:opacity-50 ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} />
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Valid Until</label>
+                            <input required type="date" name="validUntil" value={formData.validUntil} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} />
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className={`block text-xs font-bold mb-1.5 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Description (Optional)</label>
+                            <input type="text" name="description" value={formData.description} onChange={handleChange} className={`w-full rounded-xl px-4 py-2.5 text-sm outline-none border ${isDark ? "bg-[#0b1426] border-[#1a3050] text-gray-200 focus:border-blue-500/50" : "bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-400"}`} placeholder="e.g. Winter Sale 2024" />
+                        </div>
+
+                        {isEdit && (
+                            <div className="col-span-2 flex items-center mt-2">
+                                <input type="checkbox" id="isActive" name="isActive" checked={formData.isActive} onChange={handleChange} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" />
+                                <label htmlFor="isActive" className={`ml-2 text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-900"}`}>Active</label>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-[#1a3050]">
+                        <button type="button" onClick={onClose} className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isDark ? "text-gray-400 hover:bg-[#1a3050]" : "text-gray-500 hover:bg-gray-100"}`}>Cancel</button>
+                        <button type="submit" className="px-6 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all shadow-lg shadow-blue-500/20">{isEdit ? "Update Code" : "Create Code"}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 const AdminDashboard = () => {
     const { isDarkMode: isDark } = useDarkMode();
     const [activeTab, setActiveTab] = useState("overview");
@@ -514,6 +623,8 @@ const AdminDashboard = () => {
     const [rejectModal, setRejectModal] = useState(null); // investor object
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
     const [contacts, setContacts] = useState([]);
+    const [discountCodes, setDiscountCodes] = useState([]);
+    const [discountCodeModal, setDiscountCodeModal] = useState(null); // null = closed, {} = create, {_id:...} = edit
     const [alertSummary, setAlertSummary] = useState({});
     const previousAlertSummaryRef = useRef(null);
     const [exportingCurrent, setExportingCurrent] = useState(false);
@@ -999,6 +1110,11 @@ const AdminDashboard = () => {
                     setContacts(data.submissions); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
+                case "discount-codes": {
+                    const { data } = await adminApi.get(`/admin/discount-codes?page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                    setDiscountCodes(data.codes); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
             }
         } catch (err) {
             console.error("Admin fetch error:", err);
@@ -1463,6 +1579,36 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(err);
             showToast(err?.response?.data?.message || "Failed to unblock user", "error");
+        }
+    };
+
+    // ─── Discount Code Handlers ───
+    const handleSaveDiscountCode = async (formData) => {
+        try {
+            if (formData._id) {
+                await adminApi.put(`/admin/discount-codes/${formData._id}`, formData);
+                showToast("Discount code updated");
+            } else {
+                await adminApi.post("/admin/discount-codes", formData);
+                showToast("Discount code created");
+            }
+            setDiscountCodeModal(null);
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to save discount code", "error");
+        }
+    };
+
+    const handleDeleteDiscountCode = async (id) => {
+        if (!window.confirm("Deactivate this discount code?")) return;
+        try {
+            await adminApi.delete(`/admin/discount-codes/${id}`);
+            showToast("Discount code deactivated");
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to deactivate discount code", "error");
         }
     };
 
@@ -2403,6 +2549,70 @@ const AdminDashboard = () => {
                             </div>
                         </div>
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                    </div>
+                );
+
+            case "discount-codes":
+                return (
+                    <div>
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
+                                Discount Codes
+                                <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({total})</span>
+                            </h2>
+                            <button
+                                onClick={() => setDiscountCodeModal({})}
+                                className="px-4 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-all"
+                            >+ Create Code</button>
+                        </div>
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                            {["Code", "Type", "Value", "Used / Max", "Min Purchase", "Valid Until", "Status", "Actions"].map((h) => (
+                                                <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                        {discountCodes.map((dc) => (
+                                            <tr key={dc._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
+                                                <td className={`px-5 py-3.5 text-sm font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>{dc.code}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${dc.discountType === "percentage" ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                                        {dc.discountType === "percentage" ? "%" : "₹"}
+                                                    </span>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>
+                                                    {dc.discountType === "percentage" ? `${dc.discountValue}%` : `₹${dc.discountValue}`}
+                                                    {dc.maxDiscountAmount > 0 && dc.discountType === "percentage" && <span className={`text-xs ml-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>(max ₹{dc.maxDiscountAmount})</span>}
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{dc.usedCount} / {dc.maxUses || "∞"}</td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{dc.minPurchaseAmount > 0 ? `₹${dc.minPurchaseAmount}` : "—"}</td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(dc.validUntil).toLocaleDateString()}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${dc.isActive && new Date(dc.validUntil) > new Date() ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                                        {dc.isActive && new Date(dc.validUntil) > new Date() ? "Active" : "Inactive"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => setDiscountCodeModal(dc)} className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-2 py-1 rounded-lg hover:bg-blue-500/10">Edit</button>
+                                                        {dc.isActive && <button onClick={() => handleDeleteDiscountCode(dc._id)} className="text-xs font-bold text-red-500 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10">Deactivate</button>}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {discountCodes.length === 0 && (
+                                            <tr><td colSpan={8} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No discount codes yet</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                        {discountCodeModal !== null && <DiscountCodeFormModal initial={discountCodeModal} onClose={() => setDiscountCodeModal(null)} onSave={handleSaveDiscountCode} isDark={isDark} />}
                     </div>
                 );
 

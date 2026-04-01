@@ -50,18 +50,10 @@ export const publicSeoRoutes = [
     priority: "0.4",
   },
   {
-    path: "/writer-terms",
-    title: "Writer Terms and Conditions | Ckript",
+    path: "/terms-conditions",
+    title: "Terms and Conditions | Ckript",
     description:
-      "Read terms and conditions for writers using Ckript to publish and manage scripts.",
-    changefreq: "yearly",
-    priority: "0.4",
-  },
-  {
-    path: "/investor-terms",
-    title: "Investor Terms and Conditions | Ckript",
-    description:
-      "Read terms and conditions for investors and producers using Ckript.",
+      "Read the terms and conditions for writers and investors using Ckript.",
     changefreq: "yearly",
     priority: "0.4",
   },
