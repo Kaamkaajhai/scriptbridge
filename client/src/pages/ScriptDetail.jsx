@@ -1371,12 +1371,12 @@ const ScriptDetail = () => {
                             >
                               {Number(script.myPendingRequest?.amount || script.price || 0) > 0
                                 ? `Pay & Get Full Script — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
-                                : "Get Full Script (Free)"}
+                                : "Confirm Free Access"}
                             </button>
                             <p className="text-[11px] text-amber-700/90 text-center">
                               {Number(script.myPendingRequest?.amount || script.price || 0) > 0
                                 ? "Payment window: 72 hours after approval."
-                                : "Approval granted. Confirm free access to unlock full script."}
+                                : "Approval granted. Confirm Free Access to unlock full script."}
                             </p>
                           </div>
                         ) : (
@@ -2400,12 +2400,12 @@ const ScriptDetail = () => {
                                     >
                                       {Number(script.myPendingRequest?.amount || script.price || 0) > 0
                                         ? `Pay Now — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
-                                        : "Get Full Script (Free)"}
+                                        : "Confirm Free Access"}
                                     </button>
                                     <p className={`text-xs ${t.muted}`}>
                                       {Number(script.myPendingRequest?.amount || script.price || 0) > 0
                                         ? "Payment window: 72 hours after approval."
-                                        : "Approval granted. Confirm free access to unlock instantly."}
+                                        : "Approval granted. Confirm Free Access to unlock instantly."}
                                     </p>
                                   </div>
                                 ) : (

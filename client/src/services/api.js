@@ -1,7 +1,8 @@
 import axios from "axios";
+import { getApiBaseUrl } from "../utils/apiOrigin";
 
 const api = axios.create({
-  baseURL: "http://localhost:5002/api",
+  baseURL: getApiBaseUrl(),
 });
 
 const buildLoginRedirectUrl = () => {

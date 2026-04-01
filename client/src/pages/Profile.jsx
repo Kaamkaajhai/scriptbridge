@@ -32,14 +32,14 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
         {icon}
       </div>
       <h3
-        className={`text-[13px] font-bold ${dark ? "text-white/70" : "text-gray-800"
+        className={`text-[16px] font-bold ${dark ? "text-white/70" : "text-gray-800"
           }`}
       >
         {title}
       </h3>
       {badge && (
         <span
-          className={`ml-auto text-[11px] font-medium ${dark ? "text-white/25" : "text-gray-400"
+          className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"
             }`}
         >
           {badge}
@@ -52,11 +52,11 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
 
 const InfoRow = ({ label, value, dark }) => (
   <div className="flex items-center justify-between">
-    <span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>
+    <span className={`text-[15px] ${dark ? "text-white/35" : "text-gray-400"}`}>
       {label}
     </span>
     <span
-      className={`text-[13px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
+      className={`text-[15px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
         }`}
     >
       {value}
@@ -116,7 +116,7 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
               }`}>Delete Project?</h3>
             <p className={`text-[13px] text-center mb-1 ${dark ? "text-neutral-400" : "text-gray-500"
               }`}>
-              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from everywhere.
+              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from your profile and listings.
             </p>
             <div className="flex gap-2.5">
               <button

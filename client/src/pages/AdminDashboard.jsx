@@ -5,9 +5,10 @@ import { jsPDF } from "jspdf";
 import BrandLogo from "../components/BrandLogo";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { formatCurrency } from "../utils/currency";
+import { getApiBaseUrl, getApiOrigin } from "../utils/apiOrigin";
 
-const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
-const API_BASE_URL = `${API_ORIGIN}/api`;
+const API_ORIGIN = getApiOrigin();
+const API_BASE_URL = getApiBaseUrl();
 
 // Admin-specific API — uses admin token from sessionStorage, separate from user session
 const adminApi = axios.create({ baseURL: API_BASE_URL });
