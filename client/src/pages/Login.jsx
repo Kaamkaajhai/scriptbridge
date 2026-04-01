@@ -16,6 +16,11 @@ const Login = () => {
   const [error, setError] = useState("");
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [otpConfig, setOtpConfig] = useState({
+    otpExpirySeconds: undefined,
+    resendCooldownSeconds: undefined,
+    startCooldownOnMount: false,
+  });
   const [loading, setLoading] = useState(false);
 
   const getSafeRedirectPath = (value = "") => {
@@ -54,7 +59,12 @@ const Login = () => {
       
       // Check if OTP verification is required
       if (userData?.requiresVerification) {
-        setUserEmail(email);
+        setUserEmail(userData?.email || String(email || "").trim().toLowerCase());
+        setOtpConfig({
+          otpExpirySeconds: userData?.otpExpirySeconds,
+          resendCooldownSeconds: userData?.resendCooldownSeconds,
+          startCooldownOnMount: false,
+        });
         setShowOTPVerification(true);
         setLoading(false);
         return;
@@ -65,7 +75,12 @@ const Login = () => {
     } catch (err) {
       const data = err.response?.data;
       if (data?.requiresVerification) {
-        setUserEmail(data.email || email);
+        setUserEmail(data.email || String(email || "").trim().toLowerCase());
+        setOtpConfig({
+          otpExpirySeconds: data?.otpExpirySeconds,
+          resendCooldownSeconds: data?.resendCooldownSeconds,
+          startCooldownOnMount: false,
+        });
         setShowOTPVerification(true);
         setLoading(false);
         return;
@@ -103,6 +118,11 @@ const Login = () => {
   const handleBackToLogin = () => {
     setShowOTPVerification(false);
     setUserEmail("");
+    setOtpConfig({
+      otpExpirySeconds: undefined,
+      resendCooldownSeconds: undefined,
+      startCooldownOnMount: false,
+    });
   };
 
   // Show OTP verification screen if needed
@@ -112,6 +132,9 @@ const Login = () => {
         email={userEmail} 
         onSuccess={handleOTPSuccess} 
         onBack={handleBackToLogin}
+        otpExpirySeconds={otpConfig.otpExpirySeconds}
+        initialResendCooldownSeconds={otpConfig.resendCooldownSeconds}
+        startCooldownOnMount={otpConfig.startCooldownOnMount}
       />
     );
   }

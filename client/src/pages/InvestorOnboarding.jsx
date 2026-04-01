@@ -18,6 +18,8 @@ import {
   Instagram,
   Twitter,
   FileText,
+  MapPin,
+  Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -49,13 +51,24 @@ const validatePassword = (password) => {
   };
 };
 
+const PHONE_REGEX = /^[+]?[\d\s\-().]{7,15}$/;
+const CITY_STATE_REGEX = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
+
 const INVESTOR_ONBOARDING_DRAFT_KEY = "sb-investor-onboarding-draft-v1";
 
 const DEFAULT_ACCOUNT_DATA = {
   name: "",
   email: "",
+  phone: "",
   password: "",
   confirmPassword: "",
+};
+
+const DEFAULT_ADDRESS_FIELDS = {
+  street: "",
+  city: "",
+  state: "",
+  zipCode: "",
 };
 
 const DEFAULT_INVESTOR_PROFILE = {
@@ -116,6 +129,9 @@ const InvestorOnboarding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [addressError, setAddressError] = useState("");
+  const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [firmNameError, setFirmNameError] = useState("");
   const [roleFocusError, setRoleFocusError] = useState("");
   const [jobTitleError, setJobTitleError] = useState("");
@@ -123,16 +139,26 @@ const InvestorOnboarding = () => {
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(Boolean(initialDraft?.showOTPVerification));
   const [userEmail, setUserEmail] = useState(initialDraft?.userEmail || "");
+  const [otpConfig, setOtpConfig] = useState(() => ({
+    otpExpirySeconds: initialDraft?.otpConfig?.otpExpirySeconds,
+    resendCooldownSeconds: initialDraft?.otpConfig?.resendCooldownSeconds,
+    startCooldownOnMount: Boolean(initialDraft?.otpConfig?.startCooldownOnMount),
+  }));
 
   // Step 1: Account
   const [accountData, setAccountData] = useState(() => ({
     ...DEFAULT_ACCOUNT_DATA,
     ...(initialDraft?.accountData || {}),
   }));
+  const [addressFields, setAddressFields] = useState(() => ({
+    ...DEFAULT_ADDRESS_FIELDS,
+    ...(initialDraft?.addressFields || {}),
+  }));
+  const zipLookupRequestRef = useRef(0);
 
   // Email Verification (keeping for compatibility, but using OTP now)
   const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
-  const [verificationSent, setVerificationSent] = useState(Boolean(initialDraft?.verificationSent));
+  const [verificationSent] = useState(false);
 
   // Step 2: Investor Profile
   const [investorProfile, setInvestorProfile] = useState(() => ({
@@ -167,7 +193,9 @@ const InvestorOnboarding = () => {
       currentStep,
       showOTPVerification,
       userEmail,
+      otpConfig,
       accountData: safeAccountData,
+      addressFields,
       verificationCode,
       verificationSent,
       investorProfile,
@@ -180,6 +208,7 @@ const InvestorOnboarding = () => {
     window.sessionStorage.setItem(INVESTOR_ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
   }, [
     accountData,
+    addressFields,
     agreementAccepted,
     agreementScrolled,
     currentStep,
@@ -188,9 +217,60 @@ const InvestorOnboarding = () => {
     selectedGenres,
     showOTPVerification,
     userEmail,
+    otpConfig,
     verificationCode,
     verificationSent,
   ]);
+
+  useEffect(() => {
+    const zipCode = String(addressFields.zipCode || "").trim();
+    if (!/^\d{6}$/.test(zipCode)) {
+      setZipLookupLoading(false);
+      return;
+    }
+
+    const requestId = Date.now();
+    zipLookupRequestRef.current = requestId;
+    let isActive = true;
+
+    const lookupZipInfo = async () => {
+      setZipLookupLoading(true);
+      try {
+        const { data } = await api.get(`/auth/zip-info/${zipCode}`);
+        if (!isActive || zipLookupRequestRef.current !== requestId) return;
+
+        const resolvedCity = String(data?.city || "").trim();
+        const resolvedState = String(data?.state || "").trim();
+
+        setAddressFields((prev) => {
+          if (prev.zipCode !== zipCode) return prev;
+          return {
+            ...prev,
+            city: resolvedCity || prev.city,
+            state: resolvedState || prev.state,
+          };
+        });
+
+        setAddressError("");
+      } catch (err) {
+        if (!isActive || zipLookupRequestRef.current !== requestId) return;
+        const message = err?.response?.data?.message;
+        if (message) {
+          setAddressError(message);
+        }
+      } finally {
+        if (isActive && zipLookupRequestRef.current === requestId) {
+          setZipLookupLoading(false);
+        }
+      }
+    };
+
+    lookupZipInfo();
+
+    return () => {
+      isActive = false;
+    };
+  }, [addressFields.zipCode]);
 
   const steps = [
     { num: 1, title: "Account" },
@@ -227,6 +307,41 @@ const InvestorOnboarding = () => {
     e.preventDefault();
     setError("");
     setEmailError("");
+    setPhoneError("");
+    setAddressError("");
+
+    const phone = String(accountData.phone || "").trim();
+    if (!phone) {
+      setPhoneError("Phone number is required");
+      return;
+    }
+
+    if (!PHONE_REGEX.test(phone)) {
+      setPhoneError("Please enter a valid phone number (e.g. +91 00000 00000)");
+      return;
+    }
+
+    const street = String(addressFields.street || "").trim();
+    const city = String(addressFields.city || "").trim();
+    const state = String(addressFields.state || "").trim();
+    const zipCode = String(addressFields.zipCode || "").trim();
+
+    if (!street || !city || !state || !zipCode) {
+      setAddressError("Street, city, state, and ZIP code are required");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(zipCode)) {
+      setAddressError("ZIP code must be exactly 6 digits");
+      return;
+    }
+
+    if (!CITY_STATE_REGEX.test(city) || !CITY_STATE_REGEX.test(state)) {
+      setAddressError("Enter a valid city and state name");
+      return;
+    }
+
+    const formattedAddress = `${street}, ${city}, ${state}, ${zipCode}`;
 
     // Trim and sanitize email
     const sanitizedEmail = accountData.email.trim().toLowerCase();
@@ -252,16 +367,33 @@ const InvestorOnboarding = () => {
 
     setLoading(true);
     try {
+      await api.post("/auth/validate-address", {
+        address: formattedAddress,
+      });
+
       const response = await join({
         name: accountData.name,
         email: sanitizedEmail,
+        phone,
         password: accountData.password,
         role: "investor",
+        address: {
+          street,
+          city,
+          state,
+          zipCode,
+          formatted: formattedAddress,
+        },
       });
 
       // Check if OTP verification is required
       if (response?.requiresVerification) {
-        setUserEmail(sanitizedEmail);
+        setUserEmail(response?.email || sanitizedEmail);
+        setOtpConfig({
+          otpExpirySeconds: response?.otpExpirySeconds,
+          resendCooldownSeconds: response?.resendCooldownSeconds,
+          startCooldownOnMount: true,
+        });
         setShowOTPVerification(true);
       } else if (response?.token) {
         // Direct login (shouldn't happen with new flow)
@@ -270,7 +402,14 @@ const InvestorOnboarding = () => {
 
       setError("");
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      const msg = err.response?.data?.message || "Registration failed";
+      if (/zip|city|state|address/i.test(msg)) {
+        setAddressError(msg);
+      } else if (/phone/i.test(msg)) {
+        setPhoneError(msg);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -289,6 +428,11 @@ const InvestorOnboarding = () => {
   const handleBackToSignup = () => {
     setShowOTPVerification(false);
     setUserEmail("");
+    setOtpConfig({
+      otpExpirySeconds: undefined,
+      resendCooldownSeconds: undefined,
+      startCooldownOnMount: false,
+    });
     setError("");
   };
 
@@ -448,6 +592,9 @@ const InvestorOnboarding = () => {
         email={userEmail}
         onSuccess={handleOTPSuccess}
         onBack={handleBackToSignup}
+        otpExpirySeconds={otpConfig.otpExpirySeconds}
+        initialResendCooldownSeconds={otpConfig.resendCooldownSeconds}
+        startCooldownOnMount={otpConfig.startCooldownOnMount}
       />
     );
   }
@@ -532,6 +679,107 @@ const InvestorOnboarding = () => {
                           required
                         />
                       </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={15} className="text-gray-400" />
+                        <label className="text-sm font-semibold text-gray-700">Address Details</label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={addressFields.zipCode}
+                            onChange={(e) => {
+                              const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
+                              setAddressFields({ ...addressFields, zipCode: zipOnly });
+                              setAddressError("");
+                            }}
+                            className={inputClass}
+                            placeholder="400001"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
+                          <input
+                            type="text"
+                            value={addressFields.state}
+                            onChange={(e) => {
+                              setAddressFields({ ...addressFields, state: e.target.value });
+                              setAddressError("");
+                            }}
+                            className={inputClass}
+                            placeholder="Maharashtra"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
+                          <input
+                            type="text"
+                            value={addressFields.city}
+                            onChange={(e) => {
+                              setAddressFields({ ...addressFields, city: e.target.value });
+                              setAddressError("");
+                            }}
+                            className={inputClass}
+                            placeholder="Mumbai"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Street Address</label>
+                        <input
+                          type="text"
+                          value={addressFields.street}
+                          onChange={(e) => {
+                            setAddressFields({ ...addressFields, street: e.target.value });
+                            setAddressError("");
+                          }}
+                          className={inputClass}
+                          placeholder="House/Flat, Street, Area"
+                          required
+                        />
+                      </div>
+
+                      {zipLookupLoading && (
+                        <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
+                      )}
+
+                      {addressError && (
+                        <p className="text-xs font-semibold text-red-600">{addressError}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Phone Number</label>
+                      <div className="relative">
+                        <Phone size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <input
+                          type="tel"
+                          placeholder="+91 00000 00000"
+                          value={accountData.phone}
+                          onChange={(e) => {
+                            setAccountData({ ...accountData, phone: e.target.value });
+                            setPhoneError("");
+                          }}
+                          className={`${inputClass} pl-10 ${phoneError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                          required
+                        />
+                      </div>
+                      {phoneError && (
+                        <p className="mt-1.5 text-xs font-semibold text-red-600">{phoneError}</p>
+                      )}
                     </div>
                     <div className="flex flex-col gap-4">
                       <div>

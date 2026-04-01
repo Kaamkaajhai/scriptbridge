@@ -443,10 +443,13 @@ const Landing = () => {
             {user ? (
               <>
                 <Link to="/profile" className="px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium text-[#8896a7] hover:text-white transition-colors whitespace-nowrap">
-                  {user?.name || "My Account"}
+                  Profile
                 </Link>
-                <Link to="/dashboard" className="px-3 sm:px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap">
-                  Dashboard
+                <Link
+                  to={user?.role === "reader" ? "/reader" : "/dashboard"}
+                  className="px-3 sm:px-5 py-2 bg-white hover:bg-gray-200 text-[#080e18] rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+                >
+                  {user?.role === "reader" ? "Reader Home" : "Dashboard"}
                 </Link>
               </>
             ) : (
