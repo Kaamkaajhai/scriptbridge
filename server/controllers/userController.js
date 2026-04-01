@@ -1153,3 +1153,20 @@ export const verifyEmailVerificationCode = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const deleteAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Soft-delete: deactivate account rather than hard-delete
+    user.isDeactivated = true;
+    user.deactivatedAt = new Date();
+    user.email = `deleted_${user._id}_${user.email}`;
+    await user.save();
+
+    res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

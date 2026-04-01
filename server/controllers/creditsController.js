@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import CreditPackage from "../models/CreditPackage.js";
 import Transaction from "../models/Transaction.js";
 import Notification from "../models/Notification.js";
+import DiscountCode from "../models/DiscountCode.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 
@@ -479,6 +480,76 @@ export const grantBonusCredits = async (req, res) => {
   }
 };
 
+// Helper: validate a discount code for a given user + purchase price
+const validateDiscountForPurchase = async (code, userId, purchasePrice) => {
+  const discountCode = await DiscountCode.findOne({ code: code.toUpperCase().trim(), isActive: true });
+  if (!discountCode) return { error: "Invalid discount code" };
+
+  const now = new Date();
+  if (discountCode.validFrom && now < discountCode.validFrom) return { error: "This discount code is not yet active" };
+  if (discountCode.validUntil && now > discountCode.validUntil) return { error: "This discount code has expired" };
+  if (discountCode.maxUses > 0 && discountCode.usedCount >= discountCode.maxUses) return { error: "This discount code has reached its maximum usage limit" };
+  if (discountCode.minPurchaseAmount > 0 && purchasePrice < discountCode.minPurchaseAmount) {
+    return { error: `Minimum purchase amount is \u20B9${discountCode.minPurchaseAmount}` };
+  }
+
+  // Per-user limit check
+  if (discountCode.maxUsesPerUser > 0 && userId) {
+    const userUseCount = discountCode.usedBy.filter((u) => u.user.toString() === userId.toString()).length;
+    if (userUseCount >= discountCode.maxUsesPerUser) return { error: "You have already used this discount code" };
+  }
+
+  // Calculate discount
+  let discountAmount = 0;
+  if (discountCode.discountType === "percentage") {
+    discountAmount = Math.round((purchasePrice * discountCode.discountValue) / 100);
+    if (discountCode.maxDiscountAmount > 0) {
+      discountAmount = Math.min(discountAmount, discountCode.maxDiscountAmount);
+    }
+  } else {
+    discountAmount = Math.min(discountCode.discountValue, purchasePrice);
+  }
+
+  const finalPrice = Math.max(purchasePrice - discountAmount, 0);
+
+  return {
+    discountCode,
+    discountAmount,
+    finalPrice,
+    discountType: discountCode.discountType,
+    discountValue: discountCode.discountValue,
+    codeId: discountCode._id,
+  };
+};
+
+// @desc    Validate a discount code (writer-facing)
+// @route   POST /api/credits/validate-discount
+// @access  Private
+export const validateDiscount = async (req, res) => {
+  try {
+    const { code, packageId, customCredits } = req.body;
+    if (!code) return res.status(400).json({ message: "Discount code is required" });
+
+    const purchase = await buildPurchaseDetails({ packageId, customCredits });
+    if (purchase.error) return res.status(400).json({ message: purchase.error });
+
+    const result = await validateDiscountForPurchase(code, req.user._id, purchase.price);
+    if (result.error) return res.status(400).json({ message: result.error });
+
+    res.json({
+      valid: true,
+      code: result.discountCode.code,
+      discountType: result.discountType,
+      discountValue: result.discountValue,
+      discountAmount: result.discountAmount,
+      originalPrice: purchase.price,
+      finalPrice: result.finalPrice,
+      description: result.discountCode.description,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 // @desc    Create Razorpay order for credit purchase
 // @route   POST /api/credits/create-order
 // @access  Private
@@ -492,7 +563,7 @@ export const createRazorpayOrder = async (req, res) => {
       });
     }
     
-    const { packageId, customCredits } = req.body;
+    const { packageId, customCredits, discountCode: discountCodeStr } = req.body;
     const user = await User.findById(req.user._id).select("role bankDetails bankDetailsReview");
     const bankEligibility = getBankPurchaseEligibility(user);
     if (!bankEligibility.allowed) {
@@ -503,10 +574,25 @@ export const createRazorpayOrder = async (req, res) => {
     if (purchase.error) {
       return res.status(400).json({ message: purchase.error });
     }
+
+    // Apply discount if code provided
+    let discountInfo = null;
+    let finalPrice = purchase.price;
+    if (discountCodeStr) {
+      const discountResult = await validateDiscountForPurchase(discountCodeStr, req.user._id, purchase.price);
+      if (discountResult.error) {
+        return res.status(400).json({ message: discountResult.error });
+      }
+      discountInfo = discountResult;
+      finalPrice = discountResult.finalPrice;
+    }
+
+    // Razorpay requires at least 1 rupee (100 paise)
+    if (finalPrice < 1) finalPrice = 1;
     
     // Create Razorpay order
     const options = {
-      amount: Math.round(purchase.price * 100), // Amount in paise (INR)
+      amount: Math.round(finalPrice * 100), // Amount in paise (INR)
       currency: purchase.currency || "INR",
       receipt: `receipt_${Date.now()}`,
       notes: {
@@ -516,6 +602,9 @@ export const createRazorpayOrder = async (req, res) => {
         packageName: purchase.name,
         credits: purchase.totalCredits,
         customCredits: purchase.isCustom ? purchase.credits : undefined,
+        discountCode: discountCodeStr || undefined,
+        discountAmount: discountInfo?.discountAmount || undefined,
+        originalPrice: discountInfo ? purchase.price : undefined,
       }
     };
     
@@ -535,7 +624,13 @@ export const createRazorpayOrder = async (req, res) => {
         price: purchase.price,
         isCustom: purchase.isCustom,
         pricePerCredit: purchase.isCustom ? CUSTOM_CREDIT_PRICE : Number((purchase.price / purchase.totalCredits).toFixed(2)),
-      }
+      },
+      discount: discountInfo ? {
+        code: discountInfo.discountCode.code,
+        discountAmount: discountInfo.discountAmount,
+        originalPrice: purchase.price,
+        finalPrice: finalPrice,
+      } : null,
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to create payment order", error: error.message });
@@ -552,7 +647,8 @@ export const verifyRazorpayPayment = async (req, res) => {
       razorpay_payment_id, 
       razorpay_signature,
       packageId,
-      customCredits
+      customCredits,
+      discountCode: discountCodeStr
     } = req.body;
     
     // Check if Razorpay key secret is available
@@ -604,6 +700,19 @@ export const verifyRazorpayPayment = async (req, res) => {
         success: false,
       });
     }
+
+    // Validate and record discount code usage
+    let discountInfo = null;
+    if (discountCodeStr) {
+      const discountResult = await validateDiscountForPurchase(discountCodeStr, req.user._id, purchase.price);
+      if (!discountResult.error) {
+        discountInfo = discountResult;
+        // Mark as used
+        discountResult.discountCode.usedCount += 1;
+        discountResult.discountCode.usedBy.push({ user: req.user._id, usedAt: new Date() });
+        await discountResult.discountCode.save();
+      }
+    }
     
     const totalCredits = purchase.totalCredits;
     const reference = `RAZORPAY-${razorpay_payment_id}`;
@@ -618,28 +727,30 @@ export const verifyRazorpayPayment = async (req, res) => {
       };
     }
     
-    // Update user credits
+    // Update user credits (full credits, regardless of discount)
     user.credits.balance += totalCredits;
     user.credits.totalPurchased += totalCredits;
     user.credits.lastPurchase = new Date();
     user.credits.transactions.push({
       type: "purchase",
       amount: totalCredits,
-      description: `Purchased ${purchase.name} via Razorpay`,
+      description: `Purchased ${purchase.name} via Razorpay${discountInfo ? ` (Code: ${discountInfo.discountCode.code})` : ""}`,
       reference,
       createdAt: new Date()
     });
     
     await user.save();
+
+    const actualPaid = discountInfo ? discountInfo.finalPrice : purchase.price;
     
     // Create transaction record
     await Transaction.create({
       user: user._id,
       type: "payment",
-      amount: -purchase.price,
+      amount: -actualPaid,
       currency: purchase.currency || "INR",
       status: "completed",
-      description: `Credit purchase: ${purchase.name} (${totalCredits} credits)`,
+      description: `Credit purchase: ${purchase.name} (${totalCredits} credits)${discountInfo ? ` — Discount ${discountInfo.discountCode.code}` : ""}`,
       reference,
       paymentMethod: "razorpay",
       metadata: {
@@ -649,7 +760,10 @@ export const verifyRazorpayPayment = async (req, res) => {
         credits: totalCredits,
         customCredits: purchase.isCustom ? purchase.credits : undefined,
         razorpay_order_id,
-        razorpay_payment_id
+        razorpay_payment_id,
+        discountCode: discountInfo?.discountCode?.code || undefined,
+        discountAmount: discountInfo?.discountAmount || undefined,
+        originalPrice: discountInfo ? purchase.price : undefined,
       }
     });
 
@@ -672,6 +786,12 @@ export const verifyRazorpayPayment = async (req, res) => {
         purchased: totalCredits,
         package: purchase.name
       },
+      discount: discountInfo ? {
+        code: discountInfo.discountCode.code,
+        discountAmount: discountInfo.discountAmount,
+        originalPrice: purchase.price,
+        finalPrice: discountInfo.finalPrice,
+      } : null,
       reference
     });
   } catch (error) {

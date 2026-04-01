@@ -37,6 +37,13 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  
+  // Discount state
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountApplied, setDiscountApplied] = useState(null);
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [discountError, setDiscountError] = useState("");
+  
   const modalRef = useRef(null);
 
   // Load Razorpay SDK
@@ -64,6 +71,9 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
       setSelectedPackage(null);
       setUseCustomCredits(false);
       setCustomCredits("1");
+      setDiscountCode("");
+      setDiscountApplied(null);
+      setDiscountError("");
     }
   }, [isOpen]);
 
@@ -75,6 +85,50 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, purchasing, onClose]);
+
+  const handleValidateDiscount = async () => {
+    if (!discountCode.trim()) return;
+    
+    const parsedCustomCredits = Number(customCredits);
+    const customSelected = useCustomCredits;
+
+    if (!customSelected && !selectedPackage) {
+      setDiscountError("Please select a plan first");
+      return;
+    }
+    if (
+      customSelected &&
+      (!Number.isInteger(parsedCustomCredits) ||
+        parsedCustomCredits < (customPricing.minCredits || 1) ||
+        parsedCustomCredits > (customPricing.maxCredits || 10000))
+    ) {
+      setDiscountError("Invalid custom credits amount");
+      return;
+    }
+
+    setDiscountLoading(true);
+    setDiscountError("");
+    setDiscountApplied(null);
+
+    try {
+      const { data } = await api.post("/credits/validate-discount", {
+        code: discountCode,
+        ...(customSelected
+          ? { customCredits: parsedCustomCredits }
+          : { packageId: selectedPackage._id }),
+      });
+      
+      if (data.valid) {
+        setDiscountApplied(data);
+        // Clear main error if it was about the original price
+        setError("");
+      }
+    } catch (err) {
+      setDiscountError(err.response?.data?.message || "Invalid or expired discount code");
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
 
   const fetchPackages = async () => {
     try {
@@ -132,6 +186,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
         ...(customSelected
           ? { customCredits: parsedCustomCredits }
           : { packageId: selectedPackage._id }),
+        ...(discountApplied ? { discountCode: discountApplied.code } : {}),
       });
 
       const options = {
@@ -152,6 +207,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 ...(customSelected
                   ? { customCredits: parsedCustomCredits }
                   : { packageId: selectedPackage._id }),
+                ...(discountApplied ? { discountCode: discountApplied.code } : {}),
               }
             );
 
@@ -448,6 +504,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                         onClick={() => {
                           setUseCustomCredits(false);
                           setSelectedPackage(pkg);
+                          setDiscountApplied(null);
                         }}
                         className={`relative rounded-2xl border cursor-pointer transition-all duration-200 ${
                           isSelected
@@ -616,6 +673,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                       onClick={() => {
                         setUseCustomCredits(true);
                         setSelectedPackage(null);
+                        setDiscountApplied(null);
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                         useCustomCredits
@@ -648,6 +706,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                           setCustomCredits(e.target.value);
                           setUseCustomCredits(true);
                           setSelectedPackage(null);
+                          setDiscountApplied(null);
                         }}
                         className={`w-full px-3 py-2 rounded-xl border text-sm font-semibold outline-none ${
                           dark
@@ -710,22 +769,29 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
             <div className="max-[450px]:w-full">
               {(selectedPackage || useCustomCredits) && (
                 <div className="flex items-center gap-2 max-[450px]:justify-between max-[450px]:flex-wrap">
-                  <span
-                    className={`text-sm max-[340px]:text-[13px] ${
-                      dark ? "text-white/40" : "text-gray-500"
-                    }`}
-                  >
-                    Total:
-                  </span>
+                  <div className="flex flex-col">
+                    <span
+                      className={`text-sm max-[340px]:text-[13px] ${
+                        dark ? "text-white/40" : "text-gray-500"
+                      }`}
+                    >
+                      Total:
+                    </span>
+                    {discountApplied && (
+                      <span className={`text-xs line-through ${dark ? "text-gray-500" : "text-gray-400"}`}>
+                        ₹{discountApplied.originalPrice.toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={`text-lg max-[340px]:text-base font-black tabular-nums ${
                       dark ? "text-white" : "text-gray-900"
                     }`}
                   >
                     ₹
-                    {(useCustomCredits
-                      ? customTotal
-                      : selectedPackage?.price || 0
+                    {(discountApplied
+                      ? discountApplied.finalPrice
+                      : (useCustomCredits ? customTotal : selectedPackage?.price || 0)
                     ).toLocaleString("en-IN")}
                   </span>
                   <span
@@ -745,6 +811,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 </div>
               )}
             </div>
+            
             <div className="flex gap-2 max-[450px]:w-full">
               <button
                 onClick={onClose}
@@ -784,6 +851,82 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 )}
               </motion.button>
             </div>
+          </div>
+
+          {/* Discount Code Input Area */}
+          <div className={`px-4 sm:px-6 py-3 border-t shrink-0 ${dark ? "border-white/[0.06] bg-black/20" : "border-gray-100 bg-white"}`}>
+            {!discountApplied ? (
+              <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full">
+                <input
+                  type="text"
+                  placeholder="Have a discount code?"
+                  disabled={!selectedPackage && !useCustomCredits}
+                  value={discountCode}
+                  onChange={(e) => {
+                    setDiscountCode(e.target.value.toUpperCase());
+                    setDiscountError("");
+                  }}
+                  className={`flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold uppercase outline-none transition-all border ${
+                    dark 
+                      ? "bg-[#0b1628] border-white/[0.1] text-white focus:border-blue-500/50" 
+                      : "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-400"
+                  } disabled:opacity-50`}
+                />
+                <button
+                  type="button"
+                  onClick={handleValidateDiscount}
+                  disabled={!discountCode.trim() || discountLoading || (!selectedPackage && !useCustomCredits)}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm ${
+                    dark 
+                      ? "bg-blue-600 text-white hover:bg-blue-500" 
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  } disabled:opacity-50 flex items-center justify-center gap-2`}
+                >
+                  {discountLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                </button>
+              </div>
+            ) : (
+              <div className={`flex items-center justify-between p-3 rounded-xl border ${dark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                       <p className={`text-sm font-bold ${dark ? "text-emerald-400" : "text-emerald-700"}`}>
+                        {discountApplied.code} Applied!
+                      </p>
+                      <p className={`text-xs font-semibold ${dark ? "text-emerald-500/80" : "text-emerald-600"}`}>
+                        (-₹{discountApplied.discountAmount.toLocaleString("en-IN")})
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setDiscountCode("");
+                    setDiscountApplied(null);
+                    setDiscountError("");
+                  }}
+                  className={`p-1.5 rounded-lg shrink-0 transition-colors ${dark ? "hover:bg-emerald-500/20 text-emerald-500" : "hover:bg-emerald-200 text-emerald-600"}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            
+            <AnimatePresence>
+              {discountError && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`text-xs font-semibold mt-2 ml-1 ${dark ? "text-red-400" : "text-red-500"}`}
+                >
+                  {discountError}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       </motion.div>
