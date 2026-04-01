@@ -115,7 +115,9 @@ const scriptSchema = new mongoose.Schema({
     agreedToTerms: { type: Boolean, default: false },
     timestamp: { type: Date },
     ipAddress: { type: String },
-    termsVersion: { type: String }
+    termsVersion: { type: String },
+    customInvestorTerms: { type: String, default: "", trim: true, maxlength: 3000 },
+    customInvestorTermsUpdatedAt: { type: Date },
   },
 
   premium: { type: Boolean, default: false },
@@ -214,19 +216,18 @@ const scriptSchema = new mongoose.Schema({
   rejectionReason: { type: String },
 }, { timestamps: true });
 
-scriptSchema.pre("validate", async function () {
-  if (this.sid) return;
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const candidate = createSid("PRJ");
-    const exists = await this.constructor.exists({ sid: candidate });
-    if (!exists) {
-      this.sid = candidate;
-      return;
-    }
-  }
-
-  throw new Error("Unable to generate unique project SID");
-});
+// Indexes for fast queries
+scriptSchema.index({ status: 1, rating: -1 });
+scriptSchema.index({ status: 1, isFeatured: 1, rating: -1 });
+scriptSchema.index({ status: 1, readsCount: -1 });
+scriptSchema.index({ status: 1, unlockedByCount: -1 });
+scriptSchema.index({ status: 1, createdAt: -1 });
+scriptSchema.index({ status: 1, contentType: 1 });
+scriptSchema.index({ status: 1, genre: 1 });
+// Indexes for TopList & Featured sort fields
+scriptSchema.index({ status: 1, views: -1 });
+scriptSchema.index({ status: 1, "scriptScore.overall": -1 });
+scriptSchema.index({ status: 1, genre: 1, views: -1 });
+scriptSchema.index({ status: 1, contentType: 1, views: -1 });
 
 export default mongoose.model("Script", scriptSchema);

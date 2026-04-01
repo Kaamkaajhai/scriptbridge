@@ -3,6 +3,7 @@ import Script from "../models/Script.js";
 import Subscription from "../models/Subscription.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 
 const normalizeString = (value) =>
   value === undefined || value === null ? "" : String(value).trim();
@@ -656,7 +657,8 @@ export const getOnboardingStatus = async (req, res) => {
         emailVerified: user.emailVerified,
         currentStep: user.writerProfile.onboardingStep,
         complete: user.writerProfile.onboardingComplete,
-        writerProfile: user.writerProfile
+        writerProfile: user.writerProfile,
+        profileCompletion: getProfileCompletion(user)
       }
     });
   } catch (error) {

@@ -10,6 +10,7 @@ import EditProfileModal from "../components/EditProfileModal";
 import BankDetails from "../components/BankDetails";
 import Transactions from "../components/Transactions";
 import SocialShareButton from "../components/SocialShareButton";
+import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { formatCurrency } from "../utils/currency";
 
 /* â”€â”€ Helper components â”€â”€ */
@@ -31,14 +32,14 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
         {icon}
       </div>
       <h3
-        className={`text-[13px] font-bold ${dark ? "text-white/70" : "text-gray-800"
+        className={`text-[16px] font-bold ${dark ? "text-white/70" : "text-gray-800"
           }`}
       >
         {title}
       </h3>
       {badge && (
         <span
-          className={`ml-auto text-[11px] font-medium ${dark ? "text-white/25" : "text-gray-400"
+          className={`ml-auto text-[13px] font-medium ${dark ? "text-white/25" : "text-gray-400"
             }`}
         >
           {badge}
@@ -51,11 +52,11 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
 
 const InfoRow = ({ label, value, dark }) => (
   <div className="flex items-center justify-between">
-    <span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>
+    <span className={`text-[15px] ${dark ? "text-white/35" : "text-gray-400"}`}>
       {label}
     </span>
     <span
-      className={`text-[13px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
+      className={`text-[15px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
         }`}
     >
       {value}
@@ -115,7 +116,7 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
               }`}>Delete Project?</h3>
             <p className={`text-[13px] text-center mb-1 ${dark ? "text-neutral-400" : "text-gray-500"
               }`}>
-              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from everywhere.
+              <span className={`font-semibold ${dark ? "text-neutral-200" : "text-gray-800"}`}>{title}</span> will be removed from your profile and listings.
             </p>
             <div className="flex gap-2.5">
               <button
@@ -144,14 +145,13 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
 const Profile = () => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const { id } = useParams();
-  const { user: currentUser } = useContext(AuthContext);
+  const { user: currentUser, setUser } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
 
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
   const [deletedScripts, setDeletedScripts] = useState([]);
   const [purchasedScripts, setPurchasedScripts] = useState([]);
-  const [investorStats, setInvestorStats] = useState(null);
   const [bookmarkedScripts, setBookmarkedScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -213,26 +213,13 @@ const Profile = () => {
         setActiveTab(isInvestorProfile ? "about" : "projects");
         tabInitializedForProfileRef.current = data.user._id;
       }
-
-      // Fetch investor stats only when current user is also investor-side to avoid noisy role-mismatch calls.
-      if (
-        ["investor", "producer", "director"].includes(data.user.role) &&
-        ["investor", "producer", "director"].includes(currentUser?.role)
-      ) {
-        try {
-          const { data: dashData } = await api.get("/dashboard/investor");
-          setInvestorStats(dashData.stats);
-        } catch (err) {
-          console.error("Error fetching investor stats:", err);
-        }
-      }
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
       isFetchingProfileRef.current = false;
       if (!silent) setLoading(false);
     }
-  }, [id, currentUser?._id, currentUser?.role]);
+  }, [id, currentUser?._id]);
 
   useEffect(() => {
     fetchProfile();
@@ -404,6 +391,10 @@ const Profile = () => {
 
   const isOwnProfile = currentUser._id === profile?._id;
   const isWriterUser = isWriter(profile?.role);
+  const isInvestorProfile = String(profile?.role || "").toLowerCase() === "investor";
+  const purchasedCount = purchasedScripts.length;
+  const profileCompletion = profile?.profileCompletion;
+  const showProfileCompletion = isOwnProfile && profileCompletion && !profileCompletion.isComplete;
 
   const memberSince = profile?.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("en-US", {
@@ -561,7 +552,14 @@ const Profile = () => {
      RENDER
      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   return (
-    <div className={`mx-auto space-y-5 ${isWriterUser ? "max-w-6xl" : "max-w-3xl"}`}>
+    <div className={`mx-auto space-y-5 ${isWriterUser || isInvestorProfile ? "max-w-6xl" : "max-w-3xl"}`}>
+      <ProfileCompletionBanner
+        completion={showProfileCompletion ? profileCompletion : null}
+        subtitle="Your profile is incomplete. Add missing details from Edit Profile."
+        ctaLabel="Edit Profile"
+        onCta={() => setShowEditModal(true)}
+      />
+
       {/* ════════ PROFILE CARD ════════ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -701,18 +699,18 @@ const Profile = () => {
             {profile.role === "investor" ? (
               <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
                 <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
-                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4 sm:gap-6">
+                    <div className="flex items-start gap-4 sm:gap-5 min-w-0">
                       <div className="shrink-0">
                         {profile.profileImage ? (
                           <img
                             src={resolveImage(profile.profileImage)}
                             alt={profile.name}
-                            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                            className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
                           />
                         ) : (
-                          <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
-                            <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
+                          <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                            <span className="text-4xl sm:text-5xl font-extrabold text-white/85">
                               {profile.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
@@ -721,37 +719,37 @@ const Profile = () => {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
+                          <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.05] ${t.h1}`}>{profile.name}</h1>
                           <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                             Investor
                           </span>
                         </div>
 
                         {(profile.industryProfile?.company || profile.industryProfile?.jobTitle) && (
-                          <p className={`text-[13px] mt-1.5 ${dark ? "text-white/50" : "text-gray-600"}`}>
+                          <p className={`text-[14px] mt-2 font-medium ${dark ? "text-white/55" : "text-gray-600"}`}>
                             {profile.industryProfile?.jobTitle || "Investor"}
                             {profile.industryProfile?.company ? ` at ${profile.industryProfile.company}` : ""}
                           </p>
                         )}
 
                         {isOwnProfile && (
-                          <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
+                          <p className={`text-[13px] font-semibold mt-2 ${t.email}`}>{profile.email}</p>
                         )}
 
                         {profile.bio && (
-                          <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
+                          <p className={`text-[15px] leading-relaxed mt-3 line-clamp-2 ${t.body}`}>
                             {profile.bio}
                           </p>
                         )}
 
-                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
                           {memberSince && (
-                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                            <span className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
                               Joined {memberSince}
                             </span>
                           )}
                           {profile.industryProfile?.investmentRange && (
-                            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                            <span className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
                               {profile.industryProfile.investmentRange.replace(/_/g, " ")}
                             </span>
                           )}
@@ -759,18 +757,19 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 min-[396px]:grid-cols-3 gap-2 w-full lg:w-[360px]">
+                    <div className="grid grid-cols-2 gap-2.5 self-start">
                       {[
                         { label: "Followers", value: profile.followers.length },
                         { label: "Following", value: profile.following.length },
-                        { label: "Purchased", value: investorStats?.scriptsPurchased ?? purchasedScripts.length },
+                        { label: "Purchased", value: purchasedCount },
+                        { label: "Profile Views", value: Number(profile.profileViews || 0) },
                       ].map((item) => (
                         <div
                           key={item.label}
-                          className={`rounded-xl border px-2.5 min-[396px]:px-3 py-2.5 min-[396px]:py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}
+                          className={`rounded-xl border px-3 py-3.5 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}
                         >
-                          <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                          <p className={`text-[9px] min-[396px]:text-[10px] font-bold uppercase tracking-[0.09em] min-[396px]:tracking-[0.14em] leading-tight mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                          <p className={`text-xl sm:text-2xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                         </div>
                       ))}
                     </div>
@@ -838,7 +837,6 @@ const Profile = () => {
         )}
       </motion.div>
 
-
       {/* â”€â”€â”€â”€â”€â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {[
@@ -846,7 +844,7 @@ const Profile = () => {
           ...(isOwnProfile ? [{ key: "bookmarks", label: "Bookmarks", count: profile.favoriteScripts?.length || bookmarkedScripts.length }] : []),
           { key: "about", label: "About" },
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
-            ? [{ key: "purchased", label: "Purchased", count: purchasedScripts.length }]
+            ? [{ key: "purchased", label: "Purchased", count: purchasedCount }]
             : []),
           ...(isOwnProfile ? [{ key: "financial", label: "Financial" }] : []),
           ...(isOwnProfile ? [{ key: "settings", label: "Settings" }] : []),
@@ -2262,7 +2260,19 @@ const Profile = () => {
           profile={profile}
           onClose={() => setShowEditModal(false)}
           onUpdate={(updatedData) => {
-            setProfile({ ...profile, ...updatedData });
+            const mergedProfile = { ...profile, ...updatedData };
+            setProfile(mergedProfile);
+
+            if (isOwnProfile && currentUser) {
+              const nextSessionUser = {
+                ...currentUser,
+                ...updatedData,
+                profileCompletion: updatedData.profileCompletion || mergedProfile.profileCompletion || currentUser.profileCompletion,
+              };
+              setUser(nextSessionUser);
+              localStorage.setItem("user", JSON.stringify(nextSessionUser));
+            }
+
             setShowEditModal(false);
           }}
         />

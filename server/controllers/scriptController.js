@@ -58,6 +58,26 @@ const PROJECT_SPOTLIGHT_ACTIVATION_CREDITS = 310;
 const PROJECT_SPOTLIGHT_EXTENSION_CREDITS = 150;
 const PROJECT_SPOTLIGHT_DURATION_DAYS = 30;
 const SCRIPT_UPLOAD_TERMS_VERSION = process.env.SCRIPT_UPLOAD_TERMS_VERSION || "2026-03-24";
+const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
+const SCRIPT_PURCHASE_PLATFORM_TAX_RATE = 0.05;
+
+const roundCurrencyAmount = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
+const getScriptPurchasePricing = (baseAmount) => {
+  const cleanBaseAmount = roundCurrencyAmount(baseAmount);
+  const platformTaxAmount = roundCurrencyAmount(cleanBaseAmount * SCRIPT_PURCHASE_PLATFORM_TAX_RATE);
+  const totalAmount = roundCurrencyAmount(cleanBaseAmount + platformTaxAmount);
+
+  return {
+    baseAmount: cleanBaseAmount,
+    platformTaxRate: SCRIPT_PURCHASE_PLATFORM_TAX_RATE,
+    platformTaxPercent: Math.round(SCRIPT_PURCHASE_PLATFORM_TAX_RATE * 100),
+    platformTaxAmount,
+    totalAmount,
+  };
+};
+
+const sanitizeCustomInvestorTerms = (value = "") => String(value || "").trim();
 
 const getInvalidRoleAgeRangeMessage = (roles = []) => {
   if (!Array.isArray(roles)) return "";
@@ -437,12 +457,47 @@ export const saveDraft = async (req, res) => {
         script.markModified("classification");
       }
 
+      if (otherData.legal !== undefined) {
+        const incomingLegal = otherData.legal || {};
+        const nextCustomInvestorTerms = sanitizeCustomInvestorTerms(incomingLegal.customInvestorTerms);
+        if (nextCustomInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+          return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+        }
+
+        const previousCustomInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+        const hasChangedCustomTerms = previousCustomInvestorTerms !== nextCustomInvestorTerms;
+
+        script.legal = {
+          ...(script.legal || {}),
+          agreedToTerms: incomingLegal.agreedToTerms ?? script.legal?.agreedToTerms ?? false,
+          termsVersion: incomingLegal.termsVersion || script.legal?.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
+          customInvestorTerms: nextCustomInvestorTerms,
+          customInvestorTermsUpdatedAt: hasChangedCustomTerms
+            ? new Date()
+            : (script.legal?.customInvestorTermsUpdatedAt || undefined),
+        };
+      }
+
       await script.save();
       return res.json(script);
     }
 
     // Otherwise create a new draft
     const { _id, id, sid, ...safeOtherData } = otherData || {};
+
+    if (safeOtherData.legal !== undefined) {
+      const incomingLegal = safeOtherData.legal || {};
+      const nextCustomInvestorTerms = sanitizeCustomInvestorTerms(incomingLegal.customInvestorTerms);
+      if (nextCustomInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+        return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+      }
+
+      safeOtherData.legal = {
+        ...(incomingLegal || {}),
+        customInvestorTerms: nextCustomInvestorTerms,
+        customInvestorTermsUpdatedAt: nextCustomInvestorTerms ? new Date() : undefined,
+      };
+    }
 
     const newDraft = await Script.create({
       creator: req.user._id,
@@ -625,11 +680,23 @@ export const updateScript = async (req, res) => {
     }
 
     if (legal?.agreedToTerms !== undefined) {
+      const nextCustomInvestorTerms = sanitizeCustomInvestorTerms(legal?.customInvestorTerms);
+      if (nextCustomInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+        return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
+      }
+
+      const previousCustomInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+      const hasChangedCustomTerms = previousCustomInvestorTerms !== nextCustomInvestorTerms;
+
       script.legal = {
         agreedToTerms: legal.agreedToTerms,
         timestamp: legal.timestamp || script.legal?.timestamp || new Date(),
         ipAddress: req.ip || req.connection.remoteAddress,
         termsVersion: legal.termsVersion || script.legal?.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
+        customInvestorTerms: nextCustomInvestorTerms,
+        customInvestorTermsUpdatedAt: hasChangedCustomTerms
+          ? new Date()
+          : (script.legal?.customInvestorTermsUpdatedAt || undefined),
       };
     }
 
@@ -742,6 +809,11 @@ export const uploadScript = async (req, res) => {
     const ageRangeError = getInvalidRoleAgeRangeMessage(roles);
     if (ageRangeError) {
       return res.status(400).json({ message: ageRangeError });
+    }
+
+    const customInvestorTerms = sanitizeCustomInvestorTerms(legal?.customInvestorTerms);
+    if (customInvestorTerms.length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
+      return res.status(400).json({ message: `Custom investor terms must be ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters or fewer.` });
     }
 
     const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
@@ -879,6 +951,8 @@ export const uploadScript = async (req, res) => {
         timestamp: legal.timestamp || new Date(),
         ipAddress: req.ip || req.connection.remoteAddress,
         termsVersion: legal.termsVersion || SCRIPT_UPLOAD_TERMS_VERSION,
+        customInvestorTerms,
+        customInvestorTermsUpdatedAt: customInvestorTerms ? new Date() : undefined,
       } : undefined,
 
       // AI Trailer status initialization
@@ -2549,10 +2623,9 @@ export const getInvestorHomeFeed = async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 export const getTopList = async (req, res) => {
   try {
-    const now = new Date();
-    const { genre, contentType, budget, sort = "platform", premium } = req.query;
-    const blockedUserIds = await getBlockedUserIdsForViewer(req.user._id);
-    const match = { ...PUBLIC_SCRIPT_FILTER };
+    const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
+    const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
+    const match = { status: "published", isSold: { $ne: true } };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;
@@ -2560,6 +2633,17 @@ export const getTopList = async (req, res) => {
     else if (premium === "false") match.premium = { $ne: true };
     if (blockedUserIds.length > 0) {
       match.creator = { $nin: blockedUserIds };
+    }
+
+    // AI Score tab should only show scripts with paid/included evaluation and a generated score.
+    if (sort === "score") {
+      match["scriptScore.overall"] = { $gt: 0 };
+      match.$or = [
+        { "services.evaluation": true },
+        { "services.spotlight": true },
+        { "billing.evaluationCreditsCharged": { $gt: 0 } },
+        { "billing.evaluationCreditsChargedAtUpload": { $gt: 0 } },
+      ];
     }
 
     const pipeline = [
@@ -2645,6 +2729,7 @@ export const getTopList = async (req, res) => {
       },
     });
     pipeline.push({ $unwind: { path: "$creator", preserveNullAndEmptyArrays: true } });
+    pipeline.push({ $limit: parsedLimit });
 
     const scripts = await Script.aggregate(pipeline);
     const sanitized = scripts.map((s) => ({
@@ -2668,15 +2753,12 @@ export const getTopList = async (req, res) => {
 // @access  Private
 export const createScriptPurchaseOrder = async (req, res) => {
   try {
-    // Check if Razorpay is configured
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      return res.status(500).json({
-        message: "Payment system not configured. Please contact support.",
-        error: "Razorpay credentials missing"
-      });
-    }
-
-    const { scriptId } = req.body;
+    const {
+      scriptId,
+      acceptedPlatformTerms,
+      acceptedWriterTerms,
+      acceptedCustomWriterTerms,
+    } = req.body;
 
     const script = await Script.findById(scriptId).populate("creator", "name");
     if (!script) {
@@ -2733,16 +2815,62 @@ export const createScriptPurchaseOrder = async (req, res) => {
       });
     }
 
-    const amountToPay = Number(purchaseRequest.amount || script.price || 0);
-    if (amountToPay <= 0) {
+    if (!acceptedPlatformTerms || !acceptedWriterTerms) {
       return res.status(400).json({
-        message: "No payment is required for this request.",
+        message: "Accept Platform and Writer terms before proceeding to payment.",
+      });
+    }
+
+    const customInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+    if (customInvestorTerms && !acceptedCustomWriterTerms) {
+      return res.status(400).json({
+        message: "Accept writer custom terms before proceeding to payment.",
+      });
+    }
+
+    purchaseRequest.termsAcceptance = {
+      platformTermsAccepted: true,
+      writerTermsAccepted: true,
+      customWriterTermsAccepted: Boolean(customInvestorTerms && acceptedCustomWriterTerms),
+      customWriterTermsSnapshot: customInvestorTerms,
+      acceptedAt: new Date(),
+      acceptedIp: req.ip || req.connection.remoteAddress || "",
+    };
+    await purchaseRequest.save();
+
+    const baseAmount = Number(purchaseRequest.amount || script.price || 0);
+    const pricing = getScriptPurchasePricing(Math.max(0, baseAmount));
+
+    if (baseAmount <= 0) {
+      return res.json({
+        success: true,
+        noPaymentRequired: true,
+        amount: 0,
+        currency: "INR",
+        scriptDetails: {
+          id: script._id,
+          title: script.title,
+          price: 0,
+          creator: script.creator.name,
+        },
+        pricing,
+        purchaseRequestId: purchaseRequest._id,
+        paymentDueAt,
+        message: "No payment required. Confirm free access to unlock full script.",
+      });
+    }
+
+    // Check if Razorpay is configured for paid requests.
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        message: "Payment system not configured. Please contact support.",
+        error: "Razorpay credentials missing"
       });
     }
 
     // Create Razorpay order after writer approval
     const options = {
-      amount: Math.round(amountToPay * 100),
+      amount: Math.round(pricing.totalAmount * 100),
       currency: "INR",
       receipt: `script_purchase_${Date.now()}`,
       notes: {
@@ -2751,6 +2879,10 @@ export const createScriptPurchaseOrder = async (req, res) => {
         scriptTitle: script.title,
         creatorId: script.creator._id.toString(),
         purchaseRequestId: purchaseRequest._id.toString(),
+        baseAmount: pricing.baseAmount.toFixed(2),
+        platformTaxPercent: String(pricing.platformTaxPercent),
+        platformTaxAmount: pricing.platformTaxAmount.toFixed(2),
+        totalAmount: pricing.totalAmount.toFixed(2),
         type: "script_purchase_after_approval",
       }
     };
@@ -2766,9 +2898,10 @@ export const createScriptPurchaseOrder = async (req, res) => {
       scriptDetails: {
         id: script._id,
         title: script.title,
-        price: amountToPay,
+        price: pricing.baseAmount,
         creator: script.creator.name
       },
+      pricing,
       purchaseRequestId: purchaseRequest._id,
       paymentDueAt,
     });
@@ -3109,38 +3242,19 @@ export const verifyScriptPurchase = async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      scriptId
+      scriptId,
+      freeAccess,
     } = req.body;
 
     console.log("Script purchase verification:", { razorpay_order_id, razorpay_payment_id, scriptId });
 
-    // Check if Razorpay key secret is available
-    if (!process.env.RAZORPAY_KEY_SECRET) {
-      console.error("RAZORPAY_KEY_SECRET not found in environment");
-      return res.status(500).json({
-        message: "Payment system not configured",
-        success: false
-      });
-    }
-
-    // Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
-
-    const isAuthentic = expectedSignature === razorpay_signature;
-
-    if (!isAuthentic) {
-      console.error("Signature verification failed");
+    if (!scriptId) {
       return res.status(400).json({
-        message: "Payment verification failed - Invalid signature",
-        success: false
+        message: "Script id is required.",
+        success: false,
       });
     }
 
-    // Payment verified successfully for an already approved purchase request.
     const script = await Script.findById(scriptId).populate("creator", "name email");
     if (!script) {
       console.error("Script not found:", scriptId);
@@ -3183,7 +3297,7 @@ export const verifyScriptPurchase = async (req, res) => {
 
       return res.json({
         success: true,
-        message: "Payment already completed. Full access is already active.",
+        message: existingInvoice ? "Payment already completed. Full access is already active." : "Access already granted for this request.",
         purchaseRequestId: alreadyReleased._id,
         invoice: existingInvoice
           ? {
@@ -3235,15 +3349,71 @@ export const verifyScriptPurchase = async (req, res) => {
       });
     }
 
-    const amount = Number(purchaseRequest.amount || script.price || 0);
-    if (amount <= 0) {
-      return res.status(400).json({
-        message: "This approved request does not require payment.",
-        success: false,
-      });
+    const baseAmount = Number(purchaseRequest.amount || script.price || 0);
+    const isFreeAccessRequest = baseAmount <= 0;
+
+    if (isFreeAccessRequest) {
+      const hasAcceptedPlatformAndWriterTerms = Boolean(
+        purchaseRequest?.termsAcceptance?.platformTermsAccepted &&
+        purchaseRequest?.termsAcceptance?.writerTermsAccepted
+      );
+
+      if (!hasAcceptedPlatformAndWriterTerms) {
+        return res.status(400).json({
+          message: "Accept Platform and Writer terms before confirming free access.",
+          success: false,
+        });
+      }
+
+      const customInvestorTerms = sanitizeCustomInvestorTerms(script.legal?.customInvestorTerms);
+      if (customInvestorTerms && !purchaseRequest?.termsAcceptance?.customWriterTermsAccepted) {
+        return res.status(400).json({
+          message: "Accept writer custom terms before confirming free access.",
+          success: false,
+        });
+      }
+
+      if (!freeAccess && !razorpay_order_id && !razorpay_payment_id && !razorpay_signature) {
+        return res.status(400).json({
+          message: "Use free access confirmation from the payment page.",
+          success: false,
+        });
+      }
+    } else {
+      if (!process.env.RAZORPAY_KEY_SECRET) {
+        console.error("RAZORPAY_KEY_SECRET not found in environment");
+        return res.status(500).json({
+          message: "Payment system not configured",
+          success: false
+        });
+      }
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({
+          message: "Payment verification payload is incomplete.",
+          success: false,
+        });
+      }
+
+      const body = razorpay_order_id + "|" + razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(body.toString())
+        .digest("hex");
+
+      const isAuthentic = expectedSignature === razorpay_signature;
+
+      if (!isAuthentic) {
+        console.error("Signature verification failed");
+        return res.status(400).json({
+          message: "Payment verification failed - Invalid signature",
+          success: false
+        });
+      }
     }
 
-    const paymentReference = `RZP-${razorpay_payment_id}`;
+    const pricing = getScriptPurchasePricing(baseAmount);
+    const paymentReference = isFreeAccessRequest ? "" : `RZP-${razorpay_payment_id}`;
 
     const [investorDoc, writerDoc] = await Promise.all([
       User.findById(req.user._id).select("name email sid role industryProfile"),
@@ -3267,51 +3437,53 @@ export const verifyScriptPurchase = async (req, res) => {
       };
     }
 
-    const writerBalanceBefore = writerDoc.wallet.balance || 0;
-    writerDoc.wallet.balance = writerBalanceBefore + amount;
-    writerDoc.wallet.totalEarnings = (writerDoc.wallet.totalEarnings || 0) + amount;
-    await writerDoc.save();
+    if (!isFreeAccessRequest) {
+      const writerBalanceBefore = writerDoc.wallet.balance || 0;
+      writerDoc.wallet.balance = writerBalanceBefore + pricing.baseAmount;
+      writerDoc.wallet.totalEarnings = (writerDoc.wallet.totalEarnings || 0) + pricing.baseAmount;
+      await writerDoc.save();
 
-    await Transaction.create([
-      {
-        user: req.user._id,
-        type: "payment",
-        amount: -amount,
-        currency: "INR",
-        status: "completed",
-        description: `Purchased script after approval: "${script.title}"`,
-        reference: `PRP-RZP-${razorpay_payment_id}`,
-        paymentMethod: "razorpay",
-        relatedScript: script._id,
-        metadata: {
-          purchaseRequestId: purchaseRequest._id.toString(),
-          writerId: purchaseRequest.writer.toString(),
-          scriptId: script._id.toString(),
-          razorpay_order_id,
-          razorpay_payment_id,
+      await Transaction.create([
+        {
+          user: req.user._id,
+          type: "payment",
+          amount: -pricing.totalAmount,
+          currency: "INR",
+          status: "completed",
+          description: `Purchased script after approval: "${script.title}"`,
+          reference: `PRP-RZP-${razorpay_payment_id}`,
+          paymentMethod: "razorpay",
+          relatedScript: script._id,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            writerId: purchaseRequest.writer.toString(),
+            scriptId: script._id.toString(),
+            razorpay_order_id,
+            razorpay_payment_id,
+          },
         },
-      },
-      {
-        user: purchaseRequest.writer,
-        type: "credit",
-        amount,
-        currency: "INR",
-        status: "completed",
-        description: `Script purchase payout: "${script.title}"`,
-        reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
-        paymentMethod: "razorpay",
-        relatedScript: script._id,
-        balanceBefore: writerBalanceBefore,
-        balanceAfter: writerDoc.wallet.balance,
-        metadata: {
-          purchaseRequestId: purchaseRequest._id.toString(),
-          investorId: req.user._id.toString(),
-          scriptId: script._id.toString(),
-          razorpay_order_id,
-          razorpay_payment_id,
+        {
+          user: purchaseRequest.writer,
+          type: "credit",
+          amount: pricing.baseAmount,
+          currency: "INR",
+          status: "completed",
+          description: `Script purchase payout: "${script.title}"`,
+          reference: `PRP-${Date.now()}-${purchaseRequest._id.toString().slice(-6).toUpperCase()}`,
+          paymentMethod: "razorpay",
+          relatedScript: script._id,
+          balanceBefore: writerBalanceBefore,
+          balanceAfter: writerDoc.wallet.balance,
+          metadata: {
+            purchaseRequestId: purchaseRequest._id.toString(),
+            investorId: req.user._id.toString(),
+            scriptId: script._id.toString(),
+            razorpay_order_id,
+            razorpay_payment_id,
+          },
         },
-      },
-    ]);
+      ]);
+    }
 
     if (!hasUserInIdArray(script.unlockedBy, req.user._id)) {
       script.unlockedBy.push(req.user._id);
@@ -3326,18 +3498,21 @@ export const verifyScriptPurchase = async (req, res) => {
     script.purchaseRequestLockedAt = null;
     await script.save();
 
-    purchaseRequest.frozenAmount = amount;
-    purchaseRequest.paymentMethod = "razorpay";
+    purchaseRequest.frozenAmount = isFreeAccessRequest ? 0 : pricing.totalAmount;
+    purchaseRequest.paymentMethod = isFreeAccessRequest ? "free_access" : "razorpay";
     purchaseRequest.paymentStatus = "released";
     purchaseRequest.paymentDueAt = undefined;
-    purchaseRequest.paymentGatewayOrderId = razorpay_order_id;
-    purchaseRequest.paymentGatewayPaymentId = razorpay_payment_id;
-    purchaseRequest.paymentGatewaySignature = razorpay_signature;
+    purchaseRequest.paymentGatewayOrderId = isFreeAccessRequest ? undefined : razorpay_order_id;
+    purchaseRequest.paymentGatewayPaymentId = isFreeAccessRequest ? undefined : razorpay_payment_id;
+    purchaseRequest.paymentGatewaySignature = isFreeAccessRequest ? undefined : razorpay_signature;
     purchaseRequest.settledAt = new Date();
     await purchaseRequest.save();
 
-    let purchaseInvoice = await Invoice.findOne({ paymentReference }).select("_id invoiceNumber pdfPath");
-    if (!purchaseInvoice) {
+    let purchaseInvoice = null;
+    if (!isFreeAccessRequest) {
+      purchaseInvoice = await Invoice.findOne({ paymentReference }).select("_id invoiceNumber pdfPath");
+    }
+    if (!purchaseInvoice && !isFreeAccessRequest) {
       try {
         const buyerLabel = getPurchaseRequesterLabel(investorDoc || req.user);
         const createdInvoice = await Invoice.create({
@@ -3349,9 +3524,9 @@ export const verifyScriptPurchase = async (req, res) => {
           script: script._id,
           scriptSid: script?.sid || "",
           accessType: "premium",
-          scriptPrice: amount,
-          platformFeeRate: 0,
-          writerEarnsPerSale: amount,
+          scriptPrice: pricing.baseAmount,
+          platformFeeRate: pricing.platformTaxRate,
+          writerEarnsPerSale: pricing.baseAmount,
           services: {
             hosting: false,
             evaluation: false,
@@ -3366,8 +3541,22 @@ export const verifyScriptPurchase = async (req, res) => {
               item: "Script Purchase",
               type: "Payment",
               detail: `${buyerLabel} purchased full access for \"${script.title}\".`,
-              amountLabel: `INR ${amount.toFixed(2)}`,
-              amountValue: amount,
+              amountLabel: `INR ${pricing.baseAmount.toFixed(2)}`,
+              amountValue: pricing.baseAmount,
+            },
+            {
+              item: `Platform Tax (${pricing.platformTaxPercent}%)`,
+              type: "Tax",
+              detail: "Platform tax charged on script purchase.",
+              amountLabel: `INR ${pricing.platformTaxAmount.toFixed(2)}`,
+              amountValue: pricing.platformTaxAmount,
+            },
+            {
+              item: "Total Paid",
+              type: "Total",
+              detail: "Total charged via payment gateway.",
+              amountLabel: `INR ${pricing.totalAmount.toFixed(2)}`,
+              amountValue: pricing.totalAmount,
             },
             {
               item: "Payment Gateway",
@@ -3380,8 +3569,8 @@ export const verifyScriptPurchase = async (req, res) => {
               item: "Writer Payout",
               type: "Settlement",
               detail: `Credited to writer wallet: ${writerDoc.name || "Writer"}`,
-              amountLabel: `INR ${amount.toFixed(2)}`,
-              amountValue: amount,
+              amountLabel: `INR ${pricing.baseAmount.toFixed(2)}`,
+              amountValue: pricing.baseAmount,
             },
           ],
         });
@@ -3432,7 +3621,9 @@ export const verifyScriptPurchase = async (req, res) => {
       type: "purchase_approved",
       from: purchaseRequest.writer,
       script: script._id,
-      message: `Payment successful for "${script.title}". Full script access is now unlocked.`,
+      message: isFreeAccessRequest
+        ? `Free access confirmed for "${script.title}". Full script access is now unlocked.`
+        : `Payment successful for "${script.title}". Full script access is now unlocked.`,
     });
 
     await Notification.create({
@@ -3440,14 +3631,25 @@ export const verifyScriptPurchase = async (req, res) => {
       type: "purchase",
       from: req.user._id,
       script: script._id,
-      message: `${investorDoc?.name || "A buyer"} completed payment for "${script.title}". Payout of ₹${amount.toLocaleString("en-IN")} has been credited to your wallet.`,
+      message: isFreeAccessRequest
+        ? `${investorDoc?.name || "An investor"} confirmed free access for "${script.title}" after approval.`
+        : `${investorDoc?.name || "A buyer"} completed payment for "${script.title}". Payout of ₹${pricing.baseAmount.toLocaleString("en-IN")} has been credited to your wallet.`,
     });
 
-    console.log("Script purchase payment settled:", { scriptId, buyerId: req.user._id, amount });
+    console.log("Script purchase settled:", {
+      scriptId,
+      buyerId: req.user._id,
+      baseAmount: pricing.baseAmount,
+      platformTaxAmount: pricing.platformTaxAmount,
+      totalAmount: pricing.totalAmount,
+      freeAccess: isFreeAccessRequest,
+    });
 
     res.json({
       success: true,
-      message: "Payment successful. Full script access granted.",
+      message: isFreeAccessRequest
+        ? "Access granted. This project is free, so no payment or invoice was required."
+        : "Payment successful. Full script access granted.",
       purchaseRequest: {
         id: purchaseRequest._id,
         status: purchaseRequest.status,

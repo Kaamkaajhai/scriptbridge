@@ -4,9 +4,10 @@ import Script from "../models/Script.js";
 import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
-import { sendOTPEmail, sendEmailChangeOTPToCompany } from "../utils/emailService.js";
+import { sendOTPEmail } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 
@@ -281,7 +282,10 @@ export const getCurrentUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(user);
+    const userObj = user.toObject();
+    userObj.profileCompletion = getProfileCompletion(userObj);
+
+    res.json(userObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -420,6 +424,7 @@ export const getUserProfile = async (req, res) => {
     userObj.blockedByCurrent = blockedByCurrent;
     userObj.blockedByProfile = blockedByProfile;
     userObj.shareMeta = buildUserShareMeta(req, userObj);
+    userObj.profileCompletion = getProfileCompletion(userObj);
 
     const attachScriptShareMeta = (list = []) => list.map((scriptDoc) => {
       if (!scriptDoc) return scriptDoc;
@@ -742,6 +747,7 @@ export const updateUserProfile = async (req, res) => {
       notificationPrefs: user.notificationPrefs,
       bankDetails: sanitizedBankDetails,
       bankDetailsReview: sanitizedBankReview,
+      profileCompletion: getProfileCompletion(user),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1074,15 +1080,6 @@ export const changeEmail = async (req, res) => {
       return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
     }
 
-    // Internal copy for compliance/audit visibility. Do not block user flow if this fails.
-    await sendEmailChangeOTPToCompany({
-      userName: user.name,
-      currentEmail: user.email,
-      newEmail: normalizedEmail,
-      otp,
-      trigger: "changeEmail",
-    });
-
     // Keep current email active until OTP verification succeeds.
     user.pendingEmail = normalizedEmail;
     user.emailVerificationToken = otp;
@@ -1117,17 +1114,6 @@ export const sendEmailVerificationCode = async (req, res) => {
     const emailResult = await sendOTPEmail(targetEmail, user.name, otp);
     if (!emailResult.success) {
       return res.status(500).json({ message: emailResult.error || "Failed to send verification code" });
-    }
-
-    // If user is verifying a pending email change, send a company copy as well.
-    if (user.pendingEmail) {
-      await sendEmailChangeOTPToCompany({
-        userName: user.name,
-        currentEmail: user.email,
-        newEmail: user.pendingEmail,
-        otp,
-        trigger: "resendEmailVerificationCode",
-      });
     }
 
     res.json({ message: `Verification code sent to ${targetEmail}` });
@@ -1165,5 +1151,78 @@ export const verifyEmailVerificationCode = async (req, res) => {
     res.json({ message: "Email verified successfully", emailVerified: true, email: user.email });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteAccount = async (req, res) => {
+  try {
+    const { password, confirmationText } = req.body || {};
+
+    if (confirmationText !== "DELETE") {
+      return res.status(400).json({ message: "Confirmation text must be DELETE" });
+    }
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isPasswordValid = await user.matchPassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    const userId = user._id;
+
+    const ownedScripts = await Script.find({ creator: userId }).select("_id").lean();
+    const ownedScriptIds = ownedScripts.map((s) => s._id);
+
+    await Promise.all([
+      Post.deleteMany({ user: userId }),
+      Notification.deleteMany({ $or: [{ user: userId }, { from: userId }] }),
+      ScriptPurchaseRequest.deleteMany({ $or: [{ investor: userId }, { writer: userId }] }),
+      ScriptOption.deleteMany({ holder: userId }),
+      Script.updateMany(
+        { _id: { $nin: ownedScriptIds } },
+        {
+          $pull: {
+            unlockedBy: userId,
+            purchasedBy: userId,
+          },
+        }
+      ),
+      Script.updateMany(
+        { purchaseRequestLockedBy: userId },
+        {
+          $set: {
+            purchaseRequestLocked: false,
+            purchaseRequestLockedBy: null,
+          },
+        }
+      ),
+      User.updateMany(
+        { _id: { $ne: userId } },
+        {
+          $pull: {
+            followers: userId,
+            following: userId,
+            blockedUsers: userId,
+            favoriteScripts: { $in: ownedScriptIds },
+            "industryProfile.savedScripts": { $in: ownedScriptIds },
+          },
+        }
+      ),
+    ]);
+
+    await Script.deleteMany({ creator: userId });
+    await User.findByIdAndDelete(userId);
+
+    return res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };

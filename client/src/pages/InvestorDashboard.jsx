@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
+import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 
 /* ── Fade wrapper ────────────────────────────────────────────── */
 const Fade = ({ children, delay = 0, className = "" }) => (
@@ -50,6 +51,7 @@ const InvestorDashboard = () => {
   const profile = data?.industryProfile || {};
   const mandates = profile?.mandates || {};
   const firstName = user?.name?.split(" ")[0] || "Investor";
+  const profileEditPath = user?._id ? `/profile/${user._id}` : "/profile";
   const walletBalance = wallet?.balance ?? wallet?.wallet?.balance ?? 0;
   const closedDealsCount = Math.max(
     Number(stats.convertedDeals || 0),
@@ -78,6 +80,14 @@ const InvestorDashboard = () => {
   return (
     <div className="max-w-[1280px] mx-auto px-1">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+
+        <ProfileCompletionBanner
+          completion={user?.profileCompletion}
+          subtitle="Your profile is incomplete. Complete it to improve your deal flow quality."
+          ctaLabel="Edit Profile"
+          ctaTo={profileEditPath}
+          className="mb-6"
+        />
 
         {/* ─────────────── HEADER ─────────────── */}
         <Fade>

@@ -1,8 +1,9 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
-import { sendOTPEmail, sendWelcomeEmail, sendSignupOTPToCompany } from "../utils/emailService.js";
+import { sendOTPEmail, sendWelcomeEmail } from "../utils/emailService.js";
 import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 
 const generateToken = (id) => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "30d";
@@ -138,14 +139,6 @@ export const join = async (req, res) => {
           });
         }
 
-        // Best-effort company copy (does not block user flow)
-        await sendSignupOTPToCompany({
-          userName: userExists.name || name,
-          userEmail: email,
-          userRole: userExists.role,
-          otp,
-        });
-        
         return res.status(200).json({ 
           message: "User already exists but not verified. New OTP sent to email.",
           requiresVerification: true,
@@ -158,16 +151,34 @@ export const join = async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
     
+    // Check if email verification should be skipped (dev mode)
+    const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+    
     // Create user with OTP
     const user = await User.create({ 
       name, 
       email, 
       password, 
       role,
-      emailVerified: false,
-      emailVerificationToken: otp,
-      emailVerificationExpires: generateOTPExpiry()
+      emailVerified: skipEmailVerification, // Auto-verify if skipping email
+      emailVerificationToken: skipEmailVerification ? undefined : otp,
+      emailVerificationExpires: skipEmailVerification ? undefined : generateOTPExpiry()
     });
+    
+    // If skipping email verification, return token directly
+    if (skipEmailVerification) {
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      return res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token,
+        expiresAt,
+        message: "Account created successfully (email verification skipped in dev mode)"
+      });
+    }
     
     // Send OTP email
     const emailResult = await sendOTPEmail(email, name, otp);
@@ -182,14 +193,6 @@ export const join = async (req, res) => {
       });
     }
 
-    // Best-effort company copy (does not block signup)
-    await sendSignupOTPToCompany({
-      userName: name,
-      userEmail: email,
-      userRole: role,
-      otp,
-    });
-    
     console.log('User created successfully, OTP sent:', user._id);
     res.status(201).json({
       message: "Account created successfully. Please check your email for verification code.",
@@ -210,10 +213,6 @@ export const login = async (req, res) => {
     }
 
     email = sanitizeEmail(email);
-
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ message: "Please provide a valid email address" });
-    }
 
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
@@ -263,6 +262,7 @@ export const login = async (req, res) => {
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
         profileImage: user.profileImage || user.profilePicture || "",
+        profileCompletion: getProfileCompletion(user),
         token,
         expiresAt,
       });
@@ -366,6 +366,7 @@ export const verifyOTP = async (req, res) => {
         name: user.name,
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
+        profileCompletion: getProfileCompletion(user),
         token,
         expiresAt,
       });
@@ -380,6 +381,7 @@ export const verifyOTP = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      profileCompletion: getProfileCompletion(user),
       token,
       expiresAt,
     });
@@ -573,6 +575,7 @@ export const getMe = async (req, res) => {
       profileImage: user.profileImage || user.profilePicture || "",
       profilePicture: user.profilePicture,
       bio: user.bio,
+      profileCompletion: getProfileCompletion(user),
       expiresAt: decoded.exp * 1000,
     });
   } catch (error) {

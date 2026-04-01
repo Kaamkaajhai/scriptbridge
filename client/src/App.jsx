@@ -27,6 +27,7 @@ const NewProject = lazy(() => import("./pages/NewProject"));
 const CreateProject = lazy(() => import("./pages/CreateProject"));
 const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
+const ScriptPaymentPage = lazy(() => import("./pages/ScriptPaymentPage"));
 const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
 const TopList = lazy(() => import("./pages/TopList"));
@@ -262,6 +263,16 @@ function App() {
                 }
               />
               <Route
+                path="/script/:id/pay"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <ScriptPaymentPage />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/script/:id"
                 element={
                   <PrivateRoute>
@@ -353,7 +364,7 @@ function App() {
               />
               <Route
                 path="/reader/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={<Navigate to="/featured" replace />}
               />
               <Route
                 path="/admin"
