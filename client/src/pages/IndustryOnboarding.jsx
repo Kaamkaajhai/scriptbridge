@@ -446,7 +446,7 @@ const IndustryOnboarding = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-[#111111] text-white py-3 rounded-lg font-semibold hover:bg-[#000000] transition disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? "Verifying..." : "Verify Email"}
                 <ArrowRight size={20} />
@@ -832,7 +832,7 @@ const IndustryOnboarding = () => {
               <button
                 type="submit"
                 disabled={loading || !agreementAccepted}
-                className="flex-1 bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 bg-[#111111] text-white py-3 rounded-lg font-semibold hover:bg-[#000000] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? "Processing..." : "Complete Setup & Browse Scripts"}
                 <CheckCircle size={20} />
@@ -868,12 +868,12 @@ const IndustryOnboarding = () => {
                 <div key={step.num} className="flex items-center flex-1">
                   <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition text-xs font-semibold ${
                     isComplete 
-                      ? 'bg-[#1e3a5f] border-[#1e3a5f] text-white' 
+                      ? 'bg-[#111111] border-[#111111] text-white' 
                       : isActive 
                         ? 'bg-[#0f2544] border-[#0f2544] text-white' 
                         : 'bg-white border-gray-300 text-gray-400'
                   }`}>
-                    {isComplete ? '✓' : step.num}
+                    {isComplete ? '' : step.num}
                   </div>
                   <div className="ml-2 hidden sm:block">
                     <div className={`text-xs font-semibold ${
@@ -884,7 +884,7 @@ const IndustryOnboarding = () => {
                   </div>
                   {index < steps.length - 1 && (
                     <div className={`flex-1 h-0.5 mx-4 ${
-                      isComplete ? 'bg-[#1e3a5f]' : 'bg-gray-300'
+                      isComplete ? 'bg-[#111111]' : 'bg-gray-300'
                     }`} />
                   )}
                 </div>

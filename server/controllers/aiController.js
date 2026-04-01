@@ -19,6 +19,40 @@ const cleanText = (value = "") =>
 
 const safeSlice = (value = "", limit = 22000) => cleanText(value).slice(0, limit);
 
+const OUTPUT_LANGUAGE_NAMES = {
+  en: "English",
+  hi: "Hindi",
+  bn: "Bengali",
+  ta: "Tamil",
+  te: "Telugu",
+  mr: "Marathi",
+  gu: "Gujarati",
+  pa: "Punjabi",
+  ur: "Urdu",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+  it: "Italian",
+  ru: "Russian",
+  ar: "Arabic",
+  tr: "Turkish",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese (Simplified)",
+};
+
+const getOutputLanguageInstruction = (languageCode = "en") => {
+  const normalizedCode = String(languageCode || "en").toLowerCase();
+  const languageName = OUTPUT_LANGUAGE_NAMES[normalizedCode] || OUTPUT_LANGUAGE_NAMES.en;
+
+  if (normalizedCode === "en") {
+    return `Use English for corrected/rewritten script output and notes.`;
+  }
+
+  return `Use ${languageName} for corrected/rewritten script output and notes.`;
+};
+
 const normalizeScorePayload = (payload = {}) => {
   const score = {
     plot: clampScore(payload.plot),
@@ -469,6 +503,7 @@ export const correctScriptText = async (req, res) => {
 
     const required = CREDIT_PRICES.AI_GRAMMAR; // 5 credits
     const balance = user.credits?.balance || 0;
+    const outputLanguageInstruction = getOutputLanguageInstruction(user.language);
 
     if (balance < required) {
       return res.status(402).json({
@@ -510,6 +545,7 @@ Rules:
 - Keep screenplay formatting and paragraph/line breaks.
 - correctedText must contain the full corrected script text.
 - notes should be up to 5 concise bullet-style strings.
+- ${outputLanguageInstruction}
 
 Script text:
 ${truncatedSource}`;
@@ -586,11 +622,12 @@ export const aiWritingAssist = async (req, res) => {
       return res.status(400).json({ message: "An action or custom instruction is required." });
     }
 
+    const user = await User.findById(req.user._id).select("language credits");
+    if (!user) return res.status(404).json({ message: "User not found." });
+    const outputLanguageInstruction = getOutputLanguageInstruction(user.language);
+
     // ── Credit check for grammar action ──────────────────────────────────
     if (action === "grammar") {
-      const user = await User.findById(req.user._id);
-      if (!user) return res.status(404).json({ message: "User not found." });
-
       const required = CREDIT_PRICES.AI_GRAMMAR; // 5 credits
       const balance = user.credits?.balance || 0;
 
@@ -646,6 +683,7 @@ Rules:
 - Preserve all line breaks, scene headings, and character names.
 - Go above and beyond — add new descriptive details, richer language, and professional touches that weren't in the original.
 - Do NOT add meta-commentary inside the result text.
+- ${outputLanguageInstruction}
 
 Original script text:
 ${truncatedSource}`;

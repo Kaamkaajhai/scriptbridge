@@ -126,7 +126,10 @@ const Join = () => {
         }
       }
     } catch (err) {
-      const msg = err.response?.data?.message || "Join failed";
+      const msg = err.response?.data?.message
+        || (err.code === "ERR_NETWORK"
+          ? "Unable to connect to server. Please make sure backend is running on http://localhost:5001"
+          : "Join failed");
       setError(msg);
     } finally {
       setSubmitting(false);

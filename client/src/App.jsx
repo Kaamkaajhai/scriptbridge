@@ -364,7 +364,7 @@ function App() {
               />
               <Route
                 path="/reader/featured"
-                element={<Navigate to="/top-list" replace />}
+                element={<Navigate to="/featured" replace />}
               />
               <Route
                 path="/admin"

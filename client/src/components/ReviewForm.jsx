@@ -85,13 +85,13 @@ const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRatin
             placeholder="What did you think about this script? Share your honest thoughts..."
             rows={4}
             maxLength={2000}
-            className={`w-full px-4 py-3 border rounded-xl text-sm placeholder-gray-300 outline-none focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/10 resize-none transition-all font-medium leading-relaxed ${dark ? "bg-white/[0.04] border-[#444] text-gray-200" : "bg-gray-50/80 border-gray-200 text-gray-700"}`}
+            className={`w-full px-4 py-3 border rounded-xl text-sm placeholder-gray-300 outline-none focus:border-[#111111] focus:ring-2 focus:ring-[#111111]/10 resize-none transition-all font-medium leading-relaxed ${dark ? "bg-white/[0.04] border-[#444] text-gray-200" : "bg-gray-50/80 border-gray-200 text-gray-700"}`}
           />
           {/* Character counter bar */}
           <div className="flex items-center justify-between mt-1.5">
             <div className={`flex-1 h-1 rounded-full overflow-hidden mr-3 max-w-[120px] ${dark ? "bg-[#444]" : "bg-gray-100"}`}>
               <div
-                className={`h-full rounded-full transition-all duration-300 ${charPercent > 90 ? "bg-red-400" : charPercent > 70 ? "bg-amber-400" : "bg-[#1e3a5f]/30"
+                className={`h-full rounded-full transition-all duration-300 ${charPercent > 90 ? "bg-red-400" : charPercent > 70 ? "bg-amber-400" : "bg-[#111111]/30"
                   }`}
                 style={{ width: `${charPercent}%` }}
               />
@@ -108,7 +108,7 @@ const ReviewForm = ({ onSubmit, loading = false, isEditing = false, initialRatin
         <button
           type="submit"
           disabled={loading || rating < 1 || !comment.trim()}
-          className="w-full py-3 bg-[#1e3a5f] text-white rounded-xl font-bold text-sm hover:bg-[#162d4a] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/20 hover:-translate-y-0.5 active:scale-[0.99]"
+          className="w-full py-3 bg-[#111111] text-white rounded-xl font-bold text-sm hover:bg-[#000000] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-lg hover:shadow-[#111111]/20 hover:-translate-y-0.5 active:scale-[0.99]"
         >
           {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {isEditing ? "Update Review" : "Submit Review"}

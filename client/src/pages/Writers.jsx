@@ -117,7 +117,7 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
   const avatarUrl = writer.profileImage
     ? writer.profileImage.startsWith("http")
       ? writer.profileImage
-      : `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${writer.profileImage}`
+      : `${import.meta.env.VITE_API_URL || "http://localhost:5002"}${writer.profileImage}`
     : null;
 
   const scoreColor =
