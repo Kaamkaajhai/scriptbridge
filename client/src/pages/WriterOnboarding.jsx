@@ -145,7 +145,7 @@ const mergeWriterProfile = (profile) => ({
 });
 
 const WRITER_TERMS_VERSION = "writer-onboarding-v2026-03-24";
-const WRITER_TERMS_ROUTE = "/writer-terms";
+const WRITER_TERMS_ROUTE = "/terms-conditions?tab=writer";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
 const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
 

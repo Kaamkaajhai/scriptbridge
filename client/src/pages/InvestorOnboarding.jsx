@@ -111,7 +111,7 @@ const loadInvestorOnboardingDraft = () => {
   }
 };
 
-const INVESTOR_TERMS_ROUTE = "/investor-terms";
+const INVESTOR_TERMS_ROUTE = "/terms-conditions?tab=investor";
 const INVESTOR_TERMS_VERSION = "investor-onboarding-v2026-03-24";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
 const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
