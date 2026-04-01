@@ -28,6 +28,7 @@ const ScriptDetail = () => {
   const [spotlightLoading, setSpotlightLoading] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [hasRecordedSynopsisRead, setHasRecordedSynopsisRead] = useState(false);
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -154,7 +155,17 @@ const ScriptDetail = () => {
     fetchScript();
     setCoverError(false);
     setTrailerError(false);
+    setHasRecordedSynopsisRead(false);
   }, [id]);
+
+  useEffect(() => {
+    if (!script?._id || activeTab !== "synopsis" || hasRecordedSynopsisRead || script?.isCreator) return;
+
+    api
+      .post(`/scripts/${script._id}/read`)
+      .then(() => setHasRecordedSynopsisRead(true))
+      .catch(() => null);
+  }, [activeTab, hasRecordedSynopsisRead, script?._id, script?.isCreator]);
 
   useEffect(() => {
     setTrailerError(false);

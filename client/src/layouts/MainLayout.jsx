@@ -33,6 +33,9 @@ const MainLayout = ({ children }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
+  const showCreditSystem = Boolean(user) && user?.role !== "investor" && user?.role !== "reader";
+  const topBarHomePath = user?.role === "reader" ? "/reader" : "/dashboard";
+  const topBarHomeLabel = user?.role === "reader" ? "Reader Home" : "Dashboard";
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -158,12 +161,12 @@ const MainLayout = ({ children }) => {
       fetchInvestorPurchaseOutcomePopups(),
     ];
 
-    if (user?.role !== "investor") {
+    if (showCreditSystem) {
       tasks.push(fetchCreditsBalance());
     }
 
     await Promise.allSettled(tasks);
-  }, [fetchCreditsBalance, fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user?.role]);
+  }, [fetchCreditsBalance, fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, showCreditSystem]);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -399,11 +402,13 @@ const MainLayout = ({ children }) => {
 
   return (
     <>
-      <BuyCreditsModal 
-        isOpen={showBuyCredits} 
-        onClose={() => setShowBuyCredits(false)}
-        onSuccess={handleCreditsUpdate}
-      />
+      {showCreditSystem && (
+        <BuyCreditsModal 
+          isOpen={showBuyCredits} 
+          onClose={() => setShowBuyCredits(false)}
+          onSuccess={handleCreditsUpdate}
+        />
+      )}
 
       {showPurchasePopup && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,380px)] animate-scaleIn">
@@ -603,10 +608,10 @@ const MainLayout = ({ children }) => {
           </button>
 
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate(topBarHomePath)}
             className="order-1 shrink min-w-0 max-w-[120px] max-[378px]:max-w-[92px] max-[340px]:max-w-[84px] flex items-center rounded-lg px-1 py-1 lg:hidden"
-            aria-label="Go to dashboard"
-            title="Dashboard"
+            aria-label={`Go to ${topBarHomeLabel.toLowerCase()}`}
+            title={topBarHomeLabel}
           >
             <BrandLogo className="h-8 sm:h-9 max-[378px]:h-7 max-[340px]:h-6 w-auto max-w-full" />
           </button>
@@ -828,8 +833,8 @@ const MainLayout = ({ children }) => {
             )}
           </div>
 
-          {/* Credits Button - Hidden for investors */}
-          {user?.role !== "investor" && (
+          {/* Credits Button - Hidden for investors and readers */}
+          {showCreditSystem && (
             <button
               onClick={() => setShowBuyCredits(true)}
               className={`group shrink-0 flex items-center gap-1.5 max-[378px]:gap-1 md:gap-2 min-[640px]:max-[690px]:gap-1 px-2.5 max-[378px]:px-2 max-[340px]:px-1.5 md:px-3.5 min-[640px]:max-[690px]:px-2 py-1.5 max-[378px]:py-1 rounded-xl max-[378px]:rounded-lg border text-sm transition-all duration-200 ${

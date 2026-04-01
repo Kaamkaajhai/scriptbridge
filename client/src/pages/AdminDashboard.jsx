@@ -65,6 +65,62 @@ const DownloadIconButton = ({ onClick, title, disabled, className = "" }) => (
     </button>
 );
 
+const toDisplayText = (value) => {
+    const text = String(value ?? "").trim();
+    return text || "-";
+};
+
+const getUserAddressLine = (user) => {
+    const parts = [
+        user?.address?.street,
+        user?.address?.city,
+        user?.address?.state,
+        user?.address?.zipCode,
+    ]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+
+    if (parts.length > 0) return parts.join(", ");
+    return String(user?.address?.formatted || "").trim();
+};
+
+const getUserCompany = (user) => {
+    return String(user?.industryProfile?.company || user?.writerProfile?.agencyName || "").trim();
+};
+
+const getUserGenres = (user) => {
+    const genreBuckets = [
+        ...(Array.isArray(user?.writerProfile?.genres) ? user.writerProfile.genres : []),
+        ...(Array.isArray(user?.industryProfile?.mandates?.genres) ? user.industryProfile.mandates.genres : []),
+        ...(Array.isArray(user?.preferences?.genres) ? user.preferences.genres : []),
+    ];
+
+    const normalized = genreBuckets
+        .map((genre) => String(genre || "").trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(normalized)).join(", ");
+};
+
+const getUserProfileSummary = (user) => {
+    const company = getUserCompany(user);
+    const genres = getUserGenres(user);
+    const summaryParts = [];
+
+    if (company) summaryParts.push(company);
+    if (genres) summaryParts.push(`Genres: ${genres}`);
+
+    return summaryParts.join(" • ");
+};
+
+const formatUserExportLine = (user, index) => {
+    const address = getUserAddressLine(user);
+    const company = getUserCompany(user);
+    const genres = getUserGenres(user);
+
+    return `${index + 1}. ${toDisplayText(user?.name)} | ${toDisplayText(user?.email)} | Phone: ${toDisplayText(user?.phone)} | Role: ${toDisplayText(user?.role)} | SID: ${toDisplayText(user?.sid)} | Company: ${toDisplayText(company)} | Genres: ${toDisplayText(genres)} | Address: ${toDisplayText(address)} | Joined: ${formatExportDate(user?.createdAt)}`;
+};
+
 // ─── Stat Card ───
 const StatCard = ({ label, value, icon, color, isDark }) => (
     <div className={`rounded-2xl p-5 border transition-all hover:scale-[1.02] ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
@@ -104,7 +160,15 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                                             {u.name?.charAt(0)?.toUpperCase() || "?"}
                                         </div>
                                     )}
-                                    <span className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{u.name}</span>
+                                    <div>
+                                        <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{u.name}</p>
+                                        {u.phone && (
+                                            <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{u.phone}</p>
+                                        )}
+                                        {getUserProfileSummary(u) && (
+                                            <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{getUserProfileSummary(u)}</p>
+                                        )}
+                                    </div>
                                 </div>
                             </td>
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{u.email}</td>
@@ -715,7 +779,21 @@ const AdminDashboard = () => {
     const sourceContacts = isGlobalSearchMode ? globalResults.contacts : contacts;
     const sourceMessageUsers = messageUsers;
 
-    const filteredUsers = sourceUsers.filter((u) => matchesSearch(u.name, u.email, u.role, u.sid));
+    const filteredUsers = sourceUsers.filter((u) =>
+        matchesSearch(
+            u.name,
+            u.email,
+            u.role,
+            u.sid,
+            u.phone,
+            getUserAddressLine(u),
+            getUserCompany(u),
+            getUserGenres(u),
+            u.writerProfile?.username,
+            u.writerProfile?.legalName,
+            u.industryProfile?.jobTitle
+        )
+    );
     const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, s.creator?.name));
     const filteredTransactions = sourceTransactions.filter((t) =>
         matchesSearch(
@@ -760,7 +838,7 @@ const AdminDashboard = () => {
             case "readers":
                 return {
                     title: `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} (${users.length})`,
-                    lines: users.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | Role: ${u.role || "-"} | SID: ${u.sid || "-"} | Joined: ${formatExportDate(u.createdAt)}`),
+                    lines: users.map((u, idx) => formatUserExportLine(u, idx)),
                 };
             case "projects":
             case "ai-usage":
@@ -949,7 +1027,7 @@ const AdminDashboard = () => {
 
             const sectionFromUsers = (title, list) => ({
                 title: `${title} (${list.length})`,
-                lines: list.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | Role: ${u.role || "-"} | SID: ${u.sid || "-"} | Joined: ${formatExportDate(u.createdAt)}`),
+                lines: list.map((u, idx) => formatUserExportLine(u, idx)),
             });
 
             const sectionFromScripts = (title, list) => ({
@@ -1762,7 +1840,7 @@ const AdminDashboard = () => {
                             key: "users",
                             title: "Users",
                             count: filteredUsers.length,
-                            lines: filteredUsers.slice(0, 6).map((u) => `${u.name || "-"} • ${u.email || "-"} • ${u.role || "-"}`),
+                            lines: filteredUsers.slice(0, 6).map((u) => `${u.name || "-"} • ${u.email || "-"} • ${u.role || "-"} • ${u.phone || "No phone"} • ${getUserCompany(u) || "No company"} • ${getUserGenres(u) || "No genres"}`),
                         },
                         {
                             key: "projects",
@@ -2655,12 +2733,7 @@ const AdminDashboard = () => {
         const writerLinks = user?.writerProfile?.links || {};
         const investorLinks = user?.industryProfile?.socialLinks || {};
         const mandates = user?.industryProfile?.mandates || {};
-        const addressLine = [
-            user?.address?.street,
-            user?.address?.city,
-            user?.address?.state,
-            user?.address?.zipCode,
-        ].filter(Boolean).join(", ");
+        const addressLine = getUserAddressLine(user);
 
         const detailRows = [
             { label: "Name", value: user?.name },
@@ -2670,13 +2743,21 @@ const AdminDashboard = () => {
             { label: "SID", value: user?.sid },
             { label: "Date of Birth", value: user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "" },
             { label: "Address", value: addressLine || user?.address?.formatted },
+            { label: "Approval Status", value: user?.approvalStatus },
+            { label: "Approval Note", value: user?.approvalNote },
+            { label: "Email Verified", value: user?.emailVerified === true ? "Yes" : user?.emailVerified === false ? "No" : "" },
             { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleString() : "" },
         ].filter((row) => row.value);
 
         const writerRows = [
+            { label: "Legal Name", value: user?.writerProfile?.legalName },
             { label: "Username", value: user?.writerProfile?.username },
+            { label: "WGA Member", value: user?.writerProfile?.wgaMember === true ? "Yes" : user?.writerProfile?.wgaMember === false ? "No" : "" },
+            { label: "Plan", value: user?.writerProfile?.plan },
             { label: "Representation", value: user?.writerProfile?.representationStatus },
             { label: "Agency", value: user?.writerProfile?.agencyName },
+            { label: "Primary Genres", value: Array.isArray(user?.writerProfile?.genres) ? user.writerProfile.genres.join(", ") : "" },
+            { label: "Specialized Tags", value: Array.isArray(user?.writerProfile?.specializedTags) ? user.writerProfile.specializedTags.join(", ") : "" },
             { label: "Demographic Privacy", value: user?.writerProfile?.demographicPrivacy },
             { label: "Gender", value: user?.writerProfile?.diversity?.gender },
             { label: "Nationality", value: user?.writerProfile?.diversity?.nationality },
@@ -2696,6 +2777,7 @@ const AdminDashboard = () => {
             { label: "Sub Role", value: user?.industryProfile?.subRole },
             { label: "Company", value: user?.industryProfile?.company },
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
+            { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
             { label: "Investment Range", value: user?.industryProfile?.investmentRange },
             { label: "Previous Credits", value: user?.industryProfile?.previousCredits },
             { label: "Other URL", value: user?.industryProfile?.otherUrl },
@@ -2708,7 +2790,30 @@ const AdminDashboard = () => {
             { label: "Facebook", value: investorLinks?.facebook },
             { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
             { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
+            { label: "Mandates Exclude Genres", value: Array.isArray(mandates?.excludeGenres) ? mandates.excludeGenres.join(", ") : "" },
+            { label: "Mandates Hooks", value: Array.isArray(mandates?.specificHooks) ? mandates.specificHooks.join(", ") : "" },
             { label: "Mandates Budget", value: Array.isArray(mandates?.budgetTiers) ? mandates.budgetTiers.join(", ") : "" },
+        ].filter((row) => row.value);
+
+        const budgetRange = user?.preferences?.budgetRange;
+        const readerRows = [
+            { label: "Preferred Genres", value: Array.isArray(user?.preferences?.genres) ? user.preferences.genres.join(", ") : "" },
+            { label: "Preferred Content Types", value: Array.isArray(user?.preferences?.contentTypes) ? user.preferences.contentTypes.join(", ") : "" },
+            {
+                label: "Budget Preference",
+                value:
+                    budgetRange && (budgetRange.min != null || budgetRange.max != null)
+                        ? `${budgetRange.min ?? 0} - ${budgetRange.max ?? 0}`
+                        : "",
+            },
+            {
+                label: "Favorite Scripts",
+                value: Array.isArray(user?.favoriteScripts) ? String(user.favoriteScripts.length) : "",
+            },
+            {
+                label: "Scripts Read",
+                value: Array.isArray(user?.scriptsRead) ? String(user.scriptsRead.length) : "",
+            },
         ].filter((row) => row.value);
 
         const sectionClass = `rounded-xl border p-4 ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`;
@@ -2742,6 +2847,20 @@ const AdminDashboard = () => {
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Writer Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {writerRows.map((row) => (
+                                        <div key={row.label}>
+                                            <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {readerRows.length > 0 && (
+                            <div className={sectionClass}>
+                                <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Reader Profile</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {readerRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
                                             <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>

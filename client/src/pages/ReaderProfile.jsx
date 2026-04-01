@@ -287,6 +287,27 @@ const ReaderProfile = () => {
   const profileId = id || user?._id;
   const isOwnProfile = !id || id === user?._id;
 
+  const normalizeScriptId = (value) => {
+    if (!value) return null;
+    if (typeof value === "string") return value;
+    if (typeof value === "object") {
+      if (value.script) return normalizeScriptId(value.script);
+      if (value._id) return String(value._id);
+      if (typeof value.toString === "function") {
+        const normalized = value.toString();
+        if (normalized && normalized !== "[object Object]") return normalized;
+      }
+    }
+    return null;
+  };
+
+  const getReadScriptIds = (userObj) => {
+    const scriptsReadIds = Array.isArray(userObj?.scriptsRead)
+      ? userObj.scriptsRead.map(normalizeScriptId).filter(Boolean)
+      : [];
+    return [...new Set(scriptsReadIds)];
+  };
+
   const resolveImage = (url) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("data:")) return url;
@@ -315,13 +336,17 @@ const ReaderProfile = () => {
       if (activeTab === "read" || activeTab === "favorites") {
         const { data } = await api.get(`/users/${profileId}`);
         const userObj = data.user || data;
-        const arr = activeTab === "read" ? userObj.scriptsRead : userObj.favoriteScripts;
+        const arr = activeTab === "read" ? getReadScriptIds(userObj) : userObj.favoriteScripts;
 
         if (arr?.length) {
           const scripts = await Promise.all(
-            arr.slice(0, 20).map(async (sId) => {
+            arr.slice(0, 20).map(async (entry) => {
               try {
-                const s = typeof sId === "object" ? sId : (await api.get(`/scripts/${sId}`)).data;
+                const scriptId = normalizeScriptId(entry);
+                if (!scriptId) return null;
+                const s = typeof entry === "object" && entry?._id && entry?.title
+                  ? entry
+                  : (await api.get(`/scripts/${scriptId}`)).data;
                 return s;
               } catch { return null; }
             })
@@ -376,7 +401,7 @@ const ReaderProfile = () => {
   };
 
   const tabs = [
-    { key: "read", label: "Scripts Read", icon: BookOpen, count: profile.scriptsRead?.length || 0 },
+    { key: "read", label: "Scripts Read", icon: BookOpen, count: getReadScriptIds(profile).length },
     { key: "favorites", label: "Favorites", icon: Heart, count: profile.favoriteScripts?.length || 0 },
     { key: "reviews", label: "Reviews", icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];

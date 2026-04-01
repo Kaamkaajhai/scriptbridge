@@ -62,6 +62,38 @@ const getAdminTrailerRequestFilter = () => ({
     ],
 });
 
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const buildAdminUserSearchQuery = (searchTerm) => {
+    const normalizedSearch = String(searchTerm || "").trim();
+    if (!normalizedSearch) return null;
+
+    const safeSearch = escapeRegex(normalizedSearch);
+    const regexFilter = { $regex: safeSearch, $options: "i" };
+
+    return {
+        $or: [
+            { sid: regexFilter },
+            { name: regexFilter },
+            { email: regexFilter },
+            { phone: regexFilter },
+            { "address.street": regexFilter },
+            { "address.city": regexFilter },
+            { "address.state": regexFilter },
+            { "address.zipCode": regexFilter },
+            { "writerProfile.legalName": regexFilter },
+            { "writerProfile.username": regexFilter },
+            { "writerProfile.agencyName": regexFilter },
+            { "writerProfile.genres": regexFilter },
+            { "writerProfile.specializedTags": regexFilter },
+            { "industryProfile.company": regexFilter },
+            { "industryProfile.jobTitle": regexFilter },
+            { "industryProfile.mandates.genres": regexFilter },
+            { "preferences.genres": regexFilter },
+        ],
+    };
+};
+
 const rawUploadAdminTrailer = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 250 * 1024 * 1024 },
@@ -124,22 +156,28 @@ export const getStats = async (req, res) => {
 export const getUsers = async (req, res) => {
     try {
         const { role, search, page = 1, limit = 20 } = req.query;
+        const pageNumber = Math.max(Number(page) || 1, 1);
+        const pageLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
         const filter = { role: { $ne: "admin" } };
         if (role) filter.role = role;
-        if (search) {
-            filter.$or = [
-                { sid: { $regex: search, $options: "i" } },
-                { name: { $regex: search, $options: "i" } },
-                { email: { $regex: search, $options: "i" } },
-            ];
-        }
+
+        const searchFilter = buildAdminUserSearchQuery(search);
+        if (searchFilter) Object.assign(filter, searchFilter);
+
         const total = await User.countDocuments(filter);
         const users = await User.find(filter)
-            .select("-password")
+            .select("-password -emailVerificationToken -emailVerificationExpires -emailVerificationResendAvailableAt")
             .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(Number(limit));
-        res.json({ users, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+            .skip((pageNumber - 1) * pageLimit)
+            .limit(pageLimit)
+            .lean();
+
+        res.json({
+            users,
+            total,
+            page: pageNumber,
+            totalPages: Math.ceil(total / pageLimit),
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
