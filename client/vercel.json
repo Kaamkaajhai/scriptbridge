@@ -11,6 +11,21 @@
       ],
       "destination": "https://ckript.com/$1",
       "permanent": true
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy-policy",
+      "permanent": true
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms-of-service",
+      "permanent": true
+    },
+    {
+      "source": "/t-and-c",
+      "destination": "/terms-of-service",
+      "permanent": true
     }
   ],
   "rewrites": [
