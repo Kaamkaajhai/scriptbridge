@@ -4,7 +4,7 @@ export const defaultSeo = {
   title: "Ckript | Script Collaboration Platform",
   description:
     "Ckript is a collaborative platform for scriptwriters, readers, producers, and investors to discover scripts, build teams, and move film projects forward.",
-  image: `${SITE_URL}/ckript.com-logo.png`,
+  image: `${SITE_URL}/ckript-logo-official-nobg.png`,
 };
 
 // Public pages that can be indexed and included in sitemap.xml.
