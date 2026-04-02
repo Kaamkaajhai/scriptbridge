@@ -145,7 +145,7 @@ const mergeWriterProfile = (profile) => ({
 });
 
 const WRITER_TERMS_VERSION = "writer-onboarding-v2026-03-24";
-const WRITER_TERMS_ROUTE = "/writer-terms";
+const WRITER_TERMS_ROUTE = "/terms-conditions?tab=writer";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
 const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
 
@@ -163,6 +163,7 @@ const WriterOnboarding = () => {
   const [error, setError] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [addressError, setAddressError] = useState("");
+  const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [dobError, setDobError] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [openRepSections, setOpenRepSections] = useState(() => ({
@@ -173,6 +174,11 @@ const WriterOnboarding = () => {
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(Boolean(initialDraft?.showOTPVerification));
   const [userEmail, setUserEmail] = useState(initialDraft?.userEmail || "");
+  const [otpConfig, setOtpConfig] = useState(() => ({
+    otpExpirySeconds: initialDraft?.otpConfig?.otpExpirySeconds,
+    resendCooldownSeconds: initialDraft?.otpConfig?.resendCooldownSeconds,
+    startCooldownOnMount: Boolean(initialDraft?.otpConfig?.startCooldownOnMount),
+  }));
   
   // Step 1: Account Creation
   const [accountData, setAccountData] = useState(() => ({
@@ -186,7 +192,7 @@ const WriterOnboarding = () => {
   
   // Email Verification (keeping for compatibility, but using OTP now)
   const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
-  const [verificationSent, setVerificationSent] = useState(Boolean(initialDraft?.verificationSent));
+  const [verificationSent] = useState(false);
   
   // Step 2: Writer Profile
   const [writerProfile, setWriterProfile] = useState(() => mergeWriterProfile(initialDraft?.writerProfile));
@@ -206,6 +212,7 @@ const WriterOnboarding = () => {
   const agreementRef = useRef(null);
   const [selectedPlan, setSelectedPlan] = useState("free");
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
+  const zipLookupRequestRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -221,6 +228,7 @@ const WriterOnboarding = () => {
       openRepSections,
       showOTPVerification,
       userEmail,
+      otpConfig,
       accountData: safeAccountData,
       addressFields,
       verificationCode,
@@ -244,10 +252,61 @@ const WriterOnboarding = () => {
     selectedGenres,
     showOTPVerification,
     userEmail,
+    otpConfig,
     verificationCode,
     verificationSent,
     writerProfile,
   ]);
+
+  useEffect(() => {
+    const zipCode = String(addressFields.zipCode || "").trim();
+    if (!/^\d{6}$/.test(zipCode)) {
+      setZipLookupLoading(false);
+      return;
+    }
+
+    const requestId = Date.now();
+    zipLookupRequestRef.current = requestId;
+    let isActive = true;
+
+    const lookupZipInfo = async () => {
+      setZipLookupLoading(true);
+      try {
+        const { data } = await api.get(`/auth/zip-info/${zipCode}`);
+        if (!isActive || zipLookupRequestRef.current !== requestId) return;
+
+        const resolvedCity = String(data?.city || "").trim();
+        const resolvedState = String(data?.state || "").trim();
+
+        setAddressFields((prev) => {
+          if (prev.zipCode !== zipCode) return prev;
+          return {
+            ...prev,
+            city: resolvedCity || prev.city,
+            state: resolvedState || prev.state,
+          };
+        });
+
+        setAddressError("");
+      } catch (err) {
+        if (!isActive || zipLookupRequestRef.current !== requestId) return;
+        const message = err?.response?.data?.message;
+        if (message) {
+          setAddressError(message);
+        }
+      } finally {
+        if (isActive && zipLookupRequestRef.current === requestId) {
+          setZipLookupLoading(false);
+        }
+      }
+    };
+
+    lookupZipInfo();
+
+    return () => {
+      isActive = false;
+    };
+  }, [addressFields.zipCode]);
 
   const steps = [
     { num: 1, title: "Account" },
@@ -342,7 +401,12 @@ const WriterOnboarding = () => {
       
       // Check if OTP verification is required
       if (response?.requiresVerification) {
-        setUserEmail(sanitizedEmail);
+        setUserEmail(response?.email || sanitizedEmail);
+        setOtpConfig({
+          otpExpirySeconds: response?.otpExpirySeconds,
+          resendCooldownSeconds: response?.resendCooldownSeconds,
+          startCooldownOnMount: true,
+        });
         setShowOTPVerification(true);
       } else if (response?.token) {
         // Direct login (shouldn't happen with new flow)
@@ -373,6 +437,11 @@ const WriterOnboarding = () => {
   const handleBackToSignup = () => {
     setShowOTPVerification(false);
     setUserEmail("");
+    setOtpConfig({
+      otpExpirySeconds: undefined,
+      resendCooldownSeconds: undefined,
+      startCooldownOnMount: false,
+    });
   };
 
   const handleEmailVerification = async (e) => {
@@ -602,33 +671,21 @@ const WriterOnboarding = () => {
                   <label className="text-sm font-semibold text-gray-800">Address Details</label>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Street Address</label>
-                  <input
-                    type="text"
-                    value={addressFields.street}
-                    onChange={(e) => {
-                      setAddressFields({ ...addressFields, street: e.target.value });
-                      setAddressError("");
-                    }}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="House/Flat, Street, Area"
-                    required
-                  />
-                </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
                     <input
                       type="text"
-                      value={addressFields.city}
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={addressFields.zipCode}
                       onChange={(e) => {
-                        setAddressFields({ ...addressFields, city: e.target.value });
+                        const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setAddressFields({ ...addressFields, zipCode: zipOnly });
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="Mumbai"
+                      placeholder="400001"
                       required
                     />
                   </div>
@@ -649,25 +706,39 @@ const WriterOnboarding = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={addressFields.zipCode}
+                      value={addressFields.city}
                       onChange={(e) => {
-                        const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setAddressFields({ ...addressFields, zipCode: zipOnly });
+                        setAddressFields({ ...addressFields, city: e.target.value });
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="400001"
+                      placeholder="Mumbai"
                       required
                     />
                   </div>
                 </div>
 
-                <p className="text-[11px] text-gray-500">We verify city and state against the ZIP code for accuracy.</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Street Address</label>
+                  <input
+                    type="text"
+                    value={addressFields.street}
+                    onChange={(e) => {
+                      setAddressFields({ ...addressFields, street: e.target.value });
+                      setAddressError("");
+                    }}
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                    placeholder="House/Flat, Street, Area"
+                    required
+                  />
+                </div>
+
+                {zipLookupLoading && (
+                  <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
+                )}
 
                 {addressError && (
                   <p className="text-xs text-red-500 flex items-center gap-1">
@@ -1467,6 +1538,9 @@ const WriterOnboarding = () => {
         email={userEmail} 
         onSuccess={handleOTPSuccess} 
         onBack={handleBackToSignup}
+        otpExpirySeconds={otpConfig.otpExpirySeconds}
+        initialResendCooldownSeconds={otpConfig.resendCooldownSeconds}
+        startCooldownOnMount={otpConfig.startCooldownOnMount}
       />
     );
   }

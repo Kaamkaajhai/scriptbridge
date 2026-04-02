@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import DiscountCode from "../models/DiscountCode.js";
 import Script from "../models/Script.js";
 import Transaction from "../models/Transaction.js";
 import Invoice from "../models/Invoice.js";
@@ -60,6 +61,38 @@ const getAdminTrailerRequestFilter = () => ({
         },
     ],
 });
+
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const buildAdminUserSearchQuery = (searchTerm) => {
+    const normalizedSearch = String(searchTerm || "").trim();
+    if (!normalizedSearch) return null;
+
+    const safeSearch = escapeRegex(normalizedSearch);
+    const regexFilter = { $regex: safeSearch, $options: "i" };
+
+    return {
+        $or: [
+            { sid: regexFilter },
+            { name: regexFilter },
+            { email: regexFilter },
+            { phone: regexFilter },
+            { "address.street": regexFilter },
+            { "address.city": regexFilter },
+            { "address.state": regexFilter },
+            { "address.zipCode": regexFilter },
+            { "writerProfile.legalName": regexFilter },
+            { "writerProfile.username": regexFilter },
+            { "writerProfile.agencyName": regexFilter },
+            { "writerProfile.genres": regexFilter },
+            { "writerProfile.specializedTags": regexFilter },
+            { "industryProfile.company": regexFilter },
+            { "industryProfile.jobTitle": regexFilter },
+            { "industryProfile.mandates.genres": regexFilter },
+            { "preferences.genres": regexFilter },
+        ],
+    };
+};
 
 const rawUploadAdminTrailer = multer({
     storage: multer.memoryStorage(),
@@ -123,22 +156,28 @@ export const getStats = async (req, res) => {
 export const getUsers = async (req, res) => {
     try {
         const { role, search, page = 1, limit = 20 } = req.query;
+        const pageNumber = Math.max(Number(page) || 1, 1);
+        const pageLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
         const filter = { role: { $ne: "admin" } };
         if (role) filter.role = role;
-        if (search) {
-            filter.$or = [
-                { sid: { $regex: search, $options: "i" } },
-                { name: { $regex: search, $options: "i" } },
-                { email: { $regex: search, $options: "i" } },
-            ];
-        }
+
+        const searchFilter = buildAdminUserSearchQuery(search);
+        if (searchFilter) Object.assign(filter, searchFilter);
+
         const total = await User.countDocuments(filter);
         const users = await User.find(filter)
-            .select("-password")
+            .select("-password -emailVerificationToken -emailVerificationExpires -emailVerificationResendAvailableAt")
             .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(Number(limit));
-        res.json({ users, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+            .skip((pageNumber - 1) * pageLimit)
+            .limit(pageLimit)
+            .lean();
+
+        res.json({
+            users,
+            total,
+            page: pageNumber,
+            totalPages: Math.ceil(total / pageLimit),
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1043,6 +1082,102 @@ export const getAdminAlertSummary = async (req, res) => {
             "bank-reviews": bankReviewAlerts,
             queries,
         });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Discount Code Management ───
+export const getDiscountCodes = async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = "" } = req.query;
+        const filter = {};
+        if (search) {
+            filter.$or = [
+                { code: { $regex: search, $options: "i" } },
+                { description: { $regex: search, $options: "i" } },
+            ];
+        }
+        const total = await DiscountCode.countDocuments(filter);
+        const codes = await DiscountCode.find(filter)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(Number(limit));
+        res.json({ codes, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const createDiscountCode = async (req, res) => {
+    try {
+        const {
+            code, discountType, discountValue, maxUses, maxUsesPerUser,
+            minPurchaseAmount, maxDiscountAmount, validFrom, validUntil,
+            description,
+        } = req.body;
+
+        if (!code || !discountType || discountValue == null || !validUntil) {
+            return res.status(400).json({ message: "code, discountType, discountValue, and validUntil are required" });
+        }
+        if (discountType === "percentage" && (discountValue < 1 || discountValue > 100)) {
+            return res.status(400).json({ message: "Percentage discount must be between 1 and 100" });
+        }
+
+        const existing = await DiscountCode.findOne({ code: code.toUpperCase().trim() });
+        if (existing) {
+            return res.status(409).json({ message: "A discount code with this name already exists" });
+        }
+
+        const discountCode = await DiscountCode.create({
+            code: code.toUpperCase().trim(),
+            discountType,
+            discountValue,
+            maxUses: maxUses || 0,
+            maxUsesPerUser: maxUsesPerUser || 1,
+            minPurchaseAmount: minPurchaseAmount || 0,
+            maxDiscountAmount: maxDiscountAmount || 0,
+            validFrom: validFrom || new Date(),
+            validUntil,
+            description: description || "",
+        });
+
+        res.status(201).json({ message: "Discount code created", discountCode });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const updateDiscountCode = async (req, res) => {
+    try {
+        const discountCode = await DiscountCode.findById(req.params.id);
+        if (!discountCode) return res.status(404).json({ message: "Discount code not found" });
+
+        const allowedFields = [
+            "discountType", "discountValue", "maxUses", "maxUsesPerUser",
+            "minPurchaseAmount", "maxDiscountAmount", "validFrom", "validUntil",
+            "isActive", "description",
+        ];
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) discountCode[field] = req.body[field];
+        }
+        if (req.body.code) discountCode.code = req.body.code.toUpperCase().trim();
+
+        await discountCode.save();
+        res.json({ message: "Discount code updated", discountCode });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const deleteDiscountCode = async (req, res) => {
+    try {
+        const discountCode = await DiscountCode.findById(req.params.id);
+        if (!discountCode) return res.status(404).json({ message: "Discount code not found" });
+
+        discountCode.isActive = false;
+        await discountCode.save();
+        res.json({ message: "Discount code deactivated", discountCode });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -1,4 +1,18 @@
 import nodemailer from "nodemailer";
+import { getOTPExpirySeconds } from "./otpHelper.js";
+
+let cachedTransporter = null;
+
+const formatOtpValidityLabel = (seconds) => {
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 300;
+
+  if (safeSeconds % 60 === 0) {
+    const minutes = safeSeconds / 60;
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  return `${safeSeconds} second${safeSeconds === 1 ? "" : "s"}`;
+};
 
 const trimTrailingSlash = (value = "") => String(value || "").trim().replace(/\/+$/, "");
 
@@ -44,6 +58,10 @@ const buildClientUrl = (path = "/", overrideBaseUrl = "") => {
 
 // Create reusable transporter
 const createTransporter = () => {
+  if (cachedTransporter) {
+    return cachedTransporter;
+  }
+
   // For development, use ethereal.email or Gmail
   // For production, use a proper email service like SendGrid, AWS SES, etc.
   
@@ -60,19 +78,22 @@ const createTransporter = () => {
   
   if (process.env.EMAIL_HOST && process.env.EMAIL_PORT) {
     // Production configuration
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT),
       secure: process.env.EMAIL_SECURE === 'true',
+      pool: true,
       auth: {
         user: emailUser,
         pass: emailPassword,
       },
     });
+    return cachedTransporter;
   } else {
     // Development fallback - use Gmail with enhanced settings
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
       service: 'gmail',
+      pool: true,
       auth: {
         user: emailUser,
         pass: emailPassword,
@@ -81,6 +102,7 @@ const createTransporter = () => {
         rejectUnauthorized: false,
       },
     });
+    return cachedTransporter;
   }
 };
 
@@ -104,10 +126,7 @@ export const sendOTPEmail = async (email, name, otp) => {
     
     console.log(`Sending OTP email to ${email}...`);
     const transporter = createTransporter();
-    
-    // Verify transporter connection
-    await transporter.verify();
-    console.log('Email service verified successfully');
+    const otpValidityLabel = formatOtpValidityLabel(getOTPExpirySeconds());
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
@@ -142,7 +161,7 @@ export const sendOTPEmail = async (email, name, otp) => {
                 <div class="otp-code">${otp}</div>
               </div>
               
-              <p>This code will expire in <strong>10 minutes</strong>.</p>
+              <p>This code will expire in <strong>${otpValidityLabel}</strong>.</p>
               <p>If you didn't create an account with ckript, please ignore this email.</p>
               
               <p>Best regards,<br>The ckript Team</p>
@@ -155,7 +174,7 @@ export const sendOTPEmail = async (email, name, otp) => {
         </body>
         </html>
       `,
-      text: `Hi ${name},\n\nThank you for signing up with ckript! Your verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you didn't create an account with ckript, please ignore this email.\n\nBest regards,\nThe ckript Team`,
+      text: `Hi ${name},\n\nThank you for signing up with ckript! Your verification code is: ${otp}\n\nThis code will expire in ${otpValidityLabel}.\n\nIf you didn't create an account with ckript, please ignore this email.\n\nBest regards,\nThe ckript Team`,
     };
 
     const info = await transporter.sendMail(mailOptions);

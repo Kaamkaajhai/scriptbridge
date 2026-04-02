@@ -11,8 +11,7 @@ const ContactPage = lazy(() => import("./pages/ContactPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PolicyPage"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const RegistrationPrivacyPolicy = lazy(() => import("./pages/RegistrationPrivacyPolicy"));
-const WriterTermsConditions = lazy(() => import("./pages/WriterTermsConditions"));
-const InvestorTermsConditions = lazy(() => import("./pages/InvestorTermsConditions"));
+const TermsConditions = lazy(() => import("./pages/TermsConditions"));
 const ScriptUploadTermsConditions = lazy(() => import("./pages/ScriptUploadTermsConditions"));
 const Login = lazy(() => import("./pages/Login"));
 const Join = lazy(() => import("./pages/Join"));
@@ -118,8 +117,9 @@ function App() {
               <Route path="/t-and-c" element={<TermsOfService />} />
               <Route path="/registration-privacy-policy" element={<RegistrationPrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
-              <Route path="/writer-terms" element={<WriterTermsConditions />} />
-              <Route path="/investor-terms" element={<InvestorTermsConditions />} />
+              <Route path="/terms-conditions" element={<TermsConditions />} />
+              <Route path="/writer-terms" element={<Navigate to="/terms-conditions?tab=writer" replace />} />
+              <Route path="/investor-terms" element={<Navigate to="/terms-conditions?tab=investor" replace />} />
               <Route path="/script-upload-terms" element={<ScriptUploadTermsConditions />} />
               <Route path="/login" element={<Login />} />
               <Route path="/join" element={<RoleSelection />} />

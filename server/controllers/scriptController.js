@@ -2397,6 +2397,12 @@ export const trackScriptInteraction = async (req, res) => {
       return res.status(404).json({ message: "Script not found" });
     }
 
+    if (type === "read") {
+      await User.findByIdAndUpdate(req.user._id, {
+        $addToSet: { scriptsRead: script._id },
+      });
+    }
+
     await trackInvestorInteraction({
       userId: req.user._id,
       scriptId: req.params.id,
