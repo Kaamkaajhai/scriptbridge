@@ -193,7 +193,10 @@ export const getWriters = async (req, res) => {
     ];
 
     // Base match: include both writer and creator accounts
-    const matchStage = { role: { $in: ["writer", "creator"] } };
+    const matchStage = {
+      role: { $in: ["writer", "creator"] },
+      isDeactivated: { $ne: true },
+    };
 
     if (blockedUserIds.length > 0) {
       matchStage._id = { $nin: blockedUserIds };
@@ -341,7 +344,7 @@ export const getUserProfile = async (req, res) => {
     let blockedByProfile = false;
 
     if (!isOwnProfile) {
-      const currentUser = await User.findById(req.user._id).select("blockedUsers");
+      const currentUser = await User.findById(req.user._id).select("blockedUsers role");
       blockedByCurrent = currentUser?.blockedUsers?.some((uid) => uid.toString() === req.params.id.toString()) || false;
       blockedByProfile = user?.blockedUsers?.some((uid) => uid.toString() === req.user._id.toString()) || false;
 
@@ -349,6 +352,26 @@ export const getUserProfile = async (req, res) => {
         return res.status(403).json({
           message: "This user has blocked you.",
           blocked: true,
+          blockedByCurrent,
+          blockedByProfile,
+        });
+      }
+
+      if (user?.isDeactivated && String(currentUser?.role || "").toLowerCase() !== "admin") {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const viewerId = req.user?._id?.toString();
+      const isFollower = (user?.followers || []).some((follower) => {
+        const followerId = follower?._id?.toString?.() || follower?.toString?.();
+        return followerId === viewerId;
+      });
+      const isAdminViewer = String(currentUser?.role || "").toLowerCase() === "admin";
+
+      if (user?.isPrivate && !isFollower && !isAdminViewer) {
+        return res.status(403).json({
+          message: "This account is private.",
+          privateAccount: true,
           blockedByCurrent,
           blockedByProfile,
         });
@@ -1229,11 +1252,35 @@ export const verifyEmailVerificationCode = async (req, res) => {
 
 export const deleteAccount = async (req, res) => {
   try {
+    const reason = String(req.body?.reason || "").trim();
+    if (reason.length < 5) {
+      return res.status(400).json({ message: "Please provide a valid reason (minimum 5 characters)." });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    if (String(user.role || "").toLowerCase() === "admin") {
+      return res.status(403).json({ message: "Admin accounts cannot be deleted from profile settings." });
+    }
+
+    if (user.isDeactivated) {
+      return res.json({ message: "Account already deleted" });
+    }
+
     // Soft-delete: deactivate account rather than hard-delete
     const now = new Date();
+    const originalName = String(user.name || "").trim();
+    const originalEmail = String(user.email || "").trim();
+
+    user.accountDeletion = {
+      reason,
+      requestedAt: now,
+      source: "user",
+      originalName,
+      originalEmail,
+    };
+
     user.isFrozen = true;
     user.frozenAt = now;
     user.frozenReason = "Account deleted by user";
@@ -1241,10 +1288,56 @@ export const deleteAccount = async (req, res) => {
     user.isDeactivated = true;
     user.deactivatedAt = now;
     user.deactivatedBy = req.user._id;
-    user.email = `deleted_${user._id}@deleted.local`;
+    user.isPrivate = true;
+    user.name = "Deleted User";
+    user.bio = "";
+    user.phone = "";
+    user.address = undefined;
+    user.skills = [];
+    user.profileImage = "";
+    user.coverImage = "";
+    user.followers = [];
+    user.following = [];
+    user.blockedUsers = [];
+    user.favoriteScripts = [];
     user.pendingEmail = undefined;
     user.emailVerified = false;
+    user.email = `deleted_${user._id}@deleted.local`;
     await user.save();
+
+    await Promise.all([
+      User.updateMany(
+        { _id: { $ne: user._id } },
+        {
+          $pull: {
+            followers: user._id,
+            following: user._id,
+            blockedUsers: user._id,
+          },
+        }
+      ),
+      Script.updateMany(
+        { creator: user._id, isDeleted: { $ne: true } },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: now,
+          },
+        }
+      ),
+    ]);
+
+    const admins = await User.find({ role: "admin", isDeactivated: { $ne: true } }).select("_id").lean();
+    if (admins.length > 0) {
+      await Notification.insertMany(
+        admins.map((admin) => ({
+          user: admin._id,
+          from: req.user._id,
+          type: "admin_alert",
+          message: `Account deletion request from ${originalName || "a user"}: ${reason}`,
+        }))
+      ).catch(() => null);
+    }
 
     res.json({ message: "Account deleted successfully" });
   } catch (error) {

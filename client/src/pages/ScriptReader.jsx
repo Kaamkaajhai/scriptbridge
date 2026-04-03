@@ -536,11 +536,14 @@ const ScriptReader = () => {
                           const a = angleStep * i - Math.PI / 2;
                           const lx = cx + (rr + 22) * Math.cos(a);
                           const ly = cy + (rr + 22) * Math.sin(a);
+                          const axisX = Math.cos(a);
+                          const labelAnchor = axisX > 0.2 ? "end" : axisX < -0.2 ? "start" : "middle";
+                          const labelX = lx + (axisX > 0.2 ? -4 : axisX < -0.2 ? 4 : 0);
                           return (
                             <g key={i}>
                               <circle cx={p.x} cy={p.y} r="4" fill={dims[i].color}
                                 stroke={dk ? "#0d1829" : "#ffffff"} strokeWidth="2" />
-                              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+                              <text x={labelX} y={ly} textAnchor={labelAnchor} dominantBaseline="middle"
                                 style={{ fontSize: 8.5, fontWeight: 700, fill: dk ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
                                 {dims[i].label}
                               </text>
@@ -559,24 +562,34 @@ const ScriptReader = () => {
                         const gridLines = [0, 25, 50, 75, 100];
                         const gridColor = dk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
                         const labelColor = dk ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
-                        const slotW = 220 / bars.length;
-                        const barW = Math.min(slotW * 0.58, 28);
+                        const chartWidth = 308;
+                        const chartPadLeft = 26;
+                        const chartPadRight = 8;
+                        const plotWidth = chartWidth - chartPadLeft - chartPadRight;
+                        const slotW = plotWidth / bars.length;
+                        const barW = Math.min(slotW * 0.56, 30);
                         return (
-                          <svg viewBox={`0 0 240 ${barH + 44}`} className="w-full">
+                          <svg viewBox={`0 0 ${chartWidth} ${barH + 56}`} className="w-full">
                             {gridLines.map(v => {
                               const y = barH - (v / 100) * barH + 4;
                               return (
                                 <g key={v}>
-                                  <line x1="24" y1={y} x2="238" y2={y} stroke={gridColor} strokeWidth={v === 0 ? "1.5" : "1"} strokeDasharray={v === 0 ? "" : "3,3"} />
-                                  <text x="18" y={y + 3.5} textAnchor="end" style={{ fontSize: 7.5, fontWeight: 600, fill: labelColor }}>{v}</text>
+                                  <line x1={chartPadLeft} y1={y} x2={chartWidth - chartPadRight} y2={y} stroke={gridColor} strokeWidth={v === 0 ? "1.5" : "1"} strokeDasharray={v === 0 ? "" : "3,3"} />
+                                  <text x={chartPadLeft - 6} y={y + 3.5} textAnchor="end" style={{ fontSize: 8, fontWeight: 600, fill: labelColor }}>{v}</text>
                                 </g>
                               );
                             })}
                             {bars.map((d, i) => {
                               const val = sc[d.key] || 0;
                               const filledH = (val / 100) * barH;
-                              const x = 24 + i * slotW + (slotW - barW) / 2;
+                              const slotCenterX = chartPadLeft + i * slotW + slotW / 2;
+                              const x = slotCenterX - barW / 2;
                               const y = barH - filledH + 4;
+                              const isFirst = i === 0;
+                              const isLast = i === bars.length - 1;
+                              const labelAnchor = isFirst ? "start" : isLast ? "end" : "middle";
+                              const labelX = isFirst ? slotCenterX - 8 : isLast ? slotCenterX + 8 : slotCenterX;
+                              const labelY = barH + 18 + (i % 2 === 0 ? 0 : 10);
                               return (
                                 <g key={d.key}>
                                   <rect x={x} y={4} width={barW} height={barH} rx="4"
@@ -587,8 +600,8 @@ const ScriptReader = () => {
                                   </rect>
                                   <text x={x + barW / 2} y={y - 4} textAnchor="middle"
                                     style={{ fontSize: 8, fontWeight: 800, fill: dk ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)" }}>{val}</text>
-                                  <text x={x + barW / 2} y={barH + 18} textAnchor="middle"
-                                    style={{ fontSize: 7, fontWeight: 700, fill: d.color }}>{d.label}</text>
+                                  <text x={labelX} y={labelY} textAnchor={labelAnchor}
+                                    style={{ fontSize: 8, fontWeight: 700, fill: d.color }}>{d.label}</text>
                                 </g>
                               );
                             })}
@@ -876,6 +889,7 @@ const ScriptReader = () => {
               <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Script Info</h3>
               <div className="space-y-2.5">
                 {[
+                  { label: "Company Name", value: script.companyName, preserveCase: true },
                   { label: "Genre", value: script.genre },
                   { label: "Content Type", value: script.contentType?.replace(/_/g, " ") },
                   { label: "Format", value: script.format?.replace(/_/g, " ") },
@@ -885,7 +899,7 @@ const ScriptReader = () => {
                 ].filter((i) => i.value).map((i) => (
                   <div key={i.label} className={`flex justify-between items-center py-2 border-b last:border-0 ${dark ? "border-[#333]" : "border-gray-50"}`}>
                     <span className="text-xs text-gray-400 font-bold">{i.label}</span>
-                    <span className={`text-xs font-bold capitalize ${dark ? "text-gray-200" : "text-gray-700"}`}>{i.value}</span>
+                    <span className={`text-xs font-bold ${i.preserveCase ? "" : "capitalize"} ${dark ? "text-gray-200" : "text-gray-700"}`}>{i.value}</span>
                   </div>
                 ))}
               </div>

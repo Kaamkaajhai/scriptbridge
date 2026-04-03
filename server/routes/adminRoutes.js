@@ -4,6 +4,7 @@ import adminOnly from "../middleware/adminMiddleware.js";
 import {
     getStats,
     getUsers,
+    getDeletedAccountRequests,
     freezeUserAccount,
     unfreezeUserAccount,
     deleteUserAccountAsAdmin,
@@ -54,6 +55,7 @@ router.get("/alerts/summary", getAdminAlertSummary);
 
 // Users
 router.get("/users", getUsers);
+router.get("/users/deleted-requests", getDeletedAccountRequests);
 router.put("/users/:id/freeze", freezeUserAccount);
 router.put("/users/:id/unfreeze", unfreezeUserAccount);
 router.delete("/users/:id", deleteUserAccountAsAdmin);

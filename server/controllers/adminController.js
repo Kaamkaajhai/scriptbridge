@@ -227,7 +227,68 @@ const buildAdminManagedUserSummary = (user) => ({
     isDeactivated: Boolean(user.isDeactivated),
     deactivatedAt: user.deactivatedAt,
     creditsBalance: Number(user?.credits?.balance || 0),
+    accountDeletionReason: String(user?.accountDeletion?.reason || ""),
+    accountDeletionSource: String(user?.accountDeletion?.source || ""),
+    accountDeletionRequestedAt: user?.accountDeletion?.requestedAt,
+    accountDeletionOriginalName: String(user?.accountDeletion?.originalName || ""),
+    accountDeletionOriginalEmail: String(user?.accountDeletion?.originalEmail || ""),
 });
+
+export const getDeletedAccountRequests = async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = "" } = req.query;
+        const pageNumber = Math.max(Number(page) || 1, 1);
+        const pageLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+
+        const filter = {
+            role: { $ne: "admin" },
+            isDeactivated: true,
+        };
+
+        const trimmedSearch = String(search || "").trim();
+        if (trimmedSearch) {
+            filter.$or = [
+                { sid: { $regex: trimmedSearch, $options: "i" } },
+                { name: { $regex: trimmedSearch, $options: "i" } },
+                { email: { $regex: trimmedSearch, $options: "i" } },
+                { "accountDeletion.originalName": { $regex: trimmedSearch, $options: "i" } },
+                { "accountDeletion.originalEmail": { $regex: trimmedSearch, $options: "i" } },
+                { "accountDeletion.reason": { $regex: trimmedSearch, $options: "i" } },
+            ];
+        }
+
+        const total = await User.countDocuments(filter);
+        const users = await User.find(filter)
+            .select("sid name email role deactivatedAt deactivatedBy accountDeletion isFrozen frozenAt frozenReason")
+            .sort({ deactivatedAt: -1, updatedAt: -1 })
+            .skip((pageNumber - 1) * pageLimit)
+            .limit(pageLimit)
+            .lean();
+
+        const rows = users.map((user) => ({
+            _id: user._id,
+            sid: user.sid || "",
+            role: user.role || "",
+            name: user.accountDeletion?.originalName || user.name || "",
+            email: user.accountDeletion?.originalEmail || user.email || "",
+            reason: user.accountDeletion?.reason || "",
+            source: user.accountDeletion?.source || "user",
+            requestedAt: user.accountDeletion?.requestedAt || user.deactivatedAt,
+            deactivatedAt: user.deactivatedAt,
+            frozenReason: user.frozenReason || "",
+            isFrozen: Boolean(user.isFrozen),
+        }));
+
+        res.json({
+            requests: rows,
+            total,
+            page: pageNumber,
+            totalPages: Math.ceil(total / pageLimit),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 export const freezeUserAccount = async (req, res) => {
     try {
@@ -374,6 +435,7 @@ export const grantCreditsToUser = async (req, res) => {
 
 export const deleteUserAccountAsAdmin = async (req, res) => {
     try {
+        const reason = String(req.body?.reason || "").trim();
         const targetUser = await User.findById(req.params.id);
         if (!targetUser) return res.status(404).json({ message: "User not found" });
 
@@ -393,6 +455,16 @@ export const deleteUserAccountAsAdmin = async (req, res) => {
         }
 
         const now = new Date();
+        const originalName = String(targetUser.name || "").trim();
+        const originalEmail = String(targetUser.email || "").trim();
+
+        targetUser.accountDeletion = {
+            reason: reason || "Account deleted by admin",
+            requestedAt: now,
+            source: "admin",
+            originalName,
+            originalEmail,
+        };
         targetUser.isDeactivated = true;
         targetUser.deactivatedAt = now;
         targetUser.deactivatedBy = req.user._id;
@@ -400,15 +472,45 @@ export const deleteUserAccountAsAdmin = async (req, res) => {
         targetUser.frozenAt = now;
         targetUser.frozenReason = "Account deleted by admin";
         targetUser.frozenBy = req.user._id;
+        targetUser.isPrivate = true;
+        targetUser.name = "Deleted User";
         targetUser.phone = "";
         targetUser.address = undefined;
         targetUser.bio = "";
+        targetUser.skills = [];
         targetUser.profileImage = "";
+        targetUser.coverImage = "";
+        targetUser.followers = [];
+        targetUser.following = [];
+        targetUser.blockedUsers = [];
+        targetUser.favoriteScripts = [];
         targetUser.pendingEmail = undefined;
         targetUser.emailVerified = false;
         targetUser.email = `deleted_${targetUser._id}@deleted.local`;
 
         await targetUser.save();
+
+        await Promise.all([
+            User.updateMany(
+                { _id: { $ne: targetUser._id } },
+                {
+                    $pull: {
+                        followers: targetUser._id,
+                        following: targetUser._id,
+                        blockedUsers: targetUser._id,
+                    },
+                }
+            ),
+            Script.updateMany(
+                { creator: targetUser._id, isDeleted: { $ne: true } },
+                {
+                    $set: {
+                        isDeleted: true,
+                        deletedAt: now,
+                    },
+                }
+            ),
+        ]);
 
         res.json({
             message: "User account deleted successfully",

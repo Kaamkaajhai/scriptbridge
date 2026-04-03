@@ -438,6 +438,7 @@ export const saveDraft = async (req, res) => {
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
+      if (otherData.companyName !== undefined) script.companyName = String(otherData.companyName || "").trim();
       if (otherData.logline !== undefined) script.logline = otherData.logline;
       if (otherData.synopsis !== undefined) {
         script.synopsis = otherData.synopsis;
@@ -789,6 +790,7 @@ export const uploadScript = async (req, res) => {
     const {
       scriptId,
       title,
+      companyName,
       logline,
       format,
       formatOther,
@@ -914,6 +916,7 @@ export const uploadScript = async (req, res) => {
     const scriptData = {
       creator: req.user._id,
       title,
+      companyName: String(companyName || "").trim(),
       logline: logline ? String(logline).trim() : "",
       description: synopsis,
       synopsis: synopsis,

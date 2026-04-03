@@ -308,6 +308,13 @@ const userSchema = new mongoose.Schema({
   isDeactivated: { type: Boolean, default: false },
   deactivatedAt: { type: Date },
   deactivatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  accountDeletion: {
+    reason: { type: String, default: "" },
+    requestedAt: { type: Date },
+    source: { type: String, enum: ["user", "admin"], default: "user" },
+    originalName: { type: String, default: "" },
+    originalEmail: { type: String, default: "" },
+  },
 }, { timestamps: true });
 
 userSchema.pre("validate", async function () {

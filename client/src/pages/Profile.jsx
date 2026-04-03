@@ -12,6 +12,7 @@ import Transactions from "../components/Transactions";
 import SocialShareButton from "../components/SocialShareButton";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { formatCurrency } from "../utils/currency";
+import { applyLanguagePreference } from "../utils/languagePreference";
 
 /* â”€â”€ Helper components â”€â”€ */
 
@@ -146,7 +147,7 @@ const Profile = () => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user: currentUser, setUser } = useContext(AuthContext);
+  const { user: currentUser, setUser, logout } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
 
   const [profile, setProfile] = useState(null);
@@ -186,6 +187,10 @@ const Profile = () => {
   const [sendingVerificationCode, setSendingVerificationCode] = useState(false);
   const [verifyingEmailCode, setVerifyingEmailCode] = useState(false);
   const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountReason, setDeleteAccountReason] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [profileAccessMessage, setProfileAccessMessage] = useState("");
   const isFetchingProfileRef = useRef(false);
   const bookmarkRefreshTimerRef = useRef(null);
   const tabInitializedForProfileRef = useRef(null);
@@ -199,6 +204,7 @@ const Profile = () => {
       if (!silent) setLoading(true);
 
       const { data } = await api.get(`/users/${profileId}`);
+      setProfileAccessMessage("");
       setProfile(data.user);
       setScripts((data.scripts || []).filter((s) => s.status !== "draft" && !s.isDeleted));
       setDeletedScripts(data.deletedScripts || []);
@@ -217,6 +223,24 @@ const Profile = () => {
         tabInitializedForProfileRef.current = data.user._id;
       }
     } catch (error) {
+      const status = error?.response?.status;
+      const serverMessage = error?.response?.data?.message;
+      const isPrivateAccount = Boolean(error?.response?.data?.privateAccount);
+      const isBlockedView = Boolean(error?.response?.data?.blockedByProfile);
+
+      if (status === 403 && isPrivateAccount) {
+        setProfile(null);
+        setProfileAccessMessage(serverMessage || "This account is private.");
+      } else if (status === 403 && isBlockedView) {
+        setProfile(null);
+        setProfileAccessMessage(serverMessage || "This user has blocked you.");
+      } else if (status === 404) {
+        setProfile(null);
+        setProfileAccessMessage("User not found");
+      } else {
+        setProfile(null);
+        setProfileAccessMessage("Unable to load profile right now.");
+      }
       console.error("Error fetching profile:", error);
     } finally {
       isFetchingProfileRef.current = false;
@@ -392,6 +416,29 @@ const Profile = () => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    const reason = deleteAccountReason.trim();
+    if (reason.length < 5) {
+      setSettingsErr("Please share a short reason (minimum 5 characters).");
+      return;
+    }
+
+    try {
+      setDeletingAccount(true);
+      setSettingsErr("");
+      await api.delete("/users/account", { data: { reason } });
+      setShowDeleteAccountModal(false);
+      setDeleteAccountReason("");
+      setSettingsMsg("Account deleted successfully");
+      logout();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      setSettingsErr(error.response?.data?.message || "Failed to delete account");
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   const openConnectionsModal = (type) => {
     setConnectionsType(type);
     setShowConnectionsModal(true);
@@ -498,7 +545,7 @@ const Profile = () => {
           className={`text-sm font-semibold ${dark ? "text-white/30" : "text-gray-400"
             }`}
         >
-          User not found
+          {profileAccessMessage || "User not found"}
         </p>
       </div>
     );
@@ -1769,7 +1816,7 @@ const Profile = () => {
           {/* Notification Preferences */}
           <SectionCard dark={dark} title="Notification Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>}>
             <div className="space-y-2.5">
-              {[{ key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "When a new script matches your mandates" }, { key: "holdAlerts", label: "Hold Alerts", desc: "Option hold status updates" }, { key: "viewAlerts", label: "View Alerts", desc: "When someone views your profile" }, { key: "auditionAlerts", label: "Audition Alerts", desc: "New audition opportunities" }].map((pref) => (
+              {[{ key: "smartMatchAlerts", label: "Smart Match Alerts", desc: "When a new script matches your mandates" }, { key: "holdAlerts", label: "Hold Alerts", desc: "Option hold status updates" }, { key: "viewAlerts", label: "View Alerts", desc: "When someone views your profile" }].map((pref) => (
                 <div key={pref.key} className={`flex items-center justify-between py-2.5 px-3 rounded-xl ${dark ? "bg-white/[0.02]" : "bg-gray-50/60"}`}>
                   <div><p className={`text-[13px] font-semibold ${dark ? "text-white/65" : "text-gray-700"}`}>{pref.label}</p><p className={`text-[11px] ${dark ? "text-white/25" : "text-gray-400"}`}>{pref.desc}</p></div>
                   <button onClick={async () => { const nv = !profile.notificationPrefs?.[pref.key]; try { await api.put("/users/settings", { notificationPrefs: { [pref.key]: nv } }); setProfile({ ...profile, notificationPrefs: { ...profile.notificationPrefs, [pref.key]: nv } }); } catch (e) { setSettingsErr("Failed"); } }}
@@ -1781,36 +1828,12 @@ const Profile = () => {
             </div>
           </SectionCard>
 
-          {/* Content Preferences + Subscription */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <SectionCard dark={dark} title="Content Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}>
-              <div className="space-y-3">
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Preferred Genres</p>
-                  {profile.preferences?.genres?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.genres.map((g, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${t.genreChip}`}>{g}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No genres selected</p>)}
-                </div>
-                <InfoRow dark={dark} label="Budget Range" value={profile.preferences?.budgetRange ? `${formatCurrency(profile.preferences.budgetRange.min || 0, "INR")} - ${formatCurrency(profile.preferences.budgetRange.max || 0, "INR")}` : <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
-                <div>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Content Types</p>
-                  {profile.preferences?.contentTypes?.length > 0 ? (<div className="flex flex-wrap gap-1.5">{profile.preferences.contentTypes.map((ct, i) => (<span key={i} className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border capitalize ${t.chip}`}>{ct.replace(/_/g, " ")}</span>))}</div>) : (<p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No content types selected</p>)}
-                </div>
-              </div>
-            </SectionCard>
-            <SectionCard dark={dark} title="Subscription" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between"><span className={`text-[13px] ${dark ? "text-white/35" : "text-gray-400"}`}>Plan</span><span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border uppercase ${profile.subscription?.plan === "enterprise" ? dark ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-purple-50 text-purple-700 border-purple-200" : profile.subscription?.plan === "pro" ? dark ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200" : dark ? "bg-white/[0.04] text-white/45 border-white/[0.06]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>{profile.subscription?.plan || "free"}</span></div>
-                <InfoRow dark={dark} label="Script Score Credits" value={profile.subscription?.scriptScoreCredits || 0} />
-                {profile.subscription?.expiresAt && (<InfoRow dark={dark} label="Expires" value={new Date(profile.subscription.expiresAt).toLocaleDateString()} />)}
-              </div>
-            </SectionCard>
-          </div>
-
           {/* Localization */}
           <SectionCard dark={dark} title="Localization" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 003 12c0-1.605.42-3.113 1.157-4.418" /></svg>}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
-                <select value={profile.language || "en"} onChange={async (e) => { try { await api.put("/users/settings", { language: e.target.value }); setProfile({ ...profile, language: e.target.value }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
+                <select value={profile.language || "en"} onChange={async (e) => { const nextLanguage = e.target.value; try { await api.put("/users/settings", { language: nextLanguage }); setProfile({ ...profile, language: nextLanguage }); if (currentUser) { const updatedUser = { ...currentUser, language: nextLanguage }; setUser(updatedUser); localStorage.setItem("user", JSON.stringify(updatedUser)); } await applyLanguagePreference(nextLanguage, { forceReload: true }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
                   className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
                   <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option>
                 </select>
@@ -1830,7 +1853,7 @@ const Profile = () => {
             {blockedUsers.length === 0 ? (
               <p className={`text-[12px] italic ${dark ? "text-white/25" : "text-gray-400"}`}>No blocked users.</p>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                 {blockedUsers.map((u) => (
                   <div key={u._id} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -1871,7 +1894,7 @@ const Profile = () => {
                   No deleted projects yet.
                 </p>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                   {deletedScripts.map((script) => (
                     <div
                       key={script._id}
@@ -1918,9 +1941,51 @@ const Profile = () => {
           <SectionCard dark={dark} title="Danger Zone" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}>
             <div className={`flex items-center justify-between py-3 px-4 rounded-xl border ${dark ? "border-red-500/15 bg-red-500/[0.03]" : "border-red-100 bg-red-50/40"}`}>
               <div><p className={`text-[13px] font-semibold ${dark ? "text-red-400/80" : "text-red-600"}`}>Delete Account</p><p className={`text-[11px] ${dark ? "text-red-400/30" : "text-red-400"}`}>Permanently delete your account and all data</p></div>
-              <button className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}>Delete</button>
+              <button
+                onClick={() => setShowDeleteAccountModal(true)}
+                className={`px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-colors ${dark ? "border-red-500/30 text-red-400/70 hover:bg-red-500/10" : "border-red-200 text-red-500 hover:bg-red-50"}`}
+              >
+                Delete
+              </button>
             </div>
           </SectionCard>
+
+          {showDeleteAccountModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 p-4 flex items-center justify-center" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}>
+              <div
+                className={`w-full max-w-md rounded-2xl border p-5 ${dark ? "bg-[#0d1520] border-white/[0.08]" : "bg-white border-gray-200"}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className={`text-[15px] font-extrabold mb-1 ${dark ? "text-white" : "text-gray-900"}`}>Delete Account</h3>
+                <p className={`text-[12px] mb-3 ${dark ? "text-white/40" : "text-gray-500"}`}>
+                  Share the reason for deletion. This is visible to admin, and your account will be hidden across the platform.
+                </p>
+                <textarea
+                  value={deleteAccountReason}
+                  onChange={(e) => setDeleteAccountReason(e.target.value)}
+                  rows={4}
+                  placeholder="Please tell us why you are deleting your account..."
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-[13px] border outline-none resize-none ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80 placeholder:text-white/20" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400"}`}
+                />
+                <div className="mt-4 flex items-center justify-end gap-2.5">
+                  <button
+                    onClick={() => setShowDeleteAccountModal(false)}
+                    disabled={deletingAccount}
+                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors disabled:opacity-50 ${dark ? "bg-white/[0.06] text-white/65 hover:bg-white/[0.1]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deletingAccount || deleteAccountReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-colors disabled:opacity-50 ${dark ? "bg-red-500/20 text-red-300 hover:bg-red-500/30" : "bg-red-500 text-white hover:bg-red-600"}`}
+                  >
+                    {deletingAccount ? "Deleting..." : "Delete Account"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 

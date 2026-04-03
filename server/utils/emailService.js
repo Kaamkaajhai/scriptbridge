@@ -655,14 +655,21 @@ export const sendAdminWorkflowAlertEmail = async ({ title, section, message, met
     const safeTitle = String(title || "Admin Workflow Alert").trim();
     const safeSection = String(section || "admin").trim();
     const safeMessage = String(message || "A new admin workflow item was created.").trim();
+    const combinedAlertText = `${safeTitle} ${safeMessage}`.toLowerCase();
     const normalizedSection = safeSection.toLowerCase();
     const trailerRelated =
       normalizedSection.includes("trailer") ||
-      `${safeTitle} ${safeMessage}`.toLowerCase().includes("trailer");
+      combinedAlertText.includes("trailer");
+    const projectSpotlightActivatedRelated =
+      combinedAlertText.includes("project spotlight activated");
 
     // Do not send trailer-related alerts to the company inbox alias requested by the user.
     if (companyEmail === "info.ckript@gmail.com" && trailerRelated) {
       return { success: true, skipped: true, reason: "trailer-alert-blocked-for-company-email" };
+    }
+
+    if (companyEmail === "info.ckript@gmail.com" && projectSpotlightActivatedRelated) {
+      return { success: true, skipped: true, reason: "spotlight-activation-alert-blocked-for-company-email" };
     }
 
     const rows = Object.entries(metadata || {})

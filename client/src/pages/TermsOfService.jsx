@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Film, FileText, ChevronRight } from "lucide-react";
+import { FileText, ChevronRight } from "lucide-react";
+import BrandLogo from "../components/BrandLogo";
 
 const LAST_UPDATED = "March 12, 2026";
 const EFFECTIVE_DATE = "March 12, 2026";
@@ -199,12 +200,7 @@ export default function TermsOfService() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <Film className="w-7 h-7 text-cyan-400" />
-            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              Ckript
-            </span>
-          </Link>
+          <BrandLogo className="h-9 w-auto" />
           <button
             type="button"
             onClick={handleBack}

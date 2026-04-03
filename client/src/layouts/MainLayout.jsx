@@ -1,5 +1,5 @@
 import { useContext, useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
@@ -11,6 +11,7 @@ import api from "../services/api";
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDarkMode } = useDarkMode();
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -36,6 +37,9 @@ const MainLayout = ({ children }) => {
   const showCreditSystem = Boolean(user) && user?.role !== "investor" && user?.role !== "reader";
   const topBarHomePath = user?.role === "reader" ? "/reader" : "/dashboard";
   const topBarHomeLabel = user?.role === "reader" ? "Reader Home" : "Dashboard";
+  const topBarProfilePath = user?.role === "reader"
+    ? `/reader/profile/${user?._id || ""}`
+    : `/profile/${user?._id || ""}`;
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -179,6 +183,18 @@ const MainLayout = ({ children }) => {
 
     return () => clearInterval(interval);
   }, [refreshHeaderState, user]);
+
+  useEffect(() => {
+    if (!showCreditSystem) return;
+    const params = new URLSearchParams(location.search || "");
+    if (params.get("openCredits") !== "1") return;
+
+    setShowBuyCredits(true);
+
+    params.delete("openCredits");
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
+  }, [location.pathname, location.search, navigate, showCreditSystem]);
 
   useEffect(() => {
     const isWriter = ["writer", "creator"].includes(user?.role);
@@ -838,7 +854,7 @@ const MainLayout = ({ children }) => {
 
             {dropdownOpen && (
               <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border py-1.5 z-[130] origin-top-right animate-scaleIn ${isDarkMode ? "bg-[#0d1520]/98 border-[#1c2a3a] backdrop-blur-xl" : "bg-white/98 border-gray-200/80 shadow-gray-300/50 backdrop-blur-xl"}`}>
-                <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
+                <button onClick={() => { navigate(topBarProfilePath); setDropdownOpen(false); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

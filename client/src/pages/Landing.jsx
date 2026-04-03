@@ -107,7 +107,7 @@ const ContactSection = () => {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="lg:col-span-3"
           >
-            <div className="bg-[#0d1520] border border-[#1c2a3a] rounded-xl p-5 sm:p-7">
+            <div className="bg-white border border-[#d8e2ee] rounded-xl p-5 sm:p-7 shadow-[0_12px_28px_rgba(8,22,42,0.08)]">
               <AnimatePresence mode="wait">
                 {submitted ? (
                   <motion.div
@@ -117,11 +117,11 @@ const ContactSection = () => {
                     exit={{ opacity: 0 }}
                     className="flex flex-col items-center justify-center text-center py-10 sm:py-14 gap-3"
                   >
-                    <div className="w-14 h-14 rounded-full bg-gray-400/10 flex items-center justify-center mb-1">
-                      <CheckCircle className="w-7 h-7 text-gray-400" />
+                    <div className="w-14 h-14 rounded-full bg-[#eef5ff] flex items-center justify-center mb-1">
+                      <CheckCircle className="w-7 h-7 text-[#2f5f90]" />
                     </div>
-                    <h3 className="text-xl font-bold text-white">Message Sent!</h3>
-                    <p className="text-[#8896a7] text-sm max-w-xs">
+                    <h3 className="text-xl font-bold text-[#0f2745]">Message Sent!</h3>
+                    <p className="text-[#5f748d] text-sm max-w-xs">
                       Thanks for reaching out. We'll get back to you within 24 hours.
                     </p>
                     <button
@@ -130,7 +130,7 @@ const ContactSection = () => {
                         setSubmitError("");
                         setForm({ reason: "", name: "", email: "", message: "" });
                       }}
-                      className="mt-3 px-5 py-2 rounded-lg border border-[#1c2a3a] text-[#8896a7] text-sm hover:text-white hover:border-[#2a3a4e] transition-colors"
+                      className="mt-3 px-5 py-2 rounded-lg border border-[#d4deea] text-[#5f748d] text-sm hover:text-[#0f2745] hover:border-[#b7c9dc] transition-colors"
                     >
                       Send another message
                     </button>
@@ -146,18 +146,18 @@ const ContactSection = () => {
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-[#6b7a8d]">Full Name</label>
+                        <label className="text-xs font-medium text-[#5f748d]">Full Name</label>
                         <input
                           name="name"
                           value={form.name}
                           onChange={handleChange}
                           required
                           placeholder="Jane Doe"
-                          className="bg-[#080e18] border border-[#1c2a3a] rounded-lg px-4 py-2.5 text-white text-sm placeholder-[#3a4a5e] focus:outline-none focus:border-gray-400/40 transition-colors"
+                          className="bg-[#f8fbff] border border-[#d4deea] rounded-lg px-4 py-2.5 text-[#0f2745] text-sm placeholder-[#8298b3] focus:outline-none focus:border-[#8fb0d3] transition-colors"
                         />
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-[#6b7a8d]">Email Address</label>
+                        <label className="text-xs font-medium text-[#5f748d]">Email Address</label>
                         <input
                           name="email"
                           type="email"
@@ -165,29 +165,29 @@ const ContactSection = () => {
                           onChange={handleChange}
                           required
                           placeholder="jane@example.com"
-                          className="bg-[#080e18] border border-[#1c2a3a] rounded-lg px-4 py-2.5 text-white text-sm placeholder-[#3a4a5e] focus:outline-none focus:border-gray-400/40 transition-colors"
+                          className="bg-[#f8fbff] border border-[#d4deea] rounded-lg px-4 py-2.5 text-[#0f2745] text-sm placeholder-[#8298b3] focus:outline-none focus:border-[#8fb0d3] transition-colors"
                         />
                       </div>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-[#6b7a8d]">Reason for Contact</label>
+                      <label className="text-xs font-medium text-[#5f748d]">Reason for Contact</label>
                       <select
                         name="reason"
                         value={form.reason}
                         onChange={handleChange}
                         required
-                        className="bg-[#080e18] border border-[#1c2a3a] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-gray-400/40 transition-colors appearance-none"
+                        className="bg-[#f8fbff] border border-[#d4deea] rounded-lg px-4 py-2.5 text-sm text-[#0f2745] focus:outline-none focus:border-[#8fb0d3] transition-colors appearance-none"
                       >
-                        <option value="" disabled className="text-[#3a4a5e]">Select a reason…</option>
+                        <option value="" disabled className="text-[#8298b3]">Select a reason…</option>
                         {contactReasons.map(({ value, label }) => (
-                          <option key={value} value={value} className="bg-[#0d1520]">{label}</option>
+                          <option key={value} value={value} className="bg-white text-[#0f2745]">{label}</option>
                         ))}
                       </select>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-medium text-[#6b7a8d]">Your Message</label>
+                      <label className="text-xs font-medium text-[#5f748d]">Your Message</label>
                       <textarea
                         name="message"
                         value={form.message}
@@ -195,12 +195,12 @@ const ContactSection = () => {
                         required
                         rows={4}
                         placeholder="Tell us what's on your mind…"
-                        className="bg-[#080e18] border border-[#1c2a3a] rounded-lg px-4 py-2.5 text-white text-sm placeholder-[#3a4a5e] resize-none focus:outline-none focus:border-gray-400/40 transition-colors"
+                        className="bg-[#f8fbff] border border-[#d4deea] rounded-lg px-4 py-2.5 text-[#0f2745] text-sm placeholder-[#8298b3] resize-none focus:outline-none focus:border-[#8fb0d3] transition-colors"
                       />
                     </div>
 
                     {submitError && (
-                      <div className="rounded-lg border border-red-500/25 bg-red-500/8 px-4 py-2.5 text-sm text-red-300">
+                      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
                         {submitError}
                       </div>
                     )}
@@ -337,35 +337,35 @@ const Landing = () => {
         transition={{ duration: 0.4, delay: index * 0.08 }}
         onClick={() => setActiveProcessStep(index)}
         className={`group relative overflow-hidden cursor-pointer transition-all duration-300 ${compact ? "rounded-xl p-3.5" : "rounded-2xl p-5 sm:p-6"} ${isActive
-          ? "border border-[#4d77a3] bg-[#13263d] shadow-[0_14px_34px_rgba(8,22,42,0.45)]"
-          : "border border-[#223a56] bg-[#102034] hover:border-[#365779] hover:bg-[#11243b]"
+          ? "border border-[#b8cde4] bg-white shadow-[0_14px_34px_rgba(8,22,42,0.14)]"
+          : "border border-[#d9e4f2] bg-white hover:border-[#b8cde4] hover:bg-[#f9fbff]"
         } ${extraClassName}`}
       >
-        <div className={`absolute inset-x-0 top-0 h-0.5 ${isActive ? "bg-[#8cb3d8]" : "bg-transparent"}`} />
+        <div className={`absolute inset-x-0 top-0 h-0.5 ${isActive ? "bg-[#7ea5cc]" : "bg-transparent"}`} />
 
         <div className={`flex items-center justify-between ${compact ? "mb-3" : "mb-5"}`}>
-          <span className={`${compact ? "text-xl" : "text-2xl"} font-bold leading-none ${isActive ? "text-[#c2d5eb]" : "text-[#a8bbd3]"}`}>{item.step}</span>
+          <span className={`${compact ? "text-xl" : "text-2xl"} font-bold leading-none ${isActive ? "text-[#1e3a5f]" : "text-[#7d93ad]"}`}>{item.step}</span>
           <span className={`inline-flex items-center rounded-full ${compact ? "px-2.5 py-0.5 text-[9px]" : "px-3 py-1 text-[10px]"} font-semibold tracking-[0.12em] uppercase ${isActive
-            ? "border border-[#4a739e] bg-[#173150] text-[#d1e0ef]"
-            : "border border-[#2b4562] bg-[#0d1a2c] text-[#9cb1cc]"
+            ? "border border-[#b9cfe6] bg-[#f1f6fc] text-[#365b84]"
+            : "border border-[#d3dfed] bg-[#f8fbff] text-[#6d85a0]"
           }`}>
             {item.stage}
           </span>
         </div>
 
         <div className={`${compact ? "w-8 h-8 mb-3" : "w-10 h-10 mb-4"} rounded-lg flex items-center justify-center ${isActive
-          ? "border border-[#4a739e] bg-[#173150]"
-          : "border border-[#284463] bg-[#14263d]"
+          ? "border border-[#b9cfe6] bg-[#eef4fb]"
+          : "border border-[#d3dfed] bg-[#f8fbff]"
         }`}>
-          <item.icon className={`${compact ? "w-4 h-4" : "w-5 h-5"} ${isActive ? "text-[#d3e2f2]" : "text-[#a7bdd7]"}`} />
+          <item.icon className={`${compact ? "w-4 h-4" : "w-5 h-5"} ${isActive ? "text-[#355b85]" : "text-[#6f88a5]"}`} />
         </div>
 
-        <h3 className={`${compact ? "text-base mb-1.5" : "text-lg mb-2"} font-bold text-white tracking-tight`}>{item.title}</h3>
-        <p className={`${compact ? "text-xs" : "text-sm"} text-[#94a9c3] leading-relaxed`}>{descText}</p>
+        <h3 className={`${compact ? "text-base mb-1.5" : "text-lg mb-2"} font-bold text-[#0f2745] tracking-tight`}>{item.title}</h3>
+        <p className={`${compact ? "text-xs" : "text-sm"} text-[#5e748d] leading-relaxed`}>{descText}</p>
 
         {!compact && (
-          <div className="mt-4 pt-4 border-t border-[#22374f]">
-            <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#9fb5d0]">
+          <div className="mt-4 pt-4 border-t border-[#dce5f0]">
+            <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5f7893]">
               <Clock3 className="w-3.5 h-3.5" />
               {item.note}
             </p>
@@ -534,6 +534,63 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* ── Credit Coupon Promotion ── */}
+      <section className="px-4 sm:px-6 -mt-6 sm:-mt-8 relative z-20">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.45 }}
+            className="relative overflow-hidden rounded-2xl border border-[#3a5f86] bg-[linear-gradient(120deg,#0a1a2f_0%,#133257_46%,#22527f_100%)] p-4 sm:p-5 md:p-6 shadow-[0_16px_34px_rgba(4,14,30,0.42)]"
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -top-16 -right-8 w-56 h-56 rounded-full bg-[radial-gradient(circle,rgba(166,211,255,0.28)_0%,rgba(166,211,255,0)_72%)]" />
+              <div className="absolute -bottom-24 left-8 w-72 h-72 rounded-full bg-[radial-gradient(circle,rgba(77,138,203,0.30)_0%,rgba(77,138,203,0)_74%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0)_58%)]" />
+            </div>
+
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="min-w-0">
+                <p className="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.12em] uppercase border border-[#4e78a8] bg-[#0d2139] text-[#cfe1f6]">
+                  Limited Credit Offer
+                </p>
+                <h3 className="mt-3 text-xl sm:text-2xl font-bold text-white tracking-tight">
+                  Use One-Time Coupon Code <span className="text-[#d9eaff]">WRITECOUPON</span>
+                </h3>
+                <p className="mt-1.5 text-sm sm:text-base text-[#b8cbe1]">
+                  Get <span className="font-semibold text-white">Rs 1,200 discount</span> on credits for <span className="font-semibold text-white">AI trailer generation</span> and <span className="font-semibold text-white">script evaluations</span>.
+                </p>
+
+                <div className="mt-3.5 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#3e6087] bg-[#0f2641] text-xs font-semibold text-[#c4d8ef]">
+                    <Film className="w-3.5 h-3.5 text-[#9fc1e4]" />
+                    AI Trailer Credits
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#3e6087] bg-[#0f2641] text-xs font-semibold text-[#c4d8ef]">
+                    <BookOpen className="w-3.5 h-3.5 text-[#9fc1e4]" />
+                    Evaluation Credits
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                <span className="inline-flex items-center px-4 py-2 rounded-xl border border-[#5f86b3] bg-[#0c223a] text-[#dbe9f8] text-sm font-black tracking-[0.16em]">
+                  WRITECOUPON
+                </span>
+                <Link
+                  to={user ? "/dashboard?openCredits=1" : "/join"}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-[#0a1525] transition-colors hover:bg-gray-200"
+                >
+                  {user ? "Open Credits" : "Claim Credits"}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* ── Problem & Solution ── */}
       <section className="py-20 sm:py-24 lg:py-28 px-4 sm:px-6 bg-[#0a1221]">
         <div className="max-w-6xl mx-auto">
@@ -567,22 +624,22 @@ const Landing = () => {
           </motion.div>
 
           {/* Two problem cards */}
-          <div className="grid md:grid-cols-2 gap-5 sm:gap-6 md:gap-0 mb-2 sm:mb-3 md:mb-0 md:relative md:z-40">
+          <div className="grid md:grid-cols-2 gap-5 sm:gap-6 md:gap-6 mb-6 sm:mb-7 md:mb-8 md:relative md:z-40">
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               whileHover={{ y: -2 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="rounded-2xl border border-[#22354d] bg-[#0d1a2c] p-5 sm:p-6 flex flex-col h-full md:relative md:z-40 md:mr-[-26px] md:translate-y-2 md:rotate-[-0.4deg]"
+              className="rounded-2xl border border-[#d7e1ee] bg-white p-5 sm:p-6 flex flex-col h-full md:relative md:z-40 shadow-[0_8px_24px_rgba(12,34,58,0.08)]"
             >
               <div className="flex items-center gap-3 mb-5 sm:mb-6">
-                <div className="w-10 h-10 rounded-xl bg-[#15243a] border border-[#2a3f5a] flex items-center justify-center shrink-0">
-                  <PenLine className="w-[17px] h-[17px] text-[#9fb2ca]" />
+                <div className="w-10 h-10 rounded-xl bg-[#edf4fd] border border-[#cdddef] flex items-center justify-center shrink-0">
+                  <PenLine className="w-[17px] h-[17px] text-[#2f5f90]" />
                 </div>
                 <div>
 
-                  <h3 className="text-xl sm:text-[1.4rem] font-bold text-white tracking-tight">For Creators</h3>
+                  <h3 className="text-xl sm:text-[1.4rem] font-bold text-[#0f2745] tracking-tight">For Creators</h3>
                 </div>
               </div>
 
@@ -593,8 +650,8 @@ const Landing = () => {
                   "Endless rejection from traditional gatekeepers",
                   "Stories remain dormant and undiscovered forever",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm sm:text-[0.98rem] text-[#95a8c1] leading-snug">
-                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#304966] shrink-0" />
+                  <li key={i} className="flex items-start gap-3 text-sm sm:text-[0.98rem] text-[#4f647c] leading-snug">
+                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#7d97b8] shrink-0" />
                     {item}
                   </li>
                 ))}
@@ -602,7 +659,7 @@ const Landing = () => {
 
               <Link
                 to="/writer-onboarding"
-                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#080e18] transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-200"
+                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#244a78]"
               >
                 Start as Creator
                 <ArrowRight className="w-4 h-4" />
@@ -615,15 +672,15 @@ const Landing = () => {
               whileHover={{ y: -2 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="rounded-2xl border border-[#22354d] bg-[#0d1a2c] p-5 sm:p-6 flex flex-col h-full md:relative md:z-50 md:ml-[-26px] md:rotate-[0.45deg]"
+              className="rounded-2xl border border-[#d7e1ee] bg-white p-5 sm:p-6 flex flex-col h-full md:relative md:z-40 shadow-[0_8px_24px_rgba(12,34,58,0.08)]"
             >
               <div className="flex items-center gap-3 mb-5 sm:mb-6">
-                <div className="w-10 h-10 rounded-xl bg-[#15243a] border border-[#2a3f5a] flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-[17px] h-[17px] text-[#9fb2ca]" />
+                <div className="w-10 h-10 rounded-xl bg-[#edf4fd] border border-[#cdddef] flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-[17px] h-[17px] text-[#2f5f90]" />
                 </div>
                 <div>
 
-                  <h3 className="text-xl sm:text-[1.4rem] font-bold text-white tracking-tight">For Industry Professionals</h3>
+                  <h3 className="text-xl sm:text-[1.4rem] font-bold text-[#0f2745] tracking-tight">For Industry Professionals</h3>
                 </div>
               </div>
 
@@ -634,8 +691,8 @@ const Landing = () => {
                   "No way to preview talent before committing resources",
                   "Expensive, slow, and painfully manual discovery process",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm sm:text-[0.98rem] text-[#95a8c1] leading-snug">
-                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#304966] shrink-0" />
+                  <li key={i} className="flex items-start gap-3 text-sm sm:text-[0.98rem] text-[#4f647c] leading-snug">
+                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#7d97b8] shrink-0" />
                     {item}
                   </li>
                 ))}
@@ -643,7 +700,7 @@ const Landing = () => {
 
               <Link
                 to="/producer-director-onboarding"
-                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#080e18] transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-200"
+                className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#244a78]"
               >
                 Start as Industry Professional
                 <ArrowRight className="w-4 h-4" />
@@ -658,21 +715,21 @@ const Landing = () => {
             whileHover={{ y: -2 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="relative z-20 mt-2 sm:mt-3 md:-mt-5 lg:-mt-6 md:mx-10 lg:mx-16 rounded-2xl overflow-hidden border border-[#2a3f5b] bg-[linear-gradient(145deg,#101f34_0%,#0e1a2b_58%,#0b1626_100%)] p-5 sm:p-7 md:pt-12 md:rotate-[-0.2deg] shadow-[0_14px_32px_rgba(4,12,24,0.32)]"
+            className="relative z-20 mt-2 sm:mt-3 md:mt-2 lg:mt-3 md:mx-10 lg:mx-16 rounded-2xl overflow-hidden border border-[#d7e1ee] bg-white p-5 sm:p-7 md:pt-12 shadow-[0_14px_32px_rgba(8,22,42,0.12)]"
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#7f9fc3]/55 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#9db8d6] to-transparent" />
 
             <div className="grid md:grid-cols-[auto_1fr] gap-6 sm:gap-7 items-start">
-              <div className="w-12 h-12 rounded-xl bg-[#172842] border border-[#304965] flex items-center justify-center shrink-0">
-                <Zap className="w-5 h-5 text-[#a9bdd8]" />
+              <div className="w-12 h-12 rounded-xl bg-[#edf4fd] border border-[#ccddf0] flex items-center justify-center shrink-0">
+                <Zap className="w-5 h-5 text-[#355b85]" />
               </div>
               <div>
-                <h3 className="text-2xl sm:text-[1.85rem] font-bold text-white mb-3 tracking-tight">The Ckript Solution</h3>
-                <p className="text-[#9db0c7] text-sm sm:text-base leading-relaxed mb-5 max-w-3xl">
+                <h3 className="text-2xl sm:text-[1.85rem] font-bold text-[#0f2745] mb-3 tracking-tight">The Ckript Solution</h3>
+                <p className="text-[#4f647c] text-sm sm:text-base leading-relaxed mb-5 max-w-3xl">
                   Ckript eliminates friction between creative talent and industry decision-makers.
                   Scripts come to life through{" "}
-                  <span className="text-white font-medium">AI-generated visual trailers</span>, surface to the right buyers via{" "}
-                  <span className="text-white font-medium">intelligent algorithmic matching</span>, accelerating every stage of production.
+                  <span className="text-[#0f2745] font-semibold">AI-generated visual trailers</span>, surface to the right buyers via{" "}
+                  <span className="text-[#0f2745] font-semibold">intelligent algorithmic matching</span>, accelerating every stage of production.
                 </p>
 
                 <div className="flex flex-wrap gap-2">
@@ -682,8 +739,8 @@ const Landing = () => {
                     { icon: <Users className="w-3.5 h-3.5" />, label: "Direct Industry Access" },
                     { icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Real-time Analytics" },
                   ].map((f, i) => (
-                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#2f4764] bg-[#13243a] text-xs font-medium text-[#afc0d5]">
-                      <span className="text-[#98adc8]">{f.icon}</span>
+                    <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#d5e0ed] bg-[#f8fbff] text-xs font-medium text-[#4f647c]">
+                      <span className="text-[#6786aa]">{f.icon}</span>
                       {f.label}
                     </span>
                   ))}
@@ -691,7 +748,7 @@ const Landing = () => {
 
                 <Link
                   to="/join"
-                  className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#080e18] transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-200"
+                  className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1e3a5f] px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#244a78]"
                 >
                   Get Started on Ckript
                   <ArrowRight className="w-4 h-4" />

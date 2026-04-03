@@ -128,11 +128,17 @@ const DashboardCharts = ({ reviews }) => {
             <div style={{ width: "100%", height: 280 }}>
               {chartsReady && (
                 <ResponsiveContainer width="100%" height={280} minWidth={0}>
-                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
+                  <RadarChart
+                    data={radarData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius="64%"
+                    margin={{ top: 10, right: 34, bottom: 10, left: 34 }}
+                  >
                   <PolarGrid stroke="#e5e7eb" />
                   <PolarAngleAxis
                     dataKey="dimension"
-                    tick={{ fontSize: 11, fill: "#6b7280", fontWeight: 500 }}
+                    tick={{ fontSize: 10, fill: "#6b7280", fontWeight: 500 }}
                   />
                   <PolarRadiusAxis
                     angle={90}

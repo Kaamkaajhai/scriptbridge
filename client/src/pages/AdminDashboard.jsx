@@ -43,6 +43,7 @@ const TABS = [
     { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
     { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
+    { key: "deleted-accounts", label: "Deleted Accounts", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
     { key: "discount-codes", label: "Discount Codes", icon: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" },
 ];
 
@@ -493,6 +494,7 @@ const SEARCH_PLACEHOLDER_BY_TAB = {
     "pending-investors": "Search investor requests...",
     "bank-reviews": "Search bank review requests...",
     queries: "Search queries...",
+    "deleted-accounts": "Search deleted account requests...",
 };
 
 const EMPTY_GLOBAL_RESULTS = {
@@ -749,6 +751,7 @@ const AdminDashboard = () => {
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
     const [userActionLoading, setUserActionLoading] = useState("");
     const [contacts, setContacts] = useState([]);
+    const [deletedAccounts, setDeletedAccounts] = useState([]);
     const [discountCodes, setDiscountCodes] = useState([]);
     const [discountCodeModal, setDiscountCodeModal] = useState(null); // null = closed, {} = create, {_id:...} = edit
     const [alertSummary, setAlertSummary] = useState({});
@@ -897,6 +900,7 @@ const AdminDashboard = () => {
     const sourcePendingInvestors = isGlobalSearchMode ? globalResults.pendingInvestors : pendingInvestors;
     const sourceBankReviews = isGlobalSearchMode ? globalResults.bankReviews : bankReviews;
     const sourceContacts = isGlobalSearchMode ? globalResults.contacts : contacts;
+    const sourceDeletedAccounts = deletedAccounts;
     const sourceMessageUsers = messageUsers;
 
     const filteredUsers = sourceUsers.filter((u) =>
@@ -933,6 +937,7 @@ const AdminDashboard = () => {
     const filteredPendingInvestors = sourcePendingInvestors.filter((inv) => matchesSearch(inv.name, inv.email, inv.createdAt));
     const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
     const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
+    const filteredDeletedAccounts = sourceDeletedAccounts.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
     const filteredMessageUsers = sourceMessageUsers.filter((u) => matchesSearch(u.name, u.email, u.sid));
 
     const buildCurrentSectionPayload = () => {
@@ -995,6 +1000,11 @@ const AdminDashboard = () => {
                 return {
                     title: `Queries (${contacts.length})`,
                     lines: contacts.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
+                };
+            case "deleted-accounts":
+                return {
+                    title: `Deleted Accounts (${deletedAccounts.length})`,
+                    lines: deletedAccounts.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                 };
             case "messages":
                 return {
@@ -1123,6 +1133,7 @@ const AdminDashboard = () => {
                 pendingInvestorsData,
                 bankReviewsData,
                 queriesData,
+                deletedAccountsData,
             ] = await Promise.all([
                 fetchList("/admin/stats"),
                 fetchList("/admin/users?role=investor&page=1&limit=1000", "users"),
@@ -1143,6 +1154,7 @@ const AdminDashboard = () => {
                 fetchList("/admin/investors/pending?page=1&limit=1000", "investors"),
                 fetchList("/admin/bank-details/reviews?page=1&limit=1000", "reviews"),
                 fetchList("/admin/queries?page=1&limit=1000", "submissions"),
+                fetchList("/admin/users/deleted-requests?page=1&limit=1000", "requests"),
             ]);
 
             const sectionFromUsers = (title, list) => ({
@@ -1203,6 +1215,10 @@ const AdminDashboard = () => {
                     {
                         title: `Queries (${queriesData.length})`,
                         lines: queriesData.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
+                    },
+                    {
+                        title: `Deleted Accounts (${deletedAccountsData.length})`,
+                        lines: deletedAccountsData.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                     },
                 ],
             });
@@ -1306,6 +1322,11 @@ const AdminDashboard = () => {
                 case "queries": {
                     const { data } = await adminApi.get(`/admin/queries?page=${page}`);
                     setContacts(data.submissions); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
+                case "deleted-accounts": {
+                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                    setDeletedAccounts(data.requests || []); setTotalPages(data.totalPages || 1); setTotal(data.total || 0);
                     break;
                 }
                 case "discount-codes": {
@@ -2981,6 +3002,57 @@ const AdminDashboard = () => {
                                         ))}
                                         {filteredContacts.length === 0 && (
                                             <tr><td colSpan={5} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No queries yet</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                    </div>
+                );
+
+            case "deleted-accounts":
+                return (
+                    <div>
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>
+                            Deleted Account Requests
+                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredDeletedAccounts.length : total})</span>
+                        </h2>
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                            {["User", "SID", "Role", "Reason", "Source", "Requested", "Deleted"].map((h) => (
+                                                <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                        {filteredDeletedAccounts.map((item) => (
+                                            <tr key={item._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
+                                                <td className="px-5 py-3.5">
+                                                    <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{item.name || "-"}</p>
+                                                    <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{item.email || "-"}</p>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.sid || "-"}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${isDark ? "bg-white/10 text-gray-300" : "bg-gray-100 text-gray-700"}`}>{item.role || "-"}</span>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm max-w-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                                    <p className="line-clamp-2">{item.reason || "No reason provided"}</p>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${item.source === "admin" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                                                        {item.source === "admin" ? "Admin" : "User"}
+                                                    </span>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.requestedAt ? new Date(item.requestedAt).toLocaleString() : "-"}</td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.deactivatedAt ? new Date(item.deactivatedAt).toLocaleString() : "-"}</td>
+                                            </tr>
+                                        ))}
+                                        {filteredDeletedAccounts.length === 0 && (
+                                            <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No deleted account requests found</td></tr>
                                         )}
                                     </tbody>
                                 </table>
