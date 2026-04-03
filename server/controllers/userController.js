@@ -5,14 +5,20 @@ import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
 import { sendOTPEmail } from "../utils/emailService.js";
-import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import {
+  generateOTP,
+  generateOTPExpiry,
+  hashOTP,
+  isHashedOTP,
+  isOTPExpired,
+  verifyHashedOTP,
+} from "../utils/otpHelper.js";
 import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
-const WRITER_REPRESENTATION_REQUIRING_AGENCY = ["agent", "manager_and_agent"];
 const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
 const MAX_BANK_INVALID_ATTEMPTS = 5;
 const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
@@ -21,10 +27,11 @@ const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
 const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const normalizeOtpInput = (otp) => String(otp || "").trim();
+const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
 
 const normalizeOptionalDate = (value) => {
   if (value === undefined) return undefined;
-  if (value === null || value === "") return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "INVALID_DATE" : parsed;
 };
@@ -63,11 +70,6 @@ const sanitizeBankPayload = (bankDetails) => {
   if (!bankDetails || typeof bankDetails !== "object") return null;
 
   const clean = {
-    accountHolderName: normalizeString(bankDetails.accountHolderName) || "",
-    bankName: normalizeString(bankDetails.bankName) || "",
-    accountNumber: typeof bankDetails.accountNumber === "string"
-      ? bankDetails.accountNumber.replace(/\s+/g, "")
-      : "",
     routingNumber: typeof bankDetails.routingNumber === "string"
       ? bankDetails.routingNumber.replace(/\s+/g, "").toUpperCase()
       : "",
@@ -634,11 +636,6 @@ export const updateUserProfile = async (req, res) => {
         }
       }
 
-      const currentStatus = user.writerProfile.representationStatus || "unrepresented";
-      if (WRITER_REPRESENTATION_REQUIRING_AGENCY.includes(currentStatus) && !user.writerProfile.agencyName) {
-        return res.status(400).json({ message: "Agency name is required for represented writers" });
-      }
-
       user.markModified("writerProfile");
     }
 
@@ -1139,7 +1136,7 @@ export const changeEmail = async (req, res) => {
 
     // Keep current email active until OTP verification succeeds.
     user.pendingEmail = normalizedEmail;
-    user.emailVerificationToken = otp;
+    user.emailVerificationToken = hashOTP(otp);
     user.emailVerificationExpires = generateOTPExpiry();
     await user.save();
     res.json({
@@ -1164,7 +1161,7 @@ export const sendEmailVerificationCode = async (req, res) => {
     }
 
     const otp = generateOTP();
-    user.emailVerificationToken = otp;
+    user.emailVerificationToken = hashOTP(otp);
     user.emailVerificationExpires = generateOTPExpiry();
     await user.save();
 
@@ -1184,11 +1181,30 @@ export const verifyEmailVerificationCode = async (req, res) => {
     const { otp } = req.body;
     if (!otp) return res.status(400).json({ message: "Verification code is required" });
 
+    const normalizedOtp = normalizeOtpInput(otp);
+    if (!isValidOtpInput(normalizedOtp)) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
     if (!user.emailVerificationToken) return res.status(400).json({ message: "No verification code found. Please resend code." });
-    if (isOTPExpired(user.emailVerificationExpires)) return res.status(400).json({ message: "Verification code expired. Please resend code." });
-    if (String(user.emailVerificationToken) !== String(otp).trim()) return res.status(400).json({ message: "Invalid verification code" });
+
+    if (!isHashedOTP(user.emailVerificationToken)) {
+      user.emailVerificationToken = hashOTP(user.emailVerificationToken);
+      await user.save();
+    }
+
+    if (isOTPExpired(user.emailVerificationExpires)) {
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+      return res.status(400).json({ message: "Verification code expired. Please resend code." });
+    }
+
+    if (!verifyHashedOTP(user.emailVerificationToken, normalizedOtp)) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
 
     if (user.pendingEmail) {
       const emailOwner = await User.findOne({ email: user.pendingEmail, _id: { $ne: user._id } });

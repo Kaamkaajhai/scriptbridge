@@ -87,10 +87,11 @@ const ScriptDetail = () => {
   const resolveImage = resolveMediaUrl;
 
   const handlePrint = () => {
-    const raw = script?.textContent || "";
-    const isHtml = raw.startsWith("<");
+    const raw = typeof script?.textContent === "string" ? script.textContent : "";
+    const normalizedRaw = raw.trimStart();
+    const isHtml = normalizedRaw.startsWith("<");
     const bodyContent = isHtml
-      ? raw
+      ? normalizedRaw
       : raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
     const win = window.open("", "_blank", "width=800,height=900");
     win.document.write(`<!DOCTYPE html>
@@ -847,6 +848,9 @@ const ScriptDetail = () => {
   const trailerPlaybackUrl = trailerSourceUrl;
   const hasTrailer = trailerSources.length > 0;
   const canPlayTrailer = hasTrailer && !trailerError;
+  const scriptRawContent = typeof script?.textContent === "string" ? script.textContent : "";
+  const normalizedScriptHtml = scriptRawContent.trimStart();
+  const hasHtmlScriptContent = normalizedScriptHtml.startsWith("<");
   const heroImage = script.trailerThumbnail || script.coverImage || "";
   const resolvedHeroImage = resolveImage(heroImage);
   const showCoverPlaceholder = !resolvedHeroImage || coverError;
@@ -2330,12 +2334,12 @@ const ScriptDetail = () => {
                       <h2 className={`text-2xl font-bold tracking-tight mb-1 ${t.title}`}>{script.title}</h2>
                       {script.format && <p className={`text-[11px] font-bold uppercase tracking-widest ${t.muted}`}>{fmtFormat(script.format)}</p>}
                     </div>
-                    {(script.textContent || "").startsWith("<") ? (
-                      <div className="script-content" dangerouslySetInnerHTML={{ __html: script.textContent }} />
+                    {hasHtmlScriptContent ? (
+                      <div className="script-content" dangerouslySetInnerHTML={{ __html: normalizedScriptHtml }} />
                     ) : (
                       <pre className={`whitespace-pre-wrap text-[14px] leading-relaxed ${t.sub}`}
                         style={{ fontFamily: '"Courier Prime", "Courier New", Courier, monospace' }}>
-                        {script.textContent}
+                        {scriptRawContent}
                       </pre>
                     )}
                   </div>

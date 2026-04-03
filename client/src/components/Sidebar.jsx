@@ -1,13 +1,14 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 import ConfirmDialog from "./ConfirmDialog";
 
 const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
-  const isDarkMode = true;
+  const { isDarkMode } = useDarkMode();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -215,6 +216,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
     return (
       <Link
         to={item.path}
+        state={item.path === "/create-project" ? { startFresh: true } : undefined}
         onClick={() => setMobileOpen(false)}
         className={`group flex items-center gap-3 px-4 py-2.5 min-h-[44px] mx-2 rounded-xl text-[14px] font-semibold leading-none transition-all duration-200 relative ${active
           ? isDarkMode ? "bg-[#0d1520] text-white font-bold" : "bg-[#1e3a5f]/[0.07] text-[#1e3a5f] font-bold"
@@ -342,7 +344,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
             const showPurchaseBadge = isPurchaseRequestsItem(item.path) && purchaseRequestCount > 0;
             const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
             return (
-              <Link key={item.label} to={item.path} title={item.label}
+              <Link key={item.label} to={item.path} state={item.path === "/create-project" ? { startFresh: true } : undefined} title={item.label}
                 className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${active
                   ? isDarkMode ? "bg-[#0d1520] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"
                   : isDarkMode ? "text-[#4a5a6e] hover:bg-[#0d1520] hover:text-[#8896a7]" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
@@ -365,7 +367,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
           {actionItems.map((item) => {
             const active = isActive(item.path);
             return (
-              <Link key={item.label} to={item.path} title={item.label}
+              <Link key={item.label} to={item.path} state={item.path === "/create-project" ? { startFresh: true } : undefined} title={item.label}
                 className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${active
                   ? isDarkMode ? "bg-[#0d1520] text-white" : "bg-[#1e3a5f]/10 text-[#1e3a5f]"
                   : isDarkMode ? "text-[#4a5a6e] hover:bg-[#0d1520] hover:text-[#8896a7]" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
@@ -425,7 +427,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
           const active = isActive(item.path);
           const showMessageBadge = isMessagesItem(item.path) && unreadMessageCount > 0;
           return (
-            <Link key={item.path} to={item.path}
+            <Link key={item.path} to={item.path} state={item.path === "/create-project" ? { startFresh: true } : undefined}
               className={`relative flex flex-col items-center justify-center gap-0.5 w-14 h-12 transition-colors ${active
                 ? isDarkMode ? "text-white" : "text-[#1e3a5f]"
                 : isDarkMode ? "text-[#4a5a6e]" : "text-gray-400"

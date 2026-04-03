@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Cropper from "react-easy-crop";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -405,7 +405,11 @@ const CreateProject = () => {
   const { isDarkMode: dark } = useDarkMode();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const { draftId } = useParams();
+  const shouldStartFresh = !draftId && (
+    Boolean(location.state?.startFresh) || new URLSearchParams(location.search).get("fresh") === "1"
+  );
   const agreementRef = useRef(null);
   const reviewRedirectTimerRef = useRef(null);
 
@@ -865,8 +869,48 @@ const CreateProject = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!shouldStartFresh) return;
+
+    clearLocalWorkingDraft();
+    localDraftHydratedRef.current = true;
+
+    setStep(1);
+    setScriptId(null);
+    setTitle("");
+    setSaved(false);
+    setLastSaved(null);
+    setShowDrafts(false);
+    setError("");
+    setTagsInput("");
+    setRoles([]);
+    setClassification({ tones: [], themes: [], settings: [] });
+    setServices({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
+    setLegal({ agreedToTerms: false, customInvestorTerms: "" });
+    setIsPremium(false);
+    setScriptPrice(10);
+    setThumbnailFile(null);
+    setTrailerFile(null);
+    setTrailerMeta(null);
+    setFormData({
+      format: "feature",
+      formatOther: "",
+      primaryGenre: "",
+      logline: "",
+      synopsis: "",
+      writer: "",
+      productionCompany: "",
+      director: "",
+      studioFinancier: "",
+    });
+
+    if (editor) {
+      editor.commands.clearContent();
+    }
+  }, [clearLocalWorkingDraft, editor, location.key, shouldStartFresh]);
+
   const restoreLocalWorkingDraft = useCallback(() => {
-    if (!editor || localDraftHydratedRef.current || draftId) return;
+    if (!editor || localDraftHydratedRef.current || draftId || shouldStartFresh) return;
 
     localDraftHydratedRef.current = true;
     try {
@@ -895,7 +939,7 @@ const CreateProject = () => {
     } catch {
       // Ignore invalid/stale local snapshots.
     }
-  }, [draftId, editor, user?._id]);
+  }, [draftId, editor, shouldStartFresh, user?._id]);
 
   useEffect(() => {
     restoreLocalWorkingDraft();

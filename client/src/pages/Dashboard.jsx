@@ -149,7 +149,7 @@ const CreatorDashboard = ({ user, dark }) => {
                 </h1>
               </div>
               <div className="grid grid-cols-2 max-[650px]:grid-cols-1 gap-2 w-full min-[520px]:w-full sm:w-auto sm:min-w-[360px]">
-              <Link to="/create-project"
+              <Link to="/create-project" state={{ startFresh: true }}
                 className={`inline-flex justify-center items-center gap-2 px-4 max-[420px]:px-3 py-2.5 max-[650px]:py-2 rounded-xl max-[650px]:rounded-lg text-[13px] max-[650px]:text-[12px] font-bold transition-all duration-200 shadow-sm hover:-translate-y-0.5 w-full max-w-full min-w-0 ${dark ? 'bg-white/[0.04] text-[#8896a7] hover:bg-white/[0.07] ring-1 ring-white/[0.06]' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                 <span className="max-[650px]:hidden">Create Project</span>
@@ -768,6 +768,7 @@ const CreatorDashboard = ({ user, dark }) => {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 max-w-md mx-auto">
               <Link
                 to="/create-project"
+                state={{ startFresh: true }}
                 className={`inline-flex justify-center items-center gap-2 px-6 py-3 rounded-xl font-bold text-base transition-all duration-200 hover:-translate-y-0.5 ${dark ? 'bg-white/[0.06] text-gray-200 hover:bg-white/[0.1] ring-1 ring-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

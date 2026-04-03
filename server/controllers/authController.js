@@ -8,7 +8,10 @@ import {
   getOTPExpirySeconds,
   getOTPResendCooldownSeconds,
   getRemainingResendCooldownSeconds,
+  hashOTP,
+  isHashedOTP,
   isOTPExpired,
+  verifyHashedOTP,
 } from "../utils/otpHelper.js";
 import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
@@ -66,6 +69,10 @@ const sanitizeEmail = (email) => {
   if (!email || typeof email !== 'string') return '';
   return email.trim().toLowerCase();
 };
+
+const normalizeOtpInput = (otp) => String(otp || "").trim();
+
+const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
 
 const buildVerificationResponse = (email) => ({
   requiresVerification: true,
@@ -348,7 +355,7 @@ export const join = async (req, res) => {
           userExists.address = address;
           userExists.markModified("address");
         }
-        userExists.emailVerificationToken = otp;
+        userExists.emailVerificationToken = hashOTP(otp);
         userExists.emailVerificationExpires = generateOTPExpiry();
         userExists.emailVerificationResendAvailableAt = generateOTPResendAvailableAt();
         await userExists.save();
@@ -386,7 +393,7 @@ export const join = async (req, res) => {
       phone: requiresContactDetails ? phone : undefined,
       address: requiresContactDetails ? address : undefined,
       emailVerified: skipEmailVerification, // Auto-verify if skipping email
-      emailVerificationToken: skipEmailVerification ? undefined : otp,
+      emailVerificationToken: skipEmailVerification ? undefined : hashOTP(otp),
       emailVerificationExpires: skipEmailVerification ? undefined : generateOTPExpiry(),
       emailVerificationResendAvailableAt: skipEmailVerification ? undefined : generateOTPResendAvailableAt(),
     });
@@ -540,6 +547,11 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "Please provide email and OTP" });
     }
 
+    otp = normalizeOtpInput(otp);
+    if (!isValidOtpInput(otp)) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
     // Sanitize email
     email = sanitizeEmail(email);
     
@@ -561,6 +573,11 @@ export const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "No verification code found. Please request a new one." });
     }
 
+    if (!isHashedOTP(user.emailVerificationToken)) {
+      user.emailVerificationToken = hashOTP(user.emailVerificationToken);
+      await user.save();
+    }
+
     if (user.isDeactivated) {
       return res.status(403).json({
         message: "This account has been deleted by admin",
@@ -577,11 +594,15 @@ export const verifyOTP = async (req, res) => {
 
     // Check if OTP is expired
     if (isOTPExpired(user.emailVerificationExpires)) {
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      user.emailVerificationResendAvailableAt = undefined;
+      await user.save();
       return res.status(400).json({ message: "Verification code has expired. Please request a new one." });
     }
 
     // Check if OTP matches
-    if (user.emailVerificationToken !== otp) {
+    if (!verifyHashedOTP(user.emailVerificationToken, otp)) {
       return res.status(400).json({ message: "Invalid verification code" });
     }
 
@@ -693,7 +714,7 @@ export const resendOTP = async (req, res) => {
 
     // Generate new OTP
     const otp = generateOTP();
-    user.emailVerificationToken = otp;
+    user.emailVerificationToken = hashOTP(otp);
     user.emailVerificationExpires = generateOTPExpiry();
     user.emailVerificationResendAvailableAt = generateOTPResendAvailableAt();
     await user.save();

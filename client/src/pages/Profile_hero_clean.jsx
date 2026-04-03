@@ -1,10 +1,61 @@
-      {/* ════════ PROFILE CARD ════════ */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className={`rounded-2xl border transition-colors relative overflow-visible ${t.card}`}
-      >
+const DEFAULT_THEME = {
+  card: "bg-white border-gray-200",
+  coverFrom: "from-[#1e3a5f]/85",
+  coverTo: "to-[#2a4f80]/85",
+  editBtn: "bg-white/80 text-[#1e3a5f] border-white/60 hover:bg-white",
+  followActive: "bg-white/80 text-[#1e3a5f] border-white/60",
+  followIdle: "bg-[#1e3a5f]/90 text-white border-[#1e3a5f]/50 hover:bg-[#1e3a5f]",
+  avatarRing: "ring-white",
+  avatarGrad: "from-[#1e3a5f] to-[#2d5a8f]",
+  h1: "text-gray-900",
+  roleBg: "bg-gray-100 text-gray-700 border-gray-200",
+  wgaBadge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  email: "text-gray-500",
+  body: "text-gray-700",
+  chip: "bg-gray-50 text-gray-700 border-gray-200",
+  divider: "border-gray-200",
+  statNum: "text-gray-900",
+  statLabel: "text-gray-500",
+};
+
+const isWriter = (role) => role === "creator" || role === "writer";
+const toArray = (value) => (Array.isArray(value) ? value : []);
+const toObject = (value) => (value && typeof value === "object" ? value : {});
+const defaultResolveImage = (value) => value;
+const noop = () => {};
+
+const ProfileHeroClean = ({
+  profile: profileInput = {},
+  scripts: scriptsInput = [],
+  isOwnProfile = false,
+  isFollowing = false,
+  dark = false,
+  memberSince = "",
+  t: themeOverrides = {},
+  setShowEditModal = noop,
+  handleFollow = noop,
+  resolveImage = defaultResolveImage,
+}) => {
+  const profileSource = toObject(profileInput);
+  const profile = {
+    name: profileSource.name ? String(profileSource.name) : "User",
+    role: profileSource.role ? String(profileSource.role) : "writer",
+    email: profileSource.email ? String(profileSource.email) : "",
+    bio: profileSource.bio ? String(profileSource.bio) : "",
+    profileImage: profileSource.profileImage ? String(profileSource.profileImage) : "",
+    writerProfile: toObject(profileSource.writerProfile),
+    wallet: toObject(profileSource.wallet),
+    subscription: toObject(profileSource.subscription),
+    skills: toArray(profileSource.skills),
+    followers: toArray(profileSource.followers),
+    following: toArray(profileSource.following),
+  };
+  const scripts = toArray(scriptsInput);
+  const t = { ...DEFAULT_THEME, ...toObject(themeOverrides) };
+  const isWriterUser = isWriter(profile.role);
+
+  return (
+      <div className={`rounded-2xl border transition-colors relative overflow-visible ${t.card}`}>
         {/* Cover — clean solid for writers */}
         <div
           className={`${isWriterUser ? "h-44 sm:h-52" : "h-36 sm:h-44"} rounded-t-2xl relative overflow-hidden ${!isWriterUser ? `bg-gradient-to-r ${t.coverFrom} ${t.coverTo}` : ""}`}
@@ -127,4 +178,8 @@
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
+  );
+};
+
+export default ProfileHeroClean;

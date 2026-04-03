@@ -1,9 +1,16 @@
 import User from "../models/User.js";
 import Script from "../models/Script.js";
 import Subscription from "../models/Subscription.js";
-import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { sendOTPEmail } from "../utils/emailService.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
+import {
+  generateOTP,
+  generateOTPExpiry,
+  hashOTP,
+  isHashedOTP,
+  isOTPExpired,
+  verifyHashedOTP,
+} from "../utils/otpHelper.js";
 
 const normalizeString = (value) =>
   value === undefined || value === null ? "" : String(value).trim();
@@ -13,6 +20,11 @@ const normalizeOptionalDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date;
 };
+
+const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
+
+const normalizeOtpInput = (otp) => String(otp || "").trim();
+const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
 
 // @desc    Update writer profile (Phase 2: Identity)
 // @route   PUT /api/onboarding/writer-profile
@@ -59,13 +71,31 @@ export const updateWriterProfile = async (req, res) => {
       user.writerProfile = {};
     }
 
+    const nextRepresentationStatus = normalizeString(
+      representationStatus !== undefined
+        ? representationStatus
+        : user.writerProfile.representationStatus || "unrepresented"
+    );
+
+    if (!WRITER_REPRESENTATION_STATUSES.includes(nextRepresentationStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid representation status",
+      });
+    }
+
+    const nextAgencyName = normalizeString(
+      agencyName !== undefined ? agencyName : user.writerProfile.agencyName
+    );
+
     // Update writer profile
     if (username !== undefined) {
       user.writerProfile.username = normalizeString(username).toLowerCase();
     }
     user.bio = bio || user.bio;
-    user.writerProfile.representationStatus = representationStatus || user.writerProfile.representationStatus;
-    user.writerProfile.agencyName = agencyName || user.writerProfile.agencyName;
+    user.writerProfile.representationStatus = nextRepresentationStatus;
+    user.writerProfile.agencyName =
+      nextRepresentationStatus === "unrepresented" ? "" : nextAgencyName;
     user.writerProfile.wgaMember = wgaMember !== undefined ? wgaMember : user.writerProfile.wgaMember;
     user.writerProfile.sgaMember = sgaMember !== undefined ? sgaMember : user.writerProfile.sgaMember;
 
@@ -385,26 +415,28 @@ export const sendEmailVerification = async (req, res) => {
     }
     
     // Generate 6-digit code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Hash the code before storing
-    const hashedCode = crypto.createHash('sha256').update(verificationCode).digest('hex');
-    
-    user.emailVerificationToken = hashedCode;
-    user.emailVerificationExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    const verificationCode = generateOTP();
+
+    user.emailVerificationToken = hashOTP(verificationCode);
+    user.emailVerificationExpires = generateOTPExpiry();
     await user.save();
-    
-    // TODO: Send email with verification code
-    // For development, we'll just return the code
-    // In production, use nodemailer or a service like SendGrid
-    
-    console.log(`Verification code for ${user.email}: ${verificationCode}`);
+
+    const emailResult = await sendOTPEmail(user.email, user.name, verificationCode);
+    if (!emailResult.success) {
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+      return res.status(500).json({
+        success: false,
+        message: emailResult.error?.includes("Invalid login") || emailResult.error?.includes("authentication")
+          ? "Email service configuration error. Please contact support."
+          : "Failed to send verification email. Please try again.",
+      });
+    }
     
     res.json({ 
       success: true, 
-      message: "Verification code sent to your email",
-      // Remove this in production:
-      devCode: verificationCode 
+      message: "Verification code sent to your email"
     });
   } catch (error) {
     console.error("Error sending verification email:", error);
@@ -417,12 +449,19 @@ export const sendEmailVerification = async (req, res) => {
 // @access  Private
 export const verifyEmail = async (req, res) => {
   try {
-    const { code } = req.body;
+    const code = normalizeOtpInput(req.body?.code);
     
     if (!code) {
       return res.status(400).json({ 
         success: false, 
         message: "Verification code required" 
+      });
+    }
+
+    if (!isValidOtpInput(code)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification code"
       });
     }
     
@@ -442,14 +481,29 @@ export const verifyEmail = async (req, res) => {
       });
     }
     
-    // Hash the provided code
-    const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
-    
-    // Check if code matches and hasn't expired
-    if (
-      user.emailVerificationToken !== hashedCode ||
-      user.emailVerificationExpires < Date.now()
-    ) {
+    if (!user.emailVerificationToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification code"
+      });
+    }
+
+    if (!isHashedOTP(user.emailVerificationToken)) {
+      user.emailVerificationToken = hashOTP(user.emailVerificationToken);
+      await user.save();
+    }
+
+    if (isOTPExpired(user.emailVerificationExpires)) {
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification code"
+      });
+    }
+
+    if (!verifyHashedOTP(user.emailVerificationToken, code)) {
       return res.status(400).json({ 
         success: false, 
         message: "Invalid or expired verification code" 

@@ -18,7 +18,9 @@ adminApi.interceptors.request.use((config) => {
         try {
             const { token } = JSON.parse(adminSession);
             if (token) config.headers.Authorization = `Bearer ${token}`;
-        } catch { }
+        } catch {
+            // Ignore malformed admin session data and proceed without token.
+        }
     }
     return config;
 });
@@ -787,10 +789,67 @@ const AdminDashboard = () => {
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [adminDialog, setAdminDialog] = useState(null);
+    const adminDialogResolverRef = useRef(null);
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
     };
+
+    const openAdminDialog = ({
+        type = "confirm",
+        title = "Confirm action",
+        message = "Are you sure?",
+        confirmText = "Confirm",
+        cancelText = "Cancel",
+        defaultValue = "",
+        placeholder = "",
+        inputType = "text",
+        multiline = false,
+    }) => new Promise((resolve) => {
+        adminDialogResolverRef.current = resolve;
+        setAdminDialog({
+            type,
+            title,
+            message,
+            confirmText,
+            cancelText,
+            value: String(defaultValue ?? ""),
+            placeholder,
+            inputType,
+            multiline,
+        });
+    });
+
+    const closeAdminDialog = (result) => {
+        const resolver = adminDialogResolverRef.current;
+        adminDialogResolverRef.current = null;
+        setAdminDialog(null);
+        if (typeof resolver === "function") resolver(result);
+    };
+
+    useEffect(() => {
+        if (!adminDialog) return undefined;
+
+        const handleKeydown = (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeAdminDialog(null);
+                return;
+            }
+
+            if (event.key === "Enter" && !event.shiftKey) {
+                if (adminDialog.type === "prompt" && document.activeElement?.tagName === "TEXTAREA") {
+                    return;
+                }
+                event.preventDefault();
+                closeAdminDialog(adminDialog.type === "prompt" ? adminDialog.value : true);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeydown);
+        return () => window.removeEventListener("keydown", handleKeydown);
+    }, [adminDialog]);
 
     const fetchAlertSummary = async ({ silent = false } = {}) => {
         if (!authorized) return;
@@ -1559,8 +1618,16 @@ const AdminDashboard = () => {
     };
 
     const handleReject = async (id) => {
-        const reason = window.prompt("Rejection reason (optional — the writer will see this):");
-        if (reason === null) return; // cancelled
+        const reason = await openAdminDialog({
+            type: "prompt",
+            title: "Reject script",
+            message: "Add an optional rejection reason visible to the writer.",
+            confirmText: "Reject",
+            cancelText: "Cancel",
+            placeholder: "Rejection reason (optional)",
+            multiline: true,
+        });
+        if (reason === null) return;
         try {
             await adminApi.put(`/admin/scripts/${id}/reject`, { reason: reason.trim() || undefined });
             showToast("Script rejected");
@@ -1576,9 +1643,13 @@ const AdminDashboard = () => {
         if (!scriptId || deletingScriptId) return;
 
         const title = String(script?.title || "this project");
-        const confirmed = window.confirm(
-            `Delete \"${title}\" from platform listings? Existing buyers will retain access.`
-        );
+        const confirmed = await openAdminDialog({
+            type: "confirm",
+            title: "Delete project",
+            message: `Delete "${title}" from platform listings? Existing buyers will retain access.`,
+            confirmText: "Delete",
+            cancelText: "Cancel",
+        });
         if (!confirmed) return;
 
         try {
@@ -1627,8 +1698,8 @@ const AdminDashboard = () => {
 
         const trailerThumbnail = script?.trailerThumbnail || "";
         const caption = isRegeneration
-            ? `We've updated your AI trailer for \"${script?.title || "this script"}\". Please review this version.`
-            : `Your AI trailer for \"${script?.title || "this script"}\" is ready.`;
+            ? `We've updated your AI trailer for "${script?.title || "this script"}". Please review this version.`
+            : `Your AI trailer for "${script?.title || "this script"}" is ready.`;
 
         try {
             await adminApi.put(`/admin/scripts/${script._id}/trailer-approve`, {
@@ -1722,7 +1793,16 @@ const AdminDashboard = () => {
     };
 
     const handleRejectBankReview = async (id) => {
-        const note = window.prompt("Rejection reason (optional):") || "";
+        const note = await openAdminDialog({
+            type: "prompt",
+            title: "Reject bank details",
+            message: "Add an optional rejection reason.",
+            confirmText: "Reject",
+            cancelText: "Cancel",
+            placeholder: "Rejection reason (optional)",
+            multiline: true,
+        });
+        if (note === null) return;
         try {
             await adminApi.put(`/admin/bank-details/reviews/${id}/reject`, { note });
             showToast("Bank details request rejected");
@@ -1763,7 +1843,14 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteDiscountCode = async (id) => {
-        if (!window.confirm("Deactivate this discount code?")) return;
+        const confirmed = await openAdminDialog({
+            type: "confirm",
+            title: "Deactivate discount code",
+            message: "Deactivate this discount code?",
+            confirmText: "Deactivate",
+            cancelText: "Cancel",
+        });
+        if (!confirmed) return;
         try {
             await adminApi.delete(`/admin/discount-codes/${id}`);
             showToast("Discount code deactivated");
@@ -1793,9 +1880,21 @@ const AdminDashboard = () => {
             return;
         }
 
-        const reason = freeze
-            ? (window.prompt("Freeze reason (shown to user):", user.frozenReason || "") || "").trim()
+        const freezeReasonInput = freeze
+            ? await openAdminDialog({
+                type: "prompt",
+                title: "Freeze account",
+                message: "Provide a reason that will be shown to the user.",
+                confirmText: "Freeze",
+                cancelText: "Cancel",
+                defaultValue: user.frozenReason || "",
+                placeholder: "Freeze reason",
+                multiline: true,
+            })
             : "";
+
+        if (freeze && freezeReasonInput === null) return;
+        const reason = String(freezeReasonInput || "").trim();
 
         if (freeze && !reason) {
             showToast("Freeze reason is required", "error");
@@ -1839,7 +1938,16 @@ const AdminDashboard = () => {
             return;
         }
 
-        const amountRaw = window.prompt("Enter credits to add:", "100");
+        const amountRaw = await openAdminDialog({
+            type: "prompt",
+            title: "Grant credits",
+            message: `Enter credits to add for ${user.name || user.email}.`,
+            confirmText: "Continue",
+            cancelText: "Cancel",
+            defaultValue: "100",
+            placeholder: "Credit amount",
+            inputType: "number",
+        });
         if (amountRaw === null) return;
         const amount = Number(amountRaw);
         if (!Number.isFinite(amount) || amount <= 0) {
@@ -1847,7 +1955,18 @@ const AdminDashboard = () => {
             return;
         }
 
-        const reason = (window.prompt("Credit grant reason:", "Manual admin credit grant") || "").trim() || "Manual admin credit grant";
+        const reasonInput = await openAdminDialog({
+            type: "prompt",
+            title: "Credit grant reason",
+            message: "Add an optional reason for this credit grant.",
+            confirmText: "Grant",
+            cancelText: "Cancel",
+            defaultValue: "Manual admin credit grant",
+            placeholder: "Reason",
+            multiline: true,
+        });
+        if (reasonInput === null) return;
+        const reason = String(reasonInput || "").trim() || "Manual admin credit grant";
 
         const loadingKey = `credits-${user._id}`;
         try {
@@ -1885,7 +2004,13 @@ const AdminDashboard = () => {
             return;
         }
 
-        const confirmed = window.confirm(`Delete account for ${user.name || user.email}? This action deactivates and blocks access.`);
+        const confirmed = await openAdminDialog({
+            type: "confirm",
+            title: "Delete account",
+            message: `Delete account for ${user.name || user.email}? This action deactivates and blocks access.`,
+            confirmText: "Delete",
+            cancelText: "Cancel",
+        });
         if (!confirmed) return;
 
         const loadingKey = `delete-${user._id}`;
@@ -2374,7 +2499,7 @@ const AdminDashboard = () => {
                     </div>
                 );
 
-            case "trailers":
+            case "trailers": {
                 const regenerationRequests = filteredScripts.filter((s) => s.trailerWriterFeedback?.status === "revision_requested");
                 return (
                     <div>
@@ -2445,6 +2570,7 @@ const AdminDashboard = () => {
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
+            }
 
             case "messages": {
                 const selectedWriterId = String(activeMessageUser?._id || "");
@@ -3324,6 +3450,58 @@ const AdminDashboard = () => {
             onCancel={() => setShowLogoutConfirm(false)}
             isDarkMode={true}
         />
+
+        {adminDialog && (
+            <div className="fixed inset-0 z-[10060] flex items-center justify-center px-4" onClick={() => closeAdminDialog(null)}>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                <div
+                    className="relative w-[min(94vw,460px)] rounded-2xl border border-[#1a3050] bg-[#0f1d35] p-5 text-white shadow-2xl"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <p className="text-base font-bold">{adminDialog.title}</p>
+                    <p className="mt-1.5 text-sm text-gray-300 leading-relaxed">{adminDialog.message}</p>
+
+                    {adminDialog.type === "prompt" && (
+                        adminDialog.multiline ? (
+                            <textarea
+                                autoFocus
+                                value={adminDialog.value}
+                                onChange={(event) => setAdminDialog((prev) => ({ ...prev, value: event.target.value }))}
+                                rows={4}
+                                placeholder={adminDialog.placeholder}
+                                className="mt-3 w-full rounded-xl border border-[#294468] bg-[#0b1426] px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-blue-400/60"
+                            />
+                        ) : (
+                            <input
+                                autoFocus
+                                type={adminDialog.inputType || "text"}
+                                value={adminDialog.value}
+                                onChange={(event) => setAdminDialog((prev) => ({ ...prev, value: event.target.value }))}
+                                placeholder={adminDialog.placeholder}
+                                className="mt-3 w-full rounded-xl border border-[#294468] bg-[#0b1426] px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-blue-400/60"
+                            />
+                        )
+                    )}
+
+                    <div className="mt-4 flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => closeAdminDialog(null)}
+                            className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:bg-white/10"
+                        >
+                            {adminDialog.cancelText || "Cancel"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => closeAdminDialog(adminDialog.type === "prompt" ? adminDialog.value : true)}
+                            className="px-4 py-2 rounded-xl text-sm font-semibold bg-[#1e3a5f] text-white hover:bg-[#2a4b77]"
+                        >
+                            {adminDialog.confirmText || "Confirm"}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
         </>
     );
 };
