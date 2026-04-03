@@ -61,6 +61,7 @@ const formatFileSize = (bytes = 0) => {
 };
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const REACTION_HIDE_DELAY_MS = 900;
 
 /* ═══════════════════════════════════════════════════════════════
    MESSAGES PAGE
@@ -99,6 +100,7 @@ const Messages = () => {
   const activeChatRef = useRef(null);
   const shouldAutoScrollRef = useRef(false);
   const previousChatIdRef = useRef("");
+  const reactionHideTimerRef = useRef(null);
 
   const scrollMessagesToBottom = (behavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
@@ -112,12 +114,29 @@ const Messages = () => {
     setShowScrollToBottomButton(distanceFromBottom > 96);
   };
 
+  const clearReactionHideTimer = () => {
+    if (!reactionHideTimerRef.current) return;
+    clearTimeout(reactionHideTimerRef.current);
+    reactionHideTimerRef.current = null;
+  };
+
+  const scheduleReactionHide = (delay = REACTION_HIDE_DELAY_MS) => {
+    clearReactionHideTimer();
+    reactionHideTimerRef.current = setTimeout(() => {
+      setHoveredMsg(null);
+      setEmojiPicker(null);
+      reactionHideTimerRef.current = null;
+    }, delay);
+  };
+
   const isWriter = user && ["writer", "creator"].includes(user.role);
   const isInvestor = user && user.role === "investor";
 
   useEffect(() => {
     activeChatRef.current = activeChat;
   }, [activeChat]);
+
+  useEffect(() => () => clearReactionHideTimer(), []);
 
   /* ── Socket setup ────────────────────────────────────────── */
   useEffect(() => {
@@ -484,7 +503,8 @@ const Messages = () => {
 
   /* ── Emoji reaction ─────────────────────────────────────── */
   const handleReaction = async (messageId, emoji) => {
-    setEmojiPicker(null);
+    // Keep the picker visible a bit longer so quick cursor movement doesn't hide it immediately.
+    scheduleReactionHide(1100);
     try {
       const { data: reactions } = await api.patch(`/messages/${messageId}/reaction`, { emoji });
       setMessages((prev) =>
@@ -744,8 +764,11 @@ const Messages = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.18 }}
                         className={`flex ${isMine ? "justify-end" : "justify-start"} group mb-0.5`}
-                        onMouseEnter={() => setHoveredMsg(msg._id)}
-                        onMouseLeave={() => { setHoveredMsg(null); setEmojiPicker(null); }}
+                        onMouseEnter={() => {
+                          clearReactionHideTimer();
+                          setHoveredMsg(msg._id);
+                        }}
+                        onMouseLeave={() => scheduleReactionHide()}
                       >
                         {/* Other user avatar */}
                         {!isMine && (
@@ -868,11 +891,19 @@ const Messages = () => {
 
                           {/* Hover actions */}
                           {!isDeleted && hoveredMsg === msg._id && (
-                            <div className={`absolute ${isMine ? "right-full mr-2" : "left-full ml-2"} top-0 flex items-center gap-1`}>
+                            <div
+                              className={`absolute ${isMine ? "right-full mr-2" : "left-full ml-2"} top-0 flex items-center gap-1`}
+                              onMouseEnter={clearReactionHideTimer}
+                              onMouseLeave={() => scheduleReactionHide()}
+                            >
                               {/* Emoji picker trigger */}
                               <div className="relative">
                                 <button
-                                  onClick={() => setEmojiPicker(emojiPicker === msg._id ? null : msg._id)}
+                                  onClick={() => {
+                                    clearReactionHideTimer();
+                                    setHoveredMsg(msg._id);
+                                    setEmojiPicker(emojiPicker === msg._id ? null : msg._id);
+                                  }}
                                   className={`p-1.5 rounded-lg transition ${dark ? "bg-[#0d1520] hover:bg-[#1c2a3a] text-[#8896a7]" : "bg-white hover:bg-gray-100 border border-gray-200 text-gray-500"} shadow-sm`}
                                 >
                                   <Smile size={14} />
@@ -883,7 +914,9 @@ const Messages = () => {
                                       initial={{ opacity: 0, scale: 0.9, y: 4 }}
                                       animate={{ opacity: 1, scale: 1, y: 0 }}
                                       exit={{ opacity: 0, scale: 0.9 }}
-                                      className={`absolute bottom-full mb-1.5 ${isMine ? "right-0" : "left-0"} flex gap-1.5 p-2 rounded-2xl shadow-xl border z-50 ${dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-100"}`}
+                                      onMouseEnter={clearReactionHideTimer}
+                                      onMouseLeave={() => scheduleReactionHide()}
+                                      className={`absolute top-full mt-1.5 ${isMine ? "right-0" : "left-0"} flex gap-1.5 p-2 rounded-2xl shadow-xl border z-50 ${dark ? "bg-[#0d1520] border-[#1c2a3a]" : "bg-white border-gray-100"}`}
                                     >
                                       {QUICK_EMOJIS.map((em) => (
                                         <button

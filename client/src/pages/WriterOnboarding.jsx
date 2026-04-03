@@ -82,6 +82,8 @@ const DEFAULT_WRITER_PROFILE = {
   bio: "",
   representationStatus: "unrepresented",
   agencyName: "",
+  wgaMember: false,
+  sgaMember: false,
   links: {
     portfolio: "",
     instagram: "",
@@ -990,6 +992,28 @@ const WriterOnboarding = () => {
                 />
               </div>
             )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-center gap-2.5 p-3 border border-gray-200 rounded-lg bg-gray-50/70 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(writerProfile.wgaMember)}
+                  onChange={(e) => setWriterProfile({ ...writerProfile, wgaMember: e.target.checked })}
+                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                />
+                <span className="text-sm font-semibold text-gray-700">I am a WGA member</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-3 border border-gray-200 rounded-lg bg-gray-50/70 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(writerProfile.sgaMember)}
+                  onChange={(e) => setWriterProfile({ ...writerProfile, sgaMember: e.target.checked })}
+                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                />
+                <span className="text-sm font-semibold text-gray-700">I am a SGA member</span>
+              </label>
+            </div>
             
             <div className="border-t pt-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">

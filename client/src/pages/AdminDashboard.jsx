@@ -121,6 +121,16 @@ const formatUserExportLine = (user, index) => {
     return `${index + 1}. ${toDisplayText(user?.name)} | ${toDisplayText(user?.email)} | Phone: ${toDisplayText(user?.phone)} | Role: ${toDisplayText(user?.role)} | SID: ${toDisplayText(user?.sid)} | Company: ${toDisplayText(company)} | Genres: ${toDisplayText(genres)} | Address: ${toDisplayText(address)} | Joined: ${formatExportDate(user?.createdAt)}`;
 };
 
+const PROJECT_CREATOR_ROLES = new Set(["writer", "creator"]);
+
+const getScriptCreatorName = (script) => {
+    const role = String(script?.creator?.role || "").trim().toLowerCase();
+    if (role && !PROJECT_CREATOR_ROLES.has(role)) {
+        return "—";
+    }
+    return String(script?.creator?.name || "").trim() || "—";
+};
+
 // ─── Stat Card ───
 const StatCard = ({ label, value, icon, color, isDark }) => (
     <div className={`rounded-2xl p-5 border transition-all hover:scale-[1.02] ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
@@ -135,8 +145,11 @@ const StatCard = ({ label, value, icon, color, isDark }) => (
 );
 
 // ─── User Table ───
-const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
-    <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+const UserTable = ({ users, isDark, onLoginAs, onViewUser, onFreezeUser, onUnfreezeUser, onGrantCredits, onDeleteUser, userActionLoading = "" }) => {
+    const hasRowActions = Boolean(onLoginAs || onViewUser || onFreezeUser || onUnfreezeUser || onGrantCredits || onDeleteUser);
+
+    return (
+        <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
             <table className="w-full">
                 <thead>
@@ -145,7 +158,7 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Email</th>
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Role</th>
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Joined</th>
-                        {(onLoginAs || onViewUser) && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</th>}
+                        {hasRowActions && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</th>}
                     </tr>
                 </thead>
                 <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
@@ -162,6 +175,9 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                                     )}
                                     <div>
                                         <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{u.name}</p>
+                                        <p className={`text-[11px] mt-0.5 font-bold ${u.isDeactivated ? "text-red-500" : u.isFrozen ? "text-amber-500" : (isDark ? "text-emerald-400" : "text-emerald-600")}`}>
+                                            {u.isDeactivated ? "Deleted" : u.isFrozen ? "Frozen" : "Active"}
+                                        </p>
                                         {u.phone && (
                                             <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{u.phone}</p>
                                         )}
@@ -179,14 +195,56 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                                     }`}>{u.role}</span>
                             </td>
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                            {(onLoginAs || onViewUser) && (
+                            {hasRowActions && (
                                 <td className="px-5 py-3.5">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         {onViewUser && (
                                             <button onClick={() => onViewUser(u)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10">View Details</button>
                                         )}
                                         {onLoginAs && (
-                                            <button onClick={() => onLoginAs(u._id)} className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10">Login As</button>
+                                            <button
+                                                onClick={() => onLoginAs(u._id)}
+                                                disabled={u.isFrozen || u.isDeactivated}
+                                                className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                Login As
+                                            </button>
+                                        )}
+                                        {onGrantCredits && (
+                                            <button
+                                                onClick={() => onGrantCredits(u)}
+                                                disabled={Boolean(u.isDeactivated) || userActionLoading === `credits-${u._id}`}
+                                                className="text-xs font-bold text-cyan-500 hover:text-cyan-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {userActionLoading === `credits-${u._id}` ? "Granting..." : "Grant Credits"}
+                                            </button>
+                                        )}
+                                        {onFreezeUser && !u.isFrozen && !u.isDeactivated && (
+                                            <button
+                                                onClick={() => onFreezeUser(u)}
+                                                disabled={userActionLoading === `freeze-${u._id}`}
+                                                className="text-xs font-bold text-amber-500 hover:text-amber-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-amber-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {userActionLoading === `freeze-${u._id}` ? "Freezing..." : "Freeze"}
+                                            </button>
+                                        )}
+                                        {onUnfreezeUser && u.isFrozen && !u.isDeactivated && (
+                                            <button
+                                                onClick={() => onUnfreezeUser(u)}
+                                                disabled={userActionLoading === `unfreeze-${u._id}`}
+                                                className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {userActionLoading === `unfreeze-${u._id}` ? "Unfreezing..." : "Unfreeze"}
+                                            </button>
+                                        )}
+                                        {onDeleteUser && (
+                                            <button
+                                                onClick={() => onDeleteUser(u)}
+                                                disabled={Boolean(u.isDeactivated) || userActionLoading === `delete-${u._id}`}
+                                                className="text-xs font-bold text-red-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {u.isDeactivated ? "Deleted" : userActionLoading === `delete-${u._id}` ? "Deleting..." : "Delete"}
+                                            </button>
                                         )}
                                     </div>
                                 </td>
@@ -194,13 +252,14 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                         </tr>
                     ))}
                     {users.length === 0 && (
-                        <tr><td colSpan={(onLoginAs || onViewUser) ? 5 : 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No users found</td></tr>
+                        <tr><td colSpan={hasRowActions ? 5 : 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No users found</td></tr>
                     )}
                 </tbody>
             </table>
         </div>
-    </div>
-);
+        </div>
+    );
+};
 
 // ─── Script Table ───
 const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }) => (
@@ -229,7 +288,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                             </td>
                             {showCreator && (
                                 <td className="px-5 py-3.5">
-                                    <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.creator?.name || "—"}</span>
+                                    <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{getScriptCreatorName(s)}</span>
                                 </td>
                             )}
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.genre || s.primaryGenre || "—"}</td>
@@ -686,6 +745,7 @@ const AdminDashboard = () => {
     const [bankReviews, setBankReviews] = useState([]);
     const [rejectModal, setRejectModal] = useState(null); // investor object
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
+    const [userActionLoading, setUserActionLoading] = useState("");
     const [contacts, setContacts] = useState([]);
     const [discountCodes, setDiscountCodes] = useState([]);
     const [discountCodeModal, setDiscountCodeModal] = useState(null); // null = closed, {} = create, {_id:...} = edit
@@ -722,6 +782,7 @@ const AdminDashboard = () => {
     const trailerFileInputRef = useRef(null);
     const [trailerUploadTargetScript, setTrailerUploadTargetScript] = useState(null);
     const [uploadingTrailerScriptId, setUploadingTrailerScriptId] = useState("");
+    const [deletingScriptId, setDeletingScriptId] = useState("");
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
@@ -794,7 +855,7 @@ const AdminDashboard = () => {
             u.industryProfile?.jobTitle
         )
     );
-    const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, s.creator?.name));
+    const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, getScriptCreatorName(s)));
     const filteredTransactions = sourceTransactions.filter((t) =>
         matchesSearch(
             t.user?.name,
@@ -849,7 +910,7 @@ const AdminDashboard = () => {
             case "trailers":
                 return {
                     title: `${TABS.find((tab) => tab.key === activeTab)?.label || "Scripts"} (${scripts.length})`,
-                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${s.creator?.name || "-"} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
                 };
             case "payments":
                 return {
@@ -1032,7 +1093,7 @@ const AdminDashboard = () => {
 
             const sectionFromScripts = (title, list) => ({
                 title: `${title} (${list.length})`,
-                lines: list.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${s.creator?.name || "-"} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                lines: list.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
             });
 
             writePdfSections({
@@ -1510,6 +1571,29 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleDeleteProject = async (script) => {
+        const scriptId = script?._id;
+        if (!scriptId || deletingScriptId) return;
+
+        const title = String(script?.title || "this project");
+        const confirmed = window.confirm(
+            `Delete \"${title}\" from platform listings? Existing buyers will retain access.`
+        );
+        if (!confirmed) return;
+
+        try {
+            setDeletingScriptId(scriptId);
+            const { data } = await adminApi.delete(`/admin/scripts/${scriptId}`);
+            showToast(data?.message || "Project deleted successfully");
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to delete project", "error");
+        } finally {
+            setDeletingScriptId("");
+        }
+    };
+
     const handleScore = async (id, scores) => {
         try {
             await adminApi.put(`/admin/scripts/${id}/score`, scores);
@@ -1702,6 +1786,137 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleFreezeToggleUser = async (user, freeze) => {
+        if (!user?._id || userActionLoading) return;
+        if (user.isDeactivated) {
+            showToast("This account is already deleted", "error");
+            return;
+        }
+
+        const reason = freeze
+            ? (window.prompt("Freeze reason (shown to user):", user.frozenReason || "") || "").trim()
+            : "";
+
+        if (freeze && !reason) {
+            showToast("Freeze reason is required", "error");
+            return;
+        }
+
+        const loadingKey = `${freeze ? "freeze" : "unfreeze"}-${user._id}`;
+        try {
+            setUserActionLoading(loadingKey);
+            const endpoint = freeze ? `/admin/users/${user._id}/freeze` : `/admin/users/${user._id}/unfreeze`;
+            const { data } = await adminApi.put(endpoint, freeze ? { reason } : {});
+            showToast(data?.message || (freeze ? "Account frozen" : "Account unfrozen"));
+
+            if (data?.user?._id) {
+                setSelectedUserDetail((prev) => {
+                    if (!prev || String(prev._id) !== String(data.user._id)) return prev;
+                    return {
+                        ...prev,
+                        ...data.user,
+                        credits: {
+                            ...(prev.credits || {}),
+                            balance: data.user.creditsBalance,
+                        },
+                    };
+                });
+            }
+
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to update account status", "error");
+        } finally {
+            setUserActionLoading("");
+        }
+    };
+
+    const handleGrantCreditsToUser = async (user) => {
+        if (!user?._id || userActionLoading) return;
+        if (user.isDeactivated) {
+            showToast("Cannot grant credits to a deleted account", "error");
+            return;
+        }
+
+        const amountRaw = window.prompt("Enter credits to add:", "100");
+        if (amountRaw === null) return;
+        const amount = Number(amountRaw);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showToast("Enter a valid positive credit amount", "error");
+            return;
+        }
+
+        const reason = (window.prompt("Credit grant reason:", "Manual admin credit grant") || "").trim() || "Manual admin credit grant";
+
+        const loadingKey = `credits-${user._id}`;
+        try {
+            setUserActionLoading(loadingKey);
+            const { data } = await adminApi.post(`/admin/users/${user._id}/credits`, { amount, reason });
+            showToast(data?.message || "Credits granted successfully");
+
+            if (data?.user?._id) {
+                setSelectedUserDetail((prev) => {
+                    if (!prev || String(prev._id) !== String(data.user._id)) return prev;
+                    return {
+                        ...prev,
+                        ...data.user,
+                        credits: {
+                            ...(prev.credits || {}),
+                            balance: data.balanceAfter,
+                        },
+                    };
+                });
+            }
+
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to grant credits", "error");
+        } finally {
+            setUserActionLoading("");
+        }
+    };
+
+    const handleDeleteUserAccount = async (user) => {
+        if (!user?._id || userActionLoading) return;
+        if (user.isDeactivated) {
+            showToast("Account already deleted", "info");
+            return;
+        }
+
+        const confirmed = window.confirm(`Delete account for ${user.name || user.email}? This action deactivates and blocks access.`);
+        if (!confirmed) return;
+
+        const loadingKey = `delete-${user._id}`;
+        try {
+            setUserActionLoading(loadingKey);
+            const { data } = await adminApi.delete(`/admin/users/${user._id}`);
+            showToast(data?.message || "User account deleted successfully");
+
+            if (data?.user?._id) {
+                setSelectedUserDetail((prev) => {
+                    if (!prev || String(prev._id) !== String(data.user._id)) return prev;
+                    return {
+                        ...prev,
+                        ...data.user,
+                        credits: {
+                            ...(prev.credits || {}),
+                            balance: data.user.creditsBalance,
+                        },
+                    };
+                });
+            }
+
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to delete account", "error");
+        } finally {
+            setUserActionLoading("");
+        }
+    };
+
     const handleInvoicePdfAction = async (invoice, action = "open") => {
         try {
             const { data } = await adminApi.get(`/invoices/${invoice._id}/pdf`, {
@@ -1846,7 +2061,7 @@ const AdminDashboard = () => {
                             key: "projects",
                             title: "Projects",
                             count: filteredScripts.length,
-                            lines: filteredScripts.slice(0, 6).map((s) => `${s.title || "-"} • SID: ${s.sid || "-"} • ${s.creator?.name || "-"}`),
+                            lines: filteredScripts.slice(0, 6).map((s) => `${s.title || "-"} • SID: ${s.sid || "-"} • ${getScriptCreatorName(s)}`),
                         },
                         {
                             key: "invoices",
@@ -1948,6 +2163,11 @@ const AdminDashboard = () => {
                             isDark={isDark}
                             onLoginAs={null}
                             onViewUser={setSelectedUserDetail}
+                            onFreezeUser={(user) => handleFreezeToggleUser(user, true)}
+                            onUnfreezeUser={(user) => handleFreezeToggleUser(user, false)}
+                            onGrantCredits={handleGrantCreditsToUser}
+                            onDeleteUser={handleDeleteUserAccount}
+                            userActionLoading={userActionLoading}
                         />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
@@ -1964,6 +2184,13 @@ const AdminDashboard = () => {
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <button
+                                        onClick={() => handleDeleteProject(s)}
+                                        disabled={Boolean(s.isDeleted) || deletingScriptId === s._id}
+                                        className="text-xs font-bold text-red-500 hover:text-red-400 px-2.5 py-1 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                    >
+                                        {s.isDeleted ? "Deleted" : deletingScriptId === s._id ? "Deleting..." : "Delete"}
+                                    </button>
                                 </div>
                             )}
                         />
@@ -2133,6 +2360,13 @@ const AdminDashboard = () => {
                                     <button onClick={() => handleReject(s._id)} className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">✕ Reject</button>
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <button
+                                        onClick={() => handleDeleteProject(s)}
+                                        disabled={Boolean(s.isDeleted) || deletingScriptId === s._id}
+                                        className="text-xs font-bold text-red-500 hover:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                    >
+                                        {s.isDeleted ? "Deleted" : deletingScriptId === s._id ? "Deleting..." : "Delete"}
+                                    </button>
                                 </div>
                             )}
                         />
@@ -2734,6 +2968,14 @@ const AdminDashboard = () => {
         const investorLinks = user?.industryProfile?.socialLinks || {};
         const mandates = user?.industryProfile?.mandates || {};
         const addressLine = getUserAddressLine(user);
+        const creditBalanceRaw = Number(user?.credits?.balance ?? user?.creditsBalance ?? 0);
+        const creditBalance = Number.isFinite(creditBalanceRaw) ? creditBalanceRaw : 0;
+        const isUserDeleted = Boolean(user?.isDeactivated);
+        const isUserFrozen = Boolean(user?.isFrozen);
+        const freezeLoading = userActionLoading === `freeze-${user?._id}`;
+        const unfreezeLoading = userActionLoading === `unfreeze-${user?._id}`;
+        const creditsLoading = userActionLoading === `credits-${user?._id}`;
+        const deleteLoading = userActionLoading === `delete-${user?._id}`;
 
         const detailRows = [
             { label: "Name", value: user?.name },
@@ -2741,6 +2983,8 @@ const AdminDashboard = () => {
             { label: "Phone", value: user?.phone },
             { label: "Role", value: user?.role },
             { label: "SID", value: user?.sid },
+            { label: "Account Status", value: isUserDeleted ? "Deleted" : isUserFrozen ? "Frozen" : "Active" },
+            { label: "Frozen Reason", value: user?.frozenReason },
             { label: "Date of Birth", value: user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "" },
             { label: "Address", value: addressLine || user?.address?.formatted },
             { label: "Approval Status", value: user?.approvalStatus },
@@ -2753,6 +2997,7 @@ const AdminDashboard = () => {
             { label: "Legal Name", value: user?.writerProfile?.legalName },
             { label: "Username", value: user?.writerProfile?.username },
             { label: "WGA Member", value: user?.writerProfile?.wgaMember === true ? "Yes" : user?.writerProfile?.wgaMember === false ? "No" : "" },
+            { label: "SGA Member", value: user?.writerProfile?.sgaMember === true ? "Yes" : user?.writerProfile?.sgaMember === false ? "No" : "" },
             { label: "Plan", value: user?.writerProfile?.plan },
             { label: "Representation", value: user?.writerProfile?.representationStatus },
             { label: "Agency", value: user?.writerProfile?.agencyName },
@@ -2830,6 +3075,54 @@ const AdminDashboard = () => {
                     </div>
 
                     <div className="p-5 space-y-4 overflow-y-auto max-h-[calc(88vh-74px)]">
+                        <div className={sectionClass}>
+                            <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Admin Actions</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={() => handleGrantCreditsToUser(user)}
+                                    disabled={isUserDeleted || creditsLoading}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                >
+                                    {creditsLoading ? "Granting..." : "Grant Credits"}
+                                </button>
+                                {!isUserFrozen && !isUserDeleted && (
+                                    <button
+                                        onClick={() => handleFreezeToggleUser(user, true)}
+                                        disabled={freezeLoading}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                    >
+                                        {freezeLoading ? "Freezing..." : "Freeze Account"}
+                                    </button>
+                                )}
+                                {isUserFrozen && !isUserDeleted && (
+                                    <button
+                                        onClick={() => handleFreezeToggleUser(user, false)}
+                                        disabled={unfreezeLoading}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                    >
+                                        {unfreezeLoading ? "Unfreezing..." : "Unfreeze Account"}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => handleDeleteUserAccount(user)}
+                                    disabled={isUserDeleted || deleteLoading}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                >
+                                    {isUserDeleted ? "Deleted" : deleteLoading ? "Deleting..." : "Delete Account"}
+                                </button>
+                                <button
+                                    onClick={() => handleLoginAs(user?._id)}
+                                    disabled={isUserDeleted || isUserFrozen}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                >
+                                    Login As User
+                                </button>
+                            </div>
+                            <p className={`text-xs mt-3 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                Credits Balance: <span className={`font-bold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{creditBalance}</span>
+                            </p>
+                        </div>
+
                         <div className={sectionClass}>
                             <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Basic Info</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

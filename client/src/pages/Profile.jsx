@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext, useRef, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../services/api";
 import { sendPitch } from "../services/scriptPitchService";
@@ -145,6 +145,7 @@ const DeleteProjectButton = ({ dark, onConfirm, title }) => {
 const Profile = () => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user: currentUser, setUser } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
 
@@ -161,6 +162,8 @@ const Profile = () => {
   const [messageRequestText, setMessageRequestText] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState(false);
+  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
+  const [connectionsType, setConnectionsType] = useState("followers");
   
   // Pitch
   const [showPitchModal, setShowPitchModal] = useState(false);
@@ -389,9 +392,46 @@ const Profile = () => {
     }
   };
 
+  const openConnectionsModal = (type) => {
+    setConnectionsType(type);
+    setShowConnectionsModal(true);
+  };
+
+  const getProfilePath = (userId) => {
+    if (!userId) return "/profile";
+
+    const isCurrentReaderProfile =
+      String(currentUser?.role || "").toLowerCase() === "reader" &&
+      String(currentUser?._id || "") === String(userId);
+
+    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${userId}`;
+  };
+
+  const handleConnectionClick = (userId) => {
+    if (!userId) return;
+    setShowConnectionsModal(false);
+    navigate(getProfilePath(userId));
+  };
+
   const isOwnProfile = currentUser._id === profile?._id;
   const isWriterUser = isWriter(profile?.role);
   const isInvestorProfile = String(profile?.role || "").toLowerCase() === "investor";
+  const connectionsLabel = connectionsType === "followers" ? "Followers" : "Following";
+  const connectionList =
+    connectionsType === "followers" ? profile?.followers || [] : profile?.following || [];
+  const normalizedConnections = connectionList
+    .map((user) => {
+      if (!user) return null;
+      if (typeof user === "string") {
+        return { _id: user, name: "Unknown User", profileImage: "" };
+      }
+      return {
+        _id: user._id,
+        name: user.name || "Unknown User",
+        profileImage: user.profileImage || "",
+      };
+    })
+    .filter(Boolean);
   const purchasedCount = purchasedScripts.length;
   const profileCompletion = profile?.profileCompletion;
   const showProfileCompletion = isOwnProfile && profileCompletion && !profileCompletion.isComplete;
@@ -644,6 +684,9 @@ const Profile = () => {
                       {profile.writerProfile?.wgaMember && (
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>WGA</span>
                       )}
+                      {profile.writerProfile?.sgaMember && (
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>SGA</span>
+                      )}
                     </div>
 
                     {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
@@ -681,14 +724,20 @@ const Profile = () => {
                 <div className="grid grid-cols-2 gap-2.5 w-full lg:w-[420px]">
                   {[
                     { label: "Projects", value: scripts.length },
-                    { label: "Followers", value: profile.followers.length },
-                    { label: "Following", value: profile.following.length },
+                    { label: "Followers", value: profile.followers.length, connectionType: "followers" },
+                    { label: "Following", value: profile.following.length, connectionType: "following" },
                     { label: "Genres", value: profile.writerProfile?.genres?.length || 0 },
                   ].map((item) => (
-                    <div key={item.label} className={`rounded-xl border px-3 py-3 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}>
+                    <button
+                      key={item.label}
+                      type="button"
+                      disabled={!item.connectionType}
+                      onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
+                      className={`rounded-xl border px-3 py-3 text-left transition-colors disabled:opacity-100 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"} ${item.connectionType ? dark ? "hover:bg-white/[0.08] hover:border-white/[0.16]" : "hover:bg-[#f0f6ff] hover:border-[#bdd3ec]" : "cursor-default"}`}
+                    >
                       <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
                       <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -759,18 +808,21 @@ const Profile = () => {
 
                     <div className="grid grid-cols-2 gap-2.5 self-start">
                       {[
-                        { label: "Followers", value: profile.followers.length },
-                        { label: "Following", value: profile.following.length },
+                        { label: "Followers", value: profile.followers.length, connectionType: "followers" },
+                        { label: "Following", value: profile.following.length, connectionType: "following" },
                         { label: "Purchased", value: purchasedCount },
                         { label: "Profile Views", value: Number(profile.profileViews || 0) },
                       ].map((item) => (
-                        <div
+                        <button
                           key={item.label}
-                          className={`rounded-xl border px-3 py-3.5 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"}`}
+                          type="button"
+                          disabled={!item.connectionType}
+                          onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
+                          className={`rounded-xl border px-3 py-3.5 text-left transition-colors disabled:opacity-100 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"} ${item.connectionType ? dark ? "hover:bg-white/[0.08] hover:border-white/[0.16]" : "hover:bg-[#f0f6ff] hover:border-[#bdd3ec]" : "cursor-default"}`}
                         >
                           <p className={`text-xl sm:text-2xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
                           <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -820,14 +872,20 @@ const Profile = () => {
                   <div className={`flex flex-wrap items-end gap-6 sm:gap-8 pt-5 border-t ${t.divider}`}>
                     {[
                       ...(profile.role !== "investor" ? [{ value: scripts.length, label: "Projects" }] : []),
-                      { value: profile.followers.length, label: "Followers" },
-                      { value: profile.following.length, label: "Following" },
+                      { value: profile.followers.length, label: "Followers", connectionType: "followers" },
+                      { value: profile.following.length, label: "Following", connectionType: "following" },
                       ...(memberSince ? [{ value: memberSince, label: "Joined", isStr: true }] : []),
                     ].map((s) => (
-                      <div key={s.label}>
+                      <button
+                        key={s.label}
+                        type="button"
+                        disabled={!s.connectionType}
+                        onClick={s.connectionType ? () => openConnectionsModal(s.connectionType) : undefined}
+                        className={`${s.connectionType ? "rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors disabled:opacity-100 text-left" : ""} ${s.connectionType ? dark ? "hover:bg-white/[0.08]" : "hover:bg-[#f0f6ff]" : "cursor-default"}`}
+                      >
                         <p className={`${s.isStr ? "text-lg sm:text-xl" : "text-2xl"} font-extrabold tabular-nums ${t.statNum}`}>{s.value}</p>
                         <p className={`text-[11px] font-semibold uppercase tracking-wider mt-0.5 ${t.statLabel}`}>{s.label}</p>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -1343,17 +1401,22 @@ const Profile = () => {
 
                 {/* WGA Status Card */}
                 <div className={`profile-bento-card rounded-2xl p-6 border flex flex-col items-center justify-center text-center ${t.bentoCard}`}>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 ${profile.writerProfile.wgaMember
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 ${(profile.writerProfile.wgaMember || profile.writerProfile.sgaMember)
                     ? dark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"
                     : dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
-                    <svg className={`w-7 h-7 ${profile.writerProfile.wgaMember ? dark ? "text-amber-400" : "text-amber-600" : dark ? "text-white/20" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <svg className={`w-7 h-7 ${(profile.writerProfile.wgaMember || profile.writerProfile.sgaMember) ? dark ? "text-amber-400" : "text-amber-600" : dark ? "text-white/20" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                     </svg>
                   </div>
-                  <p className={`text-[13px] font-bold mb-1 ${dark ? "text-white/70" : "text-gray-700"}`}>WGA Member</p>
-                  <span className={`px-3 py-1 rounded-lg text-[12px] font-bold border ${profile.writerProfile.wgaMember ? t.wgaYes : t.wgaNo}`}>
-                    {profile.writerProfile.wgaMember ? "Verified" : "Not a Member"}
-                  </span>
+                  <p className={`text-[13px] font-bold mb-2 ${dark ? "text-white/70" : "text-gray-700"}`}>Guild Memberships</p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <span className={`px-3 py-1 rounded-lg text-[12px] font-bold border ${profile.writerProfile.wgaMember ? t.wgaYes : t.wgaNo}`}>
+                      WGA: {profile.writerProfile.wgaMember ? "Verified" : "Not a Member"}
+                    </span>
+                    <span className={`px-3 py-1 rounded-lg text-[12px] font-bold border ${profile.writerProfile.sgaMember ? t.wgaYes : t.wgaNo}`}>
+                      SGA: {profile.writerProfile.sgaMember ? "Verified" : "Not a Member"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -2045,6 +2108,83 @@ const Profile = () => {
             middleContent={isWriter(profile.role) ? <BankDetails dark={dark} /> : null}
           />
         </motion.div>
+      )}
+
+      {showConnectionsModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowConnectionsModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className={`rounded-2xl shadow-2xl max-w-md w-full border overflow-hidden ${dark ? "bg-[#0d1520] border-white/[0.08]" : "bg-white border-gray-200"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
+              <div>
+                <h3 className={`text-[16px] font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>{connectionsLabel}</h3>
+                <p className={`text-[12px] mt-0.5 ${dark ? "text-white/35" : "text-gray-500"}`}>
+                  {normalizedConnections.length} account{normalizedConnections.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConnectionsModal(false)}
+                className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.08] text-white/45 hover:text-white/70" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto p-3">
+              {normalizedConnections.length === 0 ? (
+                <div className={`rounded-xl border p-4 text-center ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-100"}`}>
+                  <p className={`text-[13px] font-semibold ${dark ? "text-white/55" : "text-gray-700"}`}>
+                    No {connectionsType} yet
+                  </p>
+                  <p className={`text-[12px] mt-1 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                    Accounts will appear here as this profile grows.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {normalizedConnections.map((user, index) => (
+                    <button
+                      key={user._id || `${user.name}-${index}`}
+                      type="button"
+                      onClick={() => handleConnectionClick(user._id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${dark ? "hover:bg-white/[0.06]" : "hover:bg-[#f5f9ff]"}`}
+                    >
+                      {user.profileImage ? (
+                        <img
+                          src={resolveImage(user.profileImage)}
+                          alt={user.name}
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 ${dark ? "bg-white/[0.08] text-white/75" : "bg-[#e5edf8] text-[#355172]"}`}>
+                          {user.name?.charAt(0)?.toUpperCase() || "U"}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-900"}`}>
+                          {user.name}
+                        </p>
+                      </div>
+
+                      <svg className={`w-4 h-4 shrink-0 ${dark ? "text-white/25" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
       )}
 
       {/* Pitch Modal */}

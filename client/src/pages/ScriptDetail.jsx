@@ -59,6 +59,9 @@ const ScriptDetail = () => {
     title: script?.shareMeta?.title || `${script?.title || "Project"} | ScriptBridge`,
     text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on ScriptBridge."),
   };
+  const REVIEW_PREVIEW_LIMIT = 1;
+  const totalReviewsCount = Math.max(Number(reviewsTotal || 0), Number(script?.reviewCount || 0));
+  const hasMoreReviewsThanPreview = totalReviewsCount > REVIEW_PREVIEW_LIMIT;
 
   const showNotice = (message, type = "success") => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -799,14 +802,21 @@ const ScriptDetail = () => {
   const creatorId = script?.creator?._id || script?.creator;
   const viewerId = user?._id || user?.id;
   const isOwner = Boolean(script?.isCreator || (creatorId && viewerId && String(creatorId) === String(viewerId)));
+  const isReaderReviewer = String(user?.role || "").toLowerCase() === "reader";
   const isSoldScript = Boolean(script?.isSold || script?.holdStatus === "sold");
   const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
   const canSubmitReview = Boolean(
     user?._id &&
+    isReaderReviewer &&
     !isOwner &&
     script?.status === "published"
   );
+  const reviewUnavailableMessage = isOwner
+    ? "You cannot review your own project."
+    : !isReaderReviewer
+      ? "Only readers can submit reviews."
+      : "Reviews are available after the project is published.";
   const trailerSources = (() => {
     const aiTrailerUrl = script?.trailerUrl || "";
     const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
@@ -1114,13 +1124,15 @@ const ScriptDetail = () => {
                         <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${t.label}`}>Reviews</p>
                         <h3 className={`text-base font-bold tracking-tight ${t.title}`}>Project Feedback</h3>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("reviews")}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition ${t.btnSec}`}
-                      >
-                        View All
-                      </button>
+                      {hasMoreReviewsThanPreview && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("reviews")}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition ${t.btnSec}`}
+                        >
+                          View All
+                        </button>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
@@ -1198,18 +1210,18 @@ const ScriptDetail = () => {
 
                     {!canSubmitReview && (
                       <div className={`rounded-xl border px-4 py-3 mb-4 text-sm ${t.inset}`}>
-                        {isOwner ? "You cannot review your own project." : "Reviews are available after the project is published."}
+                        {reviewUnavailableMessage}
                       </div>
                     )}
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 max-h-[240px] overflow-y-auto pr-1">
                       {reviewsLoading ? (
                         <div className="py-5 flex justify-center">
                           <div className={`w-6 h-6 border-2 rounded-full animate-spin ${isDarkMode ? "border-white/10 border-t-white/60" : "border-gray-200 border-t-gray-500"}`} />
                         </div>
                       ) : reviews.length > 0 ? (
-                        reviews.slice(0, 3).map((review) => (
-                          <div key={review._id} className={`rounded-xl border p-3.5 ${t.inset}`}>
+                        reviews.slice(0, REVIEW_PREVIEW_LIMIT).map((review) => (
+                          <div key={review._id} className={`rounded-xl border p-3 ${t.inset}`}>
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className={`text-sm font-bold ${t.title}`}>{review.user?.name || "Anonymous"}</p>
@@ -1227,7 +1239,12 @@ const ScriptDetail = () => {
                                 ))}
                               </div>
                             </div>
-                            <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}>{review.comment}</p>
+                            <p
+                              className={`mt-1.5 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}
+                              style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                            >
+                              {review.comment}
+                            </p>
                           </div>
                         ))
                       ) : (
@@ -2149,7 +2166,7 @@ const ScriptDetail = () => {
 
                 {!canSubmitReview && (
                   <div className={`rounded-xl border px-4 py-3 text-sm ${t.inset}`}>
-                    {isOwner ? "You cannot review your own project." : "Reviews are available after the project is published."}
+                    {reviewUnavailableMessage}
                   </div>
                 )}
 
@@ -2157,11 +2174,11 @@ const ScriptDetail = () => {
                   <h4 className={`text-sm font-bold mb-3 ${t.title}`}>Recent Reviews</h4>
 
                   {reviewsLoading ? (
-                    <div className="py-8 flex justify-center">
+                    <div className="min-h-[220px] py-8 flex items-center justify-center">
                       <div className={`w-7 h-7 border-2 rounded-full animate-spin ${isDarkMode ? "border-white/10 border-t-white/60" : "border-gray-200 border-t-gray-500"}`} />
                     </div>
                   ) : reviews.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-[400px] lg:max-h-[520px] overflow-y-auto pr-1">
                       {reviews.map((review) => (
                         <div key={review._id} className={`rounded-xl border p-4 ${t.inset}`}>
                           <div className="flex items-start justify-between gap-3">
@@ -2188,7 +2205,7 @@ const ScriptDetail = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className={`py-8 text-center text-sm ${t.muted}`}>No reviews yet. Be the first to review this project.</div>
+                    <div className={`min-h-[220px] py-8 flex items-center justify-center text-center text-sm ${t.muted}`}>No reviews yet. Be the first to review this project.</div>
                   )}
 
                   {reviewsTotalPages > 1 && (

@@ -101,6 +101,19 @@ const getInvalidRoleAgeRangeMessage = (roles = []) => {
   return "";
 };
 
+const PROJECT_CREATOR_ROLES = new Set(["writer", "creator"]);
+
+const hasProjectCreatorAccess = (user) => {
+  const role = String(user?.role || "").trim().toLowerCase();
+  return PROJECT_CREATOR_ROLES.has(role);
+};
+
+const requireProjectCreatorAccess = (req, res) => {
+  if (hasProjectCreatorAccess(req.user)) return true;
+  res.status(403).json({ message: "Only writer accounts can create or submit projects." });
+  return false;
+};
+
 const isSpotlightActive = (script, now = new Date()) => {
   const endAt = script?.promotion?.spotlightEndAt;
   return Boolean(endAt && new Date(endAt) >= now);
@@ -406,6 +419,10 @@ export const extractPdfText = async (req, res) => {
 
 export const saveDraft = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     const { scriptId, title, textContent, ...otherData } = req.body;
 
     // If we have an ID, update the existing draft
@@ -600,6 +617,10 @@ export const getMyScripts = async (req, res) => {
 
 export const updateScript = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     const script = await Script.findById(req.params.id);
     if (!script) return res.status(404).json({ message: "Script not found" });
     if (script.creator.toString() !== req.user._id.toString()) {
@@ -761,6 +782,10 @@ export const updateScript = async (req, res) => {
 
 export const uploadScript = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     const {
       scriptId,
       title,
@@ -2630,8 +2655,10 @@ export const getInvestorHomeFeed = async (req, res) => {
 export const getTopList = async (req, res) => {
   try {
     const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
+    const now = new Date();
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user?._id);
     const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
-    const match = { status: "published", isSold: { $ne: true } };
+    const match = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;

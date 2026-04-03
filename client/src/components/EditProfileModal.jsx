@@ -66,6 +66,13 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   const [formData, setFormData] = useState({
     name: profile.name || "",
+    phone: profile.phone || "",
+    dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().split("T")[0] : "",
+    addressStreet: profile.address?.street || "",
+    addressCity: profile.address?.city || "",
+    addressState: profile.address?.state || "",
+    addressZipCode: profile.address?.zipCode || "",
+    addressFormatted: profile.address?.formatted || "",
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
     profileImage: profile.profileImage || "",
@@ -90,6 +97,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
   const [agencyName, setAgencyName] = useState(wp.agencyName || "");
   const [wgaMember, setWgaMember] = useState(wp.wgaMember || false);
+  const [sgaMember, setSgaMember] = useState(wp.sgaMember || false);
   const [selectedGenres, setSelectedGenres] = useState(wp.genres || []);
   const [specializedTags, setSpecializedTags] = useState(wp.specializedTags || []);
   const [diversity, setDiversity] = useState({
@@ -236,11 +244,28 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         skills: skillsArray,
       };
 
+      const addressStreet = formData.addressStreet.trim();
+      const addressCity = formData.addressCity.trim();
+      const addressState = formData.addressState.trim();
+      const addressZipCode = formData.addressZipCode.trim();
+      const computedAddress = [addressStreet, addressCity, addressState, addressZipCode].filter(Boolean).join(", ");
+
+      payload.phone = formData.phone.trim();
+      payload.dateOfBirth = formData.dateOfBirth || "";
+      payload.address = {
+        street: addressStreet,
+        city: addressCity,
+        state: addressState,
+        zipCode: addressZipCode,
+        formatted: formData.addressFormatted.trim() || computedAddress,
+      };
+
       if (isWriter) {
         payload.writerProfile = {
           representationStatus,
           agencyName,
           wgaMember,
+          sgaMember,
           genres: selectedGenres,
           specializedTags,
           diversity,
@@ -468,6 +493,72 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Phone</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className={inputClass}
+                    placeholder="+91 00000 00000"
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Date of Birth</label>
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Street Address</label>
+                <input
+                  type="text"
+                  value={formData.addressStreet}
+                  onChange={(e) => setFormData({ ...formData, addressStreet: e.target.value })}
+                  className={inputClass}
+                  placeholder="House/Flat, Street, Area"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className={labelClass}>City</label>
+                  <input
+                    type="text"
+                    value={formData.addressCity}
+                    onChange={(e) => setFormData({ ...formData, addressCity: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>State</label>
+                  <input
+                    type="text"
+                    value={formData.addressState}
+                    onChange={(e) => setFormData({ ...formData, addressState: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>ZIP Code</label>
+                  <input
+                    type="text"
+                    value={formData.addressZipCode}
+                    onChange={(e) => setFormData({ ...formData, addressZipCode: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className={labelClass}>Bio</label>
                 <textarea
@@ -540,6 +631,19 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 />
                 <label htmlFor="wgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                   I am a WGA member
+                </label>
+              </div>
+
+              <div className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
+                <input
+                  type="checkbox"
+                  id="sgaMemberEdit"
+                  checked={sgaMember}
+                  onChange={(e) => setSgaMember(e.target.checked)}
+                  className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                />
+                <label htmlFor="sgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  I am a SGA member
                 </label>
               </div>
             </motion.div>

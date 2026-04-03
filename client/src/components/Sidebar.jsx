@@ -1,14 +1,13 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 import ConfirmDialog from "./ConfirmDialog";
 
 const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
-  const { isDarkMode } = useDarkMode();
+  const isDarkMode = true;
   const location = useLocation();
   const navigate = useNavigate();
 
