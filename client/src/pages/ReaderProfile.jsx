@@ -423,9 +423,10 @@ const ReaderProfile = () => {
     title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | ScriptBridge`,
     text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on ScriptBridge.`,
   };
+  const readScriptsCount = readScripts.length;
 
   const tabs = [
-    { key: "read", label: "Scripts Read", icon: BookOpen, count: getReadScriptIds(profile).length },
+    { key: "read", label: "Scripts Read", icon: BookOpen, count: readScriptsCount },
     { key: "favorites", label: "Favorites", icon: Heart, count: profile.favoriteScripts?.length || 0 },
     { key: "reviews", label: "Reviews", icon: MessageSquare, count: profile.reviewsCount || 0 },
   ];
@@ -536,7 +537,7 @@ const ReaderProfile = () => {
 
               <div className="grid grid-cols-2 gap-2.5 self-start">
                 {[
-                  { label: "Scripts Read", value: getReadScriptIds(profile).length },
+                  { label: "Scripts Read", value: readScriptsCount },
                   { label: "Followers", value: profile.followers?.length || 0, connectionType: "followers" },
                   { label: "Reviews", value: profile.reviewsCount || 0 },
                   { label: "Following", value: profile.following?.length || 0, connectionType: "following" },

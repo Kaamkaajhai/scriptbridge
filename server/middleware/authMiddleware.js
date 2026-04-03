@@ -12,7 +12,7 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ message: "User no longer exists" });
       }
       if (req.user.isDeactivated) {
-        return res.status(403).json({ message: "This account has been deleted by admin" });
+        return res.status(403).json({ message: "This account has been deleted", accountDeleted: true });
       }
       if (req.user.isFrozen) {
         return res.status(403).json({

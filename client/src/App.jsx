@@ -5,6 +5,7 @@ import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
 import SeoManager from "./components/SeoManager";
+import { applyLanguagePreference } from "./utils/languagePreference";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
@@ -90,6 +91,20 @@ function ScrollToTopOnRouteChange() {
   return null;
 }
 
+function LanguagePreferenceSync() {
+  const { user } = useContext(AuthContext);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const preferredLanguage = user?.language || "en";
+    applyLanguagePreference(preferredLanguage).catch(() => {
+      // Translation is best-effort; settings should still remain usable on failures.
+    });
+  }, [user?.language, pathname]);
+
+  return <div id="google_translate_element" style={{ display: "none" }} aria-hidden="true" />;
+}
+
 function App() {
   useEffect(() => {
     const preload = () => {
@@ -117,6 +132,7 @@ function App() {
     <DarkModeProvider>
       <AuthProvider>
         <Router>
+          <LanguagePreferenceSync />
           <ScrollToTopOnRouteChange />
           <SeoManager />
           <AdminLoginHandler>

@@ -21,6 +21,7 @@ const scriptSchema = new mongoose.Schema({
   sid: { type: String, unique: true, sparse: true, index: true },
   creator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   title: { type: String, required: true },
+  companyName: { type: String, trim: true, maxlength: 120 },
   logline: { type: String }, // Max 50 chars hook for compact cards
   description: { type: String },
   synopsis: { type: String }, // Short visible teaser

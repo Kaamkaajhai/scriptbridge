@@ -450,7 +450,7 @@ export const login = async (req, res) => {
     if (user && (await user.matchPassword(password))) {
       if (user.isDeactivated) {
         return res.status(403).json({
-          message: "This account has been deleted by admin",
+          message: "This account has been deleted",
           accountDeleted: true,
         });
       }

@@ -1122,3 +1122,25 @@ html.dark-mode .script-content img {
     color: #000 !important;
   }
 }
+
+/* ── Global Translate Engine (hidden widget) ── */
+#google_translate_element,
+.goog-te-banner-frame.skiptranslate,
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+.VIpgJd-ZVi9od-ORHb-OEVmcd,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+.VIpgJd-ZVi9od-aZ2wEe-OiiCO,
+.VIpgJd-ZVi9od-xl07Ob-OEVmcd,
+iframe.goog-te-banner-frame,
+iframe.VIpgJd-ZVi9od-xl07Ob-OEVmcd,
+#goog-gt-tt,
+.goog-logo-link,
+.goog-te-gadget span {
+  display: none !important;
+}
+
+html,
+body {
+  top: 0 !important;
+}

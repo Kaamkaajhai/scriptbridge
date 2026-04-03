@@ -726,7 +726,6 @@ const FeaturedProjects = () => {
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [previewScript, setPreviewScript] = useState(null);  // trailer modal
-  const [showPromoteComingSoon, setShowPromoteComingSoon] = useState(false);
 
   /* Filter state */
   const [selectedGenre, setSelectedGenre] = useState("");
@@ -767,10 +766,6 @@ const FeaturedProjects = () => {
     setSelectedBudget("");
     setSelectedSort("engagement");
     setSelectedPremium("all");
-  };
-
-  const handlePromoteClick = () => {
-    setShowPromoteComingSoon(true);
   };
 
   useEffect(() => {
@@ -937,13 +932,6 @@ const FeaturedProjects = () => {
           </div>
 
         </div>
-
-        {showPromoteComingSoon && (
-          <div className={`mt-3 rounded-xl border px-4 py-3 text-sm font-semibold ${dark ? "bg-[#0f1d2f] border-[#2a4468] text-[#b6d4ff]" : "bg-[#eef6ff] border-[#c5dcfb] text-[#1e3a5f]"}`}>
-            Feature coming soon. Advertising tools are being prepared.
-          </div>
-        )}
-
       </motion.div>
 
       {/* ══ FEATURED CAROUSEL ══ */}
@@ -1097,12 +1085,6 @@ const FeaturedProjects = () => {
                 <p className={`text-[13px] font-medium ${dark ? "text-gray-500" : "text-gray-500"}`}>Handpicked promoted projects with spotlight placement</p>
               </div>
             </div>
-            <button onClick={handlePromoteClick} className={`group flex items-center gap-1.5 text-[12px] font-bold px-4 py-2 rounded-xl border transition-all duration-200 ${
-              dark ? "border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400/35" : "border-[#1e3a5f]/20 text-[#1e3a5f] hover:bg-[#1e3a5f]/[0.05] hover:border-[#1e3a5f]/30"
-            }`}>
-              <svg className="w-3.5 h-3.5 transition-transform group-hover:rotate-90 duration-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-              Promote yours
-            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

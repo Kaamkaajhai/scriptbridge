@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Film, FileText, ChevronRight } from "lucide-react";
+import { FileText, ChevronRight } from "lucide-react";
+import BrandLogo from "../components/BrandLogo";
 
 const LAST_UPDATED = "March 24, 2026";
 const EFFECTIVE_DATE = "March 24, 2026";
@@ -201,12 +202,7 @@ export default function WriterTermsConditions() {
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-white">
       <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <Film className="w-7 h-7 text-cyan-400" />
-            <span className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              Ckript
-            </span>
-          </Link>
+          <BrandLogo className="h-9 w-auto" />
           <Link to="/writer-onboarding" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-cyan-400 transition">
             <ChevronRight className="w-4 h-4 rotate-180" />
             Back to Writer Onboarding

@@ -61,6 +61,8 @@ const ScriptCard = ({ script, index = 0 }) => {
   const rating = script.rating || script.scriptScore?.overall || 0;
   const reviewCount = script.reviewCount || 0;
   const views = script.views || 0;
+  const hasPaidPrice = Boolean(script?.premium) && Number(script?.price || 0) > 0;
+  const priceText = hasPaidPrice ? `\u20b9${Number(script.price).toLocaleString("en-IN")}` : "Free";
 
   return (
     <motion.div
@@ -82,7 +84,7 @@ const ScriptCard = ({ script, index = 0 }) => {
           `}
         >
           {/* ── Cover ── */}
-          <div className="relative" style={{ aspectRatio: "4/3" }}>
+          <div className="relative" style={{ aspectRatio: "16/10" }}>
             {noImage ? (
               <PlaceholderCover script={script} dark={dark} />
             ) : (
@@ -118,7 +120,7 @@ const ScriptCard = ({ script, index = 0 }) => {
           </div>
 
           {/* ── Info ── */}
-          <div className="flex flex-col flex-1 px-3.5 pt-3 pb-2.5">
+          <div className="flex flex-col flex-1 px-3.5 pt-2.5 pb-2">
             {/* Genre + read time */}
             {script.genre && (
               <div className="flex items-center gap-2 mb-2">
@@ -132,7 +134,7 @@ const ScriptCard = ({ script, index = 0 }) => {
             )}
 
             {/* Author */}
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1">
               {creatorImage ? (
                 <img src={creatorImage} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
               ) : (
@@ -146,13 +148,13 @@ const ScriptCard = ({ script, index = 0 }) => {
             </div>
 
             {/* Title */}
-            <h3 className={`text-[13px] font-bold leading-snug line-clamp-2 mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>
+            <h3 className={`text-[13px] font-bold leading-snug line-clamp-1 mb-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>
               {script.title}
             </h3>
 
             {/* Logline */}
             {script.logline && (
-              <p className={`text-[11px] leading-relaxed line-clamp-2 ${dark ? "text-gray-600" : "text-gray-400"}`}>
+              <p className={`text-[11px] leading-relaxed line-clamp-1 ${dark ? "text-gray-600" : "text-gray-400"}`}>
                 {script.logline}
               </p>
             )}
@@ -160,25 +162,28 @@ const ScriptCard = ({ script, index = 0 }) => {
             <div className="flex-1" />
 
             {/* Footer stats */}
-            <div className={`flex items-center gap-3 mt-2 pt-2 border-t ${dark ? "border-[#1e2a3e]" : "border-gray-100"}`}>
-              {script.genre && (
-                <span className={`text-[9px] font-bold uppercase tracking-[0.1em] px-2 py-[2px] rounded ${dark ? "bg-violet-500/15 text-violet-400" : "bg-violet-50 text-violet-600"}`}>
-                  {script.genre}
-                </span>
-              )}
-              <div className="flex items-center gap-1">
-                <StarSvg size={11} />
-                <span className={`text-[11px] font-semibold ${dark ? "text-gray-300" : "text-gray-600"}`}>{rating.toFixed(1)}</span>
-                {reviewCount > 0 && (
-                  <span className={`text-[10px] ${dark ? "text-gray-600" : "text-gray-400"}`}>({reviewCount})</span>
-                )}
-              </div>
-              {views > 0 && (
-                <div className={`flex items-center gap-1 ml-auto ${dark ? "text-gray-600" : "text-gray-400"}`}>
-                  <Eye size={11} strokeWidth={2} />
-                  <span className="text-[10px] font-medium">{fmt(views)}</span>
+            <div className={`mt-2 pt-2 border-t ${dark ? "border-[#1e2a3e]" : "border-gray-100"}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-1 shrink-0">
+                    <StarSvg size={11} />
+                    <span className={`text-[11px] font-semibold ${dark ? "text-gray-300" : "text-gray-600"}`}>{rating.toFixed(1)}</span>
+                    {reviewCount > 0 && (
+                      <span className={`text-[10px] ${dark ? "text-gray-600" : "text-gray-400"}`}>({reviewCount})</span>
+                    )}
+                  </div>
+                  {views > 0 && (
+                    <div className={`flex items-center gap-1 shrink-0 ${dark ? "text-gray-600" : "text-gray-400"}`}>
+                      <Eye size={11} strokeWidth={2} />
+                      <span className="text-[10px] font-medium">{fmt(views)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <span className={`shrink-0 text-[11px] font-bold tabular-nums ${hasPaidPrice ? (dark ? "text-white" : "text-gray-900") : (dark ? "text-[#8fa3b8]" : "text-gray-500")}`}>
+                  {priceText}
+                </span>
+              </div>
             </div>
           </div>
         </div>

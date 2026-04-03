@@ -443,7 +443,7 @@ const CreateProject = () => {
   const [showUndoBar, setShowUndoBar] = useState(false);
 
   // Step 2: Details
-  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
+  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", companyName: "" });
 
   // File Upload State
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -736,6 +736,7 @@ const CreateProject = () => {
       if (data.formatOther !== undefined) setFormData(f => ({ ...f, formatOther: data.formatOther || "" }));
       if (data.pageCount) setFormData(f => ({ ...f, pageCount: String(data.pageCount) }));
       if (data.classification?.primaryGenre || data.genre) setFormData(f => ({ ...f, primaryGenre: data.classification?.primaryGenre || data.genre || "" }));
+      if (data.companyName !== undefined) setFormData(f => ({ ...f, companyName: data.companyName || "" }));
       if (data.logline) setFormData(f => ({ ...f, logline: data.logline }));
       if (data.synopsis) setFormData(f => ({ ...f, synopsis: data.synopsis }));
       else if (data.description) setFormData(f => ({ ...f, synopsis: data.description }));
@@ -770,6 +771,7 @@ const CreateProject = () => {
     return {
       title: title?.trim() ? title.trim() : "Untitled Draft",
       textContent: editor.getHTML(),
+      companyName: String(formData.companyName || "").trim(),
       legal: {
         agreedToTerms: Boolean(legal.agreedToTerms),
         termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
@@ -777,12 +779,12 @@ const CreateProject = () => {
       },
       ...(scriptId ? { scriptId } : {}),
     };
-  }, [editor, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
+  }, [editor, formData.companyName, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
 
   const getDraftSignature = useCallback((payload) => {
     if (!payload) return "";
     const html = String(payload.textContent || "");
-    return `${payload.title || ""}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
+    return `${payload.title || ""}::${String(payload.companyName || "")}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
   }, []);
 
   const hasMeaningfulDraft = useCallback((payload) => {
@@ -899,9 +901,7 @@ const CreateProject = () => {
       logline: "",
       synopsis: "",
       writer: "",
-      productionCompany: "",
-      director: "",
-      studioFinancier: "",
+      companyName: "",
     });
 
     if (editor) {
@@ -1341,6 +1341,7 @@ const CreateProject = () => {
         logline: formData.logline,
         synopsis: formData.synopsis,
         description: formData.synopsis,
+        companyName: String(formData.companyName || "").trim(),
         format: formData.format,
         formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
@@ -2112,16 +2113,8 @@ const CreateProject = () => {
                   <input type="text" name="writer" value={formData.writer} onChange={handleChange} placeholder="Writer's name" className={inputCls} />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Production Company</label>
-                  <input type="text" name="productionCompany" value={formData.productionCompany} onChange={handleChange} placeholder="Production company name" className={inputCls} />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Director</label>
-                  <input type="text" name="director" value={formData.director} onChange={handleChange} placeholder="Director's name" className={inputCls} />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Studio / Financier</label>
-                  <input type="text" name="studioFinancier" value={formData.studioFinancier} onChange={handleChange} placeholder="Studio or financier name" className={inputCls} />
+                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Company Name</label>
+                  <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Company name" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
