@@ -1,5 +1,6 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
+import adminOnly from "../middleware/adminMiddleware.js";
 import {
   getCreditPackages,
   getCreditBalance,
@@ -28,7 +29,7 @@ router.get("/history", getCreditHistory);
 router.get("/check/:amount", checkCredits);
 router.post("/purchase", purchaseCredits);
 router.post("/use", useCredits);
-router.post("/bonus", grantBonusCredits); // TODO: Add admin middleware
+router.post("/bonus", adminOnly, grantBonusCredits);
 router.post("/validate-discount", validateDiscount);
 
 // Razorpay routes

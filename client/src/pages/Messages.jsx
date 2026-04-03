@@ -142,7 +142,22 @@ const Messages = () => {
   useEffect(() => {
     if (!user?._id) return;
 
-    const sock = io(API_ORIGIN);
+    const storedSession = localStorage.getItem("user");
+    let socketToken = "";
+
+    if (storedSession) {
+      try {
+        socketToken = JSON.parse(storedSession)?.token || "";
+      } catch {
+        socketToken = "";
+      }
+    }
+
+    const sock = io(API_ORIGIN, {
+      auth: {
+        token: socketToken,
+      },
+    });
     setSocket(sock);
 
     sock.on("receive-message", (msg) => {

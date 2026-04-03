@@ -110,6 +110,16 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       profile.bankDetails.accountNumber.startsWith("****")
       ? profile.bankDetails.accountNumber
       : "";
+  const initialBankSnapshot = {
+    accountHolderName: (profile.bankDetails?.accountHolderName || "").trim(),
+    bankName: (profile.bankDetails?.bankName || "").trim(),
+    routingNumber: (profile.bankDetails?.routingNumber || "").replace(/\s+/g, "").toUpperCase(),
+    accountType: profile.bankDetails?.accountType || "checking",
+    swiftCode: (profile.bankDetails?.swiftCode || "").trim().toUpperCase(),
+    iban: (profile.bankDetails?.iban || "").trim().toUpperCase(),
+    country: (profile.bankDetails?.country || "IN").trim().toUpperCase(),
+    currency: (profile.bankDetails?.currency || "INR").trim().toUpperCase(),
+  };
 
   // Bank details state
   const [bankDetails, setBankDetails] = useState({
@@ -132,7 +142,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   // Active section for mobile-friendly navigation
   const [activeSection, setActiveSection] = useState("basic");
-  const shouldRequireAgencyName = ["agent", "manager_and_agent"].includes(representationStatus);
+  const shouldShowAgencyName = representationStatus !== "unrepresented";
 
   const sections = isWriter
     ? [
@@ -227,12 +237,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         .map((s) => s.trim())
         .filter((s) => s);
 
-      if (isWriter && shouldRequireAgencyName && !agencyName.trim()) {
-        setError("Agency name is required when representation is selected.");
-        setLoading(false);
-        return;
-      }
-
       if (isWriter && specializedTags.length > 5) {
         setError("Please keep specialized tags to 5 or fewer.");
         setLoading(false);
@@ -251,7 +255,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       const computedAddress = [addressStreet, addressCity, addressState, addressZipCode].filter(Boolean).join(", ");
 
       payload.phone = formData.phone.trim();
-      payload.dateOfBirth = formData.dateOfBirth || "";
+      payload.dateOfBirth = formData.dateOfBirth ? formData.dateOfBirth : undefined;
       payload.address = {
         street: addressStreet,
         city: addressCity,
@@ -263,7 +267,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       if (isWriter) {
         payload.writerProfile = {
           representationStatus,
-          agencyName,
+          agencyName: shouldShowAgencyName ? agencyName.trim() : "",
           wgaMember,
           sgaMember,
           genres: selectedGenres,
@@ -298,15 +302,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         currency: (bankDetails.currency || "INR").trim().toUpperCase(),
       };
 
-      const hasEditableBankValues =
-        normalizedBankDetails.accountHolderName ||
-        normalizedBankDetails.bankName ||
-        normalizedBankDetails.accountNumber ||
-        normalizedBankDetails.routingNumber ||
-        normalizedBankDetails.swiftCode ||
-        normalizedBankDetails.iban;
+      const hasBankChanges =
+        normalizedBankDetails.accountHolderName !== initialBankSnapshot.accountHolderName ||
+        normalizedBankDetails.bankName !== initialBankSnapshot.bankName ||
+        normalizedBankDetails.routingNumber !== initialBankSnapshot.routingNumber ||
+        normalizedBankDetails.accountType !== initialBankSnapshot.accountType ||
+        normalizedBankDetails.swiftCode !== initialBankSnapshot.swiftCode ||
+        normalizedBankDetails.iban !== initialBankSnapshot.iban ||
+        normalizedBankDetails.country !== initialBankSnapshot.country ||
+        normalizedBankDetails.currency !== initialBankSnapshot.currency ||
+        Boolean(normalizedBankDetails.accountNumber);
 
-      if (hasEditableBankValues) {
+      if (hasBankChanges) {
         if (!normalizedBankDetails.accountHolderName || !normalizedBankDetails.bankName) {
           setError("Account holder name and bank name are required for bank details.");
           setLoading(false);
@@ -608,9 +615,9 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </select>
               </div>
 
-              {shouldRequireAgencyName && (
+              {shouldShowAgencyName && (
                 <div>
-                  <label className={labelClass}>Agency Name</label>
+                <label className={labelClass}>Agency Name</label>
                   <input
                     type="text"
                     value={agencyName}

@@ -968,7 +968,13 @@ const WriterOnboarding = () => {
               </label>
               <select
                 value={writerProfile.representationStatus}
-                onChange={(e) => setWriterProfile({...writerProfile, representationStatus: e.target.value})}
+                onChange={(e) =>
+                  setWriterProfile({
+                    ...writerProfile,
+                    representationStatus: e.target.value,
+                    agencyName: e.target.value === "unrepresented" ? "" : writerProfile.agencyName,
+                  })
+                }
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent !text-gray-900"
               >
                 <option value="unrepresented">Unrepresented</option>
@@ -978,7 +984,7 @@ const WriterOnboarding = () => {
               </select>
             </div>
             
-            {(writerProfile.representationStatus === "agent" || writerProfile.representationStatus === "manager_and_agent") && (
+            {writerProfile.representationStatus !== "unrepresented" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Agency Name

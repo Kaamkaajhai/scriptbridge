@@ -113,6 +113,14 @@ const buildPurchaseDetails = async ({ packageId, customCredits }) => {
   };
 };
 
+const parseOptionalNumber = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const toPaise = (amount) => Math.round(Number(amount || 0) * 100);
+
 const getRazorpay = () => {
   if (!razorpayInstance) {
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -442,12 +450,37 @@ export const getServicePricing = async (req, res) => {
 export const grantBonusCredits = async (req, res) => {
   try {
     const { userId, amount, reason } = req.body;
-    
-    // TODO: Add admin check here
+
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied. Admin only." });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Amount must be a positive number" });
+    }
     
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === "admin") {
+      return res
+        .status(403)
+        .json({ message: "Credits cannot be granted to admin accounts" });
+    }
+
+    if (user.isDeactivated) {
+      return res
+        .status(400)
+        .json({ message: "Cannot grant credits to a deleted account" });
     }
     
     if (!user.credits) {
@@ -458,12 +491,13 @@ export const grantBonusCredits = async (req, res) => {
         transactions: []
       };
     }
-    
-    user.credits.balance += amount;
+
+    const currentBalance = Number(user.credits.balance || 0);
+    user.credits.balance = currentBalance + parsedAmount;
     user.credits.transactions.push({
       type: "bonus",
-      amount,
-      description: reason || "Bonus credits",
+      amount: parsedAmount,
+      description: typeof reason === "string" && reason.trim() ? reason.trim() : "Bonus credits",
       reference: `BONUS-${Date.now().toString(36).toUpperCase()}`,
       createdAt: new Date()
     });
@@ -473,7 +507,7 @@ export const grantBonusCredits = async (req, res) => {
     res.json({
       message: "Bonus credits granted successfully",
       balance: user.credits.balance,
-      granted: amount
+      granted: parsedAmount
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -600,11 +634,12 @@ export const createRazorpayOrder = async (req, res) => {
         packageId: packageId || "custom",
         planCode: purchase.planCode,
         packageName: purchase.name,
-        credits: purchase.totalCredits,
-        customCredits: purchase.isCustom ? purchase.credits : undefined,
+        credits: String(purchase.totalCredits),
+        customCredits: purchase.isCustom ? String(purchase.credits) : undefined,
         discountCode: discountCodeStr || undefined,
-        discountAmount: discountInfo?.discountAmount || undefined,
-        originalPrice: discountInfo ? purchase.price : undefined,
+        discountAmount: discountInfo ? String(discountInfo.discountAmount) : undefined,
+        originalPrice: discountInfo ? String(purchase.price) : undefined,
+        finalPrice: String(finalPrice),
       }
     };
     
@@ -642,14 +677,18 @@ export const createRazorpayOrder = async (req, res) => {
 // @access  Private
 export const verifyRazorpayPayment = async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
       razorpay_signature,
-      packageId,
-      customCredits,
-      discountCode: discountCodeStr
     } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        message: "Missing Razorpay verification parameters",
+        success: false,
+      });
+    }
     
     // Check if Razorpay key secret is available
     if (!process.env.RAZORPAY_KEY_SECRET) {
@@ -675,13 +714,169 @@ export const verifyRazorpayPayment = async (req, res) => {
         success: false 
       });
     }
-    
-    // Payment verified successfully, credit the user
-    const purchase = await buildPurchaseDetails({ packageId, customCredits });
+
+    const razorpay = getRazorpay();
+    const [order, payment] = await Promise.all([
+      razorpay.orders.fetch(razorpay_order_id),
+      razorpay.payments.fetch(razorpay_payment_id),
+    ]);
+
+    if (!order || !payment) {
+      return res.status(400).json({
+        message: "Unable to fetch payment details from Razorpay",
+        success: false,
+      });
+    }
+
+    if (payment.order_id !== razorpay_order_id) {
+      return res.status(400).json({
+        message: "Payment verification failed - Order mismatch",
+        success: false,
+      });
+    }
+
+    if (String(payment.status || "").toLowerCase() !== "captured") {
+      return res.status(400).json({
+        message: "Payment not captured yet",
+        success: false,
+      });
+    }
+
+    const orderNotes = order.notes || {};
+    const orderUserId = String(orderNotes.userId || "").trim();
+    if (!orderUserId || orderUserId !== req.user._id.toString()) {
+      return res.status(403).json({
+        message: "Payment does not belong to authenticated user",
+        success: false,
+      });
+    }
+
+    const notesPackageId = String(orderNotes.packageId || "").trim();
+    if (!notesPackageId) {
+      return res.status(400).json({
+        message: "Order metadata is missing package information",
+        success: false,
+      });
+    }
+
+    const notesCustomCredits = parseOptionalNumber(orderNotes.customCredits);
+    if (notesPackageId === "custom" && !Number.isInteger(notesCustomCredits)) {
+      return res.status(400).json({
+        message: "Order metadata is invalid for custom credits",
+        success: false,
+      });
+    }
+
+    const purchase = await buildPurchaseDetails({
+      packageId: notesPackageId === "custom" ? undefined : notesPackageId,
+      customCredits: notesPackageId === "custom" ? notesCustomCredits : undefined,
+    });
     if (purchase.error) {
       return res.status(400).json({
-        message: purchase.error,
+        message: "Unable to validate purchased plan",
         success: false,
+      });
+    }
+
+    const notesPlanCode = String(orderNotes.planCode || "").trim();
+    if (notesPlanCode && notesPlanCode !== purchase.planCode) {
+      return res.status(400).json({
+        message: "Order metadata plan does not match backend plan",
+        success: false,
+      });
+    }
+
+    const notesCredits = parseOptionalNumber(orderNotes.credits);
+    if (notesCredits !== undefined && notesCredits !== purchase.totalCredits) {
+      return res.status(400).json({
+        message: "Order metadata credits do not match backend plan",
+        success: false,
+      });
+    }
+
+    const expectedCurrency = (purchase.currency || "INR").toUpperCase();
+    if (
+      String(order.currency || "").toUpperCase() !== expectedCurrency ||
+      String(payment.currency || "").toUpperCase() !== expectedCurrency
+    ) {
+      return res.status(400).json({
+        message: "Currency mismatch in payment verification",
+        success: false,
+      });
+    }
+
+    const notesOriginalPrice = parseOptionalNumber(orderNotes.originalPrice);
+    if (notesOriginalPrice !== undefined && toPaise(notesOriginalPrice) !== toPaise(purchase.price)) {
+      return res.status(400).json({
+        message: "Order metadata price does not match backend plan",
+        success: false,
+      });
+    }
+
+    const notesDiscountAmount = parseOptionalNumber(orderNotes.discountAmount) || 0;
+    if (notesDiscountAmount < 0) {
+      return res.status(400).json({
+        message: "Invalid discount metadata in order",
+        success: false,
+      });
+    }
+
+    const discountAmount = Math.min(notesDiscountAmount, purchase.price);
+    const discountCodeFromOrder = String(orderNotes.discountCode || "").trim();
+    if (discountAmount > 0 && !discountCodeFromOrder) {
+      return res.status(400).json({
+        message: "Discount metadata missing code",
+        success: false,
+      });
+    }
+
+    let expectedFinalPrice = Math.max(purchase.price - discountAmount, 0);
+    if (expectedFinalPrice < 1) expectedFinalPrice = 1;
+    const expectedAmountPaise = toPaise(expectedFinalPrice);
+
+    const orderAmountPaise = Number(order.amount || 0);
+    const paymentAmountPaise = Number(payment.amount || 0);
+    const orderAmountPaidPaise = Number(order.amount_paid || 0);
+    if (
+      orderAmountPaise !== expectedAmountPaise ||
+      paymentAmountPaise !== expectedAmountPaise ||
+      orderAmountPaidPaise < expectedAmountPaise
+    ) {
+      return res.status(400).json({
+        message: "Paid amount does not match expected backend amount",
+        success: false,
+      });
+    }
+
+    const reference = `RAZORPAY-${razorpay_payment_id}`;
+    const existingTransaction = await Transaction.findOne({ reference }).select("user");
+    if (existingTransaction) {
+      if (existingTransaction.user?.toString() !== req.user._id.toString()) {
+        return res.status(409).json({
+          message: "Payment reference already linked to another account",
+          success: false,
+        });
+      }
+
+      const existingUser = await User.findById(req.user._id).select("credits");
+      return res.json({
+        success: true,
+        alreadyProcessed: true,
+        message: "Payment already verified and credits were previously added",
+        credits: {
+          balance: existingUser?.credits?.balance || 0,
+          purchased: 0,
+          package: purchase.name,
+        },
+        discount: discountCodeFromOrder
+          ? {
+              code: discountCodeFromOrder,
+              discountAmount,
+              originalPrice: purchase.price,
+              finalPrice: expectedFinalPrice,
+            }
+          : null,
+        reference,
       });
     }
     
@@ -701,21 +896,24 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    // Validate and record discount code usage
+    // Record discount usage from order metadata (server-side order notes)
     let discountInfo = null;
-    if (discountCodeStr) {
-      const discountResult = await validateDiscountForPurchase(discountCodeStr, req.user._id, purchase.price);
-      if (!discountResult.error) {
-        discountInfo = discountResult;
-        // Mark as used
-        discountResult.discountCode.usedCount += 1;
-        discountResult.discountCode.usedBy.push({ user: req.user._id, usedAt: new Date() });
-        await discountResult.discountCode.save();
+    if (discountCodeFromOrder) {
+      discountInfo = {
+        discountCode: { code: discountCodeFromOrder },
+        discountAmount,
+        finalPrice: expectedFinalPrice,
+      };
+
+      const discountDoc = await DiscountCode.findOne({ code: discountCodeFromOrder.toUpperCase() });
+      if (discountDoc) {
+        discountDoc.usedCount += 1;
+        discountDoc.usedBy.push({ user: req.user._id, usedAt: new Date() });
+        await discountDoc.save();
       }
     }
     
     const totalCredits = purchase.totalCredits;
-    const reference = `RAZORPAY-${razorpay_payment_id}`;
     
     // Initialize credits if not exists
     if (!user.credits) {
@@ -741,7 +939,7 @@ export const verifyRazorpayPayment = async (req, res) => {
     
     await user.save();
 
-    const actualPaid = discountInfo ? discountInfo.finalPrice : purchase.price;
+    const actualPaid = expectedAmountPaise / 100;
     
     // Create transaction record
     await Transaction.create({
@@ -761,6 +959,9 @@ export const verifyRazorpayPayment = async (req, res) => {
         customCredits: purchase.isCustom ? purchase.credits : undefined,
         razorpay_order_id,
         razorpay_payment_id,
+        razorpay_order_amount_paise: orderAmountPaise,
+        razorpay_payment_amount_paise: paymentAmountPaise,
+        razorpay_payment_status: payment.status,
         discountCode: discountInfo?.discountCode?.code || undefined,
         discountAmount: discountInfo?.discountAmount || undefined,
         originalPrice: discountInfo ? purchase.price : undefined,

@@ -5,6 +5,7 @@ import compression from "compression";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 import User from "./models/User.js";
 
@@ -134,6 +135,36 @@ const corsOrigin = (origin, callback) => {
   return callback(new Error("Not allowed by CORS"));
 };
 
+const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
+
+const parseChatParticipantIds = (chatId) => {
+  if (typeof chatId !== "string") return null;
+  const ids = chatId.split("_");
+  if (ids.length !== 2) return null;
+  if (!ids.every((id) => OBJECT_ID_REGEX.test(id))) return null;
+  return ids;
+};
+
+const canAccessChatRoom = (chatId, userId) => {
+  const participantIds = parseChatParticipantIds(chatId);
+  if (!participantIds) return false;
+  return participantIds.includes(String(userId));
+};
+
+const extractSocketToken = (socket) => {
+  const authToken = socket.handshake?.auth?.token;
+  if (authToken && typeof authToken === "string") {
+    return authToken.replace(/^Bearer\s+/i, "").trim();
+  }
+
+  const headerValue = socket.handshake?.headers?.authorization;
+  if (headerValue && typeof headerValue === "string") {
+    return headerValue.replace(/^Bearer\s+/i, "").trim();
+  }
+
+  return "";
+};
+
 const createRealtimeServer = () => {
   const server = http.createServer(app);
 
@@ -144,29 +175,98 @@ const createRealtimeServer = () => {
     },
   });
 
+  io.use(async (socket, next) => {
+    try {
+      const token = extractSocketToken(socket);
+      if (!token) {
+        return next(new Error("Not authorized"));
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.id).select("_id role isDeactivated isFrozen");
+      if (!user) {
+        return next(new Error("Not authorized"));
+      }
+
+      if (user.isDeactivated || user.isFrozen) {
+        return next(new Error("Account is restricted"));
+      }
+
+      socket.user = {
+        _id: user._id.toString(),
+        role: user.role,
+      };
+
+      return next();
+    } catch {
+      return next(new Error("Not authorized"));
+    }
+  });
+
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
+    const socketUserId = socket.user?._id;
+    socket.join(`notifications-${socketUserId}`);
+
     socket.on("join-chat", (chatId) => {
+      if (!canAccessChatRoom(chatId, socketUserId)) {
+        socket.emit("socket-error", { event: "join-chat", message: "Access denied." });
+        return;
+      }
+
       socket.join(chatId);
       console.log(`User ${socket.id} joined chat: ${chatId}`);
     });
 
     socket.on("join-notifications", (userId) => {
-      socket.join(`notifications-${userId}`);
-      console.log(`User ${socket.id} joined notifications for: ${userId}`);
+      const targetUserId = String(userId || socketUserId);
+      if (targetUserId !== socketUserId) {
+        socket.emit("socket-error", { event: "join-notifications", message: "Access denied." });
+        return;
+      }
+
+      socket.join(`notifications-${socketUserId}`);
+      console.log(`User ${socket.id} joined notifications for: ${socketUserId}`);
     });
 
-    socket.on("send-message", (data) => {
-      io.to(data.chatId).emit("receive-message", data);
+    socket.on("send-message", (data = {}) => {
+      const chatId = String(data.chatId || "");
+      if (!canAccessChatRoom(chatId, socketUserId)) {
+        socket.emit("socket-error", { event: "send-message", message: "Access denied." });
+        return;
+      }
+
+      const payloadSenderId = data?.sender?._id || data?.sender;
+      if (payloadSenderId && String(payloadSenderId) !== socketUserId) {
+        socket.emit("socket-error", { event: "send-message", message: "Sender mismatch." });
+        return;
+      }
+
+      io.to(chatId).emit("receive-message", data);
     });
 
-    socket.on("typing", (data) => {
-      socket.to(data.chatId).emit("user-typing", data);
+    socket.on("typing", (data = {}) => {
+      const chatId = String(data.chatId || "");
+      if (!canAccessChatRoom(chatId, socketUserId)) {
+        socket.emit("socket-error", { event: "typing", message: "Access denied." });
+        return;
+      }
+
+      socket.to(chatId).emit("user-typing", {
+        chatId,
+        userId: socketUserId,
+      });
     });
 
-    socket.on("smart-match-alert", (data) => {
-      io.to(`notifications-${data.userId}`).emit("new-match", data);
+    socket.on("smart-match-alert", (data = {}) => {
+      const targetUserId = String(data.userId || "");
+      if (!targetUserId || targetUserId !== socketUserId) {
+        socket.emit("socket-error", { event: "smart-match-alert", message: "Access denied." });
+        return;
+      }
+
+      io.to(`notifications-${targetUserId}`).emit("new-match", data);
     });
 
     socket.on("disconnect", () => {

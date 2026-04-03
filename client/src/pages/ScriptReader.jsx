@@ -6,6 +6,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ReviewCard from "../components/ReviewCard";
 import ReviewForm from "../components/ReviewForm";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { Film } from "lucide-react";
 
 const ScriptReader = () => {
@@ -27,6 +28,8 @@ const ScriptReader = () => {
   const [showContent, setShowContent] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
   const [totalReviewPages, setTotalReviewPages] = useState(1);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [pendingDeleteReviewId, setPendingDeleteReviewId] = useState("");
 
   const resolveImage = (url) => {
     if (!url) return "";
@@ -76,12 +79,13 @@ const ScriptReader = () => {
 
   const handleSubmitReview = async ({ rating, comment }) => {
     if (!canSubmitReview) {
-      alert(reviewGateMessage);
+      setReviewFeedback(reviewGateMessage);
       return;
     }
 
     try {
       setSubmitLoading(true);
+      setReviewFeedback("");
       if (editingReview) {
         await api.put(`/reviews/${editingReview._id}`, { rating, comment });
         setEditingReview(null);
@@ -89,24 +93,37 @@ const ScriptReader = () => {
         await api.post("/reviews", { script: id, rating, comment });
       }
       await fetchReviews(); await fetchScript();
-    } catch (err) { alert(err.response?.data?.message || "Failed to submit review"); }
+    } catch (err) { setReviewFeedback(err.response?.data?.message || "Failed to submit review"); }
     finally { setSubmitLoading(false); }
   };
 
   const handleDeleteReview = async (reviewId) => {
     if (!canSubmitReview) {
-      alert(reviewGateMessage);
+      setReviewFeedback(reviewGateMessage);
       return;
     }
 
-    if (!confirm("Delete this review?")) return;
-    try { await api.delete(`/reviews/${reviewId}`); setMyReview(null); await fetchReviews(); await fetchScript(); }
-    catch { alert("Failed to delete review"); }
+    setPendingDeleteReviewId(reviewId);
+  };
+
+  const confirmDeleteReview = async () => {
+    if (!pendingDeleteReviewId) return;
+    try {
+      setReviewFeedback("");
+      await api.delete(`/reviews/${pendingDeleteReviewId}`);
+      setMyReview(null);
+      await fetchReviews();
+      await fetchScript();
+    } catch {
+      setReviewFeedback("Failed to delete review");
+    } finally {
+      setPendingDeleteReviewId("");
+    }
   };
 
   const handleEditReview = (review) => {
     if (!canSubmitReview) {
-      alert(reviewGateMessage);
+      setReviewFeedback(reviewGateMessage);
       return;
     }
 
@@ -153,6 +170,7 @@ const ScriptReader = () => {
   );
 
   return (
+    <>
     <div className="max-w-5xl mx-auto pb-16">
       {/* Back */}
       <Link to="/reader" className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-sm font-semibold mb-6 transition-colors">
@@ -286,6 +304,11 @@ const ScriptReader = () => {
 
         {activeTab === "reviews" && (
           <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            {reviewFeedback && (
+              <div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${dark ? "bg-red-500/10 border-red-400/30 text-red-300" : "bg-red-50 border-red-200 text-red-700"}`}>
+                {reviewFeedback}
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column: Write Review + Rating Summary */}
               <div className="lg:col-span-1 space-y-5">
@@ -896,6 +919,18 @@ const ScriptReader = () => {
       </AnimatePresence>
 
     </div>
+
+    <ConfirmDialog
+      open={Boolean(pendingDeleteReviewId)}
+      title="Delete review"
+      message="Delete this review? This cannot be undone."
+      confirmText="Delete"
+      cancelText="Cancel"
+      onConfirm={confirmDeleteReview}
+      onCancel={() => setPendingDeleteReviewId("")}
+      isDarkMode={dark}
+    />
+    </>
   );
 };
 
