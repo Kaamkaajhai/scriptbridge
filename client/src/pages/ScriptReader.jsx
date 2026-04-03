@@ -75,6 +75,11 @@ const ScriptReader = () => {
   };
 
   const handleSubmitReview = async ({ rating, comment }) => {
+    if (!canSubmitReview) {
+      alert(reviewGateMessage);
+      return;
+    }
+
     try {
       setSubmitLoading(true);
       if (editingReview) {
@@ -89,15 +94,40 @@ const ScriptReader = () => {
   };
 
   const handleDeleteReview = async (reviewId) => {
+    if (!canSubmitReview) {
+      alert(reviewGateMessage);
+      return;
+    }
+
     if (!confirm("Delete this review?")) return;
     try { await api.delete(`/reviews/${reviewId}`); setMyReview(null); await fetchReviews(); await fetchScript(); }
     catch { alert("Failed to delete review"); }
   };
 
-  const handleEditReview = (review) => { setEditingReview(review); setActiveTab("reviews"); };
+  const handleEditReview = (review) => {
+    if (!canSubmitReview) {
+      alert(reviewGateMessage);
+      return;
+    }
+
+    setEditingReview(review);
+    setActiveTab("reviews");
+  };
 
   const isUnlocked = !script?.premium || script?.isCreator || script?.isUnlocked;
   const isPro = ["investor", "producer", "director"].includes(user?.role);
+  const isReaderReviewer = String(user?.role || "").toLowerCase() === "reader";
+  const canSubmitReview = Boolean(
+    user?._id &&
+    isReaderReviewer &&
+    !script?.isCreator &&
+    script?.status === "published"
+  );
+  const reviewGateMessage = !isReaderReviewer
+    ? "Only readers can submit reviews."
+    : script?.isCreator
+      ? "You cannot review your own project."
+      : "Reviews are available after the project is published.";
 
   const renderStars = (rating) => (
     <div className="flex gap-0.5">
@@ -288,15 +318,22 @@ const ScriptReader = () => {
                 </div>
 
                 {/* Write / Already Reviewed */}
-                {!myReview || editingReview ? (
-                  <ReviewForm onSubmit={handleSubmitReview} loading={submitLoading} isEditing={!!editingReview} initialRating={editingReview?.rating || 0} initialComment={editingReview?.comment || ""} />
-                ) : (
-                  <div className={`bg-white rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "border-gray-100"}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-emerald-500/15" : "bg-emerald-50"}`}>
-                      <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {canSubmitReview ? (
+                  (!myReview || editingReview) ? (
+                    <ReviewForm onSubmit={handleSubmitReview} loading={submitLoading} isEditing={!!editingReview} initialRating={editingReview?.rating || 0} initialComment={editingReview?.comment || ""} />
+                  ) : (
+                    <div className={`bg-white rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "border-gray-100"}`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-emerald-500/15" : "bg-emerald-50"}`}>
+                        <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </div>
+                      <p className="text-sm font-bold text-gray-800 mb-0.5">Review submitted</p>
+                      <p className="text-xs text-gray-400 font-medium">You can edit or delete your review from below.</p>
                     </div>
-                    <p className="text-sm font-bold text-gray-800 mb-0.5">Review submitted</p>
-                    <p className="text-xs text-gray-400 font-medium">You can edit or delete your review from below.</p>
+                  )
+                ) : (
+                  <div className={`rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+                    <p className={`text-sm font-bold mb-1 ${dark ? "text-gray-200" : "text-gray-700"}`}>Review access restricted</p>
+                    <p className="text-xs text-gray-400 font-medium">{reviewGateMessage}</p>
                   </div>
                 )}
               </div>
@@ -307,7 +344,15 @@ const ScriptReader = () => {
                   [...Array(3)].map((_, i) => <div key={i} className={`h-28 rounded-2xl animate-pulse ${dark ? "bg-[#333]" : "bg-gray-50"}`} />)
                 ) : reviews.length > 0 ? (
                   <>
-                    {reviews.map((r) => <ReviewCard key={r._id} review={r} currentUserId={user?._id} onEdit={handleEditReview} onDelete={handleDeleteReview} />)}
+                    {reviews.map((r) => (
+                      <ReviewCard
+                        key={r._id}
+                        review={r}
+                        currentUserId={user?._id}
+                        onEdit={canSubmitReview ? handleEditReview : undefined}
+                        onDelete={canSubmitReview ? handleDeleteReview : undefined}
+                      />
+                    ))}
                     {totalReviewPages > 1 && (
                       <div className="flex justify-center gap-2 pt-4">
                         {[...Array(totalReviewPages)].map((_, i) => (

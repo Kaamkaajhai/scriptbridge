@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect, useContext } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
@@ -72,6 +72,24 @@ function AdminLoginHandler({ children }) {
   return children;
 }
 
+function ScrollToTopOnRouteChange() {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    // Ensure each route opens from the top in SPA navigation.
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    const mainEl = document.querySelector("main");
+    if (mainEl && typeof mainEl.scrollTo === "function") {
+      mainEl.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [pathname, search]);
+
+  return null;
+}
+
 function App() {
   useEffect(() => {
     const preload = () => {
@@ -99,6 +117,7 @@ function App() {
     <DarkModeProvider>
       <AuthProvider>
         <Router>
+          <ScrollToTopOnRouteChange />
           <SeoManager />
           <AdminLoginHandler>
             <Suspense

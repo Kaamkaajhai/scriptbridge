@@ -441,6 +441,20 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
+      if (user.isDeactivated) {
+        return res.status(403).json({
+          message: "This account has been deleted by admin",
+          accountDeleted: true,
+        });
+      }
+
+      if (user.isFrozen) {
+        return res.status(403).json({
+          message: user.frozenReason || "This account has been frozen by admin",
+          accountFrozen: true,
+        });
+      }
+
       if (user.role === "admin") {
         const branchAccess = getAdminBranchAccessStatus();
         if (!branchAccess.allowed) {
@@ -545,6 +559,20 @@ export const verifyOTP = async (req, res) => {
 
     if (!user.emailVerificationToken) {
       return res.status(400).json({ message: "No verification code found. Please request a new one." });
+    }
+
+    if (user.isDeactivated) {
+      return res.status(403).json({
+        message: "This account has been deleted by admin",
+        accountDeleted: true,
+      });
+    }
+
+    if (user.isFrozen) {
+      return res.status(403).json({
+        message: user.frozenReason || "This account has been frozen by admin",
+        accountFrozen: true,
+      });
     }
 
     // Check if OTP is expired

@@ -57,7 +57,7 @@ router.get("/", authMiddleware, async (req, res) => {
       }
 
       const userDocs = await User.find(userQuery)
-        .select("sid name email role bio skills profileImage followers following writerProfile.genres writerProfile.wgaMember writerProfile.representationStatus")
+        .select("sid name email role bio skills profileImage followers following writerProfile.genres writerProfile.wgaMember writerProfile.sgaMember writerProfile.representationStatus")
         .limit(30)
         ;
 

@@ -1,11 +1,14 @@
 import User from "../models/User.js";
 import DiscountCode from "../models/DiscountCode.js";
 import Script from "../models/Script.js";
+import ScriptOption from "../models/ScriptOption.js";
+import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import Transaction from "../models/Transaction.js";
 import Invoice from "../models/Invoice.js";
 import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
 import ContactSubmission from "../models/ContactSubmission.js";
+import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
@@ -61,6 +64,35 @@ const getAdminTrailerRequestFilter = () => ({
         },
     ],
 });
+
+const getSettledPurchaseQuery = (extra = {}) => ({
+    ...extra,
+    status: "approved",
+    $or: [
+        { paymentStatus: "released" },
+        { amount: { $lte: 0 } },
+    ],
+});
+
+const getPurchasedUserIdSetForAdminDelete = async (script) => {
+    const approvedPurchaseRequests = await ScriptPurchaseRequest.find(
+        getSettledPurchaseQuery({ script: script._id })
+    ).select("investor").lean();
+
+    const convertedOptions = await ScriptOption.find({
+        script: script._id,
+        status: "converted",
+    }).select("holder").lean();
+
+    return new Set(
+        [
+            ...(Array.isArray(script.unlockedBy) ? script.unlockedBy.map((id) => id?.toString?.()) : []),
+            ...(Array.isArray(script.purchasedBy) ? script.purchasedBy.map((id) => id?.toString?.()) : []),
+            ...approvedPurchaseRequests.map((row) => row?.investor?.toString?.()),
+            ...convertedOptions.map((row) => row?.holder?.toString?.()),
+        ].filter(Boolean)
+    );
+};
 
 const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -183,12 +215,217 @@ export const getUsers = async (req, res) => {
     }
 };
 
+const buildAdminManagedUserSummary = (user) => ({
+    _id: user._id,
+    sid: user.sid,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isFrozen: Boolean(user.isFrozen),
+    frozenAt: user.frozenAt,
+    frozenReason: user.frozenReason || "",
+    isDeactivated: Boolean(user.isDeactivated),
+    deactivatedAt: user.deactivatedAt,
+    creditsBalance: Number(user?.credits?.balance || 0),
+});
+
+export const freezeUserAccount = async (req, res) => {
+    try {
+        const { reason } = req.body || {};
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        if (targetUser.role === "admin") {
+            return res.status(403).json({ message: "Admin accounts cannot be frozen" });
+        }
+
+        if (targetUser.isDeactivated) {
+            return res.status(400).json({ message: "This account is already deleted" });
+        }
+
+        targetUser.isFrozen = true;
+        targetUser.frozenAt = new Date();
+        targetUser.frozenReason = String(reason || "Account frozen by admin").trim();
+        targetUser.frozenBy = req.user._id;
+        await targetUser.save();
+
+        await Notification.create({
+            user: targetUser._id,
+            type: "admin_alert",
+            from: req.user._id,
+            message: targetUser.frozenReason || "Your account has been frozen by admin",
+        }).catch(() => null);
+
+        res.json({
+            message: "Account frozen successfully",
+            user: buildAdminManagedUserSummary(targetUser),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const unfreezeUserAccount = async (req, res) => {
+    try {
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        if (targetUser.role === "admin") {
+            return res.status(403).json({ message: "Admin accounts cannot be unfrozen from this endpoint" });
+        }
+
+        targetUser.isFrozen = false;
+        targetUser.frozenAt = undefined;
+        targetUser.frozenReason = "";
+        targetUser.frozenBy = undefined;
+        await targetUser.save();
+
+        await Notification.create({
+            user: targetUser._id,
+            type: "admin_alert",
+            from: req.user._id,
+            message: "Your account has been unfrozen by admin",
+        }).catch(() => null);
+
+        res.json({
+            message: "Account unfrozen successfully",
+            user: buildAdminManagedUserSummary(targetUser),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const grantCreditsToUser = async (req, res) => {
+    try {
+        const amount = Number(req.body?.amount);
+        const reason = String(req.body?.reason || "Admin credit grant").trim();
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ message: "Amount must be a positive number" });
+        }
+
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        if (targetUser.role === "admin") {
+            return res.status(403).json({ message: "Credits cannot be granted to admin accounts" });
+        }
+
+        if (targetUser.isDeactivated) {
+            return res.status(400).json({ message: "Cannot grant credits to a deleted account" });
+        }
+
+        if (!targetUser.credits) {
+            targetUser.credits = {
+                balance: 0,
+                totalPurchased: 0,
+                totalSpent: 0,
+                transactions: [],
+            };
+        }
+
+        const balanceBefore = Number(targetUser.credits.balance || 0);
+        targetUser.credits.balance = balanceBefore + amount;
+        const balanceAfter = targetUser.credits.balance;
+        const reference = Transaction.generateReference("bonus");
+
+        targetUser.credits.transactions.push({
+            type: "bonus",
+            amount,
+            description: reason,
+            reference,
+            createdAt: new Date(),
+        });
+
+        await targetUser.save();
+
+        await Transaction.create({
+            user: targetUser._id,
+            type: "bonus",
+            amount,
+            currency: "INR",
+            status: "completed",
+            description: reason,
+            reference,
+            balanceBefore,
+            balanceAfter,
+            processedBy: req.user._id,
+            processedAt: new Date(),
+        });
+
+        await Notification.create({
+            user: targetUser._id,
+            type: "admin_alert",
+            from: req.user._id,
+            message: `Admin added ${amount} credits to your account.`,
+        }).catch(() => null);
+
+        res.json({
+            message: "Credits granted successfully",
+            granted: amount,
+            balanceBefore,
+            balanceAfter,
+            user: buildAdminManagedUserSummary(targetUser),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const deleteUserAccountAsAdmin = async (req, res) => {
+    try {
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        if (targetUser.role === "admin") {
+            return res.status(403).json({ message: "Admin accounts cannot be deleted" });
+        }
+
+        if (String(targetUser._id) === String(req.user._id)) {
+            return res.status(400).json({ message: "You cannot delete your own admin account from this panel" });
+        }
+
+        if (targetUser.isDeactivated) {
+            return res.json({
+                message: "Account already deleted",
+                user: buildAdminManagedUserSummary(targetUser),
+            });
+        }
+
+        const now = new Date();
+        targetUser.isDeactivated = true;
+        targetUser.deactivatedAt = now;
+        targetUser.deactivatedBy = req.user._id;
+        targetUser.isFrozen = true;
+        targetUser.frozenAt = now;
+        targetUser.frozenReason = "Account deleted by admin";
+        targetUser.frozenBy = req.user._id;
+        targetUser.phone = "";
+        targetUser.address = undefined;
+        targetUser.bio = "";
+        targetUser.profileImage = "";
+        targetUser.pendingEmail = undefined;
+        targetUser.emailVerified = false;
+        targetUser.email = `deleted_${targetUser._id}@deleted.local`;
+
+        await targetUser.save();
+
+        res.json({
+            message: "User account deleted successfully",
+            user: buildAdminManagedUserSummary(targetUser),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ─── All Scripts ───
 export const getScripts = async (req, res) => {
     try {
         const { search, status, page = 1, limit = 20 } = req.query;
-        const filter = {};
+        const filter = { status: { $ne: "draft" } };
         if (status === "deleted") {
+            delete filter.status;
             filter.isDeleted = true;
         } else if (status) {
             filter.status = status;
@@ -719,6 +956,12 @@ export const loginAsUser = async (req, res) => {
     try {
         const user = await User.findById(req.params.userId).select("-password");
         if (!user) return res.status(404).json({ message: "User not found" });
+        if (user.isDeactivated) {
+            return res.status(400).json({ message: "Cannot login as a deleted account" });
+        }
+        if (user.isFrozen) {
+            return res.status(400).json({ message: user.frozenReason || "Cannot login as a frozen account" });
+        }
 
         const expiresIn = "2h";
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn });
@@ -746,6 +989,59 @@ export const getScriptDetail = async (req, res) => {
             .populate("platformScore.scoredBy", "name");
         if (!script) return res.status(404).json({ message: "Script not found" });
         res.json(script);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const deleteScriptAsAdmin = async (req, res) => {
+    try {
+        const script = await Script.findById(req.params.id);
+        if (!script) return res.status(404).json({ message: "Script not found" });
+
+        if (script.isDeleted) {
+            return res.json({ message: "Project already deleted", softDeleted: true, isDeleted: true });
+        }
+
+        const purchasedUserIds = await getPurchasedUserIdSetForAdminDelete(script);
+        if (purchasedUserIds.size > 0) {
+            const mergedIds = Array.from(purchasedUserIds).map((id) => new mongoose.Types.ObjectId(id));
+            script.unlockedBy = mergedIds;
+            script.purchasedBy = mergedIds;
+        }
+
+        script.isDeleted = true;
+        script.deletedAt = new Date();
+        script.purchaseRequestLocked = false;
+        script.purchaseRequestLockedBy = null;
+        script.purchaseRequestLockedAt = null;
+        await script.save();
+
+        console.info("[AUDIT] Script soft deleted by admin", {
+            scriptId: script._id.toString(),
+            scriptSid: script.sid || "",
+            deletedByAdmin: req.user?._id?.toString?.() || "",
+            purchasedUserCount: purchasedUserIds.size,
+            deletedAt: script.deletedAt.toISOString(),
+        });
+
+        await Notification.create({
+            user: script.creator,
+            type: "admin_alert",
+            from: req.user?._id,
+            script: script._id,
+            message: purchasedUserIds.size > 0
+                ? `Your project "${script.title}" was removed by admin from platform listings. Existing buyers retain access.`
+                : `Your project "${script.title}" was removed by admin from platform listings.`,
+        }).catch(() => null);
+
+        return res.json({
+            message: purchasedUserIds.size > 0
+                ? "Project removed from platform listings. Existing buyers retain access."
+                : "Project removed from platform listings.",
+            softDeleted: true,
+            isDeleted: true,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

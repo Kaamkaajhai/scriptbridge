@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Heart, MessageSquare, Pencil, ArrowLeft, X, Camera, Save, Loader2 } from "lucide-react";
 import api from "../services/api";
@@ -275,6 +275,7 @@ const ReaderProfile = () => {
   const { id } = useParams();
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("read");
@@ -283,6 +284,8 @@ const ReaderProfile = () => {
   const [reviews, setReviews] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
+  const [connectionsType, setConnectionsType] = useState("followers");
 
   const profileId = id || user?._id;
   const isOwnProfile = !id || id === user?._id;
@@ -369,6 +372,27 @@ const ReaderProfile = () => {
     setProfile((prev) => ({ ...prev, ...updatedData }));
   };
 
+  const openConnectionsModal = (type) => {
+    setConnectionsType(type);
+    setShowConnectionsModal(true);
+  };
+
+  const getProfilePath = (userId) => {
+    if (!userId) return "/profile";
+
+    const isCurrentReaderProfile =
+      String(user?.role || "").toLowerCase() === "reader" &&
+      String(user?._id || "") === String(userId);
+
+    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${userId}`;
+  };
+
+  const handleConnectionClick = (userId) => {
+    if (!userId) return;
+    setShowConnectionsModal(false);
+    navigate(getProfilePath(userId));
+  };
+
   if (loading) return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="w-10 h-10 border-3 border-gray-200 border-t-[#1e3a5f] rounded-full animate-spin" />
@@ -408,12 +432,28 @@ const ReaderProfile = () => {
 
   const profileCompletion = profile?.profileCompletion;
   const showProfileCompletion = isOwnProfile && profileCompletion && !profileCompletion.isComplete;
+  const connectionsLabel = connectionsType === "followers" ? "Followers" : "Following";
+  const connectionList =
+    connectionsType === "followers" ? profile?.followers || [] : profile?.following || [];
+  const normalizedConnections = connectionList
+    .map((connection) => {
+      if (!connection) return null;
+      if (typeof connection === "string") {
+        return { _id: connection, name: "Unknown User", profileImage: "" };
+      }
+      return {
+        _id: connection._id,
+        name: connection.name || "Unknown User",
+        profileImage: connection.profileImage || "",
+      };
+    })
+    .filter(Boolean);
 
   return (
-    <div className="max-w-5xl mx-auto pb-16 px-4 pt-6">
+    <div className="max-w-6xl mx-auto pb-14 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
       {/* Back Button */}
-      <Link to="/reader" className="inline-flex items-center gap-2 text-gray-500 hover:text-[#1e3a5f] text-sm font-bold mb-6 transition-colors group">
-        <span className="p-1.5 rounded-lg bg-gray-100 group-hover:bg-[#1e3a5f]/10 transition-colors">
+      <Link to="/reader" className={`inline-flex items-center gap-2 text-sm font-bold mb-5 sm:mb-6 transition-colors group ${dark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-[#1e3a5f]"}`}>
+        <span className={`p-1.5 rounded-lg transition-colors ${dark ? "bg-white/[0.05] group-hover:bg-white/[0.1]" : "bg-gray-100 group-hover:bg-[#1e3a5f]/10"}`}>
           <ArrowLeft size={16} />
         </span>
         Back to Reader
@@ -430,7 +470,7 @@ const ReaderProfile = () => {
       {/* Main Profile Header Card */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className={`rounded-3xl border shadow-sm overflow-hidden mb-8 ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
         {/* Decorative Gradient Banner */}
-        <div className="h-32 bg-gradient-to-tr from-[#0f1c2e] via-[#1e3a5f] to-[#3a6ea5] relative overflow-hidden">
+        <div className="h-36 sm:h-44 bg-gradient-to-tr from-[#0f1c2e] via-[#1e3a5f] to-[#3a6ea5] relative overflow-hidden">
           <div className="absolute inset-0 opacity-20">
             <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/20 blur-3xl" />
             <div className="absolute -bottom-16 left-1/4 w-64 h-64 rounded-full bg-[#60a5fa]/20 blur-3xl" />
@@ -438,108 +478,132 @@ const ReaderProfile = () => {
         </div>
 
         {/* Profile Content */}
-        <div className="px-6 sm:px-10 pb-8 -mt-16 relative">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5">
+        <div className="px-4 sm:px-7 pb-7 -mt-14 sm:-mt-16 relative">
+          <div className={`rounded-2xl border p-4 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 sm:gap-6">
+              <div className="min-w-0">
+                <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-5">
               {/* Avatar */}
-              <div className="relative">
-                {profile.profileImage ? (
-                  <img
-                    src={resolveImage(profile.profileImage)}
-                    alt={profile.name}
-                    className="w-32 h-32 rounded-2xl object-cover ring-4 ring-white shadow-xl bg-white"
-                  />
-                ) : (
-                  <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center ring-4 ring-white shadow-xl border border-gray-200">
-                    <span className="text-4xl font-black text-gray-400">
-                      {profile.name?.charAt(0)?.toUpperCase() || "U"}
-                    </span>
+                  <div className="relative shrink-0">
+                    {profile.profileImage ? (
+                      <img
+                        src={resolveImage(profile.profileImage)}
+                        alt={profile.name}
+                        className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-[3px] shadow-xl ${dark ? "ring-white/[0.12] bg-[#0d1520]" : "ring-white bg-white"}`}
+                      />
+                    ) : (
+                      <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] shadow-xl ${dark ? "from-[#1c2b40] to-[#152436] ring-white/[0.12]" : "from-gray-50 to-gray-100 ring-white border border-gray-200"}`}>
+                        <span className={`text-3xl sm:text-4xl font-black ${dark ? "text-gray-300" : "text-gray-400"}`}>
+                          {profile.name?.charAt(0)?.toUpperCase() || "U"}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
               {/* Title & Role */}
-              <div className="text-center sm:text-left pb-1">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-1.5">
-                    <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${dark ? "text-gray-100" : "text-gray-900"}`}>
-                    {profile.name || "User Profile"}
-                  </h1>
-                  <span className="px-2.5 py-1 bg-[#1e3a5f]/[0.06] text-[#1e3a5f] rounded-lg text-xs font-bold uppercase tracking-widest border border-[#1e3a5f]/10 shadow-sm w-max mx-auto sm:mx-0">
-                    {profile.role || "Reader"}
-                  </span>
+                  <div className="text-center sm:text-left pb-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 mb-1.5">
+                      <h1 className={`text-2xl sm:text-3xl font-black tracking-tight break-words ${dark ? "text-gray-100" : "text-gray-900"}`}>
+                        {profile.name || "User Profile"}
+                      </h1>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border w-max mx-auto sm:mx-0 ${dark ? "bg-[#1e3a5f]/20 text-blue-300 border-[#1e3a5f]/35" : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15"}`}>
+                        {profile.role || "Reader"}
+                      </span>
+                    </div>
+                    {memberSince && (
+                      <p className={`text-[13px] font-medium ${dark ? "text-gray-400" : "text-gray-500"}`}>Member since {memberSince}</p>
+                    )}
+                  </div>
                 </div>
-                {memberSince && (
-                  <p className="text-sm text-gray-400 font-semibold">Member since {memberSince}</p>
-                )}
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+                  <SocialShareButton
+                    share={readerShare}
+                    buttonLabel="Share"
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${dark ? "bg-white/[0.06] hover:bg-white/[0.1] text-gray-100 border-white/[0.12]" : "bg-white hover:bg-gray-50 text-gray-700 border-gray-200 shadow-sm hover:border-gray-300"}`}
+                  />
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => setEditOpen(true)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${dark ? "bg-white/[0.06] hover:bg-white/[0.1] text-gray-100 border-white/[0.12]" : "bg-white hover:bg-gray-50 text-gray-700 border-gray-200 shadow-sm hover:border-gray-300"}`}
+                    >
+                      <Pencil size={16} strokeWidth={2.5} />
+                      Edit Profile
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Action Buttons */}
-            <div className="flex shrink-0 justify-center sm:justify-start gap-2">
-              <SocialShareButton
-                share={readerShare}
-                buttonLabel="Share"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
-              />
-              {isOwnProfile && (
-                <button
-                  onClick={() => setEditOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow hover:border-gray-300 active:scale-95"
-                >
-                  <Pencil size={16} strokeWidth={2.5} />
-                  Edit Profile
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Bio */}
-          {profile.bio && (
-            <div className={`rounded-2xl p-5 mb-8 border ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">About Me</h3>
-              <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{profile.bio}</p>
-            </div>
-          )}
-
-          {/* Skills */}
-          {profile.skills?.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Interests & Skills</h3>
-              <div className="flex flex-wrap gap-2">
-                {profile.skills.map((skill, i) => (
-                  <span key={i} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-blue-300 border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.04] text-[#1e3a5f] border-[#1e3a5f]/8"}`}>
-                    {skill}
-                  </span>
+              <div className="grid grid-cols-2 gap-2.5 self-start">
+                {[
+                  { label: "Scripts Read", value: getReadScriptIds(profile).length },
+                  { label: "Followers", value: profile.followers?.length || 0, connectionType: "followers" },
+                  { label: "Reviews", value: profile.reviewsCount || 0 },
+                  { label: "Following", value: profile.following?.length || 0, connectionType: "following" },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled={!item.connectionType}
+                    onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
+                    className={`rounded-xl border px-3 py-3 text-left transition-colors disabled:opacity-100 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"} ${item.connectionType ? dark ? "hover:bg-white/[0.08] hover:border-white/[0.16]" : "hover:bg-[#f0f6ff] hover:border-[#bdd3ec]" : "cursor-default"}`}
+                  >
+                    <p className={`text-lg sm:text-xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                  </button>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Interactive Stat Tabs */}
-          <div className={`flex flex-wrap items-center gap-3 pt-4 border-t ${dark ? "border-[#182840]" : "border-gray-100"}`}>
-            {tabs.map((t) => {
-              const Icon = t.icon;
-              const isActive = activeTab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => setActiveTab(t.key)}
-                  className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${isActive
-                    ? "bg-[#1e3a5f] text-white shadow-md shadow-[#1e3a5f]/20 scale-105"
-                    : dark
-                      ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08] hover:scale-105 border border-transparent hover:border-[#1d3350]"
-                      : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:scale-105 border border-transparent hover:border-gray-200"
-                    }`}
-                >
-                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? "text-blue-200" : "text-gray-400"} />
-                  <span>{t.label}</span>
-                  <div className={`ml-1.5 px-2 py-0.5 rounded-md text-[11px] font-black ${isActive ? "bg-white/20 text-white" : dark ? "bg-white/[0.06] border border-[#1d3350] text-gray-400" : "bg-white border border-gray-200 text-gray-600 shadow-sm"
-                    }`}>
-                    {t.count}
-                  </div>
-                </button>
-              );
-            })}
+            {/* Bio */}
+            {profile.bio && (
+              <div className={`mt-5 rounded-2xl p-4 sm:p-5 border ${dark ? "bg-white/[0.04] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
+                <h3 className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-2 ${dark ? "text-gray-500" : "text-gray-400"}`}>About Me</h3>
+                <p className={`text-sm leading-relaxed font-medium ${dark ? "text-gray-300" : "text-gray-600"}`}>{profile.bio}</p>
+              </div>
+            )}
+
+            {/* Skills */}
+            {profile.skills?.length > 0 && (
+              <div className="mt-5">
+                <h3 className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-3 ${dark ? "text-gray-500" : "text-gray-400"}`}>Interests & Skills</h3>
+                <div className="flex flex-wrap gap-2">
+                  {profile.skills.map((skill, i) => (
+                    <span key={i} className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border ${dark ? "bg-[#1e3a5f]/20 text-blue-300 border-[#1e3a5f]/30" : "bg-[#1e3a5f]/[0.04] text-[#1e3a5f] border-[#1e3a5f]/8"}`}>
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Interactive Stat Tabs */}
+            <div className={`mt-6 pt-5 border-t ${dark ? "border-[#182840]" : "border-gray-100"}`}>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`relative flex shrink-0 items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-[13px] sm:text-sm font-bold border transition-all duration-200 ${isActive
+                        ? "bg-[#1e3a5f] text-white border-[#1e3a5f] shadow-md shadow-[#1e3a5f]/20"
+                        : dark
+                          ? "bg-white/[0.04] text-gray-300 border-white/[0.08] hover:bg-white/[0.08]"
+                          : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 hover:border-gray-300"
+                        }`}
+                    >
+                      <Icon size={16} strokeWidth={isActive ? 2.4 : 2} className={isActive ? "text-blue-200" : dark ? "text-gray-400" : "text-gray-500"} />
+                      <span>{tab.label}</span>
+                      <div className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-black tabular-nums ${isActive ? "bg-white/20 text-white" : dark ? "bg-white/[0.08] text-gray-300" : "bg-white border border-gray-200 text-gray-600"}`}>
+                        {tab.count}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -547,7 +611,7 @@ const ReaderProfile = () => {
       {/* Main Tab Content */}
       <AnimatePresence mode="wait">
         {dataLoading ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {[...Array(6)].map((_, i) => (
               <div key={i} className={`rounded-2xl border h-[280px] animate-pulse shadow-sm ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`} />
             ))}
@@ -557,7 +621,7 @@ const ReaderProfile = () => {
             {activeTab === "read" && (
               <motion.div key="read" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 {readScripts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                     {readScripts.map((s) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
                   </div>
                 ) : (
@@ -574,7 +638,7 @@ const ReaderProfile = () => {
             {activeTab === "favorites" && (
               <motion.div key="favorites" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 {favorites.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                     {favorites.map((s) => <ProjectCard key={s._id} project={s} userName={s.creator?.name || "Unknown"} />)}
                   </div>
                 ) : (
@@ -590,7 +654,7 @@ const ReaderProfile = () => {
             {activeTab === "reviews" && (
               <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                 {reviews.length > 0 ? (
-                  <div className="columns-1 md:columns-2 gap-6 space-y-6 max-w-5xl">
+                  <div className="columns-1 lg:columns-2 gap-4 sm:gap-6 space-y-4 sm:space-y-6">
                     {reviews.map((r) => (
                       <div key={r._id} className="break-inside-avoid">
                         <div className={`rounded-2xl border shadow-sm p-5 hover:shadow-md transition-shadow ${dark ? "bg-[#101e30] border-[#182840]" : "bg-white border-gray-100"}`}>
@@ -621,6 +685,84 @@ const ReaderProfile = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Connections Modal */}
+      {showConnectionsModal && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowConnectionsModal(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className={`rounded-2xl shadow-2xl max-w-md w-full border overflow-hidden ${dark ? "bg-[#0d1520] border-white/[0.08]" : "bg-white border-gray-200"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${dark ? "border-white/[0.08]" : "border-gray-100"}`}>
+              <div>
+                <h3 className={`text-[16px] font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>{connectionsLabel}</h3>
+                <p className={`text-[12px] mt-0.5 ${dark ? "text-white/35" : "text-gray-500"}`}>
+                  {normalizedConnections.length} account{normalizedConnections.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConnectionsModal(false)}
+                className={`p-1.5 rounded-lg transition-colors ${dark ? "hover:bg-white/[0.08] text-white/45 hover:text-white/70" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto p-3">
+              {normalizedConnections.length === 0 ? (
+                <div className={`rounded-xl border p-4 text-center ${dark ? "bg-white/[0.02] border-white/[0.06]" : "bg-gray-50 border-gray-100"}`}>
+                  <p className={`text-[13px] font-semibold ${dark ? "text-white/55" : "text-gray-700"}`}>
+                    No {connectionsType} yet
+                  </p>
+                  <p className={`text-[12px] mt-1 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                    Accounts will appear here as this profile grows.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {normalizedConnections.map((connection, index) => (
+                    <button
+                      key={connection._id || `${connection.name}-${index}`}
+                      type="button"
+                      onClick={() => handleConnectionClick(connection._id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${dark ? "hover:bg-white/[0.06]" : "hover:bg-[#f5f9ff]"}`}
+                    >
+                      {connection.profileImage ? (
+                        <img
+                          src={resolveImage(connection.profileImage)}
+                          alt={connection.name}
+                          className="w-10 h-10 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 ${dark ? "bg-white/[0.08] text-white/75" : "bg-[#e5edf8] text-[#355172]"}`}>
+                          {connection.name?.charAt(0)?.toUpperCase() || "U"}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/80" : "text-gray-900"}`}>
+                          {connection.name}
+                        </p>
+                      </div>
+
+                      <svg className={`w-4 h-4 shrink-0 ${dark ? "text-white/25" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Edit Profile Modal */}
       <AnimatePresence>

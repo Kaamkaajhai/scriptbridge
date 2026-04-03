@@ -4,6 +4,10 @@ import adminOnly from "../middleware/adminMiddleware.js";
 import {
     getStats,
     getUsers,
+    freezeUserAccount,
+    unfreezeUserAccount,
+    deleteUserAccountAsAdmin,
+    grantCreditsToUser,
     getScripts,
     getAIUsageScripts,
     getEvaluationPurchases,
@@ -23,6 +27,7 @@ import {
     uploadTrailerAsAdmin,
     loginAsUser,
     getScriptDetail,
+    deleteScriptAsAdmin,
     getPendingInvestors,
     approveInvestor,
     rejectInvestor,
@@ -49,6 +54,10 @@ router.get("/alerts/summary", getAdminAlertSummary);
 
 // Users
 router.get("/users", getUsers);
+router.put("/users/:id/freeze", freezeUserAccount);
+router.put("/users/:id/unfreeze", unfreezeUserAccount);
+router.delete("/users/:id", deleteUserAccountAsAdmin);
+router.post("/users/:id/credits", grantCreditsToUser);
 
 // Scripts
 router.get("/scripts", getScripts);
@@ -58,6 +67,7 @@ router.get("/scripts/investor-purchases", getInvestorPurchases);
 router.get("/scripts/pending", getPendingScripts);
 router.get("/scripts/trailer-requests", getTrailerRequests);
 router.get("/scripts/:id", getScriptDetail);
+router.delete("/scripts/:id", deleteScriptAsAdmin);
 router.put("/scripts/:id/approve", approveScript);
 router.put("/scripts/:id/reject", rejectScript);
 router.put("/scripts/:id/score", scoreScript);

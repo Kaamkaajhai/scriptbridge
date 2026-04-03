@@ -6,6 +6,8 @@ import { ArrowRight, AlertCircle } from "lucide-react";
 import OTPVerification from "../components/OTPVerification";
 import BrandLogo from "../components/BrandLogo";
 
+const FORCE_DEFAULT_REDIRECT_KEY = "auth:force-default-redirect";
+
 const Login = () => {
   const { login, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -36,17 +38,25 @@ const Login = () => {
     getSafeRedirectPath(searchParams.get("next"));
 
   const navigateAfterLogin = (userData = {}) => {
-    if (redirectPath) {
+    const shouldForceDefaultRedirect =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem(FORCE_DEFAULT_REDIRECT_KEY) === "1";
+
+    if (shouldForceDefaultRedirect && typeof window !== "undefined") {
+      sessionStorage.removeItem(FORCE_DEFAULT_REDIRECT_KEY);
+    }
+
+    if (!shouldForceDefaultRedirect && redirectPath) {
       navigate(redirectPath, { replace: true });
       return;
     }
 
     if (userData?.role === "reader") {
-      navigate("/reader");
+      navigate("/reader", { replace: true });
     } else if (userData?.role === "investor") {
-      navigate("/home");
+      navigate("/home", { replace: true });
     } else {
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
     }
   };
 
@@ -140,10 +150,10 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#080e18] flex">
+    <div className="min-h-screen bg-white flex">
 
       {/* ── Left decorative panel ── */}
-      <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden flex-col items-start justify-between p-12 border-r border-[#151f2e]">
+      <div className="hidden lg:flex lg:w-[45%] bg-[#080e18] relative overflow-hidden flex-col items-start justify-between p-12 border-r border-[#151f2e]">
         {/* Dot grid */}
         <div
           className="absolute inset-0 opacity-[0.035]"
@@ -196,8 +206,8 @@ const Login = () => {
           </div>
 
           <div className="mb-8">
-            <h1 className="text-xl font-bold text-white tracking-tight">Sign in</h1>
-            <p className="text-sm text-[#4a5a6e] mt-1.5">Enter your credentials to continue</p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Sign in</h1>
+            <p className="text-sm text-slate-500 mt-1.5">Enter your credentials to continue</p>
           </div>
 
           {error && (
@@ -213,26 +223,26 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-medium text-[#4a5a6e] mb-1.5">
+              <label className="block text-[11px] font-medium text-slate-600 mb-1.5">
                 Email address
               </label>
               <input
                 type="email"
                 placeholder="you@example.com"
-                className="w-full px-4 py-3 bg-[#0d1520] border border-[#1c2a3a] rounded-xl text-sm text-white placeholder-[#2a3a4e] outline-none focus:border-[#374d63] focus:ring-1 focus:ring-[#374d63] transition-all duration-200"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-[#1e3a5f] focus:ring-1 focus:ring-[#1e3a5f]/20 transition-all duration-200"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
             <div>
-              <label className="block text-[11px] font-medium text-[#4a5a6e] mb-1.5">
+              <label className="block text-[11px] font-medium text-slate-600 mb-1.5">
                 Password
               </label>
               <input
                 type="password"
                 placeholder="••••••••"
-                className="w-full px-4 py-3 bg-[#0d1520] border border-[#1c2a3a] rounded-xl text-sm text-white placeholder-[#2a3a4e] outline-none focus:border-[#374d63] focus:ring-1 focus:ring-[#374d63] transition-all duration-200"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-[#1e3a5f] focus:ring-1 focus:ring-[#1e3a5f]/20 transition-all duration-200"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -241,7 +251,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 bg-white hover:bg-gray-100 text-[#080e18] rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full mt-2 py-3 bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -260,15 +270,15 @@ const Login = () => {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-[#151f2e] space-y-3 text-center">
-            <p className="text-sm text-[#4a5a6e]">
+          <div className="mt-6 pt-6 border-t border-slate-200 space-y-3 text-center">
+            <p className="text-sm text-slate-600">
               Don't have an account?{" "}
-              <Link to="/join" className="text-[#8896a7] font-semibold hover:text-white transition-colors">
+              <Link to="/join" className="text-[#1e3a5f] font-semibold hover:text-[#162d4a] transition-colors">
                 Create one
               </Link>
             </p>
             <p>
-              <Link to="/" className="text-xs text-[#2a3a4e] hover:text-[#4a5a6e] font-medium transition-colors">
+              <Link to="/" className="text-xs text-slate-500 hover:text-[#1e3a5f] font-medium transition-colors">
                 &larr; Back to home
               </Link>
             </p>

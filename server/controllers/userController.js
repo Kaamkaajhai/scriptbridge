@@ -22,6 +22,31 @@ const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail upd
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
 
+const normalizeOptionalDate = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "INVALID_DATE" : parsed;
+};
+
+const normalizeAddressPayload = (value) => {
+  if (!value || typeof value !== "object") return null;
+
+  const street = normalizeString(value.street) || "";
+  const city = normalizeString(value.city) || "";
+  const state = normalizeString(value.state) || "";
+  const zipCode = normalizeString(value.zipCode) || "";
+  const computedFormatted = [street, city, state, zipCode].filter(Boolean).join(", ");
+
+  return {
+    street,
+    city,
+    state,
+    zipCode,
+    formatted: normalizeString(value.formatted) || computedFormatted,
+  };
+};
+
 const normalizeStringArray = (value, maxItems) => {
   if (!Array.isArray(value)) return [];
   const unique = [];
@@ -452,6 +477,7 @@ export const updateUserProfile = async (req, res) => {
   try {
     const {
       name, bio, skills, profileImage, writerProfile,
+      phone, dateOfBirth, address,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
       // onboarding completion
@@ -477,6 +503,31 @@ export const updateUserProfile = async (req, res) => {
       user.skills = normalizeStringArray(skills, 25);
     }
     user.profileImage = normalizeString(profileImage) || user.profileImage;
+
+    if (phone !== undefined) {
+      user.phone = normalizeString(phone) || "";
+    }
+
+    if (dateOfBirth !== undefined) {
+      const normalizedDob = normalizeOptionalDate(dateOfBirth);
+      if (normalizedDob === "INVALID_DATE") {
+        return res.status(400).json({ message: "Invalid date of birth" });
+      }
+      user.dateOfBirth = normalizedDob || undefined;
+    }
+
+    if (address !== undefined) {
+      if (address === null) {
+        user.address = undefined;
+      } else {
+        const normalizedAddress = normalizeAddressPayload(address);
+        if (!normalizedAddress) {
+          return res.status(400).json({ message: "Invalid address payload" });
+        }
+        user.address = normalizedAddress;
+      }
+      user.markModified("address");
+    }
 
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
@@ -563,6 +614,9 @@ export const updateUserProfile = async (req, res) => {
       }
       if (writerProfile.wgaMember !== undefined) {
         user.writerProfile.wgaMember = writerProfile.wgaMember;
+      }
+      if (writerProfile.sgaMember !== undefined) {
+        user.writerProfile.sgaMember = writerProfile.sgaMember;
       }
       if (writerProfile.genres !== undefined) {
         user.writerProfile.genres = normalizeStringArray(writerProfile.genres);
@@ -737,6 +791,9 @@ export const updateUserProfile = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
+      address: user.address,
       role: user.role,
       bio: user.bio,
       skills: user.skills,
@@ -1160,9 +1217,17 @@ export const deleteAccount = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Soft-delete: deactivate account rather than hard-delete
+    const now = new Date();
+    user.isFrozen = true;
+    user.frozenAt = now;
+    user.frozenReason = "Account deleted by user";
+    user.frozenBy = req.user._id;
     user.isDeactivated = true;
-    user.deactivatedAt = new Date();
-    user.email = `deleted_${user._id}_${user.email}`;
+    user.deactivatedAt = now;
+    user.deactivatedBy = req.user._id;
+    user.email = `deleted_${user._id}@deleted.local`;
+    user.pendingEmail = undefined;
+    user.emailVerified = false;
     await user.save();
 
     res.json({ message: "Account deleted successfully" });

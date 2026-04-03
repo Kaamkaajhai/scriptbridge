@@ -25,6 +25,7 @@ export const updateWriterProfile = async (req, res) => {
       representationStatus, 
       agencyName, 
       wgaMember,
+      sgaMember,
       diversity,
       links,
       accomplishments,
@@ -66,6 +67,7 @@ export const updateWriterProfile = async (req, res) => {
     user.writerProfile.representationStatus = representationStatus || user.writerProfile.representationStatus;
     user.writerProfile.agencyName = agencyName || user.writerProfile.agencyName;
     user.writerProfile.wgaMember = wgaMember !== undefined ? wgaMember : user.writerProfile.wgaMember;
+    user.writerProfile.sgaMember = sgaMember !== undefined ? sgaMember : user.writerProfile.sgaMember;
 
     if (demographicPrivacy !== undefined) {
       const normalizedPrivacy = normalizeString(demographicPrivacy);

@@ -684,6 +684,9 @@ const Search = () => {
                             {user.writerProfile?.wgaMember && (
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#1e3a5f] bg-[#1e3a5f]/8"}`}>WGA</span>
                             )}
+                            {user.writerProfile?.sgaMember && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#1e3a5f] bg-[#1e3a5f]/8"}`}>SGA</span>
+                            )}
                           </div>
                           {user.bio && (
                             <p className={`text-[12px] line-clamp-1 mt-0.5 ${t.personBio}`}>{user.bio}</p>

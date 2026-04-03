@@ -49,7 +49,7 @@ const Dashboard = () => {
     return <InvestorDashboard />;
   }
 
-  return <CreatorDashboard user={user} dark={dark} />;
+  return <CreatorDashboard user={user} dark={false} />;
 };
 
 const CreatorDashboard = ({ user, dark }) => {
@@ -126,29 +126,31 @@ const CreatorDashboard = ({ user, dark }) => {
   const profileEditPath = user?._id ? `/profile/${user._id}` : "/profile";
 
   return (
-    <div className="max-w-6xl mx-auto px-1 sm:px-0">
+    <div className="bg-white min-h-full relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,rgba(30,58,95,0.10),transparent_70%)]"></div>
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <ProfileCompletionBanner
           completion={user?.profileCompletion}
           subtitle="Your profile is incomplete. Complete it to improve your visibility and recommendations."
           ctaLabel="Edit Profile"
           ctaTo={profileEditPath}
-          className="mb-6"
+          className="mb-8"
         />
 
         {/* Page heading */}
         <div className="mb-6 sm:mb-8">
-          <div className={`rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 overflow-hidden ${dark ? 'bg-[#0d1520]/70 border-[#1c2a3a]' : 'bg-white border-gray-100'}`}>
+          <div className={`rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 overflow-hidden ${dark ? 'bg-[#0d1520]/70 border-[#1c2a3a]' : 'bg-white border-slate-200 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.28)]'}`}>
             <div className="flex flex-col min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between gap-4">
               <div className="max-[520px]:text-center max-[520px]:mx-auto">
-                <p className={`text-[12px] sm:text-[13px] font-semibold mb-1 ${dark ? 'text-[#4a5a6e]' : 'text-gray-400'}`}>Welcome back{user?.name ? `, ${user.name}` : ""}</p>
-                <h1 className={`text-[34px] leading-none sm:text-3xl font-extrabold tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>
+                <p className={`text-[12px] sm:text-[13px] font-semibold mb-1 ${dark ? 'text-[#4a5a6e]' : 'text-slate-500'}`}>Welcome back{user?.name ? `, ${user.name}` : ""}</p>
+                <h1 className={`text-[34px] leading-none sm:text-3xl font-extrabold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>
                   Dashboard
                 </h1>
               </div>
-              <div className="grid grid-cols-2 max-[650px]:grid-cols-1 gap-2 w-full min-[520px]:w-full sm:w-auto sm:min-w-0">
+              <div className="grid grid-cols-2 max-[650px]:grid-cols-1 gap-2 w-full min-[520px]:w-full sm:w-auto sm:min-w-[360px]">
               <Link to="/create-project"
-                className={`inline-flex justify-center items-center gap-2 px-4 max-[420px]:px-3 py-2.5 max-[650px]:py-2 rounded-xl max-[650px]:rounded-lg text-[13px] max-[650px]:text-[12px] font-bold transition-all duration-200 shadow-sm hover:-translate-y-0.5 w-full max-w-full min-w-0 ${dark ? 'bg-white/[0.04] text-[#8896a7] hover:bg-white/[0.07] ring-1 ring-white/[0.06]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                className={`inline-flex justify-center items-center gap-2 px-4 max-[420px]:px-3 py-2.5 max-[650px]:py-2 rounded-xl max-[650px]:rounded-lg text-[13px] max-[650px]:text-[12px] font-bold transition-all duration-200 shadow-sm hover:-translate-y-0.5 w-full max-w-full min-w-0 ${dark ? 'bg-white/[0.04] text-[#8896a7] hover:bg-white/[0.07] ring-1 ring-white/[0.06]' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                 <span className="max-[650px]:hidden">Create Project</span>
                 <span className="hidden max-[650px]:inline">Create</span>
@@ -166,14 +168,14 @@ const CreatorDashboard = ({ user, dark }) => {
 
         {/* Stats grid */}
         {statCards.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
             {statCards.map((card, idx) => {
               return (
                 <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
-                  className={`rounded-xl border p-4 hover:-translate-y-0.5 transition-all duration-200 group/card cursor-default ${dark ? 'bg-[#0d1520] border-[#1c2a3a] hover:shadow-lg hover:shadow-black/20 hover:border-[#2a3a4e]' : 'bg-white border-[#1e3a5f]/25 hover:shadow-lg hover:shadow-gray-100'}`}>
-                  <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 transition-colors ${dark ? 'text-[#3a4a5e] group-hover/card:text-[#8896a7]' : 'text-gray-400 group-hover/card:text-gray-500'}`}>{card.label}</p>
-                  <p className={`text-2xl font-extrabold tabular-nums ${dark ? 'text-white' : 'text-gray-900'}`}>{card.value}</p>
+                  className={`rounded-xl border p-5 min-h-[132px] hover:-translate-y-0.5 transition-all duration-200 group/card cursor-default ${dark ? 'bg-[#0d1520] border-[#1c2a3a] hover:shadow-lg hover:shadow-black/20 hover:border-[#2a3a4e]' : 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'}`}>
+                  <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 transition-colors ${dark ? 'text-[#3a4a5e] group-hover/card:text-[#8896a7]' : 'text-slate-500 group-hover/card:text-slate-600'}`}>{card.label}</p>
+                  <p className={`text-2xl font-extrabold tabular-nums ${dark ? 'text-white' : 'text-slate-900'}`}>{card.value}</p>
                 </motion.div>
               );
             })}
@@ -330,7 +332,7 @@ const CreatorDashboard = ({ user, dark }) => {
         {/* Reviews & Insights Section */}
         <div className="mb-8">
           {/* Section Header */}
-          <div className="flex items-start sm:items-center gap-3 mb-5 sm:mb-6">
+          <div className="flex items-center gap-3 mb-5 sm:mb-6">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] flex items-center justify-center shadow-sm">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
@@ -786,6 +788,7 @@ const CreatorDashboard = ({ user, dark }) => {
           </div>
         )}
       </motion.div>
+      </div>
     </div>
   );
 };

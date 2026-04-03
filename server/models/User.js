@@ -58,6 +58,7 @@ const userSchema = new mongoose.Schema({
     },
     agencyName: { type: String },
     wgaMember: { type: Boolean, default: false },
+    sgaMember: { type: Boolean, default: false },
     // Writer's primary genres
     genres: [String],
     // Specialized tags (themes, tones, settings)
@@ -300,6 +301,13 @@ const userSchema = new mongoose.Schema({
     default: "approved",
   },
   approvalNote: { type: String },
+  isFrozen: { type: Boolean, default: false },
+  frozenAt: { type: Date },
+  frozenReason: { type: String },
+  frozenBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  isDeactivated: { type: Boolean, default: false },
+  deactivatedAt: { type: Date },
+  deactivatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 }, { timestamps: true });
 
 userSchema.pre("validate", async function () {
