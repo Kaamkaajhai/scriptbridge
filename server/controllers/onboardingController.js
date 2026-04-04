@@ -26,6 +26,41 @@ const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "ma
 const normalizeOtpInput = (otp) => String(otp || "").trim();
 const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
 
+const normalizeMandateFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
+};
+
+const normalizeFormatArray = (formats = []) => {
+  if (!Array.isArray(formats)) return [];
+  return [...new Set(
+    formats
+      .map((f) => normalizeMandateFormat(f))
+      .filter(Boolean)
+  )];
+};
+
 // @desc    Update writer profile (Phase 2: Identity)
 // @route   PUT /api/onboarding/writer-profile
 // @access  Private
@@ -607,7 +642,7 @@ export const updateMandates = async (req, res) => {
     }
 
     user.industryProfile.mandates = {
-      formats: mandates.formats || [],
+      formats: normalizeFormatArray(mandates.formats),
       budgetTiers: mandates.budgetTiers || [],
       genres: mandates.genres || [],
       excludeGenres: mandates.excludeGenres || [],
@@ -663,7 +698,7 @@ export const completeIndustryOnboarding = async (req, res) => {
     // Update mandates
     if (mandates) {
       user.industryProfile.mandates = {
-        formats: mandates.formats || [],
+        formats: normalizeFormatArray(mandates.formats),
         budgetTiers: mandates.budgetTiers || [],
         genres: mandates.genres || [],
         excludeGenres: mandates.excludeGenres || [],

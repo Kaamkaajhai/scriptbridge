@@ -22,6 +22,10 @@ const FORMAT_LABEL = {
   drama_school: "Drama School",
   anime: "Anime",
   cartoon: "Cartoon",
+  songs: "Songs",
+  standup_comedy: "Standup Comedy",
+  dialogues: "Dialogues",
+  poet: "Poet",
   other: "Other",
 };
 

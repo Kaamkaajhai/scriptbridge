@@ -79,6 +79,25 @@ const getScriptPurchasePricing = (baseAmount) => {
 
 const sanitizeCustomInvestorTerms = (value = "") => String(value || "").trim();
 
+const getContentTypeFromFormat = (format = "", explicitContentType = "") => {
+  if (explicitContentType) return explicitContentType;
+
+  const raw = String(format || "").toLowerCase().trim();
+  if (!raw) return "movie";
+  if (raw.includes("song")) return "songs";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+  if (raw.includes("web")) return "web_series";
+  if (raw.includes("documentary")) return "documentary";
+  if (raw.includes("anime") || raw.includes("cartoon") || raw.includes("animation")) return "anime";
+  if (raw.includes("short")) return "short_film";
+  if (raw.includes("tv") || raw.includes("series")) return "tv_series";
+  if (raw.includes("book")) return "book";
+  if (raw.includes("startup")) return "startup";
+  return "movie";
+};
+
 const getInvalidRoleAgeRangeMessage = (roles = []) => {
   if (!Array.isArray(roles)) return "";
 
@@ -449,7 +468,9 @@ export const saveDraft = async (req, res) => {
         if (otherData.format !== "other") {
           script.formatOther = "";
         }
+        script.contentType = getContentTypeFromFormat(otherData.format);
       }
+      if (otherData.contentType !== undefined) script.contentType = otherData.contentType;
       if (otherData.formatOther !== undefined) {
         script.formatOther = String(otherData.formatOther || "").trim();
       }
@@ -522,7 +543,8 @@ export const saveDraft = async (req, res) => {
       title: title || "Untitled Draft",
       textContent: textContent || "",
       status: "draft",
-      ...safeOtherData
+      ...safeOtherData,
+      contentType: getContentTypeFromFormat(safeOtherData.format, safeOtherData.contentType),
     });
 
     res.status(201).json(newDraft);
@@ -635,7 +657,7 @@ export const updateScript = async (req, res) => {
       title, logline, format, pageCount, classification,
       formatOther,
       scriptUrl, description, synopsis, textContent, fileUrl,
-      coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
+      coverImage, genre, contentType, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
 
     if (!legal?.agreedToTerms) {
@@ -657,7 +679,11 @@ export const updateScript = async (req, res) => {
       if (format !== "other") {
         script.formatOther = "";
       }
+      if (contentType === undefined) {
+        script.contentType = getContentTypeFromFormat(format);
+      }
     }
+    if (contentType !== undefined) script.contentType = contentType;
     if (formatOther !== undefined) {
       script.formatOther = String(formatOther || "").trim();
     }
@@ -926,7 +952,7 @@ export const uploadScript = async (req, res) => {
       pageCount,
       coverImage,
       genre: genre || classification?.primaryGenre,
-      contentType: contentType || "movie",
+      contentType: getContentTypeFromFormat(format, contentType),
       premium: isPremium || premium || false,
       price: price || 0,
       roles: roles || [],
@@ -2487,6 +2513,10 @@ const normalizeGenre = (value = "") => {
 const normalizeFormat = (value = "") => {
   const raw = String(value || "").toLowerCase().trim();
   if (!raw) return "";
+  if (raw.includes("song")) return "songs";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup-comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
   if (raw.includes("feature")) return "feature";
   if (raw.includes("short")) return "short";
   if (raw.includes("limited")) return "limited-series";
@@ -2552,6 +2582,10 @@ const inferFormatsFromProfileText = (text = "") => {
   if (!source) return [];
 
   const inferred = [];
+  if (source.includes("song")) inferred.push("songs");
+  if (source.includes("standup") || source.includes("stand-up") || source.includes("comedy special")) inferred.push("standup-comedy");
+  if (source.includes("dialogue")) inferred.push("dialogues");
+  if (source.includes("poet") || source.includes("poetry")) inferred.push("poet");
   if (source.includes("feature")) inferred.push("feature");
   if (source.includes("short")) inferred.push("short");
   if (source.includes("web series") || source.includes("web-series")) inferred.push("web-series");

@@ -48,9 +48,50 @@ const BUDGET_TIERS = [
 ];
 
 const FORMAT_OPTIONS = [
-  "Feature Film", "TV Pilot", "Web Series", "Documentary",
-  "Short Film", "Anime", "Limited Series", "Reality Show"
+  { value: "feature", label: "Feature Film" },
+  { value: "movie", label: "Movie" },
+  { value: "tv_1hour", label: "TV Pilot (1-Hour)" },
+  { value: "tv_halfhour", label: "TV Pilot (Half-Hour)" },
+  { value: "limited_series", label: "Limited Series" },
+  { value: "tv_serial", label: "TV Serial" },
+  { value: "short", label: "Short Film" },
+  { value: "web_series", label: "Web Series" },
+  { value: "documentary", label: "Documentary" },
+  { value: "anime", label: "Anime" },
+  { value: "cartoon", label: "Cartoon" },
+  { value: "drama_school", label: "Drama School" },
+  { value: "songs", label: "Songs" },
+  { value: "standup_comedy", label: "Standup Comedy" },
+  { value: "dialogues", label: "Dialogues" },
+  { value: "poet", label: "Poet" },
+  { value: "other", label: "Other" },
 ];
+
+const normalizePreferredFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
+};
 
 const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
@@ -91,7 +132,10 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   });
   const [investorGenres, setInvestorGenres] = useState(mandates.genres || profile.preferences?.genres || []);
   const [investorBudgets, setInvestorBudgets] = useState(mandates.budgetTiers || []);
-  const [investorFormats, setInvestorFormats] = useState(mandates.formats || []);
+  const [investorFormats, setInvestorFormats] = useState(() => {
+    const raw = Array.isArray(mandates.formats) ? mandates.formats : [];
+    return [...new Set(raw.map(normalizePreferredFormat).filter(Boolean))];
+  });
 
   // Writer-specific state
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
@@ -974,15 +1018,15 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 <div className="grid grid-cols-2 gap-2">
                   {FORMAT_OPTIONS.map((fmt) => (
                     <button
-                      key={fmt}
+                      key={fmt.value}
                       type="button"
-                      onClick={() => setInvestorFormats((prev) => prev.includes(fmt) ? prev.filter(f => f !== fmt) : [...prev, fmt])}
-                      className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border ${investorFormats.includes(fmt)
+                      onClick={() => setInvestorFormats((prev) => prev.includes(fmt.value) ? prev.filter(f => f !== fmt.value) : [...prev, fmt.value])}
+                      className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border ${investorFormats.includes(fmt.value)
                         ? dark ? "bg-[#0f2544] text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white border-[#0f2544]"
                         : dark ? "bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50" : "bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40"
                       }`}
                     >
-                      {fmt}
+                      {fmt.label}
                     </button>
                   ))}
                 </div>

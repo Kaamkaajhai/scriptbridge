@@ -25,6 +25,20 @@ const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
 const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
+const DEFAULT_LANGUAGE = "en";
+const SUPPORTED_LANGUAGE_CODES = new Set(["en", "hi", "es", "fr", "de", "ja", "ko", "zh-CN"]);
+const LANGUAGE_CODE_ALIASES = {
+  zh: "zh-CN",
+  "zh-cn": "zh-CN",
+};
+
+const normalizeLanguagePreference = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return DEFAULT_LANGUAGE;
+
+  const mapped = LANGUAGE_CODE_ALIASES[raw.toLowerCase()] || raw;
+  return SUPPORTED_LANGUAGE_CODES.has(mapped) ? mapped : DEFAULT_LANGUAGE;
+};
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
 const normalizeOtpInput = (otp) => String(otp || "").trim();
@@ -64,6 +78,32 @@ const normalizeStringArray = (value, maxItems) => {
     if (maxItems && unique.length >= maxItems) break;
   }
   return unique;
+};
+
+const normalizePreferredFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
 };
 
 const sanitizeBankPayload = (bankDetails) => {
@@ -313,6 +353,7 @@ export const getCurrentUser = async (req, res) => {
     }
 
     const userObj = user.toObject();
+    userObj.language = normalizeLanguagePreference(userObj.language);
     userObj.profileCompletion = getProfileCompletion(userObj);
 
     res.json(userObj);
@@ -463,6 +504,7 @@ export const getUserProfile = async (req, res) => {
 
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
+    userObj.language = normalizeLanguagePreference(userObj.language);
     if (!isOwnProfile && userObj.bankDetails) {
       delete userObj.bankDetails;
       delete userObj.pendingEmail;
@@ -576,7 +618,9 @@ export const updateUserProfile = async (req, res) => {
       // because that field has a strict enum incompatible with onboarding format strings
       if (!user.industryProfile) user.industryProfile = {};
       if (!user.industryProfile.mandates) user.industryProfile.mandates = {};
-      user.industryProfile.mandates.formats = preferredFormats;
+      user.industryProfile.mandates.formats = normalizeStringArray(preferredFormats, 40)
+        .map(normalizePreferredFormat)
+        .filter(Boolean);
       user.markModified("industryProfile");
     }
 
@@ -1097,8 +1141,9 @@ export const updateSettings = async (req, res) => {
     }
 
     if (isPrivate !== undefined) user.isPrivate = isPrivate;
-    if (language !== undefined) user.language = language;
+    if (language !== undefined) user.language = normalizeLanguagePreference(language);
     if (timezone !== undefined) user.timezone = timezone;
+    if (!user.language) user.language = DEFAULT_LANGUAGE;
 
     await user.save();
     res.json({ message: "Settings updated", user: { isPrivate: user.isPrivate, language: user.language, timezone: user.timezone, notificationPrefs: user.notificationPrefs } });
