@@ -36,8 +36,31 @@ const formats = [
   { value: "movie", label: "Movie", icon: "FILM" },
   { value: "tv_serial", label: "TV Serial", icon: "TV" },
   { value: "cartoon", label: "Cartoon", icon: "SHORT" },
+  { value: "songs", label: "Songs", icon: "DOC" },
+  { value: "standup_comedy", label: "Standup Comedy", icon: "DOC" },
+  { value: "dialogues", label: "Dialogues", icon: "DOC" },
+  { value: "poet", label: "Poet", icon: "DOC" },
   { value: "other", label: "Other", icon: "DOC" },
 ];
+const CONTENT_TYPE_BY_FORMAT = {
+  movie: "movie",
+  feature: "movie",
+  tv_1hour: "tv_series",
+  tv_halfhour: "tv_series",
+  limited_series: "tv_series",
+  tv_serial: "tv_series",
+  short: "short_film",
+  web_series: "web_series",
+  documentary: "documentary",
+  anime: "anime",
+  cartoon: "anime",
+  songs: "songs",
+  standup_comedy: "standup_comedy",
+  dialogues: "dialogues",
+  poet: "poet",
+};
+
+const getContentTypeFromFormat = (format) => CONTENT_TYPE_BY_FORMAT[format] || "movie";
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Fantasy",
   "Mystery", "Adventure", "Crime", "Western", "Animation", "Documentary", "Historical",
@@ -141,6 +164,10 @@ const FORMAT_PAGE_RANGES = {
   movie: { min: 70, max: 180, typical: "90-120", label: "Movie", wordsPerPage: 250 },
   tv_serial: { min: 18, max: 50, typical: "20-35", label: "TV Serial", wordsPerPage: 250 },
   cartoon: { min: 7, max: 45, typical: "10-25", label: "Cartoon", wordsPerPage: 250 },
+  songs: { min: 1, max: 30, typical: "2-10", label: "Songs", wordsPerPage: 250 },
+  standup_comedy: { min: 3, max: 50, typical: "8-20", label: "Standup Comedy", wordsPerPage: 250 },
+  dialogues: { min: 1, max: 80, typical: "5-25", label: "Dialogues", wordsPerPage: 250 },
+  poet: { min: 1, max: 60, typical: "3-20", label: "Poet", wordsPerPage: 250 },
   other: { min: 1, max: 250, typical: "Varies", label: "Other", wordsPerPage: 250 },
 };
 const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
@@ -1343,6 +1370,7 @@ const CreateProject = () => {
         description: formData.synopsis,
         companyName: String(formData.companyName || "").trim(),
         format: formData.format,
+        contentType: getContentTypeFromFormat(formData.format),
         formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
         classification: { primaryGenre: formData.primaryGenre, secondaryGenre: null, tones: classification.tones, themes: classification.themes, settings: classification.settings },

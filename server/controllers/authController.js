@@ -17,6 +17,22 @@ import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
 import { getAdminBranchAccessStatus } from "../utils/adminBranchAccess.js";
 
+const DEFAULT_LANGUAGE = "en";
+const DEFAULT_TIMEZONE = "Asia/Kolkata";
+const SUPPORTED_LANGUAGE_CODES = new Set(["en", "hi", "es", "fr", "de", "ja", "ko", "zh-CN"]);
+const LANGUAGE_CODE_ALIASES = {
+  zh: "zh-CN",
+  "zh-cn": "zh-CN",
+};
+
+const normalizeLanguagePreference = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return DEFAULT_LANGUAGE;
+
+  const mapped = LANGUAGE_CODE_ALIASES[raw.toLowerCase()] || raw;
+  return SUPPORTED_LANGUAGE_CODES.has(mapped) ? mapped : DEFAULT_LANGUAGE;
+};
+
 const generateToken = (id) => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "30d";
   const token = jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn });
@@ -407,6 +423,8 @@ export const join = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        language: normalizeLanguagePreference(user.language),
+        timezone: user.timezone || DEFAULT_TIMEZONE,
         token,
         expiresAt,
         message: "Account created successfully (email verification skipped in dev mode)"
@@ -513,6 +531,8 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        language: normalizeLanguagePreference(user.language),
+        timezone: user.timezone || DEFAULT_TIMEZONE,
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
         profileImage: user.profileImage || user.profilePicture || "",
@@ -647,6 +667,8 @@ export const verifyOTP = async (req, res) => {
         role: user.role,
         _id: user._id,
         name: user.name,
+        language: normalizeLanguagePreference(user.language),
+        timezone: user.timezone || DEFAULT_TIMEZONE,
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
         profileCompletion: getProfileCompletion(user),
@@ -664,6 +686,8 @@ export const verifyOTP = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      language: normalizeLanguagePreference(user.language),
+      timezone: user.timezone || DEFAULT_TIMEZONE,
       profileCompletion: getProfileCompletion(user),
       token,
       expiresAt,
@@ -829,6 +853,8 @@ export const getMe = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      language: normalizeLanguagePreference(user.language),
+      timezone: user.timezone || DEFAULT_TIMEZONE,
       approvalStatus: user.approvalStatus,
       approvalNote: user.approvalNote,
       profileImage: user.profileImage || user.profilePicture || "",

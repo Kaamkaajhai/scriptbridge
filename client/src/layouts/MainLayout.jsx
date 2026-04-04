@@ -621,7 +621,7 @@ const MainLayout = ({ children }) => {
 
           <button
             onClick={() => navigate(topBarHomePath)}
-            className="order-1 shrink min-w-0 max-w-[120px] max-[378px]:max-w-[92px] max-[340px]:max-w-[84px] flex items-center rounded-xl px-2 py-1 lg:hidden bg-[#0b1524] border border-[#1d2d45] hover:bg-[#0d1a2a] transition-colors duration-200"
+            className="order-1 shrink min-w-0 max-w-[120px] max-[378px]:max-w-[92px] max-[340px]:max-w-[84px] flex items-center rounded-xl px-2 py-1 lg:hidden transition-colors duration-200"
             aria-label={`Go to ${topBarHomeLabel.toLowerCase()}`}
             title={topBarHomeLabel}
           >

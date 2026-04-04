@@ -5,7 +5,7 @@ import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
 import SeoManager from "./components/SeoManager";
-import { applyLanguagePreference } from "./utils/languagePreference";
+import { applyLanguagePreference, getStoredLanguagePreference } from "./utils/languagePreference";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
@@ -96,7 +96,7 @@ function LanguagePreferenceSync() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const preferredLanguage = user?.language || "en";
+    const preferredLanguage = user?.language || getStoredLanguagePreference() || "en";
     applyLanguagePreference(preferredLanguage).catch(() => {
       // Translation is best-effort; settings should still remain usable on failures.
     });

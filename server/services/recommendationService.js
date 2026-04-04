@@ -30,12 +30,19 @@ const normalizeGenre = (value = "") => {
 const normalizeFormat = (value = "") => {
   const raw = normalize(value);
   if (!raw) return "";
+  if (raw.includes("song")) return "songs";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup-comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+  if (raw === "movie") return "movie";
   if (raw.includes("feature")) return "feature";
+  if (raw.includes("play")) return "play";
   if (raw.includes("short")) return "short";
   if (raw.includes("limited")) return "limited-series";
   if (raw.includes("web")) return "web-series";
   if (raw.includes("documentary")) return "documentary";
-  if (raw.includes("animation")) return "animation";
+  if (raw.includes("anime") || raw.includes("animation") || raw.includes("cartoon")) return "anime";
+  if (raw.includes("drama school")) return "drama-school";
   if (raw.includes("tv") || raw.includes("series")) return "tv-series";
   return raw.replace(/[\s_]+/g, "-");
 };
@@ -79,13 +86,18 @@ const inferFormatsFromText = (text = "") => {
   const source = normalize(text);
   if (!source) return [];
   const detected = [];
+  if (source.includes("song")) detected.push("songs");
+  if (source.includes("standup") || source.includes("stand-up") || source.includes("comedy special")) detected.push("standup-comedy");
+  if (source.includes("dialogue")) detected.push("dialogues");
+  if (source.includes("poet") || source.includes("poetry")) detected.push("poet");
   if (source.includes("feature")) detected.push("feature");
+  if (source.includes("movie")) detected.push("movie");
   if (source.includes("short")) detected.push("short");
   if (source.includes("web series") || source.includes("web-series")) detected.push("web-series");
   if (source.includes("limited series") || source.includes("limited-series")) detected.push("limited-series");
   if (source.includes("tv") || source.includes("series")) detected.push("tv-series");
   if (source.includes("documentary")) detected.push("documentary");
-  if (source.includes("animation") || source.includes("animated")) detected.push("animation");
+  if (source.includes("anime") || source.includes("animation") || source.includes("animated")) detected.push("anime");
   return [...new Set(detected)];
 };
 
@@ -216,8 +228,11 @@ const buildBehaviorSignals = async (investorId, bootstrap = {}) => {
 
     (script.tags || []).map((t) => normalize(t)).forEach((t) => sumMap(tagWeights, t, w));
 
-    const fmt = normalizeFormat(script.format || script.contentType || "");
-    sumMap(formatWeights, fmt, w * 0.8);
+    const scriptFormats = [...new Set([
+      normalizeFormat(script.format || ""),
+      normalizeFormat(script.contentType || ""),
+    ].filter(Boolean))];
+    scriptFormats.forEach((fmt) => sumMap(formatWeights, fmt, w * 0.8));
 
     const budget = normalizeBudget(script.budget || "");
     sumMap(budgetWeights, budget, w * 0.7);
@@ -249,14 +264,17 @@ const scoreProject = (project, signals, now) => {
   ].map(normalizeGenre).filter(Boolean);
 
   const tags = (project.tags || []).map((t) => normalize(t)).filter(Boolean);
-  const fmt = normalizeFormat(project.format || project.contentType || "");
+  const projectFormats = [...new Set([
+    normalizeFormat(project.format || ""),
+    normalizeFormat(project.contentType || ""),
+  ].filter(Boolean))];
   const budget = normalizeBudget(project.budget || "");
 
   let interestMatch = 0;
   if (explicit.genres.includes(primaryGenre)) interestMatch += 0.45;
   if (secondaryGenres.some((g) => explicit.genres.includes(g))) interestMatch += 0.15;
   if (tags.some((t) => explicit.tags?.includes(t))) interestMatch += 0.12;
-  if (explicit.formats.includes(fmt)) interestMatch += 0.2;
+  if (projectFormats.some((fmt) => explicit.formats.includes(fmt))) interestMatch += 0.2;
   if (explicit.budgets.includes(budget)) interestMatch += 0.2;
   interestMatch = Math.min(1, interestMatch);
 
@@ -264,7 +282,10 @@ const scoreProject = (project, signals, now) => {
   behaviorMatch += (behavior.genreWeights[primaryGenre] || 0) * 0.04;
   behaviorMatch += secondaryGenres.reduce((n, g) => n + (behavior.genreWeights[g] || 0), 0) * 0.01;
   behaviorMatch += tags.reduce((n, t) => n + (behavior.tagWeights[t] || 0), 0) * 0.01;
-  behaviorMatch += (behavior.formatWeights[fmt] || 0) * 0.02;
+  if (projectFormats.length > 0) {
+    const strongestFormatWeight = Math.max(...projectFormats.map((fmt) => behavior.formatWeights[fmt] || 0));
+    behaviorMatch += strongestFormatWeight * 0.02;
+  }
   behaviorMatch += (behavior.budgetWeights[budget] || 0) * 0.02;
   behaviorMatch = Math.min(1, behaviorMatch);
 
@@ -376,6 +397,24 @@ export const buildInvestorFeed = async (userId) => {
   });
   const now = Date.now();
 
+  const activeGenreFilters = [
+    ...(investor?.industryProfile?.mandates?.genres || []),
+    ...(investor?.preferences?.genres || []),
+  ]
+    .map(normalizeGenre)
+    .filter(Boolean);
+
+  const activeFormatFilters = [
+    ...(investor?.industryProfile?.mandates?.formats || []),
+    ...(investor?.preferences?.contentTypes || []),
+  ]
+    .map(normalizeFormat)
+    .filter(Boolean);
+
+  const activeBudgetFilters = (investor?.industryProfile?.mandates?.budgetTiers || [])
+    .map(normalizeBudget)
+    .filter(Boolean);
+
   const candidates = await Script.find({
     status: "published",
     isSold: { $ne: true },
@@ -387,7 +426,43 @@ export const buildInvestorFeed = async (userId) => {
     .limit(600)
     .lean();
 
-  const scored = candidates
+  const matchesActiveFilters = (project) => {
+    if (activeGenreFilters.length > 0) {
+      const projectGenres = [
+        normalizeGenre(project.genre || project.primaryGenre || project?.classification?.primaryGenre || ""),
+        normalizeGenre(project?.classification?.secondaryGenre || ""),
+      ].filter(Boolean);
+
+      if (!projectGenres.some((g) => activeGenreFilters.includes(g))) {
+        return false;
+      }
+    }
+
+    if (activeFormatFilters.length > 0) {
+      const projectFormats = [
+        normalizeFormat(project.format || ""),
+        normalizeFormat(project.contentType || ""),
+      ].filter(Boolean);
+
+      if (!projectFormats.some((fmt) => activeFormatFilters.includes(fmt))) {
+        return false;
+      }
+    }
+
+    if (activeBudgetFilters.length > 0) {
+      const projectBudget = normalizeBudget(project.budget || "");
+      if (!activeBudgetFilters.includes(projectBudget)) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const constrainedCandidates = candidates.filter(matchesActiveFilters);
+  const rankingPool = constrainedCandidates.length > 0 ? constrainedCandidates : candidates;
+
+  const scored = rankingPool
     .map((project) => {
       const result = scoreProject(project, { explicit, behavior }, now);
       return { ...project, _score: result.score, _scoreBreakdown: result.breakdown };

@@ -19,6 +19,10 @@ const CONTENT_TYPES = [
   { key: "anime", label: "Anime" },
   { key: "book", label: "Book" },
   { key: "startup", label: "Startup" },
+  { key: "songs", label: "Songs" },
+  { key: "standup_comedy", label: "Standup Comedy" },
+  { key: "dialogues", label: "Dialogues" },
+  { key: "poet", label: "Poet" },
 ];
 const BUDGETS = [
   { key: "micro", label: "Micro (under Rs10L)" },

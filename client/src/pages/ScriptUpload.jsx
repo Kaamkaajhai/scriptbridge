@@ -23,8 +23,32 @@ const formats = [
   { value: "cartoon", label: "Cartoon" },
   { value: "limited_series", label: "Limited Series" },
   { value: "documentary", label: "Documentary" },
+  { value: "songs", label: "Songs" },
+  { value: "standup_comedy", label: "Standup Comedy" },
+  { value: "dialogues", label: "Dialogues" },
+  { value: "poet", label: "Poet" },
   { value: "other", label: "Other" },
 ];
+
+const CONTENT_TYPE_BY_FORMAT = {
+  movie: "movie",
+  feature: "movie",
+  tv_1hour: "tv_series",
+  tv_halfhour: "tv_series",
+  limited_series: "tv_series",
+  tv_serial: "tv_series",
+  short: "short_film",
+  web_series: "web_series",
+  documentary: "documentary",
+  anime: "anime",
+  cartoon: "anime",
+  songs: "songs",
+  standup_comedy: "standup_comedy",
+  dialogues: "dialogues",
+  poet: "poet",
+};
+
+const getContentTypeFromFormat = (format) => CONTENT_TYPE_BY_FORMAT[format] || "movie";
 
 const FORMAT_PAGE_RANGES = {
   feature: { min: 70, max: 180, typical: "90-120", label: "Feature" },
@@ -39,6 +63,10 @@ const FORMAT_PAGE_RANGES = {
   cartoon: { min: 7, max: 45, typical: "10-25", label: "Cartoon" },
   limited_series: { min: 45, max: 75, typical: "50-65", label: "Limited Series" },
   documentary: { min: 60, max: 120, typical: "70-100", label: "Documentary" },
+  songs: { min: 1, max: 30, typical: "2-10", label: "Songs" },
+  standup_comedy: { min: 3, max: 50, typical: "8-20", label: "Standup Comedy" },
+  dialogues: { min: 1, max: 80, typical: "5-25", label: "Dialogues" },
+  poet: { min: 1, max: 60, typical: "3-20", label: "Poet" },
   other: { min: 1, max: 250, typical: "Varies", label: "Other" },
 };
 
@@ -291,6 +319,10 @@ const ScriptUpload = () => {
     cartoon:      { label: "Cartoon",       min: 5,  max: 20, suggest: 10 },
     limited_series:{ label: "Limited Series", min: 10, max: 35, suggest: 15 },
     documentary:  { label: "Documentary",   min: 10, max: 40, suggest: 20 },
+    songs:        { label: "Songs",         min: 5,  max: 30, suggest: 10 },
+    standup_comedy:{ label: "Standup Comedy", min: 5, max: 35, suggest: 10 },
+    dialogues:    { label: "Dialogues",     min: 5,  max: 25, suggest: 10 },
+    poet:         { label: "Poet",          min: 5,  max: 25, suggest: 10 },
     other:        { label: "Other",         min: 5,  max: 50, suggest: 10 },
   };
 
@@ -857,6 +889,7 @@ const ScriptUpload = () => {
         logline: formData.logline,
         synopsis: formData.synopsis,
         format: formData.format,
+        contentType: getContentTypeFromFormat(formData.format),
         formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: Number(formData.pageCount) || 0,
         textContent: textContent,
@@ -949,6 +982,7 @@ const ScriptUpload = () => {
         synopsis: formData.synopsis,
         description: formData.synopsis,
         format: formData.format,
+        contentType: getContentTypeFromFormat(formData.format),
         formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: Number(formData.pageCount),
         textContent: textContent,

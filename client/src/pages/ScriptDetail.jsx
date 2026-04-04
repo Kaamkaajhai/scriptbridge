@@ -711,6 +711,10 @@ const ScriptDetail = () => {
       short_film: "Short Film",
       web_series: "Web Series",
       play: "Play",
+      songs: "Songs",
+      standup_comedy: "Standup Comedy",
+      dialogues: "Dialogues",
+      poet: "Poet",
     };
     return (
       map[f] ||

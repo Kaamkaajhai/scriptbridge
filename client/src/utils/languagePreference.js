@@ -8,6 +8,7 @@ const TRANSLATE_CLEANUP_INTERVAL_MS = 250;
 const TRANSLATE_CLEANUP_MAX_TICKS = 24;
 
 let translateChromeCleanupInterval = null;
+let latestLanguageApplyToken = 0;
 
 const LANGUAGE_CODE_MAP = {
   zh: "zh-CN",
@@ -24,6 +25,18 @@ const normalizeLanguageCode = (language) => {
   return mapped;
 };
 
+const toGoogleTranslateCookieValue = (targetLanguage) => `/en/${targetLanguage}`;
+
+const isPageLikelyTranslated = () => {
+  if (typeof document === "undefined") return false;
+
+  if (document.documentElement.classList.contains("translated-ltr") || document.documentElement.classList.contains("translated-rtl")) {
+    return true;
+  }
+
+  return Boolean(document.querySelector("font.VIpgJd-yAWNEb-VIpgJd-fmcmS-sn54Q"));
+};
+
 const getCookieValue = (name) => {
   if (typeof document === "undefined") return "";
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -31,21 +44,40 @@ const getCookieValue = (name) => {
   return match ? decodeURIComponent(match[1]) : "";
 };
 
-const setCookie = (name, value, domain) => {
+const setCookie = (name, value, domain, { encode = true } = {}) => {
   if (typeof document === "undefined") return;
   const domainPart = domain ? `;domain=${domain}` : "";
-  document.cookie = `${name}=${encodeURIComponent(value)};path=/${domainPart}`;
+  const cookieValue = encode ? encodeURIComponent(value) : String(value);
+  document.cookie = `${name}=${cookieValue};path=/${domainPart}`;
+};
+
+const getCookieDomainCandidates = (host) => {
+  if (!host || !host.includes(".")) return [undefined];
+
+  const segments = host.split(".").filter(Boolean);
+  const domains = [undefined, `.${host}`];
+
+  for (let i = 1; i <= segments.length - 2; i += 1) {
+    domains.push(`.${segments.slice(i).join(".")}`);
+  }
+
+  return Array.from(new Set(domains));
 };
 
 const setGoogleTranslateCookie = (targetLanguage) => {
   if (typeof window === "undefined") return;
-  const cookieValue = `/en/${targetLanguage}`;
-  setCookie("googtrans", cookieValue);
-
+  const cookieValue = toGoogleTranslateCookieValue(targetLanguage);
   const host = window.location.hostname;
-  if (host && host.includes(".")) {
-    setCookie("googtrans", cookieValue, `.${host}`);
-  }
+  const domains = getCookieDomainCandidates(host);
+  domains.forEach((domain) => {
+    setCookie("googtrans", cookieValue, domain, { encode: false });
+  });
+};
+
+const isTranslateComboReady = () => {
+  if (typeof document === "undefined") return false;
+  const combo = document.querySelector(".goog-te-combo");
+  return Boolean(combo && combo.options && combo.options.length > 1);
 };
 
 const hideTranslateChrome = () => {
@@ -174,7 +206,7 @@ const waitForTranslateWidget = (timeoutMs = 5000) =>
       return;
     }
 
-    if (window.google?.translate?.TranslateElement && document.querySelector(".goog-te-combo")) {
+    if (window.google?.translate?.TranslateElement && isTranslateComboReady()) {
       resolve(true);
       return;
     }
@@ -189,18 +221,20 @@ const waitForTranslateWidget = (timeoutMs = 5000) =>
     };
 
     const onReady = () => {
-      const hasCombo = Boolean(document.querySelector(".goog-te-combo"));
-      finish(hasCombo);
+      finish(isTranslateComboReady());
     };
 
     window.addEventListener(GOOGLE_TRANSLATE_READY_EVENT, onReady, { once: true });
-    const timer = setTimeout(() => finish(Boolean(document.querySelector(".goog-te-combo"))), timeoutMs);
+    const timer = setTimeout(() => finish(isTranslateComboReady()), timeoutMs);
   });
 
 const applyTranslateWidgetLanguage = (languageCode) => {
   if (typeof document === "undefined") return false;
   const combo = document.querySelector(".goog-te-combo");
   if (!combo) return false;
+
+  const hasTargetOption = Array.from(combo.options || []).some((option) => option.value === languageCode);
+  if (!hasTargetOption) return false;
 
   if (combo.value !== languageCode) {
     combo.value = languageCode;
@@ -215,25 +249,36 @@ export const getStoredLanguagePreference = () => {
   return normalizeLanguageCode(window.localStorage.getItem(STORAGE_KEY) || DEFAULT_LANGUAGE);
 };
 
+export const getProfileLanguageValue = (language) => {
+  const normalized = normalizeLanguageCode(language);
+  return normalized === "zh-CN" ? "zh" : normalized;
+};
+
+export const getBackendLanguageValue = (language) => normalizeLanguageCode(language);
+
 export const applyLanguagePreference = async (language, options = {}) => {
   if (typeof window === "undefined") return;
 
   const { forceReload = false } = options;
   const targetLanguage = normalizeLanguageCode(language);
+  const applyToken = ++latestLanguageApplyToken;
 
   window.localStorage.setItem(STORAGE_KEY, targetLanguage);
   document.documentElement.lang = targetLanguage;
 
   const previousCookie = getCookieValue("googtrans");
-  const nextCookie = `/en/${targetLanguage}`;
+  const nextCookie = toGoogleTranslateCookieValue(targetLanguage);
   setGoogleTranslateCookie(targetLanguage);
 
   ensureGoogleTranslateScript();
   const hasWidget = await waitForTranslateWidget();
+  if (applyToken !== latestLanguageApplyToken) return;
+
   const appliedInPlace = hasWidget ? applyTranslateWidgetLanguage(targetLanguage) : false;
   scheduleTranslateChromeCleanup();
+  const shouldReloadToResetEnglish = targetLanguage === DEFAULT_LANGUAGE && isPageLikelyTranslated();
 
-  if (forceReload && !appliedInPlace && previousCookie !== nextCookie) {
+  if (forceReload && (shouldReloadToResetEnglish || previousCookie !== nextCookie || !appliedInPlace)) {
     window.location.reload();
   }
 };

@@ -116,6 +116,52 @@ const INVESTOR_TERMS_VERSION = "investor-onboarding-v2026-03-24";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
 const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
 
+const FORMAT_OPTIONS = [
+  { value: "feature", label: "Feature Film" },
+  { value: "movie", label: "Movie" },
+  { value: "tv_1hour", label: "TV Pilot (1-Hour)" },
+  { value: "tv_halfhour", label: "TV Pilot (Half-Hour)" },
+  { value: "limited_series", label: "Limited Series" },
+  { value: "tv_serial", label: "TV Serial" },
+  { value: "short", label: "Short Film" },
+  { value: "web_series", label: "Web Series" },
+  { value: "documentary", label: "Documentary" },
+  { value: "anime", label: "Anime" },
+  { value: "cartoon", label: "Cartoon" },
+  { value: "drama_school", label: "Drama School" },
+  { value: "songs", label: "Songs" },
+  { value: "standup_comedy", label: "Standup Comedy" },
+  { value: "dialogues", label: "Dialogues" },
+  { value: "poet", label: "Poet" },
+  { value: "other", label: "Other" },
+];
+
+const normalizePreferredFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
+};
+
 const InvestorOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -170,9 +216,10 @@ const InvestorOnboarding = () => {
   const [selectedGenres, setSelectedGenres] = useState(
     Array.isArray(initialDraft?.selectedGenres) ? initialDraft.selectedGenres : []
   );
-  const [selectedFormats, setSelectedFormats] = useState(
-    Array.isArray(initialDraft?.selectedFormats) ? initialDraft.selectedFormats : []
-  );
+  const [selectedFormats, setSelectedFormats] = useState(() => {
+    const initialFormats = Array.isArray(initialDraft?.selectedFormats) ? initialDraft.selectedFormats : [];
+    return [...new Set(initialFormats.map(normalizePreferredFormat).filter(Boolean))];
+  });
 
   // Step 4: Legal
   const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
@@ -291,11 +338,6 @@ const InvestorOnboarding = () => {
     "Action", "Comedy", "Drama", "Horror", "Thriller",
     "Romance", "Sci-Fi", "Fantasy", "Mystery", "Adventure",
     "Crime", "Documentary", "Historical", "Animation", "Musical",
-  ];
-
-  const formatOptions = [
-    "Feature Film", "TV Series", "Limited Series", "Short Film",
-    "Web Series", "Documentary", "Animation",
   ];
 
   const toggle = (arr, setArr, val) => {
@@ -1210,8 +1252,13 @@ const InvestorOnboarding = () => {
                   <div>
                     <label className={labelClass}>Preferred Formats</label>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {formatOptions.map((f) => (
-                        <ChipButton key={f} label={f} active={selectedFormats.includes(f)} onClick={() => toggle(selectedFormats, setSelectedFormats, f)} />
+                      {FORMAT_OPTIONS.map((f) => (
+                        <ChipButton
+                          key={f.value}
+                          label={f.label}
+                          active={selectedFormats.includes(f.value)}
+                          onClick={() => toggle(selectedFormats, setSelectedFormats, f.value)}
+                        />
                       ))}
                     </div>
                   </div>

@@ -12,6 +12,54 @@ const getDefaultMandates = () => ({
   specificHooks: [],
 });
 
+const FORMAT_OPTIONS = [
+  { value: "feature", label: "Feature Film" },
+  { value: "movie", label: "Movie" },
+  { value: "tv_1hour", label: "TV Pilot (1-Hour)" },
+  { value: "tv_halfhour", label: "TV Pilot (Half-Hour)" },
+  { value: "limited_series", label: "Limited Series" },
+  { value: "tv_serial", label: "TV Serial" },
+  { value: "short", label: "Short Film" },
+  { value: "web_series", label: "Web Series" },
+  { value: "documentary", label: "Documentary" },
+  { value: "anime", label: "Anime" },
+  { value: "cartoon", label: "Cartoon" },
+  { value: "drama_school", label: "Drama School" },
+  { value: "songs", label: "Songs" },
+  { value: "standup_comedy", label: "Standup Comedy" },
+  { value: "dialogues", label: "Dialogues" },
+  { value: "poet", label: "Poet" },
+  { value: "other", label: "Other" },
+];
+
+const FORMAT_LABEL_BY_VALUE = Object.fromEntries(FORMAT_OPTIONS.map((opt) => [opt.value, opt.label]));
+
+const normalizeMandateFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
+};
+
 const Mandates = () => {
   const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
@@ -20,7 +68,6 @@ const Mandates = () => {
   const [message, setMessage] = useState("");
   const [mandates, setMandates] = useState(getDefaultMandates);
 
-  const formats = ["Feature Film", "TV Pilot", "Limited Series", "Short Film", "Web Series"];
   const budgetTiers = [
     { value: "micro", label: "Micro (<₹50L)" },
     { value: "low", label: "Low (₹50L–₹5Cr)" },
@@ -53,7 +100,17 @@ const Mandates = () => {
     try {
       const { data } = await api.get("/users/me");
       if (data.industryProfile?.mandates) {
-        setMandates(data.industryProfile.mandates);
+        const normalizedFormats = Array.isArray(data.industryProfile.mandates.formats)
+          ? [...new Set(data.industryProfile.mandates.formats
+            .map(normalizeMandateFormat)
+            .filter((fmt) => FORMAT_LABEL_BY_VALUE[fmt]))]
+          : [];
+
+        setMandates({
+          ...getDefaultMandates(),
+          ...data.industryProfile.mandates,
+          formats: normalizedFormats,
+        });
       }
       setLoading(false);
     } catch (error) {
@@ -83,12 +140,12 @@ const Mandates = () => {
     setMessage("Mandates reset. Click Save Mandates to apply changes.");
   };
 
-  const toggleFormat = (format) => {
+  const toggleFormat = (formatValue) => {
     setMandates(prev => ({
       ...prev,
-      formats: prev.formats.includes(format)
-        ? prev.formats.filter(f => f !== format)
-        : [...prev.formats, format]
+      formats: prev.formats.includes(formatValue)
+        ? prev.formats.filter(f => f !== formatValue)
+        : [...prev.formats, formatValue]
     }));
   };
 
@@ -165,18 +222,18 @@ const Mandates = () => {
                 Formats (Select all that apply)
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {formats.map((format) => (
+                {FORMAT_OPTIONS.map((format) => (
                   <button
-                    key={format}
+                    key={format.value}
                     type="button"
-                    onClick={() => toggleFormat(format)}
+                    onClick={() => toggleFormat(format.value)}
                     className={`px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
-                      mandates.formats.includes(format)
+                      mandates.formats.includes(format.value)
                         ? "bg-[#0f2544] text-white shadow-md"
                         : dark ? "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    {format}
+                    {format.label}
                   </button>
                 ))}
               </div>

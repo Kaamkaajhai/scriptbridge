@@ -163,7 +163,7 @@ const userSchema = new mongoose.Schema({
   preferences: {
     genres: [String],
     budgetRange: { min: { type: Number, default: 0 }, max: { type: Number, default: 1000000 } },
-    contentTypes: [{ type: String, enum: ["movie", "tv_series", "anime", "documentary", "short_film", "web_series", "book", "startup"] }],
+    contentTypes: [{ type: String, enum: ["movie", "tv_series", "anime", "documentary", "short_film", "web_series", "book", "startup", "songs", "standup_comedy", "dialogues", "poet"] }],
   },
   viewHistory: [{
     script: { type: mongoose.Schema.Types.ObjectId, ref: "Script" },

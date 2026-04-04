@@ -12,7 +12,7 @@ import Transactions from "../components/Transactions";
 import SocialShareButton from "../components/SocialShareButton";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { formatCurrency } from "../utils/currency";
-import { applyLanguagePreference } from "../utils/languagePreference";
+import { applyLanguagePreference, getBackendLanguageValue, getProfileLanguageValue } from "../utils/languagePreference";
 
 /* â”€â”€ Helper components â”€â”€ */
 
@@ -1833,7 +1833,7 @@ const Profile = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-white/30" : "text-gray-400"}`}>Language</p>
-                <select value={profile.language || "en"} onChange={async (e) => { const nextLanguage = e.target.value; try { await api.put("/users/settings", { language: nextLanguage }); setProfile({ ...profile, language: nextLanguage }); if (currentUser) { const updatedUser = { ...currentUser, language: nextLanguage }; setUser(updatedUser); localStorage.setItem("user", JSON.stringify(updatedUser)); } await applyLanguagePreference(nextLanguage, { forceReload: true }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
+                <select value={getProfileLanguageValue(profile.language)} onChange={async (e) => { const nextLanguage = getBackendLanguageValue(e.target.value); try { await api.put("/users/settings", { language: nextLanguage }); setProfile({ ...profile, language: nextLanguage }); if (currentUser) { const updatedUser = { ...currentUser, language: nextLanguage }; setUser(updatedUser); localStorage.setItem("user", JSON.stringify(updatedUser)); } await applyLanguagePreference(nextLanguage, { forceReload: true }); setSettingsMsg("Language updated"); setTimeout(() => setSettingsMsg(""), 3000); } catch (err) { setSettingsErr("Failed"); } }}
                   className={`w-full px-3.5 py-2.5 rounded-xl text-[13px] border outline-none cursor-pointer ${dark ? "bg-white/[0.03] border-white/[0.08] text-white/80" : "bg-white border-gray-200 text-gray-800"}`}>
                   <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option>
                 </select>
