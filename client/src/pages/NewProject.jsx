@@ -71,7 +71,10 @@ const NewProject = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08 * (i + 1) }}
-            onClick={() => navigate(card.path)}
+            onClick={() => navigate(
+              card.path,
+              card.key === "create" ? { state: { startFresh: true } } : undefined
+            )}
             className={`group relative rounded-2xl border cursor-pointer transition-all duration-300 hover:-translate-y-1 overflow-hidden ${
               dark
                 ? "bg-[#101e30] border-[#333] hover:border-[#444] hover:shadow-2xl hover:shadow-[#020609]/30"

@@ -3,7 +3,7 @@ import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
 const BrandLogo = ({ className = "h-10 w-auto", title = "Ckript" }) => {
-  const logoSrc = "/cklogo-nobg.png";
+  const logoSrc = "/ckript-logo-landscape-nobg.png";
   const { user } = useContext(AuthContext);
 
   const handleLogoClick = (e) => {

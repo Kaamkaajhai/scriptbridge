@@ -48,9 +48,50 @@ const BUDGET_TIERS = [
 ];
 
 const FORMAT_OPTIONS = [
-  "Feature Film", "TV Pilot", "Web Series", "Documentary",
-  "Short Film", "Anime", "Limited Series", "Reality Show"
+  { value: "feature", label: "Feature Film" },
+  { value: "movie", label: "Movie" },
+  { value: "tv_1hour", label: "TV Pilot (1-Hour)" },
+  { value: "tv_halfhour", label: "TV Pilot (Half-Hour)" },
+  { value: "limited_series", label: "Limited Series" },
+  { value: "tv_serial", label: "TV Serial" },
+  { value: "short", label: "Short Film" },
+  { value: "web_series", label: "Web Series" },
+  { value: "documentary", label: "Documentary" },
+  { value: "anime", label: "Anime" },
+  { value: "cartoon", label: "Cartoon" },
+  { value: "drama_school", label: "Drama School" },
+  { value: "songs", label: "Songs" },
+  { value: "standup_comedy", label: "Standup Comedy" },
+  { value: "dialogues", label: "Dialogues" },
+  { value: "poet", label: "Poet" },
+  { value: "other", label: "Other" },
 ];
+
+const normalizePreferredFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
+};
 
 const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
@@ -66,6 +107,13 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   const [formData, setFormData] = useState({
     name: profile.name || "",
+    phone: profile.phone || "",
+    dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().split("T")[0] : "",
+    addressStreet: profile.address?.street || "",
+    addressCity: profile.address?.city || "",
+    addressState: profile.address?.state || "",
+    addressZipCode: profile.address?.zipCode || "",
+    addressFormatted: profile.address?.formatted || "",
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
     profileImage: profile.profileImage || "",
@@ -84,12 +132,16 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   });
   const [investorGenres, setInvestorGenres] = useState(mandates.genres || profile.preferences?.genres || []);
   const [investorBudgets, setInvestorBudgets] = useState(mandates.budgetTiers || []);
-  const [investorFormats, setInvestorFormats] = useState(mandates.formats || []);
+  const [investorFormats, setInvestorFormats] = useState(() => {
+    const raw = Array.isArray(mandates.formats) ? mandates.formats : [];
+    return [...new Set(raw.map(normalizePreferredFormat).filter(Boolean))];
+  });
 
   // Writer-specific state
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
   const [agencyName, setAgencyName] = useState(wp.agencyName || "");
   const [wgaMember, setWgaMember] = useState(wp.wgaMember || false);
+  const [sgaMember, setSgaMember] = useState(wp.sgaMember || false);
   const [selectedGenres, setSelectedGenres] = useState(wp.genres || []);
   const [specializedTags, setSpecializedTags] = useState(wp.specializedTags || []);
   const [diversity, setDiversity] = useState({
@@ -102,6 +154,16 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       profile.bankDetails.accountNumber.startsWith("****")
       ? profile.bankDetails.accountNumber
       : "";
+  const initialBankSnapshot = {
+    accountHolderName: (profile.bankDetails?.accountHolderName || "").trim(),
+    bankName: (profile.bankDetails?.bankName || "").trim(),
+    routingNumber: (profile.bankDetails?.routingNumber || "").replace(/\s+/g, "").toUpperCase(),
+    accountType: profile.bankDetails?.accountType || "checking",
+    swiftCode: (profile.bankDetails?.swiftCode || "").trim().toUpperCase(),
+    iban: (profile.bankDetails?.iban || "").trim().toUpperCase(),
+    country: (profile.bankDetails?.country || "IN").trim().toUpperCase(),
+    currency: (profile.bankDetails?.currency || "INR").trim().toUpperCase(),
+  };
 
   // Bank details state
   const [bankDetails, setBankDetails] = useState({
@@ -124,7 +186,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
   // Active section for mobile-friendly navigation
   const [activeSection, setActiveSection] = useState("basic");
-  const shouldRequireAgencyName = ["agent", "manager_and_agent"].includes(representationStatus);
+  const shouldShowAgencyName = representationStatus !== "unrepresented";
 
   const sections = isWriter
     ? [
@@ -219,12 +281,6 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         .map((s) => s.trim())
         .filter((s) => s);
 
-      if (isWriter && shouldRequireAgencyName && !agencyName.trim()) {
-        setError("Agency name is required when representation is selected.");
-        setLoading(false);
-        return;
-      }
-
       if (isWriter && specializedTags.length > 5) {
         setError("Please keep specialized tags to 5 or fewer.");
         setLoading(false);
@@ -236,11 +292,28 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         skills: skillsArray,
       };
 
+      const addressStreet = formData.addressStreet.trim();
+      const addressCity = formData.addressCity.trim();
+      const addressState = formData.addressState.trim();
+      const addressZipCode = formData.addressZipCode.trim();
+      const computedAddress = [addressStreet, addressCity, addressState, addressZipCode].filter(Boolean).join(", ");
+
+      payload.phone = formData.phone.trim();
+      payload.dateOfBirth = formData.dateOfBirth ? formData.dateOfBirth : undefined;
+      payload.address = {
+        street: addressStreet,
+        city: addressCity,
+        state: addressState,
+        zipCode: addressZipCode,
+        formatted: formData.addressFormatted.trim() || computedAddress,
+      };
+
       if (isWriter) {
         payload.writerProfile = {
           representationStatus,
-          agencyName,
+          agencyName: shouldShowAgencyName ? agencyName.trim() : "",
           wgaMember,
+          sgaMember,
           genres: selectedGenres,
           specializedTags,
           diversity,
@@ -273,15 +346,18 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         currency: (bankDetails.currency || "INR").trim().toUpperCase(),
       };
 
-      const hasEditableBankValues =
-        normalizedBankDetails.accountHolderName ||
-        normalizedBankDetails.bankName ||
-        normalizedBankDetails.accountNumber ||
-        normalizedBankDetails.routingNumber ||
-        normalizedBankDetails.swiftCode ||
-        normalizedBankDetails.iban;
+      const hasBankChanges =
+        normalizedBankDetails.accountHolderName !== initialBankSnapshot.accountHolderName ||
+        normalizedBankDetails.bankName !== initialBankSnapshot.bankName ||
+        normalizedBankDetails.routingNumber !== initialBankSnapshot.routingNumber ||
+        normalizedBankDetails.accountType !== initialBankSnapshot.accountType ||
+        normalizedBankDetails.swiftCode !== initialBankSnapshot.swiftCode ||
+        normalizedBankDetails.iban !== initialBankSnapshot.iban ||
+        normalizedBankDetails.country !== initialBankSnapshot.country ||
+        normalizedBankDetails.currency !== initialBankSnapshot.currency ||
+        Boolean(normalizedBankDetails.accountNumber);
 
-      if (hasEditableBankValues) {
+      if (hasBankChanges) {
         if (!normalizedBankDetails.accountHolderName || !normalizedBankDetails.bankName) {
           setError("Account holder name and bank name are required for bank details.");
           setLoading(false);
@@ -468,6 +544,72 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Phone</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className={inputClass}
+                    placeholder="+91 00000 00000"
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Date of Birth</label>
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Street Address</label>
+                <input
+                  type="text"
+                  value={formData.addressStreet}
+                  onChange={(e) => setFormData({ ...formData, addressStreet: e.target.value })}
+                  className={inputClass}
+                  placeholder="House/Flat, Street, Area"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className={labelClass}>City</label>
+                  <input
+                    type="text"
+                    value={formData.addressCity}
+                    onChange={(e) => setFormData({ ...formData, addressCity: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>State</label>
+                  <input
+                    type="text"
+                    value={formData.addressState}
+                    onChange={(e) => setFormData({ ...formData, addressState: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>ZIP Code</label>
+                  <input
+                    type="text"
+                    value={formData.addressZipCode}
+                    onChange={(e) => setFormData({ ...formData, addressZipCode: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className={labelClass}>Bio</label>
                 <textarea
@@ -517,9 +659,9 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </select>
               </div>
 
-              {shouldRequireAgencyName && (
+              {shouldShowAgencyName && (
                 <div>
-                  <label className={labelClass}>Agency Name</label>
+                <label className={labelClass}>Agency Name</label>
                   <input
                     type="text"
                     value={agencyName}
@@ -540,6 +682,19 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 />
                 <label htmlFor="wgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
                   I am a WGA member
+                </label>
+              </div>
+
+              <div className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
+                <input
+                  type="checkbox"
+                  id="sgaMemberEdit"
+                  checked={sgaMember}
+                  onChange={(e) => setSgaMember(e.target.checked)}
+                  className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                />
+                <label htmlFor="sgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  I am a SGA member
                 </label>
               </div>
             </motion.div>
@@ -863,15 +1018,15 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 <div className="grid grid-cols-2 gap-2">
                   {FORMAT_OPTIONS.map((fmt) => (
                     <button
-                      key={fmt}
+                      key={fmt.value}
                       type="button"
-                      onClick={() => setInvestorFormats((prev) => prev.includes(fmt) ? prev.filter(f => f !== fmt) : [...prev, fmt])}
-                      className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border ${investorFormats.includes(fmt)
+                      onClick={() => setInvestorFormats((prev) => prev.includes(fmt.value) ? prev.filter(f => f !== fmt.value) : [...prev, fmt.value])}
+                      className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border ${investorFormats.includes(fmt.value)
                         ? dark ? "bg-[#0f2544] text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white border-[#0f2544]"
                         : dark ? "bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50" : "bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40"
                       }`}
                     >
-                      {fmt}
+                      {fmt.label}
                     </button>
                   ))}
                 </div>

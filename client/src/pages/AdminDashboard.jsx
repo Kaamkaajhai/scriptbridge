@@ -18,7 +18,9 @@ adminApi.interceptors.request.use((config) => {
         try {
             const { token } = JSON.parse(adminSession);
             if (token) config.headers.Authorization = `Bearer ${token}`;
-        } catch { }
+        } catch {
+            // Ignore malformed admin session data and proceed without token.
+        }
     }
     return config;
 });
@@ -41,6 +43,7 @@ const TABS = [
     { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
     { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
+    { key: "deleted-accounts", label: "Deleted Accounts", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
     { key: "discount-codes", label: "Discount Codes", icon: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" },
 ];
 
@@ -65,6 +68,72 @@ const DownloadIconButton = ({ onClick, title, disabled, className = "" }) => (
     </button>
 );
 
+const toDisplayText = (value) => {
+    const text = String(value ?? "").trim();
+    return text || "-";
+};
+
+const getUserAddressLine = (user) => {
+    const parts = [
+        user?.address?.street,
+        user?.address?.city,
+        user?.address?.state,
+        user?.address?.zipCode,
+    ]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+
+    if (parts.length > 0) return parts.join(", ");
+    return String(user?.address?.formatted || "").trim();
+};
+
+const getUserCompany = (user) => {
+    return String(user?.industryProfile?.company || user?.writerProfile?.agencyName || "").trim();
+};
+
+const getUserGenres = (user) => {
+    const genreBuckets = [
+        ...(Array.isArray(user?.writerProfile?.genres) ? user.writerProfile.genres : []),
+        ...(Array.isArray(user?.industryProfile?.mandates?.genres) ? user.industryProfile.mandates.genres : []),
+        ...(Array.isArray(user?.preferences?.genres) ? user.preferences.genres : []),
+    ];
+
+    const normalized = genreBuckets
+        .map((genre) => String(genre || "").trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(normalized)).join(", ");
+};
+
+const getUserProfileSummary = (user) => {
+    const company = getUserCompany(user);
+    const genres = getUserGenres(user);
+    const summaryParts = [];
+
+    if (company) summaryParts.push(company);
+    if (genres) summaryParts.push(`Genres: ${genres}`);
+
+    return summaryParts.join(" • ");
+};
+
+const formatUserExportLine = (user, index) => {
+    const address = getUserAddressLine(user);
+    const company = getUserCompany(user);
+    const genres = getUserGenres(user);
+
+    return `${index + 1}. ${toDisplayText(user?.name)} | ${toDisplayText(user?.email)} | Phone: ${toDisplayText(user?.phone)} | Role: ${toDisplayText(user?.role)} | SID: ${toDisplayText(user?.sid)} | Company: ${toDisplayText(company)} | Genres: ${toDisplayText(genres)} | Address: ${toDisplayText(address)} | Joined: ${formatExportDate(user?.createdAt)}`;
+};
+
+const PROJECT_CREATOR_ROLES = new Set(["writer", "creator"]);
+
+const getScriptCreatorName = (script) => {
+    const role = String(script?.creator?.role || "").trim().toLowerCase();
+    if (role && !PROJECT_CREATOR_ROLES.has(role)) {
+        return "—";
+    }
+    return String(script?.creator?.name || "").trim() || "—";
+};
+
 // ─── Stat Card ───
 const StatCard = ({ label, value, icon, color, isDark }) => (
     <div className={`rounded-2xl p-5 border transition-all hover:scale-[1.02] ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
@@ -79,8 +148,11 @@ const StatCard = ({ label, value, icon, color, isDark }) => (
 );
 
 // ─── User Table ───
-const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
-    <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+const UserTable = ({ users, isDark, onLoginAs, onViewUser, onFreezeUser, onUnfreezeUser, onGrantCredits, onDeleteUser, userActionLoading = "" }) => {
+    const hasRowActions = Boolean(onLoginAs || onViewUser || onFreezeUser || onUnfreezeUser || onGrantCredits || onDeleteUser);
+
+    return (
+        <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
             <table className="w-full">
                 <thead>
@@ -89,7 +161,7 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Email</th>
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Role</th>
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Joined</th>
-                        {(onLoginAs || onViewUser) && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</th>}
+                        {hasRowActions && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</th>}
                     </tr>
                 </thead>
                 <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
@@ -104,7 +176,18 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                                             {u.name?.charAt(0)?.toUpperCase() || "?"}
                                         </div>
                                     )}
-                                    <span className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{u.name}</span>
+                                    <div>
+                                        <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{u.name}</p>
+                                        <p className={`text-[11px] mt-0.5 font-bold ${u.isDeactivated ? "text-red-500" : u.isFrozen ? "text-amber-500" : (isDark ? "text-emerald-400" : "text-emerald-600")}`}>
+                                            {u.isDeactivated ? "Deleted" : u.isFrozen ? "Frozen" : "Active"}
+                                        </p>
+                                        {u.phone && (
+                                            <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{u.phone}</p>
+                                        )}
+                                        {getUserProfileSummary(u) && (
+                                            <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{getUserProfileSummary(u)}</p>
+                                        )}
+                                    </div>
                                 </div>
                             </td>
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{u.email}</td>
@@ -115,14 +198,56 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                                     }`}>{u.role}</span>
                             </td>
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-500" : "text-gray-500"}`}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                            {(onLoginAs || onViewUser) && (
+                            {hasRowActions && (
                                 <td className="px-5 py-3.5">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         {onViewUser && (
                                             <button onClick={() => onViewUser(u)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10">View Details</button>
                                         )}
                                         {onLoginAs && (
-                                            <button onClick={() => onLoginAs(u._id)} className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10">Login As</button>
+                                            <button
+                                                onClick={() => onLoginAs(u._id)}
+                                                disabled={u.isFrozen || u.isDeactivated}
+                                                className="text-xs font-bold text-blue-500 hover:text-blue-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                Login As
+                                            </button>
+                                        )}
+                                        {onGrantCredits && (
+                                            <button
+                                                onClick={() => onGrantCredits(u)}
+                                                disabled={Boolean(u.isDeactivated) || userActionLoading === `credits-${u._id}`}
+                                                className="text-xs font-bold text-cyan-500 hover:text-cyan-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {userActionLoading === `credits-${u._id}` ? "Granting..." : "Grant Credits"}
+                                            </button>
+                                        )}
+                                        {onFreezeUser && !u.isFrozen && !u.isDeactivated && (
+                                            <button
+                                                onClick={() => onFreezeUser(u)}
+                                                disabled={userActionLoading === `freeze-${u._id}`}
+                                                className="text-xs font-bold text-amber-500 hover:text-amber-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-amber-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {userActionLoading === `freeze-${u._id}` ? "Freezing..." : "Freeze"}
+                                            </button>
+                                        )}
+                                        {onUnfreezeUser && u.isFrozen && !u.isDeactivated && (
+                                            <button
+                                                onClick={() => onUnfreezeUser(u)}
+                                                disabled={userActionLoading === `unfreeze-${u._id}`}
+                                                className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {userActionLoading === `unfreeze-${u._id}` ? "Unfreezing..." : "Unfreeze"}
+                                            </button>
+                                        )}
+                                        {onDeleteUser && (
+                                            <button
+                                                onClick={() => onDeleteUser(u)}
+                                                disabled={Boolean(u.isDeactivated) || userActionLoading === `delete-${u._id}`}
+                                                className="text-xs font-bold text-red-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                            >
+                                                {u.isDeactivated ? "Deleted" : userActionLoading === `delete-${u._id}` ? "Deleting..." : "Delete"}
+                                            </button>
                                         )}
                                     </div>
                                 </td>
@@ -130,13 +255,14 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser }) => (
                         </tr>
                     ))}
                     {users.length === 0 && (
-                        <tr><td colSpan={(onLoginAs || onViewUser) ? 5 : 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No users found</td></tr>
+                        <tr><td colSpan={hasRowActions ? 5 : 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No users found</td></tr>
                     )}
                 </tbody>
             </table>
         </div>
-    </div>
-);
+        </div>
+    );
+};
 
 // ─── Script Table ───
 const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }) => (
@@ -165,7 +291,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                             </td>
                             {showCreator && (
                                 <td className="px-5 py-3.5">
-                                    <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.creator?.name || "—"}</span>
+                                    <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{getScriptCreatorName(s)}</span>
                                 </td>
                             )}
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.genre || s.primaryGenre || "—"}</td>
@@ -368,6 +494,7 @@ const SEARCH_PLACEHOLDER_BY_TAB = {
     "pending-investors": "Search investor requests...",
     "bank-reviews": "Search bank review requests...",
     queries: "Search queries...",
+    "deleted-accounts": "Search deleted account requests...",
 };
 
 const EMPTY_GLOBAL_RESULTS = {
@@ -622,7 +749,9 @@ const AdminDashboard = () => {
     const [bankReviews, setBankReviews] = useState([]);
     const [rejectModal, setRejectModal] = useState(null); // investor object
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
+    const [userActionLoading, setUserActionLoading] = useState("");
     const [contacts, setContacts] = useState([]);
+    const [deletedAccounts, setDeletedAccounts] = useState([]);
     const [discountCodes, setDiscountCodes] = useState([]);
     const [discountCodeModal, setDiscountCodeModal] = useState(null); // null = closed, {} = create, {_id:...} = edit
     const [alertSummary, setAlertSummary] = useState({});
@@ -658,14 +787,72 @@ const AdminDashboard = () => {
     const trailerFileInputRef = useRef(null);
     const [trailerUploadTargetScript, setTrailerUploadTargetScript] = useState(null);
     const [uploadingTrailerScriptId, setUploadingTrailerScriptId] = useState("");
+    const [deletingScriptId, setDeletingScriptId] = useState("");
 
     // ─── Toast notification system ───
     const [toast, setToast] = useState(null);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [adminDialog, setAdminDialog] = useState(null);
+    const adminDialogResolverRef = useRef(null);
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3500);
     };
+
+    const openAdminDialog = ({
+        type = "confirm",
+        title = "Confirm action",
+        message = "Are you sure?",
+        confirmText = "Confirm",
+        cancelText = "Cancel",
+        defaultValue = "",
+        placeholder = "",
+        inputType = "text",
+        multiline = false,
+    }) => new Promise((resolve) => {
+        adminDialogResolverRef.current = resolve;
+        setAdminDialog({
+            type,
+            title,
+            message,
+            confirmText,
+            cancelText,
+            value: String(defaultValue ?? ""),
+            placeholder,
+            inputType,
+            multiline,
+        });
+    });
+
+    const closeAdminDialog = (result) => {
+        const resolver = adminDialogResolverRef.current;
+        adminDialogResolverRef.current = null;
+        setAdminDialog(null);
+        if (typeof resolver === "function") resolver(result);
+    };
+
+    useEffect(() => {
+        if (!adminDialog) return undefined;
+
+        const handleKeydown = (event) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                closeAdminDialog(null);
+                return;
+            }
+
+            if (event.key === "Enter" && !event.shiftKey) {
+                if (adminDialog.type === "prompt" && document.activeElement?.tagName === "TEXTAREA") {
+                    return;
+                }
+                event.preventDefault();
+                closeAdminDialog(adminDialog.type === "prompt" ? adminDialog.value : true);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeydown);
+        return () => window.removeEventListener("keydown", handleKeydown);
+    }, [adminDialog]);
 
     const fetchAlertSummary = async ({ silent = false } = {}) => {
         if (!authorized) return;
@@ -713,10 +900,25 @@ const AdminDashboard = () => {
     const sourcePendingInvestors = isGlobalSearchMode ? globalResults.pendingInvestors : pendingInvestors;
     const sourceBankReviews = isGlobalSearchMode ? globalResults.bankReviews : bankReviews;
     const sourceContacts = isGlobalSearchMode ? globalResults.contacts : contacts;
+    const sourceDeletedAccounts = deletedAccounts;
     const sourceMessageUsers = messageUsers;
 
-    const filteredUsers = sourceUsers.filter((u) => matchesSearch(u.name, u.email, u.role, u.sid));
-    const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, s.creator?.name));
+    const filteredUsers = sourceUsers.filter((u) =>
+        matchesSearch(
+            u.name,
+            u.email,
+            u.role,
+            u.sid,
+            u.phone,
+            getUserAddressLine(u),
+            getUserCompany(u),
+            getUserGenres(u),
+            u.writerProfile?.username,
+            u.writerProfile?.legalName,
+            u.industryProfile?.jobTitle
+        )
+    );
+    const filteredScripts = sourceScripts.filter((s) => matchesSearch(s.title, s.sid, s.genre, s.primaryGenre, s.status, getScriptCreatorName(s)));
     const filteredTransactions = sourceTransactions.filter((t) =>
         matchesSearch(
             t.user?.name,
@@ -735,6 +937,7 @@ const AdminDashboard = () => {
     const filteredPendingInvestors = sourcePendingInvestors.filter((inv) => matchesSearch(inv.name, inv.email, inv.createdAt));
     const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
     const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
+    const filteredDeletedAccounts = sourceDeletedAccounts.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
     const filteredMessageUsers = sourceMessageUsers.filter((u) => matchesSearch(u.name, u.email, u.sid));
 
     const buildCurrentSectionPayload = () => {
@@ -760,7 +963,7 @@ const AdminDashboard = () => {
             case "readers":
                 return {
                     title: `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} (${users.length})`,
-                    lines: users.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | Role: ${u.role || "-"} | SID: ${u.sid || "-"} | Joined: ${formatExportDate(u.createdAt)}`),
+                    lines: users.map((u, idx) => formatUserExportLine(u, idx)),
                 };
             case "projects":
             case "ai-usage":
@@ -771,7 +974,7 @@ const AdminDashboard = () => {
             case "trailers":
                 return {
                     title: `${TABS.find((tab) => tab.key === activeTab)?.label || "Scripts"} (${scripts.length})`,
-                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${s.creator?.name || "-"} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
                 };
             case "payments":
                 return {
@@ -797,6 +1000,11 @@ const AdminDashboard = () => {
                 return {
                     title: `Queries (${contacts.length})`,
                     lines: contacts.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
+                };
+            case "deleted-accounts":
+                return {
+                    title: `Deleted Accounts (${deletedAccounts.length})`,
+                    lines: deletedAccounts.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                 };
             case "messages":
                 return {
@@ -925,6 +1133,7 @@ const AdminDashboard = () => {
                 pendingInvestorsData,
                 bankReviewsData,
                 queriesData,
+                deletedAccountsData,
             ] = await Promise.all([
                 fetchList("/admin/stats"),
                 fetchList("/admin/users?role=investor&page=1&limit=1000", "users"),
@@ -945,16 +1154,17 @@ const AdminDashboard = () => {
                 fetchList("/admin/investors/pending?page=1&limit=1000", "investors"),
                 fetchList("/admin/bank-details/reviews?page=1&limit=1000", "reviews"),
                 fetchList("/admin/queries?page=1&limit=1000", "submissions"),
+                fetchList("/admin/users/deleted-requests?page=1&limit=1000", "requests"),
             ]);
 
             const sectionFromUsers = (title, list) => ({
                 title: `${title} (${list.length})`,
-                lines: list.map((u, idx) => `${idx + 1}. ${u.name || "-"} | ${u.email || "-"} | Role: ${u.role || "-"} | SID: ${u.sid || "-"} | Joined: ${formatExportDate(u.createdAt)}`),
+                lines: list.map((u, idx) => formatUserExportLine(u, idx)),
             });
 
             const sectionFromScripts = (title, list) => ({
                 title: `${title} (${list.length})`,
-                lines: list.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${s.creator?.name || "-"} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                lines: list.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
             });
 
             writePdfSections({
@@ -1005,6 +1215,10 @@ const AdminDashboard = () => {
                     {
                         title: `Queries (${queriesData.length})`,
                         lines: queriesData.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
+                    },
+                    {
+                        title: `Deleted Accounts (${deletedAccountsData.length})`,
+                        lines: deletedAccountsData.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                     },
                 ],
             });
@@ -1108,6 +1322,11 @@ const AdminDashboard = () => {
                 case "queries": {
                     const { data } = await adminApi.get(`/admin/queries?page=${page}`);
                     setContacts(data.submissions); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
+                case "deleted-accounts": {
+                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                    setDeletedAccounts(data.requests || []); setTotalPages(data.totalPages || 1); setTotal(data.total || 0);
                     break;
                 }
                 case "discount-codes": {
@@ -1420,8 +1639,16 @@ const AdminDashboard = () => {
     };
 
     const handleReject = async (id) => {
-        const reason = window.prompt("Rejection reason (optional — the writer will see this):");
-        if (reason === null) return; // cancelled
+        const reason = await openAdminDialog({
+            type: "prompt",
+            title: "Reject script",
+            message: "Add an optional rejection reason visible to the writer.",
+            confirmText: "Reject",
+            cancelText: "Cancel",
+            placeholder: "Rejection reason (optional)",
+            multiline: true,
+        });
+        if (reason === null) return;
         try {
             await adminApi.put(`/admin/scripts/${id}/reject`, { reason: reason.trim() || undefined });
             showToast("Script rejected");
@@ -1429,6 +1656,33 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(err);
             showToast("Failed to reject script", "error");
+        }
+    };
+
+    const handleDeleteProject = async (script) => {
+        const scriptId = script?._id;
+        if (!scriptId || deletingScriptId) return;
+
+        const title = String(script?.title || "this project");
+        const confirmed = await openAdminDialog({
+            type: "confirm",
+            title: "Delete project",
+            message: `Delete "${title}" from platform listings? Existing buyers will retain access.`,
+            confirmText: "Delete",
+            cancelText: "Cancel",
+        });
+        if (!confirmed) return;
+
+        try {
+            setDeletingScriptId(scriptId);
+            const { data } = await adminApi.delete(`/admin/scripts/${scriptId}`);
+            showToast(data?.message || "Project deleted successfully");
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to delete project", "error");
+        } finally {
+            setDeletingScriptId("");
         }
     };
 
@@ -1465,8 +1719,8 @@ const AdminDashboard = () => {
 
         const trailerThumbnail = script?.trailerThumbnail || "";
         const caption = isRegeneration
-            ? `We've updated your AI trailer for \"${script?.title || "this script"}\". Please review this version.`
-            : `Your AI trailer for \"${script?.title || "this script"}\" is ready.`;
+            ? `We've updated your AI trailer for "${script?.title || "this script"}". Please review this version.`
+            : `Your AI trailer for "${script?.title || "this script"}" is ready.`;
 
         try {
             await adminApi.put(`/admin/scripts/${script._id}/trailer-approve`, {
@@ -1560,7 +1814,16 @@ const AdminDashboard = () => {
     };
 
     const handleRejectBankReview = async (id) => {
-        const note = window.prompt("Rejection reason (optional):") || "";
+        const note = await openAdminDialog({
+            type: "prompt",
+            title: "Reject bank details",
+            message: "Add an optional rejection reason.",
+            confirmText: "Reject",
+            cancelText: "Cancel",
+            placeholder: "Rejection reason (optional)",
+            multiline: true,
+        });
+        if (note === null) return;
         try {
             await adminApi.put(`/admin/bank-details/reviews/${id}/reject`, { note });
             showToast("Bank details request rejected");
@@ -1601,7 +1864,14 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteDiscountCode = async (id) => {
-        if (!window.confirm("Deactivate this discount code?")) return;
+        const confirmed = await openAdminDialog({
+            type: "confirm",
+            title: "Deactivate discount code",
+            message: "Deactivate this discount code?",
+            confirmText: "Deactivate",
+            cancelText: "Cancel",
+        });
+        if (!confirmed) return;
         try {
             await adminApi.delete(`/admin/discount-codes/${id}`);
             showToast("Discount code deactivated");
@@ -1621,6 +1891,175 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(err);
             showToast("Failed to login as user", "error");
+        }
+    };
+
+    const handleFreezeToggleUser = async (user, freeze) => {
+        if (!user?._id || userActionLoading) return;
+        if (user.isDeactivated) {
+            showToast("This account is already deleted", "error");
+            return;
+        }
+
+        const freezeReasonInput = freeze
+            ? await openAdminDialog({
+                type: "prompt",
+                title: "Freeze account",
+                message: "Provide a reason that will be shown to the user.",
+                confirmText: "Freeze",
+                cancelText: "Cancel",
+                defaultValue: user.frozenReason || "",
+                placeholder: "Freeze reason",
+                multiline: true,
+            })
+            : "";
+
+        if (freeze && freezeReasonInput === null) return;
+        const reason = String(freezeReasonInput || "").trim();
+
+        if (freeze && !reason) {
+            showToast("Freeze reason is required", "error");
+            return;
+        }
+
+        const loadingKey = `${freeze ? "freeze" : "unfreeze"}-${user._id}`;
+        try {
+            setUserActionLoading(loadingKey);
+            const endpoint = freeze ? `/admin/users/${user._id}/freeze` : `/admin/users/${user._id}/unfreeze`;
+            const { data } = await adminApi.put(endpoint, freeze ? { reason } : {});
+            showToast(data?.message || (freeze ? "Account frozen" : "Account unfrozen"));
+
+            if (data?.user?._id) {
+                setSelectedUserDetail((prev) => {
+                    if (!prev || String(prev._id) !== String(data.user._id)) return prev;
+                    return {
+                        ...prev,
+                        ...data.user,
+                        credits: {
+                            ...(prev.credits || {}),
+                            balance: data.user.creditsBalance,
+                        },
+                    };
+                });
+            }
+
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to update account status", "error");
+        } finally {
+            setUserActionLoading("");
+        }
+    };
+
+    const handleGrantCreditsToUser = async (user) => {
+        if (!user?._id || userActionLoading) return;
+        if (user.isDeactivated) {
+            showToast("Cannot grant credits to a deleted account", "error");
+            return;
+        }
+
+        const amountRaw = await openAdminDialog({
+            type: "prompt",
+            title: "Grant credits",
+            message: `Enter credits to add for ${user.name || user.email}.`,
+            confirmText: "Continue",
+            cancelText: "Cancel",
+            defaultValue: "100",
+            placeholder: "Credit amount",
+            inputType: "number",
+        });
+        if (amountRaw === null) return;
+        const amount = Number(amountRaw);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showToast("Enter a valid positive credit amount", "error");
+            return;
+        }
+
+        const reasonInput = await openAdminDialog({
+            type: "prompt",
+            title: "Credit grant reason",
+            message: "Add an optional reason for this credit grant.",
+            confirmText: "Grant",
+            cancelText: "Cancel",
+            defaultValue: "Manual admin credit grant",
+            placeholder: "Reason",
+            multiline: true,
+        });
+        if (reasonInput === null) return;
+        const reason = String(reasonInput || "").trim() || "Manual admin credit grant";
+
+        const loadingKey = `credits-${user._id}`;
+        try {
+            setUserActionLoading(loadingKey);
+            const { data } = await adminApi.post(`/admin/users/${user._id}/credits`, { amount, reason });
+            showToast(data?.message || "Credits granted successfully");
+
+            if (data?.user?._id) {
+                setSelectedUserDetail((prev) => {
+                    if (!prev || String(prev._id) !== String(data.user._id)) return prev;
+                    return {
+                        ...prev,
+                        ...data.user,
+                        credits: {
+                            ...(prev.credits || {}),
+                            balance: data.balanceAfter,
+                        },
+                    };
+                });
+            }
+
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to grant credits", "error");
+        } finally {
+            setUserActionLoading("");
+        }
+    };
+
+    const handleDeleteUserAccount = async (user) => {
+        if (!user?._id || userActionLoading) return;
+        if (user.isDeactivated) {
+            showToast("Account already deleted", "info");
+            return;
+        }
+
+        const confirmed = await openAdminDialog({
+            type: "confirm",
+            title: "Delete account",
+            message: `Delete account for ${user.name || user.email}? This action deactivates and blocks access.`,
+            confirmText: "Delete",
+            cancelText: "Cancel",
+        });
+        if (!confirmed) return;
+
+        const loadingKey = `delete-${user._id}`;
+        try {
+            setUserActionLoading(loadingKey);
+            const { data } = await adminApi.delete(`/admin/users/${user._id}`);
+            showToast(data?.message || "User account deleted successfully");
+
+            if (data?.user?._id) {
+                setSelectedUserDetail((prev) => {
+                    if (!prev || String(prev._id) !== String(data.user._id)) return prev;
+                    return {
+                        ...prev,
+                        ...data.user,
+                        credits: {
+                            ...(prev.credits || {}),
+                            balance: data.user.creditsBalance,
+                        },
+                    };
+                });
+            }
+
+            fetchData(search);
+        } catch (err) {
+            console.error(err);
+            showToast(err?.response?.data?.message || "Failed to delete account", "error");
+        } finally {
+            setUserActionLoading("");
         }
     };
 
@@ -1762,13 +2201,13 @@ const AdminDashboard = () => {
                             key: "users",
                             title: "Users",
                             count: filteredUsers.length,
-                            lines: filteredUsers.slice(0, 6).map((u) => `${u.name || "-"} • ${u.email || "-"} • ${u.role || "-"}`),
+                            lines: filteredUsers.slice(0, 6).map((u) => `${u.name || "-"} • ${u.email || "-"} • ${u.role || "-"} • ${u.phone || "No phone"} • ${getUserCompany(u) || "No company"} • ${getUserGenres(u) || "No genres"}`),
                         },
                         {
                             key: "projects",
                             title: "Projects",
                             count: filteredScripts.length,
-                            lines: filteredScripts.slice(0, 6).map((s) => `${s.title || "-"} • SID: ${s.sid || "-"} • ${s.creator?.name || "-"}`),
+                            lines: filteredScripts.slice(0, 6).map((s) => `${s.title || "-"} • SID: ${s.sid || "-"} • ${getScriptCreatorName(s)}`),
                         },
                         {
                             key: "invoices",
@@ -1870,6 +2309,11 @@ const AdminDashboard = () => {
                             isDark={isDark}
                             onLoginAs={null}
                             onViewUser={setSelectedUserDetail}
+                            onFreezeUser={(user) => handleFreezeToggleUser(user, true)}
+                            onUnfreezeUser={(user) => handleFreezeToggleUser(user, false)}
+                            onGrantCredits={handleGrantCreditsToUser}
+                            onDeleteUser={handleDeleteUserAccount}
+                            userActionLoading={userActionLoading}
                         />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
@@ -1886,6 +2330,13 @@ const AdminDashboard = () => {
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <button
+                                        onClick={() => handleDeleteProject(s)}
+                                        disabled={Boolean(s.isDeleted) || deletingScriptId === s._id}
+                                        className="text-xs font-bold text-red-500 hover:text-red-400 px-2.5 py-1 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                    >
+                                        {s.isDeleted ? "Deleted" : deletingScriptId === s._id ? "Deleting..." : "Delete"}
+                                    </button>
                                 </div>
                             )}
                         />
@@ -2055,6 +2506,13 @@ const AdminDashboard = () => {
                                     <button onClick={() => handleReject(s._id)} className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">✕ Reject</button>
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
                                     <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <button
+                                        onClick={() => handleDeleteProject(s)}
+                                        disabled={Boolean(s.isDeleted) || deletingScriptId === s._id}
+                                        className="text-xs font-bold text-red-500 hover:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                    >
+                                        {s.isDeleted ? "Deleted" : deletingScriptId === s._id ? "Deleting..." : "Delete"}
+                                    </button>
                                 </div>
                             )}
                         />
@@ -2062,7 +2520,7 @@ const AdminDashboard = () => {
                     </div>
                 );
 
-            case "trailers":
+            case "trailers": {
                 const regenerationRequests = filteredScripts.filter((s) => s.trailerWriterFeedback?.status === "revision_requested");
                 return (
                     <div>
@@ -2133,6 +2591,7 @@ const AdminDashboard = () => {
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
+            }
 
             case "messages": {
                 const selectedWriterId = String(activeMessageUser?._id || "");
@@ -2552,6 +3011,57 @@ const AdminDashboard = () => {
                     </div>
                 );
 
+            case "deleted-accounts":
+                return (
+                    <div>
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>
+                            Deleted Account Requests
+                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredDeletedAccounts.length : total})</span>
+                        </h2>
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                            {["User", "SID", "Role", "Reason", "Source", "Requested", "Deleted"].map((h) => (
+                                                <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                        {filteredDeletedAccounts.map((item) => (
+                                            <tr key={item._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
+                                                <td className="px-5 py-3.5">
+                                                    <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{item.name || "-"}</p>
+                                                    <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>{item.email || "-"}</p>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.sid || "-"}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${isDark ? "bg-white/10 text-gray-300" : "bg-gray-100 text-gray-700"}`}>{item.role || "-"}</span>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm max-w-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                                    <p className="line-clamp-2">{item.reason || "No reason provided"}</p>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${item.source === "admin" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                                                        {item.source === "admin" ? "Admin" : "User"}
+                                                    </span>
+                                                </td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.requestedAt ? new Date(item.requestedAt).toLocaleString() : "-"}</td>
+                                                <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.deactivatedAt ? new Date(item.deactivatedAt).toLocaleString() : "-"}</td>
+                                            </tr>
+                                        ))}
+                                        {filteredDeletedAccounts.length === 0 && (
+                                            <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No deleted account requests found</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                    </div>
+                );
+
             case "discount-codes":
                 return (
                     <div>
@@ -2655,12 +3165,15 @@ const AdminDashboard = () => {
         const writerLinks = user?.writerProfile?.links || {};
         const investorLinks = user?.industryProfile?.socialLinks || {};
         const mandates = user?.industryProfile?.mandates || {};
-        const addressLine = [
-            user?.address?.street,
-            user?.address?.city,
-            user?.address?.state,
-            user?.address?.zipCode,
-        ].filter(Boolean).join(", ");
+        const addressLine = getUserAddressLine(user);
+        const creditBalanceRaw = Number(user?.credits?.balance ?? user?.creditsBalance ?? 0);
+        const creditBalance = Number.isFinite(creditBalanceRaw) ? creditBalanceRaw : 0;
+        const isUserDeleted = Boolean(user?.isDeactivated);
+        const isUserFrozen = Boolean(user?.isFrozen);
+        const freezeLoading = userActionLoading === `freeze-${user?._id}`;
+        const unfreezeLoading = userActionLoading === `unfreeze-${user?._id}`;
+        const creditsLoading = userActionLoading === `credits-${user?._id}`;
+        const deleteLoading = userActionLoading === `delete-${user?._id}`;
 
         const detailRows = [
             { label: "Name", value: user?.name },
@@ -2668,15 +3181,26 @@ const AdminDashboard = () => {
             { label: "Phone", value: user?.phone },
             { label: "Role", value: user?.role },
             { label: "SID", value: user?.sid },
+            { label: "Account Status", value: isUserDeleted ? "Deleted" : isUserFrozen ? "Frozen" : "Active" },
+            { label: "Frozen Reason", value: user?.frozenReason },
             { label: "Date of Birth", value: user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "" },
             { label: "Address", value: addressLine || user?.address?.formatted },
+            { label: "Approval Status", value: user?.approvalStatus },
+            { label: "Approval Note", value: user?.approvalNote },
+            { label: "Email Verified", value: user?.emailVerified === true ? "Yes" : user?.emailVerified === false ? "No" : "" },
             { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleString() : "" },
         ].filter((row) => row.value);
 
         const writerRows = [
+            { label: "Legal Name", value: user?.writerProfile?.legalName },
             { label: "Username", value: user?.writerProfile?.username },
+            { label: "WGA Member", value: user?.writerProfile?.wgaMember === true ? "Yes" : user?.writerProfile?.wgaMember === false ? "No" : "" },
+            { label: "SGA Member", value: user?.writerProfile?.sgaMember === true ? "Yes" : user?.writerProfile?.sgaMember === false ? "No" : "" },
+            { label: "Plan", value: user?.writerProfile?.plan },
             { label: "Representation", value: user?.writerProfile?.representationStatus },
             { label: "Agency", value: user?.writerProfile?.agencyName },
+            { label: "Primary Genres", value: Array.isArray(user?.writerProfile?.genres) ? user.writerProfile.genres.join(", ") : "" },
+            { label: "Specialized Tags", value: Array.isArray(user?.writerProfile?.specializedTags) ? user.writerProfile.specializedTags.join(", ") : "" },
             { label: "Demographic Privacy", value: user?.writerProfile?.demographicPrivacy },
             { label: "Gender", value: user?.writerProfile?.diversity?.gender },
             { label: "Nationality", value: user?.writerProfile?.diversity?.nationality },
@@ -2696,6 +3220,7 @@ const AdminDashboard = () => {
             { label: "Sub Role", value: user?.industryProfile?.subRole },
             { label: "Company", value: user?.industryProfile?.company },
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
+            { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
             { label: "Investment Range", value: user?.industryProfile?.investmentRange },
             { label: "Previous Credits", value: user?.industryProfile?.previousCredits },
             { label: "Other URL", value: user?.industryProfile?.otherUrl },
@@ -2708,7 +3233,30 @@ const AdminDashboard = () => {
             { label: "Facebook", value: investorLinks?.facebook },
             { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
             { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
+            { label: "Mandates Exclude Genres", value: Array.isArray(mandates?.excludeGenres) ? mandates.excludeGenres.join(", ") : "" },
+            { label: "Mandates Hooks", value: Array.isArray(mandates?.specificHooks) ? mandates.specificHooks.join(", ") : "" },
             { label: "Mandates Budget", value: Array.isArray(mandates?.budgetTiers) ? mandates.budgetTiers.join(", ") : "" },
+        ].filter((row) => row.value);
+
+        const budgetRange = user?.preferences?.budgetRange;
+        const readerRows = [
+            { label: "Preferred Genres", value: Array.isArray(user?.preferences?.genres) ? user.preferences.genres.join(", ") : "" },
+            { label: "Preferred Content Types", value: Array.isArray(user?.preferences?.contentTypes) ? user.preferences.contentTypes.join(", ") : "" },
+            {
+                label: "Budget Preference",
+                value:
+                    budgetRange && (budgetRange.min != null || budgetRange.max != null)
+                        ? `${budgetRange.min ?? 0} - ${budgetRange.max ?? 0}`
+                        : "",
+            },
+            {
+                label: "Favorite Scripts",
+                value: Array.isArray(user?.favoriteScripts) ? String(user.favoriteScripts.length) : "",
+            },
+            {
+                label: "Scripts Read",
+                value: Array.isArray(user?.scriptsRead) ? String(user.scriptsRead.length) : "",
+            },
         ].filter((row) => row.value);
 
         const sectionClass = `rounded-xl border p-4 ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`;
@@ -2726,6 +3274,54 @@ const AdminDashboard = () => {
 
                     <div className="p-5 space-y-4 overflow-y-auto max-h-[calc(88vh-74px)]">
                         <div className={sectionClass}>
+                            <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Admin Actions</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={() => handleGrantCreditsToUser(user)}
+                                    disabled={isUserDeleted || creditsLoading}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                >
+                                    {creditsLoading ? "Granting..." : "Grant Credits"}
+                                </button>
+                                {!isUserFrozen && !isUserDeleted && (
+                                    <button
+                                        onClick={() => handleFreezeToggleUser(user, true)}
+                                        disabled={freezeLoading}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                    >
+                                        {freezeLoading ? "Freezing..." : "Freeze Account"}
+                                    </button>
+                                )}
+                                {isUserFrozen && !isUserDeleted && (
+                                    <button
+                                        onClick={() => handleFreezeToggleUser(user, false)}
+                                        disabled={unfreezeLoading}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                    >
+                                        {unfreezeLoading ? "Unfreezing..." : "Unfreeze Account"}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => handleDeleteUserAccount(user)}
+                                    disabled={isUserDeleted || deleteLoading}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                >
+                                    {isUserDeleted ? "Deleted" : deleteLoading ? "Deleting..." : "Delete Account"}
+                                </button>
+                                <button
+                                    onClick={() => handleLoginAs(user?._id)}
+                                    disabled={isUserDeleted || isUserFrozen}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                                >
+                                    Login As User
+                                </button>
+                            </div>
+                            <p className={`text-xs mt-3 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                Credits Balance: <span className={`font-bold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{creditBalance}</span>
+                            </p>
+                        </div>
+
+                        <div className={sectionClass}>
                             <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Basic Info</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                 {detailRows.map((row) => (
@@ -2742,6 +3338,20 @@ const AdminDashboard = () => {
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Writer Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {writerRows.map((row) => (
+                                        <div key={row.label}>
+                                            <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {readerRows.length > 0 && (
+                            <div className={sectionClass}>
+                                <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Reader Profile</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {readerRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
                                             <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
@@ -2912,6 +3522,58 @@ const AdminDashboard = () => {
             onCancel={() => setShowLogoutConfirm(false)}
             isDarkMode={true}
         />
+
+        {adminDialog && (
+            <div className="fixed inset-0 z-[10060] flex items-center justify-center px-4" onClick={() => closeAdminDialog(null)}>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                <div
+                    className="relative w-[min(94vw,460px)] rounded-2xl border border-[#1a3050] bg-[#0f1d35] p-5 text-white shadow-2xl"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <p className="text-base font-bold">{adminDialog.title}</p>
+                    <p className="mt-1.5 text-sm text-gray-300 leading-relaxed">{adminDialog.message}</p>
+
+                    {adminDialog.type === "prompt" && (
+                        adminDialog.multiline ? (
+                            <textarea
+                                autoFocus
+                                value={adminDialog.value}
+                                onChange={(event) => setAdminDialog((prev) => ({ ...prev, value: event.target.value }))}
+                                rows={4}
+                                placeholder={adminDialog.placeholder}
+                                className="mt-3 w-full rounded-xl border border-[#294468] bg-[#0b1426] px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-blue-400/60"
+                            />
+                        ) : (
+                            <input
+                                autoFocus
+                                type={adminDialog.inputType || "text"}
+                                value={adminDialog.value}
+                                onChange={(event) => setAdminDialog((prev) => ({ ...prev, value: event.target.value }))}
+                                placeholder={adminDialog.placeholder}
+                                className="mt-3 w-full rounded-xl border border-[#294468] bg-[#0b1426] px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-blue-400/60"
+                            />
+                        )
+                    )}
+
+                    <div className="mt-4 flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => closeAdminDialog(null)}
+                            className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:bg-white/10"
+                        >
+                            {adminDialog.cancelText || "Cancel"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => closeAdminDialog(adminDialog.type === "prompt" ? adminDialog.value : true)}
+                            className="px-4 py-2 rounded-xl text-sm font-semibold bg-[#1e3a5f] text-white hover:bg-[#2a4b77]"
+                        >
+                            {adminDialog.confirmText || "Confirm"}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
         </>
     );
 };

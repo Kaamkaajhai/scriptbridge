@@ -11,6 +11,15 @@ const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ message: "User no longer exists" });
       }
+      if (req.user.isDeactivated) {
+        return res.status(403).json({ message: "This account has been deleted", accountDeleted: true });
+      }
+      if (req.user.isFrozen) {
+        return res.status(403).json({
+          message: req.user.frozenReason || "This account has been frozen by admin",
+          accountFrozen: true,
+        });
+      }
       next();
     } catch (error) {
       if (error.name === "TokenExpiredError") {

@@ -110,6 +110,7 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
   const isTop3  = rank <= 3;
   const genres  = writer.writerProfile?.genres || [];
   const isWGA   = writer.writerProfile?.wgaMember;
+  const isSGA   = writer.writerProfile?.sgaMember;
   const repped  = writer.writerProfile?.representationStatus;
   const score   = Math.round(writer.avgScore || 0);
   const isRepped = repped && repped !== "unrepresented";
@@ -190,6 +191,11 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
                     <span className={`text-[8px] font-black tracking-widest px-1.5 py-px rounded border shrink-0 ${
                       dark ? "text-[#9db2c9] bg-[#1a2a3d] border-[#2c3d52]" : "text-[#1e3a5f] bg-[#eef2f7] border-[#d4deea]"
                     }`}>WGA</span>
+                  )}
+                  {isSGA && (
+                    <span className={`text-[8px] font-black tracking-widest px-1.5 py-px rounded border shrink-0 ${
+                      dark ? "text-[#9db2c9] bg-[#1a2a3d] border-[#2c3d52]" : "text-[#1e3a5f] bg-[#eef2f7] border-[#d4deea]"
+                    }`}>SGA</span>
                   )}
                   {isRepped && (
                     <span className={`text-[8px] font-black tracking-widest px-1.5 py-px rounded border shrink-0 ${

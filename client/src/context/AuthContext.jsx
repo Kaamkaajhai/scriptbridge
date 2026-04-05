@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "../utils/apiOrigin";
 export const AuthContext = createContext();
 
 const API_URL = getApiBaseUrl();
+const FORCE_DEFAULT_REDIRECT_KEY = "auth:force-default-redirect";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -175,6 +176,11 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     clearLogoutTimer();
+
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(FORCE_DEFAULT_REDIRECT_KEY, "1");
+    }
+
     setUser(null);
     localStorage.removeItem("user");
   };

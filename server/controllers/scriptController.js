@@ -79,6 +79,25 @@ const getScriptPurchasePricing = (baseAmount) => {
 
 const sanitizeCustomInvestorTerms = (value = "") => String(value || "").trim();
 
+const getContentTypeFromFormat = (format = "", explicitContentType = "") => {
+  if (explicitContentType) return explicitContentType;
+
+  const raw = String(format || "").toLowerCase().trim();
+  if (!raw) return "movie";
+  if (raw.includes("song")) return "songs";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+  if (raw.includes("web")) return "web_series";
+  if (raw.includes("documentary")) return "documentary";
+  if (raw.includes("anime") || raw.includes("cartoon") || raw.includes("animation")) return "anime";
+  if (raw.includes("short")) return "short_film";
+  if (raw.includes("tv") || raw.includes("series")) return "tv_series";
+  if (raw.includes("book")) return "book";
+  if (raw.includes("startup")) return "startup";
+  return "movie";
+};
+
 const getInvalidRoleAgeRangeMessage = (roles = []) => {
   if (!Array.isArray(roles)) return "";
 
@@ -99,6 +118,19 @@ const getInvalidRoleAgeRangeMessage = (roles = []) => {
   }
 
   return "";
+};
+
+const PROJECT_CREATOR_ROLES = new Set(["writer", "creator"]);
+
+const hasProjectCreatorAccess = (user) => {
+  const role = String(user?.role || "").trim().toLowerCase();
+  return PROJECT_CREATOR_ROLES.has(role);
+};
+
+const requireProjectCreatorAccess = (req, res) => {
+  if (hasProjectCreatorAccess(req.user)) return true;
+  res.status(403).json({ message: "Only writer accounts can create or submit projects." });
+  return false;
 };
 
 const isSpotlightActive = (script, now = new Date()) => {
@@ -406,6 +438,10 @@ export const extractPdfText = async (req, res) => {
 
 export const saveDraft = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     const { scriptId, title, textContent, ...otherData } = req.body;
 
     // If we have an ID, update the existing draft
@@ -421,6 +457,7 @@ export const saveDraft = async (req, res) => {
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
+      if (otherData.companyName !== undefined) script.companyName = String(otherData.companyName || "").trim();
       if (otherData.logline !== undefined) script.logline = otherData.logline;
       if (otherData.synopsis !== undefined) {
         script.synopsis = otherData.synopsis;
@@ -431,7 +468,9 @@ export const saveDraft = async (req, res) => {
         if (otherData.format !== "other") {
           script.formatOther = "";
         }
+        script.contentType = getContentTypeFromFormat(otherData.format);
       }
+      if (otherData.contentType !== undefined) script.contentType = otherData.contentType;
       if (otherData.formatOther !== undefined) {
         script.formatOther = String(otherData.formatOther || "").trim();
       }
@@ -504,7 +543,8 @@ export const saveDraft = async (req, res) => {
       title: title || "Untitled Draft",
       textContent: textContent || "",
       status: "draft",
-      ...safeOtherData
+      ...safeOtherData,
+      contentType: getContentTypeFromFormat(safeOtherData.format, safeOtherData.contentType),
     });
 
     res.status(201).json(newDraft);
@@ -600,6 +640,10 @@ export const getMyScripts = async (req, res) => {
 
 export const updateScript = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     const script = await Script.findById(req.params.id);
     if (!script) return res.status(404).json({ message: "Script not found" });
     if (script.creator.toString() !== req.user._id.toString()) {
@@ -613,7 +657,7 @@ export const updateScript = async (req, res) => {
       title, logline, format, pageCount, classification,
       formatOther,
       scriptUrl, description, synopsis, textContent, fileUrl,
-      coverImage, genre, premium, price, roles, tags, budget, holdFee, services, legal,
+      coverImage, genre, contentType, premium, price, roles, tags, budget, holdFee, services, legal,
     } = req.body;
 
     if (!legal?.agreedToTerms) {
@@ -635,7 +679,11 @@ export const updateScript = async (req, res) => {
       if (format !== "other") {
         script.formatOther = "";
       }
+      if (contentType === undefined) {
+        script.contentType = getContentTypeFromFormat(format);
+      }
     }
+    if (contentType !== undefined) script.contentType = contentType;
     if (formatOther !== undefined) {
       script.formatOther = String(formatOther || "").trim();
     }
@@ -761,9 +809,14 @@ export const updateScript = async (req, res) => {
 
 export const uploadScript = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     const {
       scriptId,
       title,
+      companyName,
       logline,
       format,
       formatOther,
@@ -889,6 +942,7 @@ export const uploadScript = async (req, res) => {
     const scriptData = {
       creator: req.user._id,
       title,
+      companyName: String(companyName || "").trim(),
       logline: logline ? String(logline).trim() : "",
       description: synopsis,
       synopsis: synopsis,
@@ -898,7 +952,7 @@ export const uploadScript = async (req, res) => {
       pageCount,
       coverImage,
       genre: genre || classification?.primaryGenre,
-      contentType: contentType || "movie",
+      contentType: getContentTypeFromFormat(format, contentType),
       premium: isPremium || premium || false,
       price: price || 0,
       roles: roles || [],
@@ -2397,6 +2451,12 @@ export const trackScriptInteraction = async (req, res) => {
       return res.status(404).json({ message: "Script not found" });
     }
 
+    if (type === "read") {
+      await User.findByIdAndUpdate(req.user._id, {
+        $addToSet: { scriptsRead: script._id },
+      });
+    }
+
     await trackInvestorInteraction({
       userId: req.user._id,
       scriptId: req.params.id,
@@ -2453,6 +2513,10 @@ const normalizeGenre = (value = "") => {
 const normalizeFormat = (value = "") => {
   const raw = String(value || "").toLowerCase().trim();
   if (!raw) return "";
+  if (raw.includes("song")) return "songs";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup-comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
   if (raw.includes("feature")) return "feature";
   if (raw.includes("short")) return "short";
   if (raw.includes("limited")) return "limited-series";
@@ -2518,6 +2582,10 @@ const inferFormatsFromProfileText = (text = "") => {
   if (!source) return [];
 
   const inferred = [];
+  if (source.includes("song")) inferred.push("songs");
+  if (source.includes("standup") || source.includes("stand-up") || source.includes("comedy special")) inferred.push("standup-comedy");
+  if (source.includes("dialogue")) inferred.push("dialogues");
+  if (source.includes("poet") || source.includes("poetry")) inferred.push("poet");
   if (source.includes("feature")) inferred.push("feature");
   if (source.includes("short")) inferred.push("short");
   if (source.includes("web series") || source.includes("web-series")) inferred.push("web-series");
@@ -2624,8 +2692,10 @@ export const getInvestorHomeFeed = async (req, res) => {
 export const getTopList = async (req, res) => {
   try {
     const { genre, contentType, budget, sort = "platform", premium, limit } = req.query;
+    const now = new Date();
+    const blockedUserIds = await getBlockedUserIdsForViewer(req.user?._id);
     const parsedLimit = Math.max(1, Math.min(Number(limit) || 24, 50));
-    const match = { status: "published", isSold: { $ne: true } };
+    const match = { ...PUBLIC_SCRIPT_FILTER };
     if (genre) match.genre = genre;
     if (contentType) match.contentType = contentType;
     if (budget) match.budget = budget;

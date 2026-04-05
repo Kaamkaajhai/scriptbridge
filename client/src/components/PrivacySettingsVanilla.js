@@ -18,6 +18,7 @@ class PrivacySettingsUI {
     this.api = apiService;
     this.isSaving = false;
     this.boundPanelClickHandler = null;
+    this.noticeTimer = null;
 
     this.state = this.getInitialState();
 
@@ -207,6 +208,7 @@ class PrivacySettingsUI {
             <h2 class="text-base font-bold ${theme.text}" id="settings-panel-title"></h2>
           </div>
 
+          <div id="settings-feedback" aria-live="polite" class="mb-3"></div>
           <div id="settings-panel-content"></div>
         </div>
       </div>
@@ -448,6 +450,141 @@ class PrivacySettingsUI {
 
   }
 
+  showNotice(message, type = "info") {
+    const text = String(message || "").trim();
+    if (!text) return;
+
+    const toneClass =
+      type === "error"
+        ? (this.darkMode
+            ? "bg-red-500/15 border-red-400/35 text-red-200"
+            : "bg-red-50 border-red-200 text-red-700")
+        : type === "success"
+          ? (this.darkMode
+              ? "bg-emerald-500/15 border-emerald-400/35 text-emerald-200"
+              : "bg-emerald-50 border-emerald-200 text-emerald-700")
+          : (this.darkMode
+              ? "bg-blue-500/15 border-blue-400/35 text-blue-200"
+              : "bg-blue-50 border-blue-200 text-blue-700");
+
+    const messageHtml = `<div role="status" class="rounded-xl border px-3 py-2.5 text-sm font-medium ${toneClass}">${this.escapeValue(text)}</div>`;
+    const feedbackHost = this.container?.querySelector("#settings-feedback");
+    if (feedbackHost) {
+      feedbackHost.innerHTML = messageHtml;
+      if (this.noticeTimer) window.clearTimeout(this.noticeTimer);
+      this.noticeTimer = window.setTimeout(() => {
+        if (feedbackHost) feedbackHost.innerHTML = "";
+      }, 4500);
+      return;
+    }
+
+    const toast = document.createElement("div");
+    toast.className = "fixed bottom-6 right-6 z-[10070] w-[min(92vw,380px)]";
+    toast.innerHTML = messageHtml;
+    document.body.appendChild(toast);
+    window.setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 4500);
+  }
+
+  openInlineDialog({
+    type = "confirm",
+    title = "Confirm action",
+    message = "Are you sure?",
+    confirmText = "Confirm",
+    cancelText = "Cancel",
+    defaultValue = "",
+    placeholder = "",
+    inputType = "text",
+  } = {}) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm";
+
+      const safeTitle = this.escapeValue(title);
+      const safeMessage = this.escapeValue(message).replace(/\n/g, "<br />");
+      const safeConfirm = this.escapeValue(confirmText);
+      const safeCancel = this.escapeValue(cancelText);
+      const safePlaceholder = this.escapeValue(placeholder);
+      const safeValue = this.escapeValue(defaultValue);
+      const panelClass = this.darkMode
+        ? "bg-[#0d1829] border-white/10 text-white"
+        : "bg-white border-gray-200 text-gray-900";
+      const inputClass = this.darkMode
+        ? "bg-white/10 border-white/20 text-white placeholder-white/40"
+        : "bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400";
+      const cancelClass = this.darkMode
+        ? "text-white/70 hover:bg-white/10"
+        : "text-gray-600 hover:bg-gray-100";
+
+      overlay.innerHTML = `
+        <div class="w-full max-w-md rounded-2xl border p-5 shadow-2xl ${panelClass}" role="dialog" aria-modal="true" aria-label="${safeTitle}">
+          <p class="text-base font-bold">${safeTitle}</p>
+          <p class="mt-1.5 text-sm leading-relaxed ${this.darkMode ? "text-white/70" : "text-gray-600"}">${safeMessage}</p>
+          ${type === "prompt"
+            ? `<input data-dialog-input type="${this.escapeValue(inputType)}" value="${safeValue}" placeholder="${safePlaceholder}" class="mt-3 w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${inputClass}" />`
+            : ""
+          }
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <button type="button" data-dialog-cancel class="px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${cancelClass}">${safeCancel}</button>
+            <button type="button" data-dialog-confirm class="px-4 py-2 rounded-xl text-sm font-semibold bg-[#1e3a5f] text-white hover:bg-[#274a72] transition-colors">${safeConfirm}</button>
+          </div>
+        </div>
+      `;
+
+      const panel = overlay.firstElementChild;
+      const input = overlay.querySelector("[data-dialog-input]");
+      const confirmBtn = overlay.querySelector("[data-dialog-confirm]");
+      const cancelBtn = overlay.querySelector("[data-dialog-cancel]");
+
+      const cleanup = (result) => {
+        window.removeEventListener("keydown", handleKeydown);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        resolve(result);
+      };
+
+      const handleKeydown = (event) => {
+        if (event.key === "Escape") {
+          cleanup(type === "confirm" ? false : null);
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (type === "prompt") {
+            cleanup(input ? input.value : "");
+          } else {
+            cleanup(true);
+          }
+        }
+      };
+
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          cleanup(type === "confirm" ? false : null);
+        }
+      });
+
+      panel?.addEventListener("click", (event) => event.stopPropagation());
+      cancelBtn?.addEventListener("click", () => cleanup(type === "confirm" ? false : null));
+      confirmBtn?.addEventListener("click", () => {
+        if (type === "prompt") {
+          cleanup(input ? input.value : "");
+          return;
+        }
+        cleanup(true);
+      });
+
+      document.body.appendChild(overlay);
+      window.addEventListener("keydown", handleKeydown);
+      if (input) {
+        input.focus();
+        input.select();
+      } else {
+        confirmBtn?.focus();
+      }
+    });
+  }
+
   handleAction(action) {
     switch (action) {
       case "requestVerification": {
@@ -455,11 +592,11 @@ class PrivacySettingsUI {
         break;
       }
       case "changePassword": {
-        window.alert("Password change flow can be connected to your backend API.");
+        this.showNotice("Password change flow can be connected to your backend API.", "info");
         break;
       }
       case "logoutDevices": {
-        window.alert("Logout from all devices triggered (UI only).");
+        this.showNotice("Logout from all devices triggered (UI only).", "info");
         break;
       }
       case "deleteAccount": {
@@ -488,9 +625,9 @@ class PrivacySettingsUI {
         await this.syncToBackend();
       }
 
-      window.alert("Privacy settings saved successfully.");
+      this.showNotice("Privacy settings saved successfully.", "success");
     } catch (error) {
-      window.alert(this.getApiErrorMessage(error, "Failed to save privacy settings."));
+      this.showNotice(this.getApiErrorMessage(error, "Failed to save privacy settings."), "error");
     }
   }
 
@@ -504,7 +641,7 @@ class PrivacySettingsUI {
 
   async handleRequestVerification() {
     if (this.state.emailVerified) {
-      window.alert("Your email is already verified.");
+      this.showNotice("Your email is already verified.", "info");
       return;
     }
 
@@ -518,9 +655,9 @@ class PrivacySettingsUI {
       this.saveState();
 
       const devCodeSuffix = data?.devCode ? `\n\nDev code: ${data.devCode}` : "";
-      window.alert(`${data?.message || "Verification code sent."}${devCodeSuffix}`);
+      this.showNotice(`${data?.message || "Verification code sent."}${devCodeSuffix}`, "success");
     } catch (error) {
-      window.alert(this.getApiErrorMessage(error, "Failed to request verification."));
+      this.showNotice(this.getApiErrorMessage(error, "Failed to request verification."), "error");
     }
   }
 
@@ -532,27 +669,27 @@ class PrivacySettingsUI {
 
     if (!isChangingPassword) {
       this.saveState();
-      window.alert("Account settings saved.");
+      this.showNotice("Account settings saved.", "success");
       return;
     }
 
     if (!currentPassword) {
-      window.alert("Current password is required.");
+      this.showNotice("Current password is required.", "error");
       return;
     }
 
     if (!newPassword || !confirmPassword) {
-      window.alert("New password and confirmation are required.");
+      this.showNotice("New password and confirmation are required.", "error");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      window.alert("New password and confirm password do not match.");
+      this.showNotice("New password and confirm password do not match.", "error");
       return;
     }
 
     if (newPassword.length < 6) {
-      window.alert("New password must be at least 6 characters.");
+      this.showNotice("New password must be at least 6 characters.", "error");
       return;
     }
 
@@ -571,37 +708,52 @@ class PrivacySettingsUI {
       this.state.confirmPassword = "";
       this.saveState();
       this.renderSubPanel();
-      window.alert("Password changed successfully.");
+      this.showNotice("Password changed successfully.", "success");
     } catch (error) {
-      window.alert(this.getApiErrorMessage(error, "Failed to change password."));
+      this.showNotice(this.getApiErrorMessage(error, "Failed to change password."), "error");
     }
   }
 
-  handleDeleteAccount() {
-    const firstConfirm = window.confirm(
+  async handleDeleteAccount() {
+    const firstConfirm = await this.openInlineDialog({
+      type: "confirm",
+      title: "Delete account",
+      message:
       "Are you sure you want to delete your account? This action cannot be undone.\n\nAll your data, posts, and reviews will be permanently deleted."
-    );
+    });
 
     if (!firstConfirm) return;
-    const userInput = window.prompt(
-      "Please type 'DELETE' to confirm account deletion:"
-    );
+    const userInput = await this.openInlineDialog({
+      type: "prompt",
+      title: "Confirm deletion",
+      message: "Please type 'DELETE' to confirm account deletion:",
+      placeholder: "Type DELETE",
+      confirmText: "Continue",
+      cancelText: "Cancel",
+    });
 
-    if (userInput !== "DELETE") {
-      window.alert("Account deletion cancelled. Input did not match 'DELETE'.");
+    if (userInput === null) return;
+    if (String(userInput).trim() !== "DELETE") {
+      this.showNotice("Account deletion cancelled. Input did not match 'DELETE'.", "error");
       return;
     }
 
-    const password = window.prompt(
-      "Enter your current password to confirm account deletion:"
-    );
+    const password = await this.openInlineDialog({
+      type: "prompt",
+      title: "Enter password",
+      message: "Enter your current password to confirm account deletion:",
+      placeholder: "Current password",
+      inputType: "password",
+      confirmText: "Delete account",
+      cancelText: "Cancel",
+    });
 
-    if (!password) {
-      window.alert("Account deletion cancelled. Password is required.");
+    if (!password || !String(password).trim()) {
+      this.showNotice("Account deletion cancelled. Password is required.", "error");
       return;
     }
 
-    this.performDeleteAccount(password);
+    this.performDeleteAccount(String(password));
   }
 
   async performDeleteAccount(password) {
@@ -622,14 +774,16 @@ class PrivacySettingsUI {
 
       this.state = this.getInitialState();
 
-      window.alert(
-        "Your account has been deleted successfully. You will be redirected to login."
+      this.showNotice(
+        "Your account has been deleted successfully. You will be redirected to login.",
+        "success"
       );
 
       window.location.href = "/login";
     } catch (error) {
-      window.alert(
-        this.getApiErrorMessage(error, "Failed to delete account. Please try again later.")
+      this.showNotice(
+        this.getApiErrorMessage(error, "Failed to delete account. Please try again later."),
+        "error"
       );
     }
   }
@@ -675,7 +829,7 @@ class PrivacySettingsUI {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;");
+      .replace(/"/g, "&quot;");
   }
 
   injectStyles() {

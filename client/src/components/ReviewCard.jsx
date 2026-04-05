@@ -76,7 +76,7 @@ const ReviewCard = ({ review, currentUserId, onEdit, onDelete }) => {
           </div>
 
           {/* Owner actions */}
-          {isOwner && (
+          {isOwner && (onEdit || onDelete) && (
             <div className="flex gap-0.5 shrink-0 -mt-0.5">
               <button
                 onClick={() => onEdit?.(review)}

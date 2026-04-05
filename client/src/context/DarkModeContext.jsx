@@ -1,28 +1,32 @@
-import { createContext, useState, useEffect, useContext } from "react";
+import { createContext, useEffect, useContext, useState } from "react";
 
 const DarkModeContext = createContext({ isDarkMode: false, toggleDarkMode: () => {} });
+const DARK_MODE_STORAGE_KEY = "sb-dark-mode";
+
+const getInitialDarkMode = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const storedPreference = localStorage.getItem(DARK_MODE_STORAGE_KEY);
+  if (storedPreference === "1") return true;
+  if (storedPreference === "0") return false;
+
+  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false;
+};
 
 export const DarkModeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("sb-dark-mode") === "1";
-  });
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
 
   useEffect(() => {
-    localStorage.setItem("sb-dark-mode", isDarkMode ? "1" : "0");
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark-mode");
-    } else {
-      document.documentElement.classList.remove("dark-mode");
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark-mode", isDarkMode);
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(DARK_MODE_STORAGE_KEY, isDarkMode ? "1" : "0");
     }
   }, [isDarkMode]);
-
-  // Apply on initial mount
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark-mode");
-    }
-  }, []);
 
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 

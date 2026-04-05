@@ -1,10 +1,11 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect, useContext } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
 import SeoManager from "./components/SeoManager";
+import { applyLanguagePreference, getStoredLanguagePreference } from "./utils/languagePreference";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
@@ -72,6 +73,38 @@ function AdminLoginHandler({ children }) {
   return children;
 }
 
+function ScrollToTopOnRouteChange() {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    // Ensure each route opens from the top in SPA navigation.
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    const mainEl = document.querySelector("main");
+    if (mainEl && typeof mainEl.scrollTo === "function") {
+      mainEl.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [pathname, search]);
+
+  return null;
+}
+
+function LanguagePreferenceSync() {
+  const { user } = useContext(AuthContext);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const preferredLanguage = user?.language || getStoredLanguagePreference() || "en";
+    applyLanguagePreference(preferredLanguage).catch(() => {
+      // Translation is best-effort; settings should still remain usable on failures.
+    });
+  }, [user?.language, pathname]);
+
+  return <div id="google_translate_element" style={{ display: "none" }} aria-hidden="true" />;
+}
+
 function App() {
   useEffect(() => {
     const preload = () => {
@@ -99,6 +132,8 @@ function App() {
     <DarkModeProvider>
       <AuthProvider>
         <Router>
+          <LanguagePreferenceSync />
+          <ScrollToTopOnRouteChange />
           <SeoManager />
           <AdminLoginHandler>
             <Suspense
@@ -111,10 +146,10 @@ function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/contact" element={<ContactPage />} />
-              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-              <Route path="/terms" element={<TermsOfService />} />
-              <Route path="/t-and-c" element={<TermsOfService />} />
+              <Route path="/terms" element={<Navigate to="/terms-of-service" replace />} />
+              <Route path="/t-and-c" element={<Navigate to="/terms-of-service" replace />} />
               <Route path="/registration-privacy-policy" element={<RegistrationPrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/terms-conditions" element={<TermsConditions />} />

@@ -1,5 +1,5 @@
 import { useContext, useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import Sidebar from "../components/Sidebar";
@@ -11,7 +11,8 @@ import api from "../services/api";
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const location = useLocation();
+  const { isDarkMode } = useDarkMode();
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -33,6 +34,12 @@ const MainLayout = ({ children }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
+  const showCreditSystem = Boolean(user) && user?.role !== "investor" && user?.role !== "reader";
+  const topBarHomePath = user?.role === "reader" ? "/reader" : "/dashboard";
+  const topBarHomeLabel = user?.role === "reader" ? "Reader Home" : "Dashboard";
+  const topBarProfilePath = user?.role === "reader"
+    ? `/reader/profile/${user?._id || ""}`
+    : `/profile/${user?._id || ""}`;
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -158,12 +165,12 @@ const MainLayout = ({ children }) => {
       fetchInvestorPurchaseOutcomePopups(),
     ];
 
-    if (user?.role !== "investor") {
+    if (showCreditSystem) {
       tasks.push(fetchCreditsBalance());
     }
 
     await Promise.allSettled(tasks);
-  }, [fetchCreditsBalance, fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, user?.role]);
+  }, [fetchCreditsBalance, fetchInvestorPurchaseOutcomePopups, fetchPendingPurchaseCount, fetchUnreadCount, fetchUnreadMessageCount, showCreditSystem]);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -176,6 +183,18 @@ const MainLayout = ({ children }) => {
 
     return () => clearInterval(interval);
   }, [refreshHeaderState, user]);
+
+  useEffect(() => {
+    if (!showCreditSystem) return;
+    const params = new URLSearchParams(location.search || "");
+    if (params.get("openCredits") !== "1") return;
+
+    setShowBuyCredits(true);
+
+    params.delete("openCredits");
+    const nextSearch = params.toString();
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, { replace: true });
+  }, [location.pathname, location.search, navigate, showCreditSystem]);
 
   useEffect(() => {
     const isWriter = ["writer", "creator"].includes(user?.role);
@@ -399,11 +418,13 @@ const MainLayout = ({ children }) => {
 
   return (
     <>
-      <BuyCreditsModal 
-        isOpen={showBuyCredits} 
-        onClose={() => setShowBuyCredits(false)}
-        onSuccess={handleCreditsUpdate}
-      />
+      {showCreditSystem && (
+        <BuyCreditsModal 
+          isOpen={showBuyCredits} 
+          onClose={() => setShowBuyCredits(false)}
+          onSuccess={handleCreditsUpdate}
+        />
+      )}
 
       {showPurchasePopup && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,380px)] animate-scaleIn">
@@ -585,15 +606,11 @@ const MainLayout = ({ children }) => {
       />
 
       {/* Top bar */}
-      <header className={`fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] border-b px-3 max-[378px]:px-2.5 max-[340px]:px-2 sm:px-6 lg:px-8 py-2 sm:py-0 z-[90] ${
-        isDarkMode ? "bg-[#080e18]/95 border-[#151f2e] backdrop-blur-xl" : "glass-strong border-gray-200/60"
-      }`}>
+      <header className="fixed top-0 right-0 left-0 md:left-[64px] lg:left-[270px] border-b px-3 max-[378px]:px-2.5 max-[340px]:px-2 sm:px-6 lg:px-8 py-2 sm:py-0 z-[90] bg-[#060b14]/98 border-[#132033] backdrop-blur-xl">
         <div className="flex flex-nowrap items-center gap-2 max-[378px]:gap-1.5 max-[340px]:gap-1 sm:gap-3 min-[640px]:max-[690px]:gap-2 min-h-14 sm:min-h-16">
           <button
             onClick={() => setSidebarToggleToken((v) => v + 1)}
-            className={`md:hidden order-1 w-9 h-9 max-[378px]:w-8 max-[378px]:h-8 shrink-0 flex items-center justify-center rounded-xl transition-all duration-200 ${
-              isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-500 hover:text-[#1e3a5f] hover:bg-gray-100"
-            }`}
+            className="md:hidden order-1 w-9 h-9 max-[378px]:w-8 max-[378px]:h-8 shrink-0 flex items-center justify-center rounded-xl transition-all duration-200 text-[#9fb0c8] hover:text-white hover:bg-[#0d1a2a]"
             aria-label="Open sidebar"
             title="Open sidebar"
           >
@@ -603,22 +620,18 @@ const MainLayout = ({ children }) => {
           </button>
 
           <button
-            onClick={() => navigate("/dashboard")}
-            className="order-1 shrink min-w-0 max-w-[120px] max-[378px]:max-w-[92px] max-[340px]:max-w-[84px] flex items-center rounded-lg px-1 py-1 lg:hidden"
-            aria-label="Go to dashboard"
-            title="Dashboard"
+            onClick={() => navigate(topBarHomePath)}
+            className="order-1 shrink min-w-0 max-w-[120px] max-[378px]:max-w-[92px] max-[340px]:max-w-[84px] flex items-center rounded-xl px-2 py-1 lg:hidden transition-colors duration-200"
+            aria-label={`Go to ${topBarHomeLabel.toLowerCase()}`}
+            title={topBarHomeLabel}
           >
             <BrandLogo className="h-8 sm:h-9 max-[378px]:h-7 max-[340px]:h-6 w-auto max-w-full" />
           </button>
 
           {/* Search */}
           <form onSubmit={handleSearch} className="hidden sm:flex min-[640px]:max-[690px]:hidden order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-[200px] md:min-w-[260px] sm:max-w-[320px] md:max-w-lg items-center">
-          <div className={`group flex items-center w-full rounded-xl overflow-hidden transition-all duration-300 ${
-            isDarkMode
-              ? "border border-[#1c2a3a] bg-[#0d1520] hover:border-[#2a3a4e] focus-within:border-[#2a3a4e] focus-within:ring-2 focus-within:ring-white/5"
-              : "bg-gray-100/80 hover:bg-gray-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#1e3a5f]/10 focus-within:shadow-md"
-          }`}>
-            <div className={`pl-4 transition-colors ${isDarkMode ? "text-[#4a5a6e] group-focus-within:text-[#8896a7]" : "text-gray-400 group-focus-within:text-[#1e3a5f]"}`}>
+          <div className="group flex items-center w-full rounded-xl overflow-hidden transition-all duration-300 border border-[#1d2d45] bg-[#0b1524] hover:border-[#2b4262] focus-within:border-[#355782] focus-within:ring-2 focus-within:ring-sky-400/10">
+            <div className="pl-4 transition-colors text-[#6f86a7] group-focus-within:text-[#b7c8df]">
               <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -628,13 +641,11 @@ const MainLayout = ({ children }) => {
               placeholder="Search projects, writers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent ${
-                isDarkMode ? "text-white placeholder-[#3a4a5e]" : "text-gray-800 placeholder-gray-400"
-              }`}
+              className="flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent text-white placeholder-[#6f86a7]"
             />
             {searchQuery && (
               <button type="button" onClick={() => setSearchQuery("")}
-                className={`pr-3 transition-colors ${isDarkMode ? "text-[#3a4a5e] hover:text-[#8896a7]" : "text-gray-300 hover:text-gray-500"}`}>
+                className="pr-3 transition-colors text-[#6f86a7] hover:text-[#b7c8df]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -647,9 +658,7 @@ const MainLayout = ({ children }) => {
         <div className="order-2 sm:order-3 ml-auto flex items-center gap-1 max-[378px]:gap-0.5 sm:gap-1.5 md:gap-2 min-[640px]:max-[690px]:gap-1 relative z-[95] shrink-0">
           <button
             onClick={() => navigate("/search")}
-            className={`sm:hidden min-[640px]:max-[690px]:flex max-[299px]:hidden w-9 h-9 max-[378px]:w-8 max-[378px]:h-8 flex items-center justify-center rounded-xl transition-all duration-200 ${
-              isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520]" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100"
-            }`}
+            className="sm:hidden min-[640px]:max-[690px]:flex max-[299px]:hidden w-9 h-9 max-[378px]:w-8 max-[378px]:h-8 flex items-center justify-center rounded-xl transition-all duration-200 text-[#9fb0c8] hover:text-white hover:bg-[#0d1a2a]"
             aria-label="Open search"
             title="Search"
           >
@@ -658,36 +667,15 @@ const MainLayout = ({ children }) => {
             </svg>
           </button>
 
-          <button
-            onClick={toggleDarkMode}
-            className={`max-[299px]:hidden w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 ${
-              isDarkMode ? "text-amber-300 hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105"
-            }`}
-            aria-label="Toggle dark mode"
-            title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {isDarkMode ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.25-9H18m-13.5 0H3m15.364 6.364l-1.591-1.591M7.227 7.227 5.636 5.636m12.728 0-1.591 1.591M7.227 16.773l-1.591 1.591M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0112 21.75c-5.385 0-9.75-4.365-9.75-9.75 0-4.072 2.498-7.56 6.045-9.03a.75.75 0 01.986.987 7.5 7.5 0 009.764 9.765.75.75 0 01.987.986z" />
-              </svg>
-            )}
-          </button>
-
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
-              className={`relative w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 ${
-                isDarkMode ? "text-[#8896a7] hover:text-white hover:bg-[#0d1520] hover:scale-105" : "text-gray-400 hover:text-[#1e3a5f] hover:bg-gray-100 hover:scale-105"
-              }`}>
+              className="relative w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 text-[#9fb0c8] hover:text-white hover:bg-[#0d1a2a] hover:scale-105">
               <svg className="w-5 h-5 max-[378px]:w-[18px] max-[378px]:h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-[#1e3a5f] text-white text-[10px] font-bold rounded-full px-1 ring-2 ring-white animate-pulse-soft">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-[#1e3a5f] text-white text-[10px] font-bold rounded-full px-1 ring-2 ring-[#060b14] animate-pulse-soft">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -828,51 +816,45 @@ const MainLayout = ({ children }) => {
             )}
           </div>
 
-          {/* Credits Button - Hidden for investors */}
-          {user?.role !== "investor" && (
+          {/* Credits Button - Hidden for investors and readers */}
+          {showCreditSystem && (
             <button
               onClick={() => setShowBuyCredits(true)}
-              className={`group shrink-0 flex items-center gap-1.5 max-[378px]:gap-1 md:gap-2 min-[640px]:max-[690px]:gap-1 px-2.5 max-[378px]:px-2 max-[340px]:px-1.5 md:px-3.5 min-[640px]:max-[690px]:px-2 py-1.5 max-[378px]:py-1 rounded-xl max-[378px]:rounded-lg border text-sm transition-all duration-200 ${
-                isDarkMode
-                  ? "bg-[#0a1628] border-white/[0.07] hover:bg-[#0d1c2e] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
-                  : "bg-white border-gray-200 hover:border-sky-300 hover:bg-sky-50 shadow-sm hover:shadow-md"
-              }`}
+              className="group shrink-0 flex items-center gap-1.5 max-[378px]:gap-1 md:gap-2 min-[640px]:max-[690px]:gap-1 px-2.5 max-[378px]:px-2 max-[340px]:px-1.5 md:px-3.5 min-[640px]:max-[690px]:px-2 py-1.5 max-[378px]:py-1 rounded-xl max-[378px]:rounded-lg border text-sm transition-all duration-200 bg-[#071224] border-white/[0.09] hover:bg-[#0a1729] hover:border-sky-500/25 hover:shadow-lg hover:shadow-sky-500/5"
             >
-              <svg className={`w-3.5 h-3.5 max-[378px]:w-3 max-[378px]:h-3 flex-shrink-0 transition-colors ${
-                isDarkMode ? "text-sky-400 group-hover:text-sky-300" : "text-sky-500 group-hover:text-sky-600"
-              }`} viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-3.5 h-3.5 max-[378px]:w-3 max-[378px]:h-3 flex-shrink-0 transition-colors text-sky-400 group-hover:text-sky-300" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" />
               </svg>
-              <span className={`font-bold text-[12px] max-[378px]:text-[11px] md:text-[13px] tabular-nums tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{creditsBalance}</span>
-              <span className={`hidden md:inline text-[11px] font-medium ${isDarkMode ? "text-[#4a6a8a]" : "text-gray-400"}`}>CR</span>
+              <span className="font-bold text-[12px] max-[378px]:text-[11px] md:text-[13px] tabular-nums tracking-tight text-white">{creditsBalance}</span>
+              <span className="hidden md:inline text-[11px] font-medium text-[#7f93b0]">CR</span>
             </button>
           )}
 
           {/* User menu */}
           <div className="hidden sm:block min-[640px]:max-[690px]:hidden relative" ref={dropdownRef}>
             <button onClick={() => setDropdownOpen(!dropdownOpen)}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-all duration-200 ${isDarkMode ? "hover:bg-[#0d1520]" : "hover:bg-gray-100"}`}>
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl transition-all duration-200 hover:bg-[#0d1a2a]">
               {resolvedProfileImage && !avatarLoadError ? (
                 <img
                   src={resolvedProfileImage}
                   alt={user?.name || "User"}
                   onError={() => setAvatarLoadError(true)}
-                  className={`w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ${isDarkMode ? "ring-[#1c2a3a]" : "ring-gray-100 hover:ring-gray-200"}`}
+                  className="w-8 h-8 rounded-xl object-cover ring-2 transition-shadow ring-[#1c2a3a]"
                 />
               ) : (
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${isDarkMode ? "bg-[#0d1520] text-[#8896a7] ring-1 ring-[#1c2a3a]" : "bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8e] text-white"}`}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold bg-[#0d1520] text-[#c3d2e6] ring-1 ring-[#1c2a3a]">
                   {initials}
                 </div>
               )}
-              <span className={`hidden lg:block text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-gray-700"}`}>{user?.name || "User"}</span>
-              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${isDarkMode ? "text-[#4a5a6e]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <span className="hidden lg:block text-[14px] font-semibold text-white">{user?.name || "User"}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} text-[#7f93b0]`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {dropdownOpen && (
               <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border py-1.5 z-[130] origin-top-right animate-scaleIn ${isDarkMode ? "bg-[#0d1520]/98 border-[#1c2a3a] backdrop-blur-xl" : "bg-white/98 border-gray-200/80 shadow-gray-300/50 backdrop-blur-xl"}`}>
-                <button onClick={() => { navigate(`/profile/${user?._id || ""}`); setDropdownOpen(false); }}
+                <button onClick={() => { navigate(topBarProfilePath); setDropdownOpen(false); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -888,7 +870,7 @@ const MainLayout = ({ children }) => {
                   Contact
                 </button>
 
-                <button onClick={() => { navigate("/terms"); setDropdownOpen(false); }}
+                <button onClick={() => { navigate("/terms-of-service"); setDropdownOpen(false); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
@@ -896,7 +878,7 @@ const MainLayout = ({ children }) => {
                   T and C
                 </button>
 
-                <button onClick={() => { navigate("/privacy"); setDropdownOpen(false); }}
+                <button onClick={() => { navigate("/privacy-policy"); setDropdownOpen(false); }}
                   className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-2 ${isDarkMode ? "text-[#8896a7] hover:bg-white/[0.05] hover:text-white" : "text-gray-600 hover:bg-gray-50"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M20.25 12a8.25 8.25 0 11-16.5 0 8.25 8.25 0 0116.5 0z" />
@@ -921,7 +903,7 @@ const MainLayout = ({ children }) => {
 
       {/* Main content */}
       <main className="pt-20 sm:pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
+        <div className="w-full mx-auto p-4 sm:p-6 lg:p-8 max-w-[1400px]">
           {children}
         </div>
       </main>

@@ -6,6 +6,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ReviewCard from "../components/ReviewCard";
 import ReviewForm from "../components/ReviewForm";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { Film } from "lucide-react";
 
 const ScriptReader = () => {
@@ -27,6 +28,8 @@ const ScriptReader = () => {
   const [showContent, setShowContent] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
   const [totalReviewPages, setTotalReviewPages] = useState(1);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [pendingDeleteReviewId, setPendingDeleteReviewId] = useState("");
 
   const resolveImage = (url) => {
     if (!url) return "";
@@ -75,8 +78,14 @@ const ScriptReader = () => {
   };
 
   const handleSubmitReview = async ({ rating, comment }) => {
+    if (!canSubmitReview) {
+      setReviewFeedback(reviewGateMessage);
+      return;
+    }
+
     try {
       setSubmitLoading(true);
+      setReviewFeedback("");
       if (editingReview) {
         await api.put(`/reviews/${editingReview._id}`, { rating, comment });
         setEditingReview(null);
@@ -84,20 +93,58 @@ const ScriptReader = () => {
         await api.post("/reviews", { script: id, rating, comment });
       }
       await fetchReviews(); await fetchScript();
-    } catch (err) { alert(err.response?.data?.message || "Failed to submit review"); }
+    } catch (err) { setReviewFeedback(err.response?.data?.message || "Failed to submit review"); }
     finally { setSubmitLoading(false); }
   };
 
   const handleDeleteReview = async (reviewId) => {
-    if (!confirm("Delete this review?")) return;
-    try { await api.delete(`/reviews/${reviewId}`); setMyReview(null); await fetchReviews(); await fetchScript(); }
-    catch { alert("Failed to delete review"); }
+    if (!canSubmitReview) {
+      setReviewFeedback(reviewGateMessage);
+      return;
+    }
+
+    setPendingDeleteReviewId(reviewId);
   };
 
-  const handleEditReview = (review) => { setEditingReview(review); setActiveTab("reviews"); };
+  const confirmDeleteReview = async () => {
+    if (!pendingDeleteReviewId) return;
+    try {
+      setReviewFeedback("");
+      await api.delete(`/reviews/${pendingDeleteReviewId}`);
+      setMyReview(null);
+      await fetchReviews();
+      await fetchScript();
+    } catch {
+      setReviewFeedback("Failed to delete review");
+    } finally {
+      setPendingDeleteReviewId("");
+    }
+  };
+
+  const handleEditReview = (review) => {
+    if (!canSubmitReview) {
+      setReviewFeedback(reviewGateMessage);
+      return;
+    }
+
+    setEditingReview(review);
+    setActiveTab("reviews");
+  };
 
   const isUnlocked = !script?.premium || script?.isCreator || script?.isUnlocked;
   const isPro = ["investor", "producer", "director"].includes(user?.role);
+  const isReaderReviewer = String(user?.role || "").toLowerCase() === "reader";
+  const canSubmitReview = Boolean(
+    user?._id &&
+    isReaderReviewer &&
+    !script?.isCreator &&
+    script?.status === "published"
+  );
+  const reviewGateMessage = !isReaderReviewer
+    ? "Only readers can submit reviews."
+    : script?.isCreator
+      ? "You cannot review your own project."
+      : "Reviews are available after the project is published.";
 
   const renderStars = (rating) => (
     <div className="flex gap-0.5">
@@ -123,6 +170,7 @@ const ScriptReader = () => {
   );
 
   return (
+    <>
     <div className="max-w-5xl mx-auto pb-16">
       {/* Back */}
       <Link to="/reader" className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-sm font-semibold mb-6 transition-colors">
@@ -256,6 +304,11 @@ const ScriptReader = () => {
 
         {activeTab === "reviews" && (
           <motion.div key="reviews" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            {reviewFeedback && (
+              <div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${dark ? "bg-red-500/10 border-red-400/30 text-red-300" : "bg-red-50 border-red-200 text-red-700"}`}>
+                {reviewFeedback}
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column: Write Review + Rating Summary */}
               <div className="lg:col-span-1 space-y-5">
@@ -288,15 +341,22 @@ const ScriptReader = () => {
                 </div>
 
                 {/* Write / Already Reviewed */}
-                {!myReview || editingReview ? (
-                  <ReviewForm onSubmit={handleSubmitReview} loading={submitLoading} isEditing={!!editingReview} initialRating={editingReview?.rating || 0} initialComment={editingReview?.comment || ""} />
-                ) : (
-                  <div className={`bg-white rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "border-gray-100"}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-emerald-500/15" : "bg-emerald-50"}`}>
-                      <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {canSubmitReview ? (
+                  (!myReview || editingReview) ? (
+                    <ReviewForm onSubmit={handleSubmitReview} loading={submitLoading} isEditing={!!editingReview} initialRating={editingReview?.rating || 0} initialComment={editingReview?.comment || ""} />
+                  ) : (
+                    <div className={`bg-white rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "border-gray-100"}`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 ${dark ? "bg-emerald-500/15" : "bg-emerald-50"}`}>
+                        <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </div>
+                      <p className="text-sm font-bold text-gray-800 mb-0.5">Review submitted</p>
+                      <p className="text-xs text-gray-400 font-medium">You can edit or delete your review from below.</p>
                     </div>
-                    <p className="text-sm font-bold text-gray-800 mb-0.5">Review submitted</p>
-                    <p className="text-xs text-gray-400 font-medium">You can edit or delete your review from below.</p>
+                  )
+                ) : (
+                  <div className={`rounded-2xl border shadow-sm p-5 text-center ${dark ? "bg-[#101e30] border-[#333]" : "bg-white border-gray-100"}`}>
+                    <p className={`text-sm font-bold mb-1 ${dark ? "text-gray-200" : "text-gray-700"}`}>Review access restricted</p>
+                    <p className="text-xs text-gray-400 font-medium">{reviewGateMessage}</p>
                   </div>
                 )}
               </div>
@@ -307,7 +367,15 @@ const ScriptReader = () => {
                   [...Array(3)].map((_, i) => <div key={i} className={`h-28 rounded-2xl animate-pulse ${dark ? "bg-[#333]" : "bg-gray-50"}`} />)
                 ) : reviews.length > 0 ? (
                   <>
-                    {reviews.map((r) => <ReviewCard key={r._id} review={r} currentUserId={user?._id} onEdit={handleEditReview} onDelete={handleDeleteReview} />)}
+                    {reviews.map((r) => (
+                      <ReviewCard
+                        key={r._id}
+                        review={r}
+                        currentUserId={user?._id}
+                        onEdit={canSubmitReview ? handleEditReview : undefined}
+                        onDelete={canSubmitReview ? handleDeleteReview : undefined}
+                      />
+                    ))}
                     {totalReviewPages > 1 && (
                       <div className="flex justify-center gap-2 pt-4">
                         {[...Array(totalReviewPages)].map((_, i) => (
@@ -468,11 +536,14 @@ const ScriptReader = () => {
                           const a = angleStep * i - Math.PI / 2;
                           const lx = cx + (rr + 22) * Math.cos(a);
                           const ly = cy + (rr + 22) * Math.sin(a);
+                          const axisX = Math.cos(a);
+                          const labelAnchor = axisX > 0.2 ? "end" : axisX < -0.2 ? "start" : "middle";
+                          const labelX = lx + (axisX > 0.2 ? -4 : axisX < -0.2 ? 4 : 0);
                           return (
                             <g key={i}>
                               <circle cx={p.x} cy={p.y} r="4" fill={dims[i].color}
                                 stroke={dk ? "#0d1829" : "#ffffff"} strokeWidth="2" />
-                              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+                              <text x={labelX} y={ly} textAnchor={labelAnchor} dominantBaseline="middle"
                                 style={{ fontSize: 8.5, fontWeight: 700, fill: dk ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
                                 {dims[i].label}
                               </text>
@@ -491,24 +562,34 @@ const ScriptReader = () => {
                         const gridLines = [0, 25, 50, 75, 100];
                         const gridColor = dk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
                         const labelColor = dk ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
-                        const slotW = 220 / bars.length;
-                        const barW = Math.min(slotW * 0.58, 28);
+                        const chartWidth = 308;
+                        const chartPadLeft = 26;
+                        const chartPadRight = 8;
+                        const plotWidth = chartWidth - chartPadLeft - chartPadRight;
+                        const slotW = plotWidth / bars.length;
+                        const barW = Math.min(slotW * 0.56, 30);
                         return (
-                          <svg viewBox={`0 0 240 ${barH + 44}`} className="w-full">
+                          <svg viewBox={`0 0 ${chartWidth} ${barH + 56}`} className="w-full">
                             {gridLines.map(v => {
                               const y = barH - (v / 100) * barH + 4;
                               return (
                                 <g key={v}>
-                                  <line x1="24" y1={y} x2="238" y2={y} stroke={gridColor} strokeWidth={v === 0 ? "1.5" : "1"} strokeDasharray={v === 0 ? "" : "3,3"} />
-                                  <text x="18" y={y + 3.5} textAnchor="end" style={{ fontSize: 7.5, fontWeight: 600, fill: labelColor }}>{v}</text>
+                                  <line x1={chartPadLeft} y1={y} x2={chartWidth - chartPadRight} y2={y} stroke={gridColor} strokeWidth={v === 0 ? "1.5" : "1"} strokeDasharray={v === 0 ? "" : "3,3"} />
+                                  <text x={chartPadLeft - 6} y={y + 3.5} textAnchor="end" style={{ fontSize: 8, fontWeight: 600, fill: labelColor }}>{v}</text>
                                 </g>
                               );
                             })}
                             {bars.map((d, i) => {
                               const val = sc[d.key] || 0;
                               const filledH = (val / 100) * barH;
-                              const x = 24 + i * slotW + (slotW - barW) / 2;
+                              const slotCenterX = chartPadLeft + i * slotW + slotW / 2;
+                              const x = slotCenterX - barW / 2;
                               const y = barH - filledH + 4;
+                              const isFirst = i === 0;
+                              const isLast = i === bars.length - 1;
+                              const labelAnchor = isFirst ? "start" : isLast ? "end" : "middle";
+                              const labelX = isFirst ? slotCenterX - 8 : isLast ? slotCenterX + 8 : slotCenterX;
+                              const labelY = barH + 18 + (i % 2 === 0 ? 0 : 10);
                               return (
                                 <g key={d.key}>
                                   <rect x={x} y={4} width={barW} height={barH} rx="4"
@@ -519,8 +600,8 @@ const ScriptReader = () => {
                                   </rect>
                                   <text x={x + barW / 2} y={y - 4} textAnchor="middle"
                                     style={{ fontSize: 8, fontWeight: 800, fill: dk ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)" }}>{val}</text>
-                                  <text x={x + barW / 2} y={barH + 18} textAnchor="middle"
-                                    style={{ fontSize: 7, fontWeight: 700, fill: d.color }}>{d.label}</text>
+                                  <text x={labelX} y={labelY} textAnchor={labelAnchor}
+                                    style={{ fontSize: 8, fontWeight: 700, fill: d.color }}>{d.label}</text>
                                 </g>
                               );
                             })}
@@ -808,6 +889,7 @@ const ScriptReader = () => {
               <h3 className={`text-base font-extrabold mb-3 ${dark ? "text-gray-100" : "text-gray-900"}`}>Script Info</h3>
               <div className="space-y-2.5">
                 {[
+                  { label: "Company Name", value: script.companyName, preserveCase: true },
                   { label: "Genre", value: script.genre },
                   { label: "Content Type", value: script.contentType?.replace(/_/g, " ") },
                   { label: "Format", value: script.format?.replace(/_/g, " ") },
@@ -817,7 +899,7 @@ const ScriptReader = () => {
                 ].filter((i) => i.value).map((i) => (
                   <div key={i.label} className={`flex justify-between items-center py-2 border-b last:border-0 ${dark ? "border-[#333]" : "border-gray-50"}`}>
                     <span className="text-xs text-gray-400 font-bold">{i.label}</span>
-                    <span className={`text-xs font-bold capitalize ${dark ? "text-gray-200" : "text-gray-700"}`}>{i.value}</span>
+                    <span className={`text-xs font-bold ${i.preserveCase ? "" : "capitalize"} ${dark ? "text-gray-200" : "text-gray-700"}`}>{i.value}</span>
                   </div>
                 ))}
               </div>
@@ -851,6 +933,18 @@ const ScriptReader = () => {
       </AnimatePresence>
 
     </div>
+
+    <ConfirmDialog
+      open={Boolean(pendingDeleteReviewId)}
+      title="Delete review"
+      message="Delete this review? This cannot be undone."
+      confirmText="Delete"
+      cancelText="Cancel"
+      onConfirm={confirmDeleteReview}
+      onCancel={() => setPendingDeleteReviewId("")}
+      isDarkMode={dark}
+    />
+    </>
   );
 };
 

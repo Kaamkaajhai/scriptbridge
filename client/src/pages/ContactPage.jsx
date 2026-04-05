@@ -33,13 +33,9 @@ const ContactPage = () => {
 
   const theme = {
     page: isDarkMode ? "bg-[#060d16] text-white" : "bg-[#f4f7fb] text-gray-900",
-    panel: isDarkMode
-      ? "bg-[#0c1624] border-[#1d2e43]"
-      : "bg-white border-gray-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)]",
-    input: isDarkMode
-      ? "bg-[#08121e] border-[#24384f] text-white placeholder:text-[#50627a]"
-      : "bg-white border-gray-300 text-gray-900 placeholder:text-gray-400",
-    subtle: isDarkMode ? "text-[#8896a7]" : "text-gray-600",
+    panel: "bg-white border-gray-200 shadow-[0_14px_40px_rgba(15,23,42,0.08)]",
+    input: "bg-[#f8fbff] border-gray-300 text-[#0f2745] placeholder:text-[#8298b3]",
+    subtle: "text-gray-600",
     headingSubtle: isDarkMode ? "text-[#6b7a8d]" : "text-gray-500",
     card: isDarkMode
       ? "bg-[#0a1523] border-[#1f3349]"
@@ -167,7 +163,7 @@ const ContactPage = () => {
             </div>
           </section>
 
-          <section className={`rounded-2xl sm:rounded-3xl border p-5 sm:p-7 ${theme.panel}`}>
+          <section className={`rounded-2xl sm:rounded-3xl border p-5 sm:p-7 text-gray-900 ${theme.panel}`}>
             <AnimatePresence mode="wait">
               {submitted ? (
                 <motion.div
@@ -282,7 +278,7 @@ const ContactPage = () => {
                   </label>
 
                   {error && (
-                    <div className={`rounded-lg border px-3.5 py-2.5 text-sm ${isDarkMode ? "border-red-500/25 bg-red-500/10 text-red-300" : "border-red-200 bg-red-50 text-red-700"}`}>
+                    <div className="rounded-lg border px-3.5 py-2.5 text-sm border-red-200 bg-red-50 text-red-700">
                       {error}
                     </div>
                   )}
@@ -318,8 +314,8 @@ const ContactPage = () => {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs sm:text-sm text-[#4a5a6e] text-center sm:text-left">&copy; 2026 Ckript. Connecting brilliant ideas with brilliant people.</p>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 sm:gap-6 text-xs sm:text-sm text-[#4a5a6e]">
-            <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
-            <Link to="/terms" className="hover:text-white transition-colors">T and C</Link>
+            <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>
+            <Link to="/terms-of-service" className="hover:text-white transition-colors">T and C</Link>
             <Link to="/contact" className="hover:text-white transition-colors">Contact</Link>
           </div>
         </div>

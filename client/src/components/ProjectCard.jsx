@@ -22,6 +22,10 @@ const FORMAT_LABEL = {
   drama_school: "Drama School",
   anime: "Anime",
   cartoon: "Cartoon",
+  songs: "Songs",
+  standup_comedy: "Standup Comedy",
+  dialogues: "Dialogues",
+  poet: "Poet",
   other: "Other",
 };
 
@@ -48,6 +52,7 @@ const ProjectCard = ({ project, userName }) => {
   const views        = project?.views ?? 0;
   const rating       = project?.rating ?? 0;
   const reads        = project?.readsCount ?? 0;
+  const isWriterOrInvestorViewer = user?.role === "writer" || user?.role === "creator" || user?.role === "investor";
   const status       = STATUS[project?.status] || STATUS.draft;
   const coverImage   = project?.coverImage || null;
   const resolvedCoverImage = coverError ? "" : resolveMediaUrl(coverImage);
@@ -169,8 +174,8 @@ const ProjectCard = ({ project, userName }) => {
       }`}
     >
 
-      {/* ══ HERO — fixed h-44 for both thumbnail and placeholder ══ */}
-      <div className="relative h-44 w-full flex-shrink-0 overflow-hidden">
+      {/* ══ HERO — compact height for tighter cards ══ */}
+      <div className="relative h-36 w-full flex-shrink-0 overflow-hidden">
 
         {resolvedCoverImage ? (
           /* — Thumbnail — */
@@ -268,14 +273,22 @@ const ProjectCard = ({ project, userName }) => {
       </div>
 
       {/* ══ BODY ══ */}
-      <div className="flex flex-col flex-1 px-5 pt-4 pb-4 gap-0">
+      <div className="flex flex-col flex-1 px-4 pt-3 pb-3 gap-0">
 
-        {/* Title */}
-        <h3 className={`text-[15px] font-bold leading-snug tracking-[-0.015em] line-clamp-1 transition-colors duration-200 ${
-          dark ? "text-white/90 group-hover:text-white" : "text-gray-900"
-        }`}>
-          {project?.title || "Untitled Project"}
-        </h3>
+        {/* Title + Share */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className={`text-[15px] font-bold leading-snug tracking-[-0.015em] line-clamp-1 transition-colors duration-200 ${
+            dark ? "text-white/90 group-hover:text-white" : "text-gray-900"
+          }`}>
+            {project?.title || "Untitled Project"}
+          </h3>
+          <SocialShareButton
+            share={projectShare}
+            iconOnly
+            buttonLabel="Share project"
+            className={`w-7 h-7 rounded-lg inline-flex items-center justify-center shrink-0 border transition ${dark ? "bg-[#152030] border-[#223142] text-[#9cb0c4] hover:text-white hover:bg-[#1f3246]" : "bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"}`}
+          />
+        </div>
 
         {/* Author */}
         <p className={`mt-[3px] text-[11px] font-medium ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
@@ -293,10 +306,10 @@ const ProjectCard = ({ project, userName }) => {
         )}
 
         {/* Divider */}
-        <div className={`my-3 h-px ${dark ? "bg-[#182535]" : "bg-gray-100"}`} />
+        <div className={`my-2 h-px ${dark ? "bg-[#182535]" : "bg-gray-100"}`} />
 
         {/* Logline/Synopsis preview */}
-        <p className={`text-[12px] leading-[1.65] line-clamp-2 flex-1 ${
+        <p className={`text-[12px] leading-[1.6] line-clamp-1 flex-1 ${
           (project?.logline || project?.synopsis || project?.description)
             ? (dark ? "text-[#68788a]" : "text-gray-500")
             : (dark ? "text-[#253545]/60" : "text-gray-300")
@@ -306,7 +319,7 @@ const ProjectCard = ({ project, userName }) => {
 
         {/* Tags */}
         {(genre || format) && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-3">
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
             {genre && (
               <span className={`text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-lg ${
                 dark ? "bg-[#111e2d] text-[#8896a7]" : "bg-gray-100 text-gray-600"
@@ -326,72 +339,115 @@ const ProjectCard = ({ project, userName }) => {
       </div>
 
       {/* ══ FOOTER ══ */}
-      <div className={`flex items-center gap-3 px-5 py-3 border-t ${
+      <div className={`px-4 py-2.5 border-t ${
         dark ? "border-[#182535] bg-[#091017]" : "border-gray-100 bg-gray-50/60"
       }`}>
+        {isWriterOrInvestorViewer ? (
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`flex items-center gap-1.5 shrink-0 ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[11px] font-semibold tabular-nums">{fmt(views)}</span>
+              </div>
 
-        {/* Views */}
-        <div className={`flex items-center gap-1.5 shrink-0 ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span className="text-[11px] font-semibold tabular-nums">{fmt(views)}</span>
-        </div>
+              {rating > 0 && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <svg className="w-3.5 h-3.5 text-amber-400/70" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <span className={`text-[11px] font-semibold ${dark ? "text-[#68788a]" : "text-gray-500"}`}>{rating.toFixed(1)}</span>
+                </div>
+              )}
+            </div>
 
-        {/* Reads */}
-        <div className={`flex items-center gap-1.5 shrink-0 ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-          </svg>
-          <span className="text-[11px] font-semibold tabular-nums">{fmt(reads)}</span>
-        </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {project?.isSold ? (
+                <span className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-lg ${
+                  dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                }`}>Sold</span>
+              ) : project?.holdStatus === "held" ? (
+                <span className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-lg ${
+                  dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600"
+                }`}>On Hold</span>
+              ) : project?.premium && project?.price ? (
+                <span className={`text-[14px] max-[360px]:text-[13px] font-extrabold tracking-tight tabular-nums whitespace-nowrap ${dark ? "text-white" : "text-gray-900"}`}>{formatCurrency(project.price)}</span>
+              ) : (
+                <span className={`text-[10px] font-bold tracking-wide uppercase ${dark ? "text-[#8fa3b8]" : "text-gray-500"}`}>Free</span>
+              )}
 
-        {/* Rating */}
-        {rating > 0 && (
-          <div className="flex items-center gap-1 shrink-0">
-            <svg className="w-3.5 h-3.5 text-amber-400/70" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-            <span className={`text-[11px] font-semibold ${dark ? "text-[#68788a]" : "text-gray-500"}`}>{rating.toFixed(1)}</span>
+              {isClickable && (
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                  dark
+                    ? "bg-[#152030] text-[#3b4f63] group-hover:bg-[#1e3b58] group-hover:text-white"
+                    : "bg-gray-100 text-gray-400 group-hover:bg-gray-900 group-hover:text-white"
+                }`}>
+                  <svg className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-px" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-
-        {/* Spacer */}
-        <SocialShareButton
-          share={projectShare}
-          iconOnly
-          buttonLabel="Share project"
-          className={`w-7 h-7 rounded-lg inline-flex items-center justify-center shrink-0 border transition ${dark ? "bg-[#152030] border-[#223142] text-[#9cb0c4] hover:text-white hover:bg-[#1f3246]" : "bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"}`}
-        />
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Price / availability label */}
-        {project?.isSold ? (
-          <span className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-lg ${
-            dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
-          }`}>Sold</span>
-        ) : project?.holdStatus === "held" ? (
-          <span className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-lg ${
-            dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600"
-          }`}>On Hold</span>
-        ) : project?.premium && project?.price ? (
-          <span className={`text-[14px] font-extrabold tracking-tight ${dark ? "text-white" : "text-gray-900"}`}>{formatCurrency(project.price)}</span>
         ) : (
-          <span className={`text-[10px] font-bold tracking-wide uppercase ${dark ? "text-[#3b4f63]" : "text-gray-300"}`}>Free</span>
-        )}
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 max-[360px]:gap-2 min-w-0 flex-wrap">
+              {/* Views */}
+              <div className={`flex items-center gap-1.5 shrink-0 ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[11px] font-semibold tabular-nums">{fmt(views)}</span>
+              </div>
 
-        {/* Arrow CTA button — published only */}
-        {isClickable && (
-          <div className={`ml-1 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-300 ${
-            dark
-              ? "bg-[#152030] text-[#3b4f63] group-hover:bg-[#1e3b58] group-hover:text-white"
-              : "bg-gray-100 text-gray-400 group-hover:bg-gray-900 group-hover:text-white"
-          }`}>
-            <svg className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-px" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
+              {/* Reads */}
+              <div className={`flex items-center gap-1.5 shrink-0 ${dark ? "text-[#3b4f63]" : "text-gray-400"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 3.332.477 4.5 1.253v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                </svg>
+                <span className="text-[11px] font-semibold tabular-nums">{fmt(reads)}</span>
+              </div>
+
+              {/* Rating */}
+              {rating > 0 && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <svg className="w-3.5 h-3.5 text-amber-400/70" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <span className={`text-[11px] font-semibold ${dark ? "text-[#68788a]" : "text-gray-500"}`}>{rating.toFixed(1)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0 flex items-center gap-2">
+              {project?.isSold ? (
+                <span className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-lg ${
+                  dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                }`}>Sold</span>
+              ) : project?.holdStatus === "held" ? (
+                <span className={`text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-lg ${
+                  dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600"
+                }`}>On Hold</span>
+              ) : project?.premium && project?.price ? (
+                <span className={`text-[14px] max-[360px]:text-[13px] font-extrabold tracking-tight tabular-nums whitespace-nowrap ${dark ? "text-white" : "text-gray-900"}`}>{formatCurrency(project.price)}</span>
+              ) : (
+                <span className={`text-[10px] font-bold tracking-wide uppercase ${dark ? "text-[#8fa3b8]" : "text-gray-500"}`}>Free</span>
+              )}
+
+              {/* Arrow CTA button — published only */}
+              {isClickable && (
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                  dark
+                    ? "bg-[#152030] text-[#3b4f63] group-hover:bg-[#1e3b58] group-hover:text-white"
+                    : "bg-gray-100 text-gray-400 group-hover:bg-gray-900 group-hover:text-white"
+                }`}>
+                  <svg className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-px" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

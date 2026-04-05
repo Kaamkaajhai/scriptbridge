@@ -1,26 +1,118 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Shield, ArrowLeft, Loader } from 'lucide-react';
-import axios from 'axios';
-import { getApiBaseUrl } from '../utils/apiOrigin';
+import api from '../services/api';
 
-const API_BASE_URL = getApiBaseUrl();
+const DEFAULT_RESEND_COOLDOWN_SECONDS = 30;
+const DEFAULT_OTP_EXPIRY_SECONDS = 300;
+const RESEND_UNTIL_STORAGE_PREFIX = 'otp-resend-until:';
 
-const OTPVerification = ({ email, onSuccess, onBack }) => {
+const toPositiveInteger = (value, fallbackValue) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallbackValue;
+  }
+  return parsed;
+};
+
+const formatDurationLabel = (seconds) => {
+  const safeSeconds = toPositiveInteger(seconds, DEFAULT_OTP_EXPIRY_SECONDS);
+
+  if (safeSeconds % 60 === 0) {
+    const minutes = safeSeconds / 60;
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+
+  return `${safeSeconds} second${safeSeconds === 1 ? '' : 's'}`;
+};
+
+const getResendStorageKey = (normalizedEmail) => {
+  if (!normalizedEmail) return '';
+  return `${RESEND_UNTIL_STORAGE_PREFIX}${normalizedEmail}`;
+};
+
+const getRemainingCooldownSeconds = (timestampMs) => {
+  if (!Number.isFinite(timestampMs) || timestampMs <= Date.now()) {
+    return 0;
+  }
+
+  return Math.max(0, Math.ceil((timestampMs - Date.now()) / 1000));
+};
+
+const OTPVerification = ({
+  email,
+  onSuccess,
+  onBack,
+  otpExpirySeconds = DEFAULT_OTP_EXPIRY_SECONDS,
+  initialResendCooldownSeconds = DEFAULT_RESEND_COOLDOWN_SECONDS,
+  startCooldownOnMount = false,
+}) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const inputRefs = useRef([]);
+  const cooldownInitializedForEmailRef = useRef('');
+
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const resendStorageKey = getResendStorageKey(normalizedEmail);
+  const resendCooldownSeconds = toPositiveInteger(
+    initialResendCooldownSeconds,
+    DEFAULT_RESEND_COOLDOWN_SECONDS
+  );
+  const otpValidityLabel = formatDurationLabel(otpExpirySeconds);
+
+  const startResendCooldown = (seconds) => {
+    const safeSeconds = toPositiveInteger(seconds, resendCooldownSeconds);
+    setResendTimer(safeSeconds);
+
+    if (typeof window !== 'undefined' && resendStorageKey) {
+      window.localStorage.setItem(resendStorageKey, String(Date.now() + safeSeconds * 1000));
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !resendStorageKey) return;
+
+    const storedUntil = Number(window.localStorage.getItem(resendStorageKey));
+    const remaining = getRemainingCooldownSeconds(storedUntil);
+
+    if (remaining > 0) {
+      setResendTimer(remaining);
+      return;
+    }
+
+    window.localStorage.removeItem(resendStorageKey);
+  }, [resendStorageKey]);
+
+  useEffect(() => {
+    if (!startCooldownOnMount || !normalizedEmail) return;
+
+    if (cooldownInitializedForEmailRef.current === normalizedEmail) return;
+    cooldownInitializedForEmailRef.current = normalizedEmail;
+
+    if (resendTimer <= 0) {
+      startResendCooldown(resendCooldownSeconds);
+    }
+  }, [normalizedEmail, resendCooldownSeconds, resendTimer, startCooldownOnMount]);
 
   // Resend timer countdown
   useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
-      return () => clearTimeout(timer);
+    if (resendTimer <= 0) {
+      if (typeof window !== 'undefined' && resendStorageKey) {
+        window.localStorage.removeItem(resendStorageKey);
+      }
+      return;
     }
-  }, [resendTimer]);
+
+    const timer = window.setTimeout(() => {
+      setResendTimer((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [resendTimer, resendStorageKey]);
 
   const handleChange = (index, value) => {
     // Only allow numbers
@@ -30,6 +122,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
     newOtp[index] = value;
     setOtp(newOtp);
     setError('');
+    setStatusMessage('');
 
     // Auto-focus next input
     if (value && index < 5) {
@@ -67,12 +160,18 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
       return;
     }
 
+    if (!normalizedEmail) {
+      setError('Missing email address. Go back and sign up again.');
+      return;
+    }
+
     setLoading(true);
     setError('');
+    setStatusMessage('');
 
     try {
-      const response = await axios.post('http://localhost:5002/api/auth/verify-otp', {
-        email,
+      const response = await api.post('/auth/verify-otp', {
+        email: normalizedEmail,
         otp: otpString,
       });
 
@@ -95,15 +194,31 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
   };
 
   const handleResend = async () => {
+    if (resending || resendTimer > 0) {
+      return;
+    }
+
+    if (!normalizedEmail) {
+      setError('Missing email address. Go back and sign up again.');
+      return;
+    }
+
     setResending(true);
     setError('');
+    setStatusMessage('');
 
     try {
-      await axios.post('http://localhost:5002/api/auth/resend-otp', { email });
-      setResendTimer(60); // 60 second cooldown
+      const response = await api.post('/auth/resend-otp', { email: normalizedEmail });
+      startResendCooldown(response.data?.resendCooldownSeconds);
       setOtp(['', '', '', '', '', '']);
+      setStatusMessage('A new verification code has been sent.');
       inputRefs.current[0]?.focus();
     } catch (err) {
+      const cooldownRemainingSeconds = Number(err.response?.data?.cooldownRemainingSeconds || 0);
+      if (cooldownRemainingSeconds > 0) {
+        startResendCooldown(cooldownRemainingSeconds);
+      }
+
       setError(err.response?.data?.message || 'Failed to resend code. Please try again.');
     } finally {
       setResending(false);
@@ -128,6 +243,7 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
               We've sent a 6-digit code to<br />
               <span className="font-semibold text-gray-900">{email}</span>
             </p>
+            <p className="text-xs text-gray-500 mt-2">Code expires in {otpValidityLabel}</p>
           </div>
 
           {/* OTP Input */}
@@ -164,6 +280,16 @@ const OTPVerification = ({ email, onSuccess, onBack }) => {
               className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg"
             >
               <p className="text-sm text-red-600 text-center">{error}</p>
+            </motion.div>
+          )}
+
+          {statusMessage && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg"
+            >
+              <p className="text-sm text-green-700 text-center">{statusMessage}</p>
             </motion.div>
           )}
 

@@ -1,9 +1,15 @@
 import Review from "../models/Review.js";
 import Script from "../models/Script.js";
 
+const isReaderReviewer = (role) => String(role || "").toLowerCase() === "reader";
+
 export const createReview = async (req, res) => {
   try {
     const { script, rating, comment } = req.body;
+
+    if (!isReaderReviewer(req.user?.role)) {
+      return res.status(403).json({ message: "Only readers can submit reviews." });
+    }
 
     const scriptDoc = await Script.findById(script).select("creator status isDeleted");
     if (!scriptDoc) {
@@ -79,6 +85,10 @@ export const getReviewsByUser = async (req, res) => {
 
 export const updateReview = async (req, res) => {
   try {
+    if (!isReaderReviewer(req.user?.role)) {
+      return res.status(403).json({ message: "Only readers can update reviews." });
+    }
+
     const review = await Review.findById(req.params.id);
     if (!review) return res.status(404).json({ message: "Review not found" });
     if (review.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: "Not authorized" });

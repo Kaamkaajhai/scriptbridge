@@ -104,11 +104,11 @@ const FeaturesShowcase = () => {
                   onClick={() => setActive(i)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors duration-150 shrink-0 ${
                     isActive
-                      ? "bg-gray-400/8 border-gray-400/20 text-white"
-                      : "border-transparent bg-transparent text-[#4a5a6e] hover:text-[#8896a7] hover:bg-[#0d1520]"
+                      ? "bg-[#0f1b2c] border-[#324962] text-white shadow-[0_6px_16px_rgba(2,8,18,0.45)]"
+                      : "bg-[#091324] border-[#17283d] text-[#6f8197] hover:text-[#a9bfd8] hover:bg-[#0d1a2c]"
                   }`}
                 >
-                  <TabIcon className={`w-4 h-4 shrink-0 ${isActive ? "text-gray-400" : ""}`} />
+                  <TabIcon className={`w-4 h-4 shrink-0 ${isActive ? "text-[#d4e5ff]" : "text-[#6f8197]"}`} />
                   <span className="text-sm font-medium whitespace-nowrap">
                     {feat.title}
                   </span>
@@ -125,30 +125,30 @@ const FeaturesShowcase = () => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.25 }}
-              className="rounded-xl border border-[#1c2a3a] bg-[#0d1520] p-7 sm:p-9"
+              className="rounded-xl border border-[#d5deea] bg-white p-7 sm:p-9"
             >
               <div className="flex items-start gap-4 mb-6">
-                <div className="w-11 h-11 rounded-lg bg-[#151f2e] flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5 text-gray-400" />
+                <div className="w-11 h-11 rounded-lg bg-[#eef4fb] border border-[#d9e4f2] flex items-center justify-center shrink-0">
+                  <Icon className="w-5 h-5 text-[#355b85]" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6e]">{f.tag}</span>
-                  <h3 className="text-xl font-bold text-white leading-tight">{f.title}</h3>
-                  <p className="text-sm text-[#8896a7] mt-0.5">{f.subtitle}</p>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6f8197]">{f.tag}</span>
+                  <h3 className="text-xl font-bold text-[#0f2745] leading-tight">{f.title}</h3>
+                  <p className="text-sm text-[#5f738b] mt-0.5">{f.subtitle}</p>
                 </div>
               </div>
 
-              <p className="text-[#8896a7] text-[15px] leading-relaxed mb-7">
+              <p className="text-[#4f647c] text-[15px] leading-relaxed mb-7">
                 {f.description}
               </p>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6e] mb-3">Key Benefits</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6f8197] mb-3">Key Benefits</p>
                 <ul className="space-y-2.5">
                   {f.benefits.map((b, idx) => (
                     <li key={idx} className="flex items-start gap-2.5">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-gray-400/60" />
-                      <span className="text-sm text-[#8896a7] leading-snug">{b}</span>
+                      <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-[#6786aa]" />
+                      <span className="text-sm text-[#4f647c] leading-snug">{b}</span>
                     </li>
                   ))}
                 </ul>
@@ -156,7 +156,7 @@ const FeaturesShowcase = () => {
 
               {/* Pagination dots */}
               <div className="mt-8 flex items-center gap-3">
-                <span className="text-xs text-[#4a5a6e]">
+                <span className="text-xs text-[#6f8197]">
                   {active + 1} / {features.length}
                 </span>
                 <div className="flex gap-1">
@@ -164,7 +164,7 @@ const FeaturesShowcase = () => {
                     <button
                       key={i}
                       onClick={() => setActive(i)}
-                      className={`h-1 rounded-full transition-all duration-200 ${i === active ? "w-5 bg-gray-400" : "w-1.5 bg-[#1c2a3a] hover:bg-[#2a3a4e]"}`}
+                      className={`h-1 rounded-full transition-all duration-200 ${i === active ? "w-5 bg-[#1e3a5f]" : "w-1.5 bg-[#d2dbe7] hover:bg-[#9aaec5]"}`}
                     />
                   ))}
                 </div>

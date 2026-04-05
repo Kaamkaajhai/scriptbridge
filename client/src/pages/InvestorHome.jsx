@@ -318,6 +318,7 @@ const InvestorHome = () => {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const firstName = user?.name?.split(" ")[0] || "there";
+  const workspaceLabel = user?.role === "reader" ? "Reader Workspace" : "Investor Workspace";
 
   useEffect(() => { fetchFeed(); }, []);
 
@@ -364,7 +365,7 @@ const InvestorHome = () => {
             <Fade>
               <div className="flex items-center justify-between gap-3 mb-2">
                 <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${dark ? "text-gray-300" : "text-gray-600"}`}>{greeting}</p>
-                <span className={`text-[10px] font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>Investor Workspace</span>
+                <span className={`text-[10px] font-semibold ${dark ? "text-gray-400" : "text-gray-500"}`}>{workspaceLabel}</span>
               </div>
 
               <h1 className={`text-[20px] sm:text-[24px] font-extrabold tracking-[-0.01em] leading-tight ${dark ? "text-white" : "text-gray-900"}`}>

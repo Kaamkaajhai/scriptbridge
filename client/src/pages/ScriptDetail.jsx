@@ -28,6 +28,7 @@ const ScriptDetail = () => {
   const [spotlightLoading, setSpotlightLoading] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [hasRecordedSynopsisRead, setHasRecordedSynopsisRead] = useState(false);
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -58,6 +59,9 @@ const ScriptDetail = () => {
     title: script?.shareMeta?.title || `${script?.title || "Project"} | ScriptBridge`,
     text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on ScriptBridge."),
   };
+  const REVIEW_PREVIEW_LIMIT = 1;
+  const totalReviewsCount = Math.max(Number(reviewsTotal || 0), Number(script?.reviewCount || 0));
+  const hasMoreReviewsThanPreview = totalReviewsCount > REVIEW_PREVIEW_LIMIT;
 
   const showNotice = (message, type = "success") => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -83,10 +87,11 @@ const ScriptDetail = () => {
   const resolveImage = resolveMediaUrl;
 
   const handlePrint = () => {
-    const raw = script?.textContent || "";
-    const isHtml = raw.startsWith("<");
+    const raw = typeof script?.textContent === "string" ? script.textContent : "";
+    const normalizedRaw = raw.trimStart();
+    const isHtml = normalizedRaw.startsWith("<");
     const bodyContent = isHtml
-      ? raw
+      ? normalizedRaw
       : raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
     const win = window.open("", "_blank", "width=800,height=900");
     win.document.write(`<!DOCTYPE html>
@@ -154,7 +159,17 @@ const ScriptDetail = () => {
     fetchScript();
     setCoverError(false);
     setTrailerError(false);
+    setHasRecordedSynopsisRead(false);
   }, [id]);
+
+  useEffect(() => {
+    if (!script?._id || activeTab !== "synopsis" || hasRecordedSynopsisRead || script?.isCreator) return;
+
+    api
+      .post(`/scripts/${script._id}/read`)
+      .then(() => setHasRecordedSynopsisRead(true))
+      .catch(() => null);
+  }, [activeTab, hasRecordedSynopsisRead, script?._id, script?.isCreator]);
 
   useEffect(() => {
     setTrailerError(false);
@@ -696,6 +711,10 @@ const ScriptDetail = () => {
       short_film: "Short Film",
       web_series: "Web Series",
       play: "Play",
+      songs: "Songs",
+      standup_comedy: "Standup Comedy",
+      dialogues: "Dialogues",
+      poet: "Poet",
     };
     return (
       map[f] ||
@@ -788,14 +807,21 @@ const ScriptDetail = () => {
   const creatorId = script?.creator?._id || script?.creator;
   const viewerId = user?._id || user?.id;
   const isOwner = Boolean(script?.isCreator || (creatorId && viewerId && String(creatorId) === String(viewerId)));
+  const isReaderReviewer = String(user?.role || "").toLowerCase() === "reader";
   const isSoldScript = Boolean(script?.isSold || script?.holdStatus === "sold");
   const canBookmark = Boolean(user?._id && !isOwner);
   const isPro = ["investor", "producer", "director"].includes(user?.role);
   const canSubmitReview = Boolean(
     user?._id &&
+    isReaderReviewer &&
     !isOwner &&
     script?.status === "published"
   );
+  const reviewUnavailableMessage = isOwner
+    ? "You cannot review your own project."
+    : !isReaderReviewer
+      ? "Only readers can submit reviews."
+      : "Reviews are available after the project is published.";
   const trailerSources = (() => {
     const aiTrailerUrl = script?.trailerUrl || "";
     const uploadedTrailerUrl = script?.uploadedTrailerUrl || "";
@@ -826,6 +852,9 @@ const ScriptDetail = () => {
   const trailerPlaybackUrl = trailerSourceUrl;
   const hasTrailer = trailerSources.length > 0;
   const canPlayTrailer = hasTrailer && !trailerError;
+  const scriptRawContent = typeof script?.textContent === "string" ? script.textContent : "";
+  const normalizedScriptHtml = scriptRawContent.trimStart();
+  const hasHtmlScriptContent = normalizedScriptHtml.startsWith("<");
   const heroImage = script.trailerThumbnail || script.coverImage || "";
   const resolvedHeroImage = resolveImage(heroImage);
   const showCoverPlaceholder = !resolvedHeroImage || coverError;
@@ -1103,13 +1132,15 @@ const ScriptDetail = () => {
                         <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${t.label}`}>Reviews</p>
                         <h3 className={`text-base font-bold tracking-tight ${t.title}`}>Project Feedback</h3>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("reviews")}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition ${t.btnSec}`}
-                      >
-                        View All
-                      </button>
+                      {hasMoreReviewsThanPreview && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("reviews")}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border transition ${t.btnSec}`}
+                        >
+                          View All
+                        </button>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
@@ -1187,18 +1218,18 @@ const ScriptDetail = () => {
 
                     {!canSubmitReview && (
                       <div className={`rounded-xl border px-4 py-3 mb-4 text-sm ${t.inset}`}>
-                        {isOwner ? "You cannot review your own project." : "Reviews are available after the project is published."}
+                        {reviewUnavailableMessage}
                       </div>
                     )}
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 max-h-[240px] overflow-y-auto pr-1">
                       {reviewsLoading ? (
                         <div className="py-5 flex justify-center">
                           <div className={`w-6 h-6 border-2 rounded-full animate-spin ${isDarkMode ? "border-white/10 border-t-white/60" : "border-gray-200 border-t-gray-500"}`} />
                         </div>
                       ) : reviews.length > 0 ? (
-                        reviews.slice(0, 3).map((review) => (
-                          <div key={review._id} className={`rounded-xl border p-3.5 ${t.inset}`}>
+                        reviews.slice(0, REVIEW_PREVIEW_LIMIT).map((review) => (
+                          <div key={review._id} className={`rounded-xl border p-3 ${t.inset}`}>
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className={`text-sm font-bold ${t.title}`}>{review.user?.name || "Anonymous"}</p>
@@ -1216,7 +1247,12 @@ const ScriptDetail = () => {
                                 ))}
                               </div>
                             </div>
-                            <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}>{review.comment}</p>
+                            <p
+                              className={`mt-1.5 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}
+                              style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                            >
+                              {review.comment}
+                            </p>
                           </div>
                         ))
                       ) : (
@@ -1578,6 +1614,7 @@ const ScriptDetail = () => {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
                     {[
+                      { label: "Company Name", value: script.companyName },
                       { label: "Format", value: fmtFormat(script.format) },
                       { label: "Primary Genre", value: cl.primaryGenre || script.primaryGenre || script.genre },
                       { label: "Secondary Genre", value: cl.secondaryGenre },
@@ -1767,11 +1804,14 @@ const ScriptDetail = () => {
                               const a = angleStep * i - Math.PI / 2;
                               const lx = cx + (rr + 22) * Math.cos(a);
                               const ly = cy + (rr + 22) * Math.sin(a);
+                              const axisX = Math.cos(a);
+                              const labelAnchor = axisX > 0.2 ? "end" : axisX < -0.2 ? "start" : "middle";
+                              const labelX = lx + (axisX > 0.2 ? -4 : axisX < -0.2 ? 4 : 0);
                               return (
                                 <g key={i}>
                                   <circle cx={p.x} cy={p.y} r="4" fill={dims[i].color}
                                     stroke={dk ? "#0d1829" : "#ffffff"} strokeWidth="2" />
-                                  <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+                                  <text x={labelX} y={ly} textAnchor={labelAnchor} dominantBaseline="middle"
                                     style={{ fontSize: 8.5, fontWeight: 700, fill: dk ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
                                     {dims[i].label}
                                   </text>
@@ -1790,24 +1830,34 @@ const ScriptDetail = () => {
                             const gridLines = [0, 25, 50, 75, 100];
                             const gridColor = dk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
                             const labelColor = dk ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
-                            const slotW = 220 / bars.length;
-                            const barW = Math.min(slotW * 0.58, 28);
+                            const chartWidth = 308;
+                            const chartPadLeft = 26;
+                            const chartPadRight = 8;
+                            const plotWidth = chartWidth - chartPadLeft - chartPadRight;
+                            const slotW = plotWidth / bars.length;
+                            const barW = Math.min(slotW * 0.56, 30);
                             return (
-                              <svg viewBox={`0 0 240 ${barH + 44}`} className="w-full">
+                              <svg viewBox={`0 0 ${chartWidth} ${barH + 56}`} className="w-full">
                                 {gridLines.map(v => {
                                   const y = barH - (v / 100) * barH + 4;
                                   return (
                                     <g key={v}>
-                                      <line x1="24" y1={y} x2="238" y2={y} stroke={gridColor} strokeWidth={v === 0 ? "1.5" : "1"} strokeDasharray={v === 0 ? "" : "3,3"} />
-                                      <text x="18" y={y + 3.5} textAnchor="end" style={{ fontSize: 7.5, fontWeight: 600, fill: labelColor }}>{v}</text>
+                                      <line x1={chartPadLeft} y1={y} x2={chartWidth - chartPadRight} y2={y} stroke={gridColor} strokeWidth={v === 0 ? "1.5" : "1"} strokeDasharray={v === 0 ? "" : "3,3"} />
+                                      <text x={chartPadLeft - 6} y={y + 3.5} textAnchor="end" style={{ fontSize: 8, fontWeight: 600, fill: labelColor }}>{v}</text>
                                     </g>
                                   );
                                 })}
                                 {bars.map((d, i) => {
                                   const val = score[d.key] || 0;
                                   const filledH = (val / 100) * barH;
-                                  const x = 24 + i * slotW + (slotW - barW) / 2;
+                                  const slotCenterX = chartPadLeft + i * slotW + slotW / 2;
+                                  const x = slotCenterX - barW / 2;
                                   const y = barH - filledH + 4;
+                                  const isFirst = i === 0;
+                                  const isLast = i === bars.length - 1;
+                                  const labelAnchor = isFirst ? "start" : isLast ? "end" : "middle";
+                                  const labelX = isFirst ? slotCenterX - 8 : isLast ? slotCenterX + 8 : slotCenterX;
+                                  const labelY = barH + 18 + (i % 2 === 0 ? 0 : 10);
                                   return (
                                     <g key={d.key}>
                                       <rect x={x} y={4} width={barW} height={barH} rx="4"
@@ -1818,8 +1868,8 @@ const ScriptDetail = () => {
                                       </rect>
                                       <text x={x + barW / 2} y={y - 4} textAnchor="middle"
                                         style={{ fontSize: 8, fontWeight: 800, fill: dk ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)" }}>{val}</text>
-                                      <text x={x + barW / 2} y={barH + 18} textAnchor="middle"
-                                        style={{ fontSize: 7, fontWeight: 700, fill: d.color }}>{d.label}</text>
+                                      <text x={labelX} y={labelY} textAnchor={labelAnchor}
+                                        style={{ fontSize: 8, fontWeight: 700, fill: d.color }}>{d.label}</text>
                                     </g>
                                   );
                                 })}
@@ -2138,7 +2188,7 @@ const ScriptDetail = () => {
 
                 {!canSubmitReview && (
                   <div className={`rounded-xl border px-4 py-3 text-sm ${t.inset}`}>
-                    {isOwner ? "You cannot review your own project." : "Reviews are available after the project is published."}
+                    {reviewUnavailableMessage}
                   </div>
                 )}
 
@@ -2146,11 +2196,11 @@ const ScriptDetail = () => {
                   <h4 className={`text-sm font-bold mb-3 ${t.title}`}>Recent Reviews</h4>
 
                   {reviewsLoading ? (
-                    <div className="py-8 flex justify-center">
+                    <div className="min-h-[220px] py-8 flex items-center justify-center">
                       <div className={`w-7 h-7 border-2 rounded-full animate-spin ${isDarkMode ? "border-white/10 border-t-white/60" : "border-gray-200 border-t-gray-500"}`} />
                     </div>
                   ) : reviews.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-[400px] lg:max-h-[520px] overflow-y-auto pr-1">
                       {reviews.map((review) => (
                         <div key={review._id} className={`rounded-xl border p-4 ${t.inset}`}>
                           <div className="flex items-start justify-between gap-3">
@@ -2177,7 +2227,7 @@ const ScriptDetail = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className={`py-8 text-center text-sm ${t.muted}`}>No reviews yet. Be the first to review this project.</div>
+                    <div className={`min-h-[220px] py-8 flex items-center justify-center text-center text-sm ${t.muted}`}>No reviews yet. Be the first to review this project.</div>
                   )}
 
                   {reviewsTotalPages > 1 && (
@@ -2302,12 +2352,12 @@ const ScriptDetail = () => {
                       <h2 className={`text-2xl font-bold tracking-tight mb-1 ${t.title}`}>{script.title}</h2>
                       {script.format && <p className={`text-[11px] font-bold uppercase tracking-widest ${t.muted}`}>{fmtFormat(script.format)}</p>}
                     </div>
-                    {(script.textContent || "").startsWith("<") ? (
-                      <div className="script-content" dangerouslySetInnerHTML={{ __html: script.textContent }} />
+                    {hasHtmlScriptContent ? (
+                      <div className="script-content" dangerouslySetInnerHTML={{ __html: normalizedScriptHtml }} />
                     ) : (
                       <pre className={`whitespace-pre-wrap text-[14px] leading-relaxed ${t.sub}`}
                         style={{ fontFamily: '"Courier Prime", "Courier New", Courier, monospace' }}>
-                        {script.textContent}
+                        {scriptRawContent}
                       </pre>
                     )}
                   </div>

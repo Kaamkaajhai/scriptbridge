@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Cropper from "react-easy-crop";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -36,8 +36,31 @@ const formats = [
   { value: "movie", label: "Movie", icon: "FILM" },
   { value: "tv_serial", label: "TV Serial", icon: "TV" },
   { value: "cartoon", label: "Cartoon", icon: "SHORT" },
+  { value: "songs", label: "Songs", icon: "DOC" },
+  { value: "standup_comedy", label: "Standup Comedy", icon: "DOC" },
+  { value: "dialogues", label: "Dialogues", icon: "DOC" },
+  { value: "poet", label: "Poet", icon: "DOC" },
   { value: "other", label: "Other", icon: "DOC" },
 ];
+const CONTENT_TYPE_BY_FORMAT = {
+  movie: "movie",
+  feature: "movie",
+  tv_1hour: "tv_series",
+  tv_halfhour: "tv_series",
+  limited_series: "tv_series",
+  tv_serial: "tv_series",
+  short: "short_film",
+  web_series: "web_series",
+  documentary: "documentary",
+  anime: "anime",
+  cartoon: "anime",
+  songs: "songs",
+  standup_comedy: "standup_comedy",
+  dialogues: "dialogues",
+  poet: "poet",
+};
+
+const getContentTypeFromFormat = (format) => CONTENT_TYPE_BY_FORMAT[format] || "movie";
 const genres = [
   "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Fantasy",
   "Mystery", "Adventure", "Crime", "Western", "Animation", "Documentary", "Historical",
@@ -141,6 +164,10 @@ const FORMAT_PAGE_RANGES = {
   movie: { min: 70, max: 180, typical: "90-120", label: "Movie", wordsPerPage: 250 },
   tv_serial: { min: 18, max: 50, typical: "20-35", label: "TV Serial", wordsPerPage: 250 },
   cartoon: { min: 7, max: 45, typical: "10-25", label: "Cartoon", wordsPerPage: 250 },
+  songs: { min: 1, max: 30, typical: "2-10", label: "Songs", wordsPerPage: 250 },
+  standup_comedy: { min: 3, max: 50, typical: "8-20", label: "Standup Comedy", wordsPerPage: 250 },
+  dialogues: { min: 1, max: 80, typical: "5-25", label: "Dialogues", wordsPerPage: 250 },
+  poet: { min: 1, max: 60, typical: "3-20", label: "Poet", wordsPerPage: 250 },
   other: { min: 1, max: 250, typical: "Varies", label: "Other", wordsPerPage: 250 },
 };
 const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
@@ -405,7 +432,11 @@ const CreateProject = () => {
   const { isDarkMode: dark } = useDarkMode();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const { draftId } = useParams();
+  const shouldStartFresh = !draftId && (
+    Boolean(location.state?.startFresh) || new URLSearchParams(location.search).get("fresh") === "1"
+  );
   const agreementRef = useRef(null);
   const reviewRedirectTimerRef = useRef(null);
 
@@ -439,7 +470,7 @@ const CreateProject = () => {
   const [showUndoBar, setShowUndoBar] = useState(false);
 
   // Step 2: Details
-  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", productionCompany: "", director: "", studioFinancier: "" });
+  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", companyName: "" });
 
   // File Upload State
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -732,6 +763,7 @@ const CreateProject = () => {
       if (data.formatOther !== undefined) setFormData(f => ({ ...f, formatOther: data.formatOther || "" }));
       if (data.pageCount) setFormData(f => ({ ...f, pageCount: String(data.pageCount) }));
       if (data.classification?.primaryGenre || data.genre) setFormData(f => ({ ...f, primaryGenre: data.classification?.primaryGenre || data.genre || "" }));
+      if (data.companyName !== undefined) setFormData(f => ({ ...f, companyName: data.companyName || "" }));
       if (data.logline) setFormData(f => ({ ...f, logline: data.logline }));
       if (data.synopsis) setFormData(f => ({ ...f, synopsis: data.synopsis }));
       else if (data.description) setFormData(f => ({ ...f, synopsis: data.description }));
@@ -766,6 +798,7 @@ const CreateProject = () => {
     return {
       title: title?.trim() ? title.trim() : "Untitled Draft",
       textContent: editor.getHTML(),
+      companyName: String(formData.companyName || "").trim(),
       legal: {
         agreedToTerms: Boolean(legal.agreedToTerms),
         termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
@@ -773,12 +806,12 @@ const CreateProject = () => {
       },
       ...(scriptId ? { scriptId } : {}),
     };
-  }, [editor, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
+  }, [editor, formData.companyName, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
 
   const getDraftSignature = useCallback((payload) => {
     if (!payload) return "";
     const html = String(payload.textContent || "");
-    return `${payload.title || ""}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
+    return `${payload.title || ""}::${String(payload.companyName || "")}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
   }, []);
 
   const hasMeaningfulDraft = useCallback((payload) => {
@@ -865,8 +898,46 @@ const CreateProject = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!shouldStartFresh) return;
+
+    clearLocalWorkingDraft();
+    localDraftHydratedRef.current = true;
+
+    setStep(1);
+    setScriptId(null);
+    setTitle("");
+    setSaved(false);
+    setLastSaved(null);
+    setShowDrafts(false);
+    setError("");
+    setTagsInput("");
+    setRoles([]);
+    setClassification({ tones: [], themes: [], settings: [] });
+    setServices({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
+    setLegal({ agreedToTerms: false, customInvestorTerms: "" });
+    setIsPremium(false);
+    setScriptPrice(10);
+    setThumbnailFile(null);
+    setTrailerFile(null);
+    setTrailerMeta(null);
+    setFormData({
+      format: "feature",
+      formatOther: "",
+      primaryGenre: "",
+      logline: "",
+      synopsis: "",
+      writer: "",
+      companyName: "",
+    });
+
+    if (editor) {
+      editor.commands.clearContent();
+    }
+  }, [clearLocalWorkingDraft, editor, location.key, shouldStartFresh]);
+
   const restoreLocalWorkingDraft = useCallback(() => {
-    if (!editor || localDraftHydratedRef.current || draftId) return;
+    if (!editor || localDraftHydratedRef.current || draftId || shouldStartFresh) return;
 
     localDraftHydratedRef.current = true;
     try {
@@ -895,7 +966,7 @@ const CreateProject = () => {
     } catch {
       // Ignore invalid/stale local snapshots.
     }
-  }, [draftId, editor, user?._id]);
+  }, [draftId, editor, shouldStartFresh, user?._id]);
 
   useEffect(() => {
     restoreLocalWorkingDraft();
@@ -1297,7 +1368,9 @@ const CreateProject = () => {
         logline: formData.logline,
         synopsis: formData.synopsis,
         description: formData.synopsis,
+        companyName: String(formData.companyName || "").trim(),
         format: formData.format,
+        contentType: getContentTypeFromFormat(formData.format),
         formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
         classification: { primaryGenre: formData.primaryGenre, secondaryGenre: null, tones: classification.tones, themes: classification.themes, settings: classification.settings },
@@ -2068,16 +2141,8 @@ const CreateProject = () => {
                   <input type="text" name="writer" value={formData.writer} onChange={handleChange} placeholder="Writer's name" className={inputCls} />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Production Company</label>
-                  <input type="text" name="productionCompany" value={formData.productionCompany} onChange={handleChange} placeholder="Production company name" className={inputCls} />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Director</label>
-                  <input type="text" name="director" value={formData.director} onChange={handleChange} placeholder="Director's name" className={inputCls} />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Studio / Financier</label>
-                  <input type="text" name="studioFinancier" value={formData.studioFinancier} onChange={handleChange} placeholder="Studio or financier name" className={inputCls} />
+                  <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Company Name</label>
+                  <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Company name" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -5,22 +5,68 @@ import ScriptPurchaseRequest from "../models/ScriptPurchaseRequest.js";
 import ScriptOption from "../models/ScriptOption.js";
 import Notification from "../models/Notification.js";
 import { sendOTPEmail } from "../utils/emailService.js";
-import { generateOTP, generateOTPExpiry, isOTPExpired } from "../utils/otpHelper.js";
+import {
+  generateOTP,
+  generateOTPExpiry,
+  hashOTP,
+  isHashedOTP,
+  isOTPExpired,
+  verifyHashedOTP,
+} from "../utils/otpHelper.js";
 import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
-const WRITER_REPRESENTATION_REQUIRING_AGENCY = ["agent", "manager_and_agent"];
 const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
 const MAX_BANK_INVALID_ATTEMPTS = 5;
 const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
 const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
+const DEFAULT_LANGUAGE = "en";
+const SUPPORTED_LANGUAGE_CODES = new Set(["en", "hi", "es", "fr", "de", "ja", "ko", "zh-CN"]);
+const LANGUAGE_CODE_ALIASES = {
+  zh: "zh-CN",
+  "zh-cn": "zh-CN",
+};
+
+const normalizeLanguagePreference = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return DEFAULT_LANGUAGE;
+
+  const mapped = LANGUAGE_CODE_ALIASES[raw.toLowerCase()] || raw;
+  return SUPPORTED_LANGUAGE_CODES.has(mapped) ? mapped : DEFAULT_LANGUAGE;
+};
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const normalizeOtpInput = (otp) => String(otp || "").trim();
+const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
+
+const normalizeOptionalDate = (value) => {
+  if (value === undefined) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "INVALID_DATE" : parsed;
+};
+
+const normalizeAddressPayload = (value) => {
+  if (!value || typeof value !== "object") return null;
+
+  const street = normalizeString(value.street) || "";
+  const city = normalizeString(value.city) || "";
+  const state = normalizeString(value.state) || "";
+  const zipCode = normalizeString(value.zipCode) || "";
+  const computedFormatted = [street, city, state, zipCode].filter(Boolean).join(", ");
+
+  return {
+    street,
+    city,
+    state,
+    zipCode,
+    formatted: normalizeString(value.formatted) || computedFormatted,
+  };
+};
 
 const normalizeStringArray = (value, maxItems) => {
   if (!Array.isArray(value)) return [];
@@ -34,15 +80,36 @@ const normalizeStringArray = (value, maxItems) => {
   return unique;
 };
 
+const normalizePreferredFormat = (value = "") => {
+  const raw = String(value || "").toLowerCase().trim();
+  if (!raw) return "";
+
+  const aliases = {
+    feature_film: "feature",
+    "feature film": "feature",
+    "tv pilot": "tv_1hour",
+    "tv series": "tv_serial",
+    "short film": "short",
+    "web series": "web_series",
+    "limited series": "limited_series",
+    "drama school": "drama_school",
+    "standup comedy": "standup_comedy",
+  };
+
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes("tv pilot") && (raw.includes("30") || raw.includes("half"))) return "tv_halfhour";
+  if (raw.includes("tv pilot") || raw.includes("tv 1-hour")) return "tv_1hour";
+  if (raw.includes("standup") || raw.includes("stand-up")) return "standup_comedy";
+  if (raw.includes("dialogue")) return "dialogues";
+  if (raw.includes("poet") || raw.includes("poetry")) return "poet";
+
+  return raw.replace(/[\s-]+/g, "_");
+};
+
 const sanitizeBankPayload = (bankDetails) => {
   if (!bankDetails || typeof bankDetails !== "object") return null;
 
   const clean = {
-    accountHolderName: normalizeString(bankDetails.accountHolderName) || "",
-    bankName: normalizeString(bankDetails.bankName) || "",
-    accountNumber: typeof bankDetails.accountNumber === "string"
-      ? bankDetails.accountNumber.replace(/\s+/g, "")
-      : "",
     routingNumber: typeof bankDetails.routingNumber === "string"
       ? bankDetails.routingNumber.replace(/\s+/g, "").toUpperCase()
       : "",
@@ -166,7 +233,10 @@ export const getWriters = async (req, res) => {
     ];
 
     // Base match: include both writer and creator accounts
-    const matchStage = { role: { $in: ["writer", "creator"] } };
+    const matchStage = {
+      role: { $in: ["writer", "creator"] },
+      isDeactivated: { $ne: true },
+    };
 
     if (blockedUserIds.length > 0) {
       matchStage._id = { $nin: blockedUserIds };
@@ -283,6 +353,7 @@ export const getCurrentUser = async (req, res) => {
     }
 
     const userObj = user.toObject();
+    userObj.language = normalizeLanguagePreference(userObj.language);
     userObj.profileCompletion = getProfileCompletion(userObj);
 
     res.json(userObj);
@@ -314,7 +385,7 @@ export const getUserProfile = async (req, res) => {
     let blockedByProfile = false;
 
     if (!isOwnProfile) {
-      const currentUser = await User.findById(req.user._id).select("blockedUsers");
+      const currentUser = await User.findById(req.user._id).select("blockedUsers role");
       blockedByCurrent = currentUser?.blockedUsers?.some((uid) => uid.toString() === req.params.id.toString()) || false;
       blockedByProfile = user?.blockedUsers?.some((uid) => uid.toString() === req.user._id.toString()) || false;
 
@@ -322,6 +393,26 @@ export const getUserProfile = async (req, res) => {
         return res.status(403).json({
           message: "This user has blocked you.",
           blocked: true,
+          blockedByCurrent,
+          blockedByProfile,
+        });
+      }
+
+      if (user?.isDeactivated && String(currentUser?.role || "").toLowerCase() !== "admin") {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const viewerId = req.user?._id?.toString();
+      const isFollower = (user?.followers || []).some((follower) => {
+        const followerId = follower?._id?.toString?.() || follower?.toString?.();
+        return followerId === viewerId;
+      });
+      const isAdminViewer = String(currentUser?.role || "").toLowerCase() === "admin";
+
+      if (user?.isPrivate && !isFollower && !isAdminViewer) {
+        return res.status(403).json({
+          message: "This account is private.",
+          privateAccount: true,
           blockedByCurrent,
           blockedByProfile,
         });
@@ -413,6 +504,7 @@ export const getUserProfile = async (req, res) => {
 
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
+    userObj.language = normalizeLanguagePreference(userObj.language);
     if (!isOwnProfile && userObj.bankDetails) {
       delete userObj.bankDetails;
       delete userObj.pendingEmail;
@@ -452,6 +544,7 @@ export const updateUserProfile = async (req, res) => {
   try {
     const {
       name, bio, skills, profileImage, writerProfile,
+      phone, dateOfBirth, address,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
       // onboarding completion
@@ -478,6 +571,31 @@ export const updateUserProfile = async (req, res) => {
     }
     user.profileImage = normalizeString(profileImage) || user.profileImage;
 
+    if (phone !== undefined) {
+      user.phone = normalizeString(phone) || "";
+    }
+
+    if (dateOfBirth !== undefined) {
+      const normalizedDob = normalizeOptionalDate(dateOfBirth);
+      if (normalizedDob === "INVALID_DATE") {
+        return res.status(400).json({ message: "Invalid date of birth" });
+      }
+      user.dateOfBirth = normalizedDob || undefined;
+    }
+
+    if (address !== undefined) {
+      if (address === null) {
+        user.address = undefined;
+      } else {
+        const normalizedAddress = normalizeAddressPayload(address);
+        if (!normalizedAddress) {
+          return res.status(400).json({ message: "Invalid address payload" });
+        }
+        user.address = normalizedAddress;
+      }
+      user.markModified("address");
+    }
+
     // Investor / industry preference genres — save to mandates AND preferences
     if (preferredGenres !== undefined) {
       if (!user.preferences) user.preferences = {};
@@ -500,7 +618,9 @@ export const updateUserProfile = async (req, res) => {
       // because that field has a strict enum incompatible with onboarding format strings
       if (!user.industryProfile) user.industryProfile = {};
       if (!user.industryProfile.mandates) user.industryProfile.mandates = {};
-      user.industryProfile.mandates.formats = preferredFormats;
+      user.industryProfile.mandates.formats = normalizeStringArray(preferredFormats, 40)
+        .map(normalizePreferredFormat)
+        .filter(Boolean);
       user.markModified("industryProfile");
     }
 
@@ -564,6 +684,9 @@ export const updateUserProfile = async (req, res) => {
       if (writerProfile.wgaMember !== undefined) {
         user.writerProfile.wgaMember = writerProfile.wgaMember;
       }
+      if (writerProfile.sgaMember !== undefined) {
+        user.writerProfile.sgaMember = writerProfile.sgaMember;
+      }
       if (writerProfile.genres !== undefined) {
         user.writerProfile.genres = normalizeStringArray(writerProfile.genres);
       }
@@ -578,11 +701,6 @@ export const updateUserProfile = async (req, res) => {
         if (writerProfile.diversity.ethnicity !== undefined) {
           user.writerProfile.diversity.ethnicity = normalizeString(writerProfile.diversity.ethnicity);
         }
-      }
-
-      const currentStatus = user.writerProfile.representationStatus || "unrepresented";
-      if (WRITER_REPRESENTATION_REQUIRING_AGENCY.includes(currentStatus) && !user.writerProfile.agencyName) {
-        return res.status(400).json({ message: "Agency name is required for represented writers" });
       }
 
       user.markModified("writerProfile");
@@ -737,6 +855,9 @@ export const updateUserProfile = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
+      address: user.address,
       role: user.role,
       bio: user.bio,
       skills: user.skills,
@@ -1020,8 +1141,9 @@ export const updateSettings = async (req, res) => {
     }
 
     if (isPrivate !== undefined) user.isPrivate = isPrivate;
-    if (language !== undefined) user.language = language;
+    if (language !== undefined) user.language = normalizeLanguagePreference(language);
     if (timezone !== undefined) user.timezone = timezone;
+    if (!user.language) user.language = DEFAULT_LANGUAGE;
 
     await user.save();
     res.json({ message: "Settings updated", user: { isPrivate: user.isPrivate, language: user.language, timezone: user.timezone, notificationPrefs: user.notificationPrefs } });
@@ -1082,7 +1204,7 @@ export const changeEmail = async (req, res) => {
 
     // Keep current email active until OTP verification succeeds.
     user.pendingEmail = normalizedEmail;
-    user.emailVerificationToken = otp;
+    user.emailVerificationToken = hashOTP(otp);
     user.emailVerificationExpires = generateOTPExpiry();
     await user.save();
     res.json({
@@ -1107,7 +1229,7 @@ export const sendEmailVerificationCode = async (req, res) => {
     }
 
     const otp = generateOTP();
-    user.emailVerificationToken = otp;
+    user.emailVerificationToken = hashOTP(otp);
     user.emailVerificationExpires = generateOTPExpiry();
     await user.save();
 
@@ -1127,11 +1249,30 @@ export const verifyEmailVerificationCode = async (req, res) => {
     const { otp } = req.body;
     if (!otp) return res.status(400).json({ message: "Verification code is required" });
 
+    const normalizedOtp = normalizeOtpInput(otp);
+    if (!isValidOtpInput(normalizedOtp)) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
     if (!user.emailVerificationToken) return res.status(400).json({ message: "No verification code found. Please resend code." });
-    if (isOTPExpired(user.emailVerificationExpires)) return res.status(400).json({ message: "Verification code expired. Please resend code." });
-    if (String(user.emailVerificationToken) !== String(otp).trim()) return res.status(400).json({ message: "Invalid verification code" });
+
+    if (!isHashedOTP(user.emailVerificationToken)) {
+      user.emailVerificationToken = hashOTP(user.emailVerificationToken);
+      await user.save();
+    }
+
+    if (isOTPExpired(user.emailVerificationExpires)) {
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+      return res.status(400).json({ message: "Verification code expired. Please resend code." });
+    }
+
+    if (!verifyHashedOTP(user.emailVerificationToken, normalizedOtp)) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
 
     if (user.pendingEmail) {
       const emailOwner = await User.findOne({ email: user.pendingEmail, _id: { $ne: user._id } });
@@ -1156,14 +1297,92 @@ export const verifyEmailVerificationCode = async (req, res) => {
 
 export const deleteAccount = async (req, res) => {
   try {
+    const reason = String(req.body?.reason || "").trim();
+    if (reason.length < 5) {
+      return res.status(400).json({ message: "Please provide a valid reason (minimum 5 characters)." });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    if (String(user.role || "").toLowerCase() === "admin") {
+      return res.status(403).json({ message: "Admin accounts cannot be deleted from profile settings." });
+    }
+
+    if (user.isDeactivated) {
+      return res.json({ message: "Account already deleted" });
+    }
+
     // Soft-delete: deactivate account rather than hard-delete
+    const now = new Date();
+    const originalName = String(user.name || "").trim();
+    const originalEmail = String(user.email || "").trim();
+
+    user.accountDeletion = {
+      reason,
+      requestedAt: now,
+      source: "user",
+      originalName,
+      originalEmail,
+    };
+
+    user.isFrozen = true;
+    user.frozenAt = now;
+    user.frozenReason = "Account deleted by user";
+    user.frozenBy = req.user._id;
     user.isDeactivated = true;
-    user.deactivatedAt = new Date();
-    user.email = `deleted_${user._id}_${user.email}`;
+    user.deactivatedAt = now;
+    user.deactivatedBy = req.user._id;
+    user.isPrivate = true;
+    user.name = "Deleted User";
+    user.bio = "";
+    user.phone = "";
+    user.address = undefined;
+    user.skills = [];
+    user.profileImage = "";
+    user.coverImage = "";
+    user.followers = [];
+    user.following = [];
+    user.blockedUsers = [];
+    user.favoriteScripts = [];
+    user.pendingEmail = undefined;
+    user.emailVerified = false;
+    user.email = `deleted_${user._id}@deleted.local`;
     await user.save();
+
+    await Promise.all([
+      User.updateMany(
+        { _id: { $ne: user._id } },
+        {
+          $pull: {
+            followers: user._id,
+            following: user._id,
+            blockedUsers: user._id,
+          },
+        }
+      ),
+      Script.updateMany(
+        { creator: user._id, isDeleted: { $ne: true } },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: now,
+          },
+        }
+      ),
+    ]);
+
+    const admins = await User.find({ role: "admin", isDeactivated: { $ne: true } }).select("_id").lean();
+    if (admins.length > 0) {
+      await Notification.insertMany(
+        admins.map((admin) => ({
+          user: admin._id,
+          from: req.user._id,
+          type: "admin_alert",
+          message: `Account deletion request from ${originalName || "a user"}: ${reason}`,
+        }))
+      ).catch(() => null);
+    }
 
     res.json({ message: "Account deleted successfully" });
   } catch (error) {

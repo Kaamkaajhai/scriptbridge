@@ -1,4 +1,18 @@
 import nodemailer from "nodemailer";
+import { getOTPExpirySeconds } from "./otpHelper.js";
+
+let cachedTransporter = null;
+
+const formatOtpValidityLabel = (seconds) => {
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 300;
+
+  if (safeSeconds % 60 === 0) {
+    const minutes = safeSeconds / 60;
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  return `${safeSeconds} second${safeSeconds === 1 ? "" : "s"}`;
+};
 
 const trimTrailingSlash = (value = "") => String(value || "").trim().replace(/\/+$/, "");
 
@@ -44,6 +58,10 @@ const buildClientUrl = (path = "/", overrideBaseUrl = "") => {
 
 // Create reusable transporter
 const createTransporter = () => {
+  if (cachedTransporter) {
+    return cachedTransporter;
+  }
+
   // For development, use ethereal.email or Gmail
   // For production, use a proper email service like SendGrid, AWS SES, etc.
   
@@ -60,19 +78,22 @@ const createTransporter = () => {
   
   if (process.env.EMAIL_HOST && process.env.EMAIL_PORT) {
     // Production configuration
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT),
       secure: process.env.EMAIL_SECURE === 'true',
+      pool: true,
       auth: {
         user: emailUser,
         pass: emailPassword,
       },
     });
+    return cachedTransporter;
   } else {
     // Development fallback - use Gmail with enhanced settings
-    return nodemailer.createTransport({
+    cachedTransporter = nodemailer.createTransport({
       service: 'gmail',
+      pool: true,
       auth: {
         user: emailUser,
         pass: emailPassword,
@@ -81,6 +102,7 @@ const createTransporter = () => {
         rejectUnauthorized: false,
       },
     });
+    return cachedTransporter;
   }
 };
 
@@ -104,10 +126,7 @@ export const sendOTPEmail = async (email, name, otp) => {
     
     console.log(`Sending OTP email to ${email}...`);
     const transporter = createTransporter();
-    
-    // Verify transporter connection
-    await transporter.verify();
-    console.log('Email service verified successfully');
+    const otpValidityLabel = formatOtpValidityLabel(getOTPExpirySeconds());
 
     const mailOptions = {
       from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
@@ -142,7 +161,7 @@ export const sendOTPEmail = async (email, name, otp) => {
                 <div class="otp-code">${otp}</div>
               </div>
               
-              <p>This code will expire in <strong>10 minutes</strong>.</p>
+              <p>This code will expire in <strong>${otpValidityLabel}</strong>.</p>
               <p>If you didn't create an account with ckript, please ignore this email.</p>
               
               <p>Best regards,<br>The ckript Team</p>
@@ -155,7 +174,7 @@ export const sendOTPEmail = async (email, name, otp) => {
         </body>
         </html>
       `,
-      text: `Hi ${name},\n\nThank you for signing up with ckript! Your verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you didn't create an account with ckript, please ignore this email.\n\nBest regards,\nThe ckript Team`,
+      text: `Hi ${name},\n\nThank you for signing up with ckript! Your verification code is: ${otp}\n\nThis code will expire in ${otpValidityLabel}.\n\nIf you didn't create an account with ckript, please ignore this email.\n\nBest regards,\nThe ckript Team`,
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -174,104 +193,6 @@ export const sendOTPEmail = async (email, name, otp) => {
     }
     
     return { success: false, error: errorMessage };
-  }
-};
-
-// Send signup verification copy to company email
-export const sendSignupOTPToCompany = async ({ userName, userEmail, userRole, otp }) => {
-  try {
-    validateEmailConfig();
-    const companyEmail = (process.env.COMPANY_NOTIFICATION_EMAIL || "info.ckript@gmail.com").trim().toLowerCase();
-
-    if (!companyEmail || !companyEmail.includes("@")) {
-      return { success: false, error: "Invalid company notification email" };
-    }
-
-    console.log(`Sending signup OTP copy to company email ${companyEmail} for ${userEmail}...`);
-    const transporter = createTransporter();
-    await transporter.verify();
-
-    const mailOptions = {
-      from: `"ckript" <${process.env.EMAIL_USER || "noreply@ckript.com"}>`,
-      to: companyEmail,
-      subject: `Signup Verification Code Copy - ${userEmail}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h2>New Signup Verification Code (Copy)</h2>
-          <p>A new user has signed up and a verification code was generated.</p>
-          <table cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
-            <tr><td><strong>Name:</strong></td><td>${userName || "N/A"}</td></tr>
-            <tr><td><strong>Email:</strong></td><td>${userEmail}</td></tr>
-            <tr><td><strong>Role:</strong></td><td>${userRole || "N/A"}</td></tr>
-            <tr><td><strong>OTP Code:</strong></td><td><strong style="font-size: 18px; letter-spacing: 2px;">${otp}</strong></td></tr>
-            <tr><td><strong>Generated At:</strong></td><td>${new Date().toISOString()}</td></tr>
-          </table>
-          <p style="margin-top: 16px; color: #666;">This is an automated internal copy from ckript.</p>
-        </body>
-        </html>
-      `,
-      text: `New signup verification code copy\nName: ${userName || "N/A"}\nEmail: ${userEmail}\nRole: ${userRole || "N/A"}\nOTP: ${otp}\nGenerated At: ${new Date().toISOString()}`,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Signup OTP copy sent to company email:", info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error("Error sending signup OTP copy to company:", error.message);
-    return { success: false, error: error.message };
-  }
-};
-
-// Send email-change verification copy to company email
-export const sendEmailChangeOTPToCompany = async ({ userName, currentEmail, newEmail, otp, trigger = "email_change" }) => {
-  try {
-    validateEmailConfig();
-    const companyEmail = (process.env.COMPANY_NOTIFICATION_EMAIL || "info.ckript@gmail.com").trim().toLowerCase();
-
-    if (!companyEmail || !companyEmail.includes("@")) {
-      return { success: false, error: "Invalid company notification email" };
-    }
-
-    const safeCurrentEmail = (currentEmail || "N/A").trim();
-    const safeNewEmail = (newEmail || "N/A").trim();
-
-    console.log(`Sending email-change OTP copy to company email ${companyEmail} for ${safeCurrentEmail} -> ${safeNewEmail}...`);
-    const transporter = createTransporter();
-    await transporter.verify();
-
-    const mailOptions = {
-      from: `"ckript" <${process.env.EMAIL_USER || "noreply@ckript.com"}>`,
-      to: companyEmail,
-      subject: `Email Change Verification Code Copy - ${safeCurrentEmail} -> ${safeNewEmail}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h2>Email Change Verification Code (Copy)</h2>
-          <p>A user requested email verification for an email update.</p>
-          <table cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
-            <tr><td><strong>Name:</strong></td><td>${userName || "N/A"}</td></tr>
-            <tr><td><strong>Current Email:</strong></td><td>${safeCurrentEmail}</td></tr>
-            <tr><td><strong>New Email:</strong></td><td>${safeNewEmail}</td></tr>
-            <tr><td><strong>OTP Code:</strong></td><td><strong style="font-size: 18px; letter-spacing: 2px;">${otp}</strong></td></tr>
-            <tr><td><strong>Trigger:</strong></td><td>${trigger}</td></tr>
-            <tr><td><strong>Generated At:</strong></td><td>${new Date().toISOString()}</td></tr>
-          </table>
-          <p style="margin-top: 16px; color: #666;">This is an automated internal copy from ckript.</p>
-        </body>
-        </html>
-      `,
-      text: `Email change verification code copy\nName: ${userName || "N/A"}\nCurrent Email: ${safeCurrentEmail}\nNew Email: ${safeNewEmail}\nOTP: ${otp}\nTrigger: ${trigger}\nGenerated At: ${new Date().toISOString()}`,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email-change OTP copy sent to company email:", info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error("Error sending email-change OTP copy to company:", error.message);
-    return { success: false, error: error.message };
   }
 };
 
@@ -734,14 +655,21 @@ export const sendAdminWorkflowAlertEmail = async ({ title, section, message, met
     const safeTitle = String(title || "Admin Workflow Alert").trim();
     const safeSection = String(section || "admin").trim();
     const safeMessage = String(message || "A new admin workflow item was created.").trim();
+    const combinedAlertText = `${safeTitle} ${safeMessage}`.toLowerCase();
     const normalizedSection = safeSection.toLowerCase();
     const trailerRelated =
       normalizedSection.includes("trailer") ||
-      `${safeTitle} ${safeMessage}`.toLowerCase().includes("trailer");
+      combinedAlertText.includes("trailer");
+    const projectSpotlightActivatedRelated =
+      combinedAlertText.includes("project spotlight activated");
 
     // Do not send trailer-related alerts to the company inbox alias requested by the user.
     if (companyEmail === "info.ckript@gmail.com" && trailerRelated) {
       return { success: true, skipped: true, reason: "trailer-alert-blocked-for-company-email" };
+    }
+
+    if (companyEmail === "info.ckript@gmail.com" && projectSpotlightActivatedRelated) {
+      return { success: true, skipped: true, reason: "spotlight-activation-alert-blocked-for-company-email" };
     }
 
     const rows = Object.entries(metadata || {})

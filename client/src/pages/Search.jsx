@@ -20,6 +20,10 @@ const CONTENT_TYPES = [
   { key: "anime", label: "Anime" },
   { key: "book", label: "Book" },
   { key: "startup", label: "Startup" },
+  { key: "songs", label: "Songs" },
+  { key: "standup_comedy", label: "Standup Comedy" },
+  { key: "dialogues", label: "Dialogues" },
+  { key: "poet", label: "Poet" },
 ];
 
 const BUDGETS = [
@@ -343,7 +347,7 @@ const Search = () => {
 
   return (
     <div className={t.pageBg}>
-    <div className="max-w-5xl mx-auto max-[580px]:overflow-x-hidden max-[380px]:px-0.5">
+    <div className="max-w-5xl mx-auto max-[580px]:overflow-x-hidden max-[450px]:px-1 max-[320px]:px-0.5">
 
       {/* ── Header + Search ── */}
       <motion.div
@@ -405,15 +409,15 @@ const Search = () => {
         transition={{ duration: 0.35, delay: 0.08, ease }}
         className="mb-6"
       >
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3 max-[580px]:flex-col max-[580px]:items-stretch max-[380px]:gap-2">
-          <div className="flex items-center gap-3 max-[580px]:flex-col max-[580px]:items-stretch max-[380px]:gap-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3 max-[580px]:flex-col max-[580px]:items-stretch max-[450px]:gap-2 max-[300px]:gap-1.5">
+          <div className="flex items-center gap-3 max-[580px]:flex-col max-[580px]:items-stretch max-[450px]:gap-2 max-[300px]:gap-1.5">
             {/* Category tabs */}
-            <div className={`inline-flex items-center rounded-full p-1 gap-0.5 ${t.tabBar} max-[580px]:w-full max-[580px]:overflow-x-auto max-[580px]:whitespace-nowrap max-[380px]:overflow-visible max-[380px]:whitespace-normal max-[380px]:grid max-[380px]:grid-cols-2 max-[380px]:rounded-2xl max-[380px]:p-1.5 max-[380px]:gap-1` }>
+            <div className={`inline-flex items-center rounded-full p-1 gap-0.5 ${t.tabBar} max-[580px]:w-full max-[580px]:overflow-x-auto max-[580px]:whitespace-nowrap max-[450px]:overflow-visible max-[450px]:whitespace-normal max-[450px]:grid max-[450px]:grid-cols-2 max-[450px]:rounded-2xl max-[450px]:p-1.5 max-[450px]:gap-1 max-[300px]:p-1 max-[300px]:gap-0.5` }>
               {tabs.map((tab, idx) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative px-5 max-[580px]:px-3.5 max-[380px]:px-2.5 py-2 max-[580px]:py-1.5 max-[380px]:py-2 rounded-full max-[380px]:rounded-xl text-[13px] max-[580px]:text-[12px] max-[380px]:text-[11px] font-semibold transition-all duration-250 whitespace-nowrap max-[380px]:whitespace-normal max-[380px]:text-center max-[380px]:w-full ${idx === tabs.length - 1 ? "max-[380px]:col-span-2" : ""} ${activeTab === tab.key
+                  className={`relative px-5 max-[580px]:px-3.5 max-[450px]:px-2.5 max-[300px]:px-2 py-2 max-[580px]:py-1.5 max-[450px]:py-2 max-[300px]:py-1.5 rounded-full max-[450px]:rounded-xl text-[13px] max-[580px]:text-[12px] max-[450px]:text-[11px] max-[300px]:text-[10px] leading-tight font-semibold transition-all duration-250 whitespace-nowrap max-[450px]:whitespace-normal max-[450px]:text-center max-[450px]:w-full ${idx === tabs.length - 1 ? "max-[450px]:col-span-2" : ""} ${activeTab === tab.key
                     ? t.tabActive
                     : t.tabIdle
                     }`}
@@ -427,7 +431,7 @@ const Search = () => {
             {showProjectFilters && (
               <button
                 onClick={() => setFiltersOpen(!filtersOpen)}
-                className={`relative inline-flex items-center justify-center gap-2 px-4 max-[580px]:px-3 max-[380px]:px-2.5 py-2.5 max-[580px]:py-2 max-[380px]:py-1.5 rounded-xl text-[13px] max-[580px]:text-[12px] max-[380px]:text-[11px] font-semibold transition-all duration-200 border max-[580px]:w-full ${filtersOpen || activeFilterCount > 0
+                className={`relative inline-flex items-center justify-center gap-2 px-4 max-[580px]:px-3 max-[450px]:px-2.5 max-[300px]:px-2 py-2.5 max-[580px]:py-2 max-[450px]:py-1.5 max-[300px]:py-1.5 rounded-xl text-[13px] max-[580px]:text-[12px] max-[450px]:text-[11px] max-[300px]:text-[10px] font-semibold transition-all duration-200 border max-[580px]:w-full ${filtersOpen || activeFilterCount > 0
                   ? t.filterBtnActive
                   : t.filterBtnIdle
                   }`}
@@ -683,6 +687,9 @@ const Search = () => {
                             </span>
                             {user.writerProfile?.wgaMember && (
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#1e3a5f] bg-[#1e3a5f]/8"}`}>WGA</span>
+                            )}
+                            {user.writerProfile?.sgaMember && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full tracking-wide ${dark ? "text-blue-400 bg-blue-500/10" : "text-[#1e3a5f] bg-[#1e3a5f]/8"}`}>SGA</span>
                             )}
                           </div>
                           {user.bio && (
