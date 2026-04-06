@@ -962,62 +962,33 @@ const WriterOnboarding = () => {
               <p className="text-sm text-gray-500 mt-1">{writerProfile.bio.length}/500</p>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Representation Status
-              </label>
-              <select
-                value={writerProfile.representationStatus}
-                onChange={(e) =>
-                  setWriterProfile({
-                    ...writerProfile,
-                    representationStatus: e.target.value,
-                    agencyName: e.target.value === "unrepresented" ? "" : writerProfile.agencyName,
-                  })
-                }
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent !text-gray-900"
-              >
-                <option value="unrepresented">Unrepresented</option>
-                <option value="manager">Manager</option>
-                <option value="agent">Agent</option>
-                <option value="manager_and_agent">Manager & Agent</option>
-              </select>
-            </div>
-            
-            {writerProfile.representationStatus !== "unrepresented" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Agency Name
-                </label>
-                <input
-                  type="text"
-                  value={writerProfile.agencyName}
-                  onChange={(e) => setWriterProfile({...writerProfile, agencyName: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                  placeholder="e.g., CAA, WME, UTA"
-                />
-              </div>
-            )}
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="flex items-center gap-2.5 p-3 border border-gray-200 rounded-lg bg-gray-50/70 cursor-pointer">
+              <label className={`flex items-center gap-2.5 p-3 rounded-lg border-2 cursor-pointer transition ${
+                writerProfile.wgaMember
+                  ? "border-[#0f2544] bg-[#0f2544]/5"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}>
                 <input
                   type="checkbox"
                   checked={Boolean(writerProfile.wgaMember)}
                   onChange={(e) => setWriterProfile({ ...writerProfile, wgaMember: e.target.checked })}
-                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] accent-[#0f2544]"
                 />
-                <span className="text-sm font-semibold text-gray-700">I am a WGA member</span>
+                <span className={`text-sm font-semibold ${writerProfile.wgaMember ? "text-gray-900" : "text-gray-700"}`}>I am a WGA member</span>
               </label>
 
-              <label className="flex items-center gap-2.5 p-3 border border-gray-200 rounded-lg bg-gray-50/70 cursor-pointer">
+              <label className={`flex items-center gap-2.5 p-3 rounded-lg border-2 cursor-pointer transition ${
+                writerProfile.sgaMember
+                  ? "border-[#0f2544] bg-[#0f2544]/5"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}>
                 <input
                   type="checkbox"
                   checked={Boolean(writerProfile.sgaMember)}
                   onChange={(e) => setWriterProfile({ ...writerProfile, sgaMember: e.target.checked })}
-                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] accent-[#0f2544]"
                 />
-                <span className="text-sm font-semibold text-gray-700">I am a SGA member</span>
+                <span className={`text-sm font-semibold ${writerProfile.sgaMember ? "text-gray-900" : "text-gray-700"}`}>I am a SGA member</span>
               </label>
             </div>
             
@@ -1454,77 +1425,74 @@ const WriterOnboarding = () => {
             {/* Legal Agreement */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Terms & Conditions
+                Legal Agreements
               </label>
-              <div className="border-2 border-gray-200 rounded-lg p-4 text-sm text-gray-700 bg-gray-50">
-                <p className="leading-relaxed mb-3">
-                  Please review the full Writer Onboard Terms and Conditions on a separate page.
-                </p>
-                <Link
-                  to={WRITER_TERMS_ROUTE}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0f2544] text-white hover:bg-[#1a365d] transition font-semibold"
-                >
-                  Open Terms & Conditions
-                  <ArrowRight size={16} />
-                </Link>
-                <p className="mt-3 text-xs text-gray-500">
-                  Terms version: {WRITER_TERMS_VERSION}
-                </p>
-              </div>
               
-              {/* Agreement Checkbox */}
-              <div className="flex items-start mt-3">
-                <input
-                  type="checkbox"
-                  id="agreement"
-                  checked={agreementAccepted}
-                  onChange={(e) => setAgreementAccepted(e.target.checked)}
-                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5"
-                  style={{ accentColor: '#1e3a5f' }}
-                />
-                <label
-                  htmlFor="agreement"
-                  className="ml-3 text-sm text-gray-900"
-                >
-                  I have read and agree to the Terms & Conditions
-                </label>
-              </div>
-
-              <div className="mt-4 border-2 border-gray-200 rounded-lg p-4 text-sm text-gray-700 bg-gray-50">
-                <p className="leading-relaxed mb-3">
-                  Please review the Registration Privacy Policy. This applies to both writers and investors.
+              <div className="border-2 border-gray-200 rounded-lg p-4 text-sm text-gray-700 bg-gray-50">
+                <p className="leading-relaxed mb-4">
+                  Please review our Terms and Conditions and Privacy Policy before completing your registration. This applies to your content and data.
                 </p>
-                <Link
-                  to={REGISTRATION_PRIVACY_ROUTE}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0f2544] text-white hover:bg-[#1a365d] transition font-semibold"
-                >
-                  Open Privacy Policy
-                  <ArrowRight size={16} />
-                </Link>
-                <p className="mt-3 text-xs text-gray-500">
-                  Privacy policy version: {PRIVACY_POLICY_VERSION}
-                </p>
-              </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                  <Link
+                    to={WRITER_TERMS_ROUTE}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#0f2544] text-white hover:bg-[#1a365d] transition font-semibold flex-1"
+                  >
+                    Open Terms & Conditions
+                    <ArrowRight size={16} />
+                  </Link>
+                  <Link
+                    to={REGISTRATION_PRIVACY_ROUTE}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#0f2544] text-white hover:bg-[#1a365d] transition font-semibold flex-1"
+                  >
+                    Open Privacy Policy
+                    <ArrowRight size={16} />
+                  </Link>
+                </div>
 
-              <div className="flex items-start mt-3">
-                <input
-                  type="checkbox"
-                  id="privacy-policy"
-                  checked={privacyPolicyAccepted}
-                  onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
-                  className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5"
-                  style={{ accentColor: '#1e3a5f' }}
-                />
-                <label
-                  htmlFor="privacy-policy"
-                  className="ml-3 text-sm text-gray-900"
-                >
-                  I have read and agree to the Privacy Policy
-                </label>
+                <div className="space-y-3 mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-start">
+                    <input
+                      type="checkbox"
+                      id="agreement"
+                      checked={agreementAccepted}
+                      onChange={(e) => setAgreementAccepted(e.target.checked)}
+                      className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5"
+                      style={{ accentColor: '#1e3a5f' }}
+                    />
+                    <label
+                      htmlFor="agreement"
+                      className="ml-3 text-sm font-medium text-gray-900"
+                    >
+                      I have read and agree to the Writer Onboard Terms and Conditions
+                    </label>
+                  </div>
+                  <div className="flex items-start">
+                    <input
+                      type="checkbox"
+                      id="privacy-policy"
+                      checked={privacyPolicyAccepted}
+                      onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
+                      className="w-5 h-5 border-gray-300 rounded focus:ring-[#1e3a5f] mt-0.5"
+                      style={{ accentColor: '#1e3a5f' }}
+                    />
+                    <label
+                      htmlFor="privacy-policy"
+                      className="ml-3 text-sm font-medium text-gray-900"
+                    >
+                      I have read and agree to the Registration Privacy Policy
+                    </label>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-col sm:flex-row justify-between text-xs text-gray-400">
+                  <span>Terms version: {WRITER_TERMS_VERSION}</span>
+                  <span>Privacy policy version: {PRIVACY_POLICY_VERSION}</span>
+                </div>
               </div>
             </div>
 
