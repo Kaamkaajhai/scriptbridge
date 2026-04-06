@@ -189,6 +189,14 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
         ...(discountApplied ? { discountCode: discountApplied.code } : {}),
       });
 
+      if (orderData.directPurchase) {
+        setPurchasing(false);
+        setSuccess(true);
+        if (onSuccess) onSuccess(orderData);
+        setTimeout(() => onClose(), 2000);
+        return;
+      }
+
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,

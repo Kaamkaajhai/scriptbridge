@@ -1292,65 +1292,66 @@ const InvestorOnboarding = () => {
                   <p className="text-gray-400 text-sm font-medium mt-1">Please read and accept the terms before accessing the platform</p>
                 </div>
                 <div className="p-8 space-y-5">
-                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600 space-y-3">
-                    <p className="font-black text-gray-700">Investor Registration Terms and Conditions</p>
-                    <p>
-                      Review the full investor terms on a separate page before you complete registration.
+                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600">
+                    <p className="font-black text-gray-700 mb-2">Legal Agreements</p>
+                    <p className="mb-4">
+                      Please review our Terms and Conditions and Privacy Policy before completing your registration.
                     </p>
-                    <Link
-                      to={INVESTOR_TERMS_ROUTE}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm"
-                    >
-                      Open Terms & Conditions
-                      <ArrowRight size={14} />
-                    </Link>
-                    <p className="text-xs text-gray-400">Terms version: {INVESTOR_TERMS_VERSION}</p>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 mb-5">
+                      <Link
+                        to={INVESTOR_TERMS_ROUTE}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm flex-1"
+                      >
+                        Open Terms & Conditions
+                        <ArrowRight size={14} />
+                      </Link>
+                      <Link
+                        to={REGISTRATION_PRIVACY_ROUTE}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm flex-1"
+                      >
+                        Open Privacy Policy
+                        <ArrowRight size={14} />
+                      </Link>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-gray-200">
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={agreementAccepted}
+                          onChange={(e) => setAgreementAccepted(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-300"
+                          style={{ accentColor: "#1e3a5f" }}
+                        />
+                        <span className="text-sm font-semibold text-gray-700">
+                          I have read and agree to the Investor Registration Terms and Conditions
+                        </span>
+                      </label>
+
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={privacyPolicyAccepted}
+                          onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-300"
+                          style={{ accentColor: "#1e3a5f" }}
+                        />
+                        <span className="text-sm font-semibold text-gray-700">
+                          I have read and agree to the Registration Privacy Policy
+                        </span>
+                      </label>
+                    </div>
+
+                    <div className="mt-5 flex flex-col sm:flex-row justify-between text-xs text-gray-400">
+                      <span>Terms version: {INVESTOR_TERMS_VERSION}</span>
+                      <span>Privacy policy version: {PRIVACY_POLICY_VERSION}</span>
+                    </div>
                   </div>
-
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={agreementAccepted}
-                      onChange={(e) => setAgreementAccepted(e.target.checked)}
-                      className="w-5 h-5 rounded border-gray-300"
-                      style={{ accentColor: "#1e3a5f" }}
-                    />
-                    <span className="text-sm font-semibold text-gray-700">
-                      I have read and agree to the Investor Registration Terms and Conditions
-                    </span>
-                  </label>
-
-                  <div className="border border-gray-100 rounded-xl p-5 bg-gray-50 text-sm text-gray-600 space-y-3">
-                    <p className="font-black text-gray-700">Registration Privacy Policy</p>
-                    <p>
-                      Review the privacy policy that applies to both writer and investor registrations.
-                    </p>
-                    <Link
-                      to={REGISTRATION_PRIVACY_ROUTE}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#162d4a] transition-all font-bold text-sm"
-                    >
-                      Open Privacy Policy
-                      <ArrowRight size={14} />
-                    </Link>
-                    <p className="text-xs text-gray-400">Privacy policy version: {PRIVACY_POLICY_VERSION}</p>
-                  </div>
-
-                  <label className="flex items-center gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={privacyPolicyAccepted}
-                      onChange={(e) => setPrivacyPolicyAccepted(e.target.checked)}
-                      className="w-5 h-5 rounded border-gray-300"
-                      style={{ accentColor: "#1e3a5f" }}
-                    />
-                    <span className="text-sm font-semibold text-gray-700">
-                      I have read and agree to the Privacy Policy
-                    </span>
-                  </label>
 
                   {error && (
                     <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-100 rounded-xl">
