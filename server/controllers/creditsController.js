@@ -621,6 +621,92 @@ export const createRazorpayOrder = async (req, res) => {
       finalPrice = discountResult.finalPrice;
     }
 
+    if (finalPrice <= 0) {
+      if (discountInfo && discountCodeStr) {
+        const discountDoc = await DiscountCode.findOne({ code: discountCodeStr.toUpperCase() });
+        if (discountDoc) {
+          discountDoc.usedCount += 1;
+          discountDoc.usedBy.push({ user: req.user._id, usedAt: new Date() });
+          await discountDoc.save();
+        }
+      }
+
+      const totalCredits = purchase.totalCredits;
+
+      if (!user.credits) {
+        user.credits = {
+          balance: 0,
+          totalPurchased: 0,
+          totalSpent: 0,
+          transactions: []
+        };
+      }
+
+      const reference = `DIRECT-${Date.now().toString(36).toUpperCase()}`;
+
+      user.credits.balance += totalCredits;
+      user.credits.totalPurchased += totalCredits;
+      user.credits.lastPurchase = new Date();
+      user.credits.transactions.push({
+        type: "purchase",
+        amount: totalCredits,
+        description: `Purchased ${purchase.name} directly (Price 0)${discountInfo ? ` (Code: ${discountInfo.discountCode.code})` : ""}`,
+        reference,
+        createdAt: new Date()
+      });
+
+      await user.save();
+
+      await Transaction.create({
+        user: user._id,
+        type: "payment",
+        amount: 0,
+        currency: purchase.currency || "INR",
+        status: "completed",
+        description: `Credit purchase: ${purchase.name} (${totalCredits} credits)${discountInfo ? ` — Discount ${discountInfo.discountCode.code}` : ""}`,
+        reference,
+        paymentMethod: "direct",
+        metadata: {
+          packageId: purchase.packageRef,
+          planCode: purchase.planCode,
+          isCustom: purchase.isCustom,
+          credits: totalCredits,
+          customCredits: purchase.isCustom ? purchase.credits : undefined,
+          discountCode: discountCodeStr || undefined,
+          discountAmount: discountInfo ? discountInfo.discountAmount : undefined,
+          originalPrice: discountInfo ? purchase.price : undefined,
+        }
+      });
+
+      try {
+        await createCreditPurchaseNotifications({
+          user,
+          purchase,
+          totalCredits,
+          paymentMethod: "direct discount",
+        });
+      } catch (notificationError) {
+        console.error("Direct credit notification error:", notificationError.message);
+      }
+
+      return res.json({
+        success: true,
+        directPurchase: true,
+        message: "Credits added directly as price is zero",
+        credits: {
+          balance: user.credits.balance,
+          purchased: totalCredits,
+          package: purchase.name,
+        },
+        discount: discountInfo ? {
+          code: discountInfo.discountCode.code,
+          discountAmount: discountInfo.discountAmount,
+          originalPrice: purchase.price,
+          finalPrice: 0,
+        } : null,
+      });
+    }
+
     // Razorpay requires at least 1 rupee (100 paise)
     if (finalPrice < 1) finalPrice = 1;
     
