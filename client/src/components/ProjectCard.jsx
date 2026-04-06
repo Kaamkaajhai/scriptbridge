@@ -171,7 +171,7 @@ const ProjectCard = ({ project, userName }) => {
         dark
           ? "bg-[#0c1420] border-[#1a2636] hover:border-[#263c54]"
           : "bg-white border-gray-200 hover:border-gray-300 shadow-[0_1px_4px_rgba(0,0,0,0.05)]"
-      }`}
+      } max-[768px]:border-0 max-[768px]:shadow-none`}
     >
 
       {/* ══ HERO — compact height for tighter cards ══ */}

@@ -201,11 +201,11 @@ const getCroppedThumbnailBlob = async (imageSrc, pixelCrop, rotation = 0) => {
 };
 
 const STEPS = [
-  { num: 1, label: "Basics", desc: "Essentials" },
-  { num: 2, label: "Classify", desc: "Tags & tone" },
-  { num: 3, label: "Upload", desc: "Files" },
-  { num: 4, label: "Publish", desc: "Plan & pricing" },
-  { num: 5, label: "Review", desc: "Legal & checkout" },
+  { num: 1, label: "Basics", shortLabel: "Basic", desc: "Essentials" },
+  { num: 2, label: "Classify", shortLabel: "Class", desc: "Tags & tone" },
+  { num: 3, label: "Upload", shortLabel: "Upload", desc: "Files" },
+  { num: 4, label: "Publish", shortLabel: "Publish", desc: "Plan & pricing" },
+  { num: 5, label: "Review", shortLabel: "Review", desc: "Legal & checkout" },
 ];
 
 const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
@@ -1143,7 +1143,7 @@ const ScriptUpload = () => {
   ];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
+    <div className="max-w-3xl mx-auto px-4 max-[640px]:px-2 max-[420px]:px-1.5 py-6 max-[640px]:py-4">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
@@ -1154,10 +1154,46 @@ const ScriptUpload = () => {
         </div>
 
         {/* Step indicators */}
-        <div className={`mb-6 rounded-2xl border p-4 ${isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
-          <div className="flex items-center">
+        <div className={`mb-6 rounded-2xl border p-4 max-[640px]:p-2.5 ${isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-gray-50 border-gray-200"}`}>
+          {/* Mobile layout */}
+          <div className="hidden max-[640px]:block">
+            <div className="flex items-start justify-between gap-1">
+              {STEPS.map((s) => (
+                <button
+                  key={`mobile-step-${s.num}`}
+                  onClick={() => s.num < step && setStep(s.num)}
+                  disabled={s.num > step}
+                  className={`min-w-0 flex-1 flex flex-col items-center gap-1 ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className={`w-6 h-6 max-[360px]:w-[22px] max-[360px]:h-[22px] rounded-lg flex items-center justify-center text-[10px] max-[360px]:text-[9px] font-black shrink-0 ${step === s.num
+                    ? "bg-[#1e3a5f] text-white shadow-md"
+                    : step > s.num
+                      ? isDarkMode ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-100 text-emerald-700"
+                      : isDarkMode ? "bg-white/[0.06] text-neutral-500" : "bg-gray-200 text-gray-400"
+                    }`}>
+                    {step > s.num ? (
+                      <svg className="w-3 h-3 max-[360px]:w-2.5 max-[360px]:h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : s.num}
+                  </span>
+                  <span className={`text-[8px] max-[360px]:text-[7px] font-semibold leading-none truncate w-full text-center ${step === s.num
+                    ? isDarkMode ? "text-white" : "text-[#1e3a5f]"
+                    : step > s.num
+                      ? isDarkMode ? "text-emerald-300" : "text-emerald-700"
+                      : isDarkMode ? "text-neutral-500" : "text-gray-400"
+                    }`}>
+                    {s.shortLabel}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tablet and desktop layout */}
+          <div className="max-[640px]:hidden flex items-center">
             {STEPS.map((s, i) => (
-              <div key={s.num} className="flex items-center flex-1">
+              <div key={s.num} className="flex items-center flex-1 min-w-0">
                 <button
                   onClick={() => s.num < step && setStep(s.num)}
                   disabled={s.num > step}
@@ -1175,8 +1211,8 @@ const ScriptUpload = () => {
                       </svg>
                     ) : s.num}
                   </span>
-                  <div className="block text-center min-[640px]:text-left">
-                    <p className={`text-xs font-bold leading-none ${step === s.num
+                  <div className="block text-center min-[640px]:text-left min-w-0">
+                    <p className={`text-xs font-bold leading-none truncate ${step === s.num
                       ? isDarkMode ? "text-white" : "text-[#1e3a5f]"
                       : step > s.num
                         ? isDarkMode ? "text-emerald-300" : "text-emerald-700"
@@ -1197,7 +1233,7 @@ const ScriptUpload = () => {
         </div>
 
         {/* Main form container */}
-        <div className={`rounded-2xl border p-6 sm:p-8 ${isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200 shadow-sm"}`}>
+        <div className={`rounded-2xl border p-6 sm:p-8 max-[640px]:p-4 max-[420px]:p-3 ${isDarkMode ? "bg-[#0d1829] border-white/[0.06]" : "bg-white border-gray-200 shadow-sm"}`}>
           {error && (
             <div className="mb-5 px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
               {error}
@@ -1431,7 +1467,7 @@ const ScriptUpload = () => {
                     </div>
                   </div>
 
-                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
+                  <div className={`rounded-2xl border p-4 sm:p-5 max-[640px]:p-3.5 max-[420px]:p-3 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div>
                         <h3 className={`text-sm font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Role Studio</h3>
@@ -1542,7 +1578,7 @@ const ScriptUpload = () => {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
+                  <div className={`rounded-2xl p-4 sm:p-5 max-[640px]:p-3.5 max-[420px]:p-3 ${isDarkMode ? "bg-[#0b1626]" : "bg-white"}`}>
                     <div className="flex items-center justify-between mb-2">
                       <label className={`block text-sm ${labelCls} font-medium`}>
                         Script File (PDF) *
@@ -1639,7 +1675,7 @@ const ScriptUpload = () => {
 
                   </div>
 
-                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
+                  <div className={`rounded-2xl border p-4 sm:p-5 max-[640px]:p-3.5 max-[420px]:p-3 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-white"}`}>
                     <div className="mb-4">
                       <h3 className={`text-sm font-semibold ${isDarkMode ? "text-white" : "text-[#1e3a5f]"}`}>Visual Assets</h3>
                       <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Add a cover image and trailer to improve profile quality and discovery.</p>
@@ -1647,12 +1683,12 @@ const ScriptUpload = () => {
 
                     <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${isDarkMode ? "border-white/[0.06]" : "border-gray-100"}`}>
                     {/* Thumbnail Upload */}
-                    <div className={`rounded-2xl border p-4 ${isDarkMode ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl p-4 ${isDarkMode ? "bg-[#0d1829]" : "bg-gray-50/60"}`}>
                       <label className={`block text-sm font-medium mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                         Script Thumbnail <span className={`text-xs font-normal ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
                       </label>
                       {!thumbnailFile ? (
-                        <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${isDarkMode ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                        <div onClick={() => thumbnailInputRef.current?.click()} className={`rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${isDarkMode ? "bg-white/[0.03] hover:bg-white/[0.06]" : "bg-white hover:bg-gray-100/70"}`}>
                           <svg className={`w-8 h-8 mb-2 ${isDarkMode ? "text-[#1d3350]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0L21.75 15m-10.5-9h.008v.008h-.008V6ZM3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z" /></svg>
                           <p className={`text-xs font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
                           <p className={`text-[10px] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
@@ -1698,7 +1734,7 @@ const ScriptUpload = () => {
                     </div>
 
                     {/* Trailer Upload */}
-                    <div className={`rounded-2xl border p-4 ${isDarkMode ? "border-[#1d3350] bg-[#0d1829]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl p-4 ${isDarkMode ? "bg-[#0d1829]" : "bg-gray-50/60"}`}>
                       <label className={`block text-sm font-medium mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
                         Trailer Video <span className={`text-xs font-normal ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
                       </label>
@@ -1714,7 +1750,7 @@ const ScriptUpload = () => {
                       />
 
                       {!trailerFile ? (
-                        <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${isDarkMode ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                        <div onClick={() => trailerInputRef.current?.click()} className={`rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${isDarkMode ? "bg-white/[0.03] hover:bg-white/[0.06]" : "bg-white hover:bg-gray-100/70"}`}>
                           <svg className={`w-8 h-8 mb-2 ${isDarkMode ? "text-[#1d3350]" : "text-gray-400"}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-2.36A.75.75 0 0 1 21.75 8.8v6.4a.75.75 0 0 1-1.28.53l-4.72-2.36m-1.5 3.98V6.67A2.25 2.25 0 0 0 12 4.42H4.5a2.25 2.25 0 0 0-2.25 2.25v10.66A2.25 2.25 0 0 0 4.5 19.58H12a2.25 2.25 0 0 0 2.25-2.25Z" /></svg>
                           <p className={`text-xs font-medium mb-1 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
                           <p className={`text-[10px] ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>
@@ -1798,13 +1834,13 @@ const ScriptUpload = () => {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-5"
                 >
-                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-8 space-y-5 min-[420px]:space-y-6 ${isDarkMode ? "border-white/[0.06] bg-[#0d1829]" : "border-gray-200 bg-white shadow-sm"}`}>
+                  <div className={`rounded-2xl p-4 min-[420px]:p-5 sm:p-8 max-[640px]:p-2.5 max-[420px]:p-2 space-y-5 min-[420px]:space-y-6 ${isDarkMode ? "bg-[#0d1829]" : "bg-white shadow-sm"}`}>
                     <div>
                       <h2 className={`text-lg font-bold mb-1 ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Submission Setup</h2>
                       <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>Choose access, set price, select services, and accept terms.</p>
                     </div>
 
-                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 space-y-4 min-[420px]:space-y-5 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 max-[640px]:-mx-1 max-[420px]:-mx-0.5 space-y-4 min-[420px]:space-y-5 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                       <div className="flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-start min-[460px]:justify-between">
                         <div>
                           <h3 className={`text-[15px] min-[420px]:text-base font-bold mt-0.5 ${isDarkMode ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
@@ -1896,7 +1932,7 @@ const ScriptUpload = () => {
                       )}
                     </div>
 
-                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 max-[640px]:-mx-1 max-[420px]:-mx-0.5 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                       <div className="flex items-center gap-2.5 mb-5">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                           <svg className={`w-4 h-4 ${isDarkMode ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h16.5A2.25 2.25 0 0122.5 5.25V9M3.75 3l5.25 5.25m0 0L12 11.25m-3-3L6 11.25m3-3v8.25" /></svg>
@@ -2015,7 +2051,7 @@ const ScriptUpload = () => {
                       </div>
                     </div>
 
-                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 max-[640px]:-mx-1 max-[420px]:-mx-0.5 ${isDarkMode ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                       <div className="flex items-center gap-2.5 mb-4">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDarkMode ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                           <svg className={`w-4 h-4 ${isDarkMode ? "text-purple-300" : "text-purple-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h3.75A2.625 2.625 0 0116.5 4.875v1.5H7.5v-1.5A2.625 2.625 0 0110.125 2.25zM7.5 9h9m-9 0v8.625A2.625 2.625 0 0010.125 20.25h3.75A2.625 2.625 0 0016.5 17.625V9m-9 0h9" /></svg>

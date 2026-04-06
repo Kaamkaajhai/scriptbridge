@@ -322,12 +322,13 @@ const Join = () => {
         otpExpirySeconds={otpConfig.otpExpirySeconds}
         initialResendCooldownSeconds={otpConfig.resendCooldownSeconds}
         startCooldownOnMount={otpConfig.startCooldownOnMount}
+        darkBackground
       />
     );
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center bg-[#080e18]">
+    <div className="reader-signup-page min-h-screen relative overflow-hidden flex items-center justify-center !bg-[#080e18]">
       <div
         className="absolute inset-0 opacity-[0.035] pointer-events-none"
         style={{
@@ -348,20 +349,20 @@ const Join = () => {
               <BookOpen className="text-white" size={40} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-[#7f8ea2] text-sm font-medium mb-6">Reader Onboarding</p>
-        <div className="w-full max-w-[540px] bg-[#0d1520]/95 rounded-2xl shadow-2xl shadow-black/30 border border-[#1a2433] p-10 backdrop-blur-sm">
+          <p className="text-[#8ea0b5] text-sm font-medium mb-6">Reader Onboarding</p>
+        <div className="reader-signup-panel w-full max-w-[540px] bg-white rounded-2xl shadow-2xl shadow-slate-900/10 border border-slate-200 p-10 backdrop-blur-sm">
           <div className="mb-8">
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">Create your account</h2>
-            <p className="text-[15px] text-[#7f8ea2] mt-1.5 font-medium">Get started with Ckript in seconds</p>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Create your account</h2>
+            <p className="reader-muted text-[15px] mt-1.5 font-medium">Get started with Ckript in seconds</p>
           </div>
 
           {error && (
-            <div className="mb-5 px-4 py-3 bg-red-500/10 border border-red-500/25 text-red-300 rounded-xl text-sm font-semibold flex items-center gap-2">
+            <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-semibold flex items-center gap-2">
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
               <span>
                 {isEmailExists ? (
                   <>An account with this email already exists.{" "}
-                    <Link to="/login" className="underline hover:no-underline text-white">Sign in instead →</Link>
+                    <Link to="/login" className="underline hover:no-underline text-[#1e3a5f]">Sign in instead →</Link>
                   </>
                 ) : error}
               </span>
@@ -398,7 +399,7 @@ const Join = () => {
               )}
             </div>
             {requiresContactDetails && (
-              <div className="rounded-xl border border-[#243447] bg-[#0a111b] p-4 space-y-3">
+              <div className="reader-address-card rounded-xl border border-[#243447] bg-[#0a111b] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <MapPin size={15} className="text-[#8fa2b8]" />
                   <label className="text-[13px] font-semibold text-[#c8d4e3]">Address details</label>
@@ -523,7 +524,7 @@ const Join = () => {
                 onFocus={() => setShowPasswordReqs(true)}
                 required />
               {showPasswordReqs && (
-                <div className="mt-2 p-3 bg-[#0a111b] rounded-lg border border-[#1f2b3c]">
+                <div className="reader-password-hint mt-2 p-3 bg-[#0a111b] rounded-lg border border-[#1f2b3c]">
                   <p className="text-[11px] font-semibold text-[#8fa2b8] mb-2">Password Requirements:</p>
                   <div className="space-y-1">
                     <div className={`flex items-center gap-2 text-[11px] font-medium transition-colors ${passwordValidation.length ? 'text-emerald-400' : 'text-[#6e7f95]'}`}>
@@ -579,24 +580,24 @@ const Join = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 bg-white text-[#08121d] rounded-xl text-[15px] font-bold hover:bg-slate-100 transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-white/10 hover:-translate-y-0.5 mt-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm flex items-center justify-center gap-2"
+              className="w-full py-3 bg-[#1e3a5f] text-white rounded-xl text-[15px] font-bold hover:bg-[#162d4a] transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-[#1e3a5f]/25 hover:-translate-y-0.5 mt-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm flex items-center justify-center gap-2"
             >
               {submitting && (
-                <span className="inline-block w-4 h-4 border-2 border-[#08121d]/30 border-t-[#08121d] rounded-full animate-spin" />
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
               {submitting ? "Creating account..." : "Create account"}
             </button>
 
             {submitting && (
-              <p className="text-center text-[12px] text-[#6e7f95] font-medium">Checking details and creating your account...</p>
+              <p className="reader-muted text-center text-[12px] font-medium">Checking details and creating your account...</p>
             )}
           </form>
 
-          <p className="mt-8 text-center text-[14px] text-[#7f8ea2] font-medium">
-            Already have an account? <Link to="/login" className="text-white font-semibold hover:text-slate-200 transition-colors">Sign in</Link>
+          <p className="reader-muted mt-8 text-center text-[14px] font-medium">
+            Already have an account? <Link to="/login" className="reader-primary-link font-semibold transition-colors">Sign in</Link>
           </p>
           <p className="mt-3 text-center">
-            <Link to="/" className="text-[13px] text-[#6e7f95] hover:text-[#9baabf] font-medium transition-colors">&larr; Back to home</Link>
+            <Link to="/" className="reader-muted text-[13px] font-medium transition-colors hover:text-slate-700">&larr; Back to home</Link>
           </p>
         </div>
       </div>
