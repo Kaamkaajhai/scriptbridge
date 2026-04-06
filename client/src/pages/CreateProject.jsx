@@ -203,11 +203,11 @@ const HIGHLIGHT_COLORS = [
 ];
 
 const STEPS = [
-  { num: 1, label: "Write", desc: "Script content" },
-  { num: 2, label: "Details", desc: "Genre & media" },
-  { num: 3, label: "Classify", desc: "Tones & themes" },
-  { num: 4, label: "Publish", desc: "Pricing & services" },
-  { num: 5, label: "Review", desc: "Final review" },
+  { num: 1, label: "Write", shortLabel: "Write", desc: "Script content" },
+  { num: 2, label: "Details", shortLabel: "Detail", desc: "Genre & media" },
+  { num: 3, label: "Classify", shortLabel: "Class", desc: "Tones & themes" },
+  { num: 4, label: "Publish", shortLabel: "Pub", desc: "Pricing & services" },
+  { num: 5, label: "Review", shortLabel: "Review", desc: "Final review" },
 ];
 
 /* -- Toolbar Icon Button ---------------------------- */
@@ -1522,7 +1522,7 @@ const CreateProject = () => {
     : dark ? "bg-white/[0.05] text-gray-400 hover:bg-white/[0.08] border border-[#1d3350]" : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"}`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 max-[380px]:px-2.5 py-4 overflow-x-hidden">
+    <div className="max-w-5xl mx-auto px-4 max-[768px]:px-2.5 max-[420px]:px-1.5 py-4 overflow-x-hidden">
       {/* -- Header -------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex items-center justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
@@ -1552,8 +1552,9 @@ const CreateProject = () => {
         </div>
 
         {/* -- Step Indicator -- */}
-        <div className={`mt-5 rounded-2xl border p-4 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
-          <div className="flex items-center max-[640px]:grid max-[640px]:grid-cols-5 max-[640px]:gap-1.5">
+        <div className={`mt-5 rounded-2xl border p-4 max-[415px]:p-2.5 max-[340px]:p-2 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-gray-50 border-gray-100"}`}>
+          {/* Desktop and tablet stepper */}
+          <div className="max-[415px]:hidden flex items-center max-[640px]:grid max-[640px]:grid-cols-5 max-[640px]:gap-1.5">
             {STEPS.map((s, i) => (
               <div key={s.num} className="flex items-center flex-1 min-w-0 max-[640px]:flex-col max-[640px]:items-stretch max-[640px]:gap-1">
                 <button
@@ -1562,15 +1563,15 @@ const CreateProject = () => {
                   className={`flex items-center gap-2.5 transition-all max-[640px]:flex-col max-[640px]:gap-1 max-[640px]:justify-center ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <span className={`w-8 h-8 max-[640px]:w-7 max-[640px]:h-7 rounded-xl flex items-center justify-center text-xs max-[640px]:text-[11px] font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
-                      : step > s.num ? dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
-                        : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-200 text-gray-400"
+                    : step > s.num ? dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                      : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-200 text-gray-400"
                     }`}>
                     {step > s.num ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> : s.num}
                   </span>
-                  <div className="text-left max-[640px]:text-center max-[420px]:hidden">
+                  <div className="text-left max-[640px]:text-center">
                     <p className={`text-xs max-[640px]:text-[10px] font-bold max-[640px]:font-semibold leading-none truncate ${step === s.num ? dark ? "text-white" : "text-gray-900"
-                        : step > s.num ? dark ? "text-emerald-400" : "text-emerald-700"
-                          : dark ? "text-gray-600" : "text-gray-400"
+                      : step > s.num ? dark ? "text-emerald-400" : "text-emerald-700"
+                        : dark ? "text-gray-600" : "text-gray-400"
                       }`}>{s.label}</p>
                     <p className={`text-[10px] mt-0.5 max-[640px]:hidden ${dark ? "text-gray-700" : "text-gray-400"}`}>{s.desc}</p>
                   </div>
@@ -1581,6 +1582,49 @@ const CreateProject = () => {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* Small-phone stepper (415px to 300px) */}
+          <div className="hidden max-[415px]:block">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className={`text-[10px] max-[340px]:text-[9px] font-semibold ${dark ? "text-gray-400" : "text-gray-600"}`}>
+                Step {step} of {STEPS.length}
+              </p>
+              <p className={`text-[10px] max-[340px]:text-[9px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-white/[0.06] text-gray-300" : "bg-white text-gray-700 border border-gray-200"}`}>
+                {STEPS[step - 1]?.label}
+              </p>
+            </div>
+
+            <div className={`h-1.5 rounded-full overflow-hidden ${dark ? "bg-white/[0.08]" : "bg-gray-200"}`}>
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${dark ? "bg-emerald-500/45" : "bg-emerald-400"}`}
+                style={{ width: `${(Math.max(step, 1) / Math.max(STEPS.length, 1)) * 100}%` }}
+              />
+            </div>
+
+            <div className="mt-2.5 flex items-start justify-between gap-1">
+              {STEPS.map((s) => (
+                <button
+                  key={`mobile-step-${s.num}`}
+                  onClick={() => s.num < step && setStep(s.num)}
+                  disabled={s.num > step}
+                  className={`min-w-0 flex-1 flex flex-col items-center gap-1 ${s.num < step ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className={`w-6 h-6 max-[340px]:w-[22px] max-[340px]:h-[22px] rounded-lg flex items-center justify-center text-[10px] max-[340px]:text-[9px] font-black shrink-0 ${step === s.num ? "bg-[#1e3a5f] text-white shadow-md"
+                    : step > s.num ? dark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                      : dark ? "bg-white/[0.06] text-gray-600" : "bg-gray-200 text-gray-400"
+                    }`}>
+                    {step > s.num ? <svg className="w-3 h-3 max-[340px]:w-2.5 max-[340px]:h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> : s.num}
+                  </span>
+                  <span className={`text-[8px] max-[340px]:text-[7px] font-semibold leading-none truncate w-full text-center ${step === s.num ? dark ? "text-white" : "text-gray-900"
+                    : step > s.num ? dark ? "text-emerald-400" : "text-emerald-700"
+                      : dark ? "text-gray-600" : "text-gray-400"
+                    }`}>
+                    {s.shortLabel}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -2027,10 +2071,10 @@ const CreateProject = () => {
         {step === 1 && (
           <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25 }}>
             {/* -- Editor Shell -- */}
-            <div className={`rounded-2xl border overflow-hidden ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-white border-gray-200 shadow-sm"}`}>
+            <div className={`rounded-2xl max-[768px]:rounded-xl max-[640px]:rounded-none border overflow-hidden max-[768px]:-mx-2.5 max-[420px]:-mx-1.5 ${dark ? "bg-[#0d1520] border-[#182840]" : "bg-white border-gray-200 shadow-sm"}`}>
 
               {/* -- Top Bar: title + save -- */}
-              <div className={`flex items-center gap-3 px-5 max-[380px]:px-3 py-3 border-b max-[860px]:flex-col max-[860px]:items-stretch ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
+              <div className={`flex items-center gap-3 px-5 max-[640px]:px-3 max-[380px]:px-2.5 py-3 border-b max-[860px]:flex-col max-[860px]:items-stretch ${dark ? "border-[#182840] bg-[#080f1a]" : "border-gray-100 bg-gray-50"}`}>
                 <div className="flex-1 min-w-0">
                   <input
                     type="text"
@@ -2316,7 +2360,7 @@ const CreateProject = () => {
                       Script Thumbnail <span className={`text-xs font-normal ${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span>
                     </label>
                     {!thumbnailFile ? (
-                      <div onClick={() => thumbnailInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                      <div onClick={() => thumbnailInputRef.current?.click()} className={`rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "bg-white/[0.03] hover:bg-white/[0.06]" : "bg-white hover:bg-gray-100/70"}`}>
                         <ImageIcon className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
                         <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload & Adjust Cover</p>
                         <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>JPEG, PNG, WEBP (Max 5MB)</p>
@@ -2378,7 +2422,7 @@ const CreateProject = () => {
                     />
 
                     {!trailerFile ? (
-                      <div onClick={() => trailerInputRef.current?.click()} className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "border-[#1d3350] hover:border-[#1e3a5f]" : "border-gray-200 hover:border-gray-300"}`}>
+                      <div onClick={() => trailerInputRef.current?.click()} className={`rounded-xl p-4 text-center cursor-pointer transition flex flex-col items-center ${dark ? "bg-white/[0.03] hover:bg-white/[0.06]" : "bg-white hover:bg-gray-100/70"}`}>
                         <Film className={`w-8 h-8 mb-2 ${dark ? "text-[#1d3350]" : "text-gray-400"}`} />
                         <p className={`text-xs font-medium mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Upload High-Quality Trailer</p>
                         <p className={`text-[10px] ${dark ? "text-gray-500" : "text-gray-400"}`}>MP4, MOV, MPEG, WebM (Max 250MB)</p>

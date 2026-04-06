@@ -637,12 +637,13 @@ const InvestorOnboarding = () => {
         otpExpirySeconds={otpConfig.otpExpirySeconds}
         initialResendCooldownSeconds={otpConfig.resendCooldownSeconds}
         startCooldownOnMount={otpConfig.startCooldownOnMount}
+        darkBackground
       />
     );
   }
 
   return (
-    <div className="investor-onboarding-page min-h-screen bg-[#080e18] flex items-center justify-center p-4">
+    <div className="investor-onboarding-page min-h-screen !bg-[#080e18] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="text-center mb-3">

@@ -1571,12 +1571,13 @@ const WriterOnboarding = () => {
         otpExpirySeconds={otpConfig.otpExpirySeconds}
         initialResendCooldownSeconds={otpConfig.resendCooldownSeconds}
         startCooldownOnMount={otpConfig.startCooldownOnMount}
+        darkBackground
       />
     );
   }
 
   return (
-    <div className="writer-onboarding-page min-h-screen bg-[#080e18] pt-2 pb-8 px-3 sm:px-4">
+    <div className="writer-onboarding-page min-h-screen !bg-[#080e18] pt-2 pb-8 px-3 sm:px-4">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-3">
