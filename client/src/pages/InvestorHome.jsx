@@ -356,12 +356,12 @@ const InvestorHome = () => {
   ];
 
   return (
-    <div className={`min-h-screen ${bg} pb-24`}>
+    <div className={`min-h-screen ${bg} pb-24 -mx-4 sm:-mx-6 lg:-mx-8 [&_*]:!shadow-none`}>
 
       {/* ═══════ HERO HEADER ═══════ */}
-      <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-5">
-        <div className={`relative overflow-hidden rounded-xl ${panel}`}>
-          <div className="relative z-10 px-4 sm:px-5 py-4 sm:py-5">
+      <div className="relative z-10 max-w-[1280px] mx-auto px-0 sm:px-6 pt-5">
+        <div className={`relative overflow-hidden rounded-xl min-h-[232px] sm:min-h-0 shadow-none ${panel}`}>
+          <div className="relative z-10 px-5 sm:px-5 py-5 sm:py-5">
             <Fade>
               <div className="flex items-center justify-between gap-3 mb-2">
                 <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${dark ? "text-gray-300" : "text-gray-600"}`}>{greeting}</p>
@@ -418,7 +418,7 @@ const InvestorHome = () => {
       </div>
 
       {/* ═══════ FEED ═══════ */}
-      <div className="relative z-10 max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 space-y-7">
+      <div className="relative z-10 max-w-[1280px] mx-auto px-0 sm:px-6 pt-8 space-y-7">
 
         {/* Loading skeleton */}
         {loading && !feed && (
@@ -473,7 +473,7 @@ const InvestorHome = () => {
               {isEmpty && (
                 <Fade delay={0.1}>
                   <div className={`rounded-2xl border p-16 text-center
-                    ${dark ? "bg-[#0a1628] border-white/[0.08]" : "bg-white border-gray-200 shadow-sm"}`}>
+                    ${dark ? "bg-[#0a1628] border-white/[0.08]" : "bg-white border-gray-200"}`}>
                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6
                       ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
                       <svg className={`w-8 h-8 ${dark ? "text-gray-600" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={1.3} viewBox="0 0 24 24">

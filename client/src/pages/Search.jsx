@@ -41,12 +41,12 @@ const PREMIUM_OPTIONS = [
 ];
 
 const SORT_OPTIONS = [
-  { key: "", label: "Relevance", icon: "🔍" },
-  { key: "engagement", label: "Trending", icon: "🔥" },
-  { key: "views", label: "Most Viewed", icon: "👁" },
-  { key: "score", label: "Top Rated", icon: "⭐" },
-  { key: "price_high", label: "Highest Paid", icon: "💰" },
-  { key: "price_low", label: "Price: Low→High", icon: "📈" },
+  { key: "", label: "Relevance" },
+  { key: "engagement", label: "Trending" },
+  { key: "views", label: "Most Viewed" },
+  { key: "score", label: "Top Rated" },
+  { key: "price_high", label: "Highest Paid" },
+  { key: "price_low", label: "Price: Low→High" },
 ];
 
 /* ── Icons ──────────────────────────────────────────── */
@@ -503,7 +503,7 @@ const Search = () => {
                 <FilterSection label="Sort By" t={t}>
                   {SORT_OPTIONS.map((opt) => (
                     <Pill key={opt.key} active={selectedSort === opt.key} onClick={() => setSelectedSort(selectedSort === opt.key ? "" : opt.key)} t={t}>
-                      <span className="flex items-center gap-1.5">{opt.icon} {opt.label}</span>
+                      <span className="flex items-center">{opt.label}</span>
                     </Pill>
                   ))}
                 </FilterSection>
