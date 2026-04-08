@@ -902,7 +902,7 @@ const MainLayout = ({ children }) => {
       </header>
 
       {/* Main content */}
-      <main className="pt-20 sm:pt-16 pb-16 md:pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
+      <main className="pt-20 sm:pt-16 pb-0 md:ml-[64px] lg:ml-[270px] min-h-screen">
         <div className="w-full mx-auto p-4 sm:p-6 lg:p-8 max-w-[1400px]">
           {children}
         </div>
