@@ -18,7 +18,7 @@ import { applyLanguagePreference, getBackendLanguageValue, getProfileLanguageVal
 
 const SectionCard = ({ title, icon, badge, dark, children }) => (
   <div
-    className={`rounded-2xl p-6 border transition-colors ${dark
+    className={`rounded-2xl p-4 sm:p-6 border transition-colors ${dark
       ? "bg-[#0d1520] border-white/[0.06]"
       : "bg-white border-gray-200/70 shadow-sm"
       }`}
@@ -52,12 +52,12 @@ const SectionCard = ({ title, icon, badge, dark, children }) => (
 );
 
 const InfoRow = ({ label, value, dark }) => (
-  <div className="flex items-center justify-between">
+  <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
     <span className={`text-[15px] ${dark ? "text-white/35" : "text-gray-400"}`}>
       {label}
     </span>
     <span
-      className={`text-[15px] font-semibold capitalize ${dark ? "text-white/65" : "text-gray-700"
+      className={`text-[15px] font-semibold capitalize text-right max-[420px]:text-left break-words [overflow-wrap:anywhere] ${dark ? "text-white/65" : "text-gray-700"
         }`}
     >
       {value}
@@ -665,15 +665,15 @@ const Profile = () => {
             backgroundSize: "24px 24px",
           }} />
           {/* Edit / Follow button */}
-          <div className="absolute top-4 right-4 z-10 flex gap-2">
+          <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-auto sm:right-4 z-10 flex justify-end flex-wrap gap-2">
             <SocialShareButton
               share={profileShare}
               buttonLabel="Share"
-              className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] border-white/[0.12] text-white/80" : "bg-white/95 hover:bg-white border-gray-200 text-[#1a3557]"}`}
+              className={`px-3 sm:px-4 py-1.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] border-white/[0.12] text-white/80" : "bg-white/95 hover:bg-white border-gray-200 text-[#1a3557]"}`}
             />
             {isOwnProfile ? (
               <button onClick={() => setShowEditModal(true)}
-                className={`px-4 py-1.5 rounded-xl border text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${t.editBtn}`}>
+                className={`px-3 sm:px-4 py-1.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${t.editBtn}`}>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                 </svg>
@@ -684,14 +684,14 @@ const Profile = () => {
                 <button
                   onClick={handleFollow}
                   disabled={isBlockedByCurrent || blockedByProfile}
-                  className={`px-5 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                  className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
                 >
                   {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
                 </button>
                 <button
                   onClick={handleToggleBlock}
                   disabled={blockingAction || blockedByProfile}
-                  className={`px-4 py-1.5 rounded-xl text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                  className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
                 >
                   {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
                 </button>
@@ -793,20 +793,20 @@ const Profile = () => {
         ) : (
           <>
             {profile.role === "investor" ? (
-              <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
-                <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
-                  <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4 sm:gap-6">
-                    <div className="flex items-start gap-4 sm:gap-5 min-w-0">
+              <div className="px-4 sm:px-8 pb-6 sm:pb-7 -mt-8 sm:-mt-14 relative z-20">
+                <div className={`rounded-2xl sm:rounded-3xl p-4 sm:p-6 ${dark ? "bg-[#0b1320]/95" : "bg-white/95"}`}>
+                  <div className="flex flex-col min-[760px]:flex-row min-[760px]:items-start gap-4 min-[760px]:max-[850px]:gap-3 min-[851px]:gap-6">
+                    <div className="flex items-start max-[420px]:flex-col max-[420px]:items-start gap-4 min-[760px]:max-[850px]:gap-3 sm:gap-5 min-w-0 flex-1">
                       <div className="shrink-0">
                         {profile.profileImage ? (
                           <img
                             src={resolveImage(profile.profileImage)}
                             alt={profile.name}
-                            className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                            className={`w-20 h-20 min-[420px]:w-24 min-[420px]:h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
                           />
                         ) : (
-                          <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
-                            <span className="text-4xl sm:text-5xl font-extrabold text-white/85">
+                          <div className={`w-20 h-20 min-[420px]:w-24 min-[420px]:h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                            <span className="text-3xl min-[420px]:text-4xl sm:text-5xl font-extrabold text-white/85">
                               {profile.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
@@ -815,7 +815,7 @@ const Profile = () => {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.05] ${t.h1}`}>{profile.name}</h1>
+                          <h1 className={`text-[26px] min-[420px]:text-3xl sm:text-4xl min-[760px]:max-[850px]:text-[30px] font-extrabold tracking-tight leading-[1.05] break-words ${t.h1}`}>{profile.name}</h1>
                           <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                             Investor
                           </span>
@@ -829,11 +829,11 @@ const Profile = () => {
                         )}
 
                         {isOwnProfile && (
-                          <p className={`text-[13px] font-semibold mt-2 ${t.email}`}>{profile.email}</p>
+                          <p className={`text-[13px] font-semibold mt-2 break-all ${t.email}`}>{profile.email}</p>
                         )}
 
                         {profile.bio && (
-                          <p className={`text-[15px] leading-relaxed mt-3 line-clamp-2 ${t.body}`}>
+                          <p className={`text-[15px] leading-relaxed mt-3 line-clamp-3 sm:line-clamp-2 ${t.body}`}>
                             {profile.bio}
                           </p>
                         )}
@@ -853,7 +853,7 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 self-start">
+                    <div className={`grid grid-cols-2 max-[360px]:grid-cols-1 gap-2.5 w-full min-[760px]:max-[850px]:w-[248px] min-[851px]:w-[300px] min-[980px]:w-[360px] min-[760px]:shrink-0 rounded-2xl p-2.5 sm:p-3 ${dark ? "bg-white/[0.02]" : "bg-[#eef4fc]"}`}>
                       {[
                         { label: "Followers", value: profile.followers.length, connectionType: "followers" },
                         { label: "Following", value: profile.following.length, connectionType: "following" },
@@ -865,10 +865,10 @@ const Profile = () => {
                           type="button"
                           disabled={!item.connectionType}
                           onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
-                          className={`rounded-xl border px-3 py-3.5 text-left transition-colors disabled:opacity-100 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"} ${item.connectionType ? dark ? "hover:bg-white/[0.08] hover:border-white/[0.16]" : "hover:bg-[#f0f6ff] hover:border-[#bdd3ec]" : "cursor-default"}`}
+                          className={`rounded-2xl px-3.5 py-3 min-h-[92px] min-[760px]:max-[850px]:min-h-[84px] text-left transition-all duration-200 disabled:opacity-100 ${dark ? "bg-[#101b2a] shadow-[0_10px_24px_-18px_rgba(0,0,0,0.85)]" : "bg-white shadow-[0_10px_24px_-18px_rgba(30,58,95,0.35)]"} ${item.connectionType ? dark ? "hover:bg-[#142234] hover:-translate-y-[1px]" : "hover:bg-[#f8fbff] hover:shadow-[0_14px_28px_-20px_rgba(30,58,95,0.45)] hover:-translate-y-[1px]" : "cursor-default"}`}
                         >
-                          <p className={`text-xl sm:text-2xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                          <p className={`text-lg min-[760px]:max-[850px]:text-base min-[851px]:text-xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                          <p className={`text-[10px] min-[760px]:max-[850px]:text-[9px] font-bold uppercase tracking-[0.12em] min-[760px]:max-[850px]:tracking-[0.08em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                         </button>
                       ))}
                     </div>
@@ -1219,7 +1219,7 @@ const Profile = () => {
           {profile.role === "investor" && (
             <>
               {/* Row 1: Professional Info + External Links */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 max-[430px]:grid-cols-1 gap-3">
                 <SectionCard
                   dark={dark}
                   title="Professional Info"
@@ -1235,7 +1235,7 @@ const Profile = () => {
                     <InfoRow dark={dark} label="Sub-Role" value={profile.industryProfile?.subRole || <span className={`italic ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
                     <div>
                       <p className={`text-[13px] mb-1 ${dark ? "text-white/35" : "text-gray-400"}`}>Previous Credits</p>
-                      <p className={`text-[13px] font-medium leading-relaxed ${dark ? "text-white/65" : "text-gray-700"}`}>
+                      <p className={`text-[13px] font-medium leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere] ${dark ? "text-white/65" : "text-gray-700"}`}>
                         {profile.industryProfile?.previousCredits || <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>No credits added yet</span>}
                       </p>
                     </div>

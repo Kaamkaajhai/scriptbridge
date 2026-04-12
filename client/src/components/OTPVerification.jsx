@@ -46,6 +46,7 @@ const OTPVerification = ({
   otpExpirySeconds = DEFAULT_OTP_EXPIRY_SECONDS,
   initialResendCooldownSeconds = DEFAULT_RESEND_COOLDOWN_SECONDS,
   startCooldownOnMount = false,
+  darkBackground = false,
 }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
@@ -226,11 +227,30 @@ const OTPVerification = ({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
+    <div
+      className={`min-h-screen flex items-center justify-center p-4 ${
+        darkBackground
+          ? "relative overflow-hidden bg-[#080e18]"
+          : "bg-gradient-to-br from-blue-50 via-white to-purple-50"
+      }`}
+    >
+      {darkBackground && (
+        <>
+          <div
+            className="absolute inset-0 opacity-[0.035] pointer-events-none"
+            style={{
+              backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+              backgroundSize: "28px 28px",
+            }}
+          />
+          <div className="absolute top-0 left-0 w-[460px] h-[460px] bg-white/[0.03] rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-[360px] h-[360px] bg-white/[0.02] rounded-full blur-3xl translate-x-1/4 translate-y-1/4 pointer-events-none" />
+        </>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Header */}
@@ -344,7 +364,7 @@ const OTPVerification = ({
 
         {/* Tips */}
         <div className="mt-6 text-center">
-          <p className="text-xs text-gray-500">
+          <p className={`text-xs ${darkBackground ? "text-[#8ea0b5]" : "text-gray-500"}`}>
              Tip: Check your spam folder if you don't see the email
           </p>
         </div>

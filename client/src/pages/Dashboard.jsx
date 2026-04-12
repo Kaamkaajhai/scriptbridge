@@ -126,9 +126,9 @@ const CreatorDashboard = ({ user, dark }) => {
   const profileEditPath = user?._id ? `/profile/${user._id}` : "/profile";
 
   return (
-    <div className="bg-white min-h-full relative">
+    <div className="bg-white min-h-full relative max-[640px]:-mx-4 max-[640px]:-mt-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(ellipse_at_top,rgba(30,58,95,0.10),transparent_70%)]"></div>
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="max-w-[1280px] mx-auto px-0 sm:px-6 lg:px-8 relative z-10">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <ProfileCompletionBanner
           completion={user?.profileCompletion}
@@ -140,7 +140,7 @@ const CreatorDashboard = ({ user, dark }) => {
 
         {/* Page heading */}
         <div className="mb-6 sm:mb-8">
-          <div className={`rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 overflow-hidden ${dark ? 'bg-[#0d1520]/70 border-[#1c2a3a]' : 'bg-white border-slate-200 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.28)]'}`}>
+          <div className={`rounded-2xl border max-[640px]:border-x-0 px-3.5 py-4 sm:px-5 sm:py-5 overflow-hidden ${dark ? 'bg-[#0d1520]/70 border-[#1c2a3a]' : 'bg-white border-slate-200 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.28)]'}`}>
             <div className="flex flex-col min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between gap-4">
               <div className="max-[520px]:text-center max-[520px]:mx-auto">
                 <p className={`text-[12px] sm:text-[13px] font-semibold mb-1 ${dark ? 'text-[#4a5a6e]' : 'text-slate-500'}`}>Welcome back{user?.name ? `, ${user.name}` : ""}</p>
@@ -168,14 +168,14 @@ const CreatorDashboard = ({ user, dark }) => {
 
         {/* Stats grid */}
         {statCards.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5 mb-8 sm:justify-items-center">
             {statCards.map((card, idx) => {
               return (
                 <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
-                  className={`rounded-xl border p-5 min-h-[132px] hover:-translate-y-0.5 transition-all duration-200 group/card cursor-default ${dark ? 'bg-[#0d1520] border-[#1c2a3a] hover:shadow-lg hover:shadow-black/20 hover:border-[#2a3a4e]' : 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'}`}>
+                  className={`w-full sm:max-w-[200px] md:max-w-[180px] rounded-xl border max-[640px]:border-x-0 p-3.5 md:p-3 min-h-[104px] md:min-h-[92px] max-[640px]:min-h-[98px] hover:-translate-y-0.5 transition-all duration-200 group/card cursor-default ${dark ? 'bg-[#0d1520] border-[#1c2a3a] hover:shadow-lg hover:shadow-black/20 hover:border-[#2a3a4e]' : 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'}`}>
                   <p className={`text-[11px] font-semibold uppercase tracking-wider mb-1.5 transition-colors ${dark ? 'text-[#3a4a5e] group-hover/card:text-[#8896a7]' : 'text-slate-500 group-hover/card:text-slate-600'}`}>{card.label}</p>
-                  <p className={`text-2xl font-extrabold tabular-nums ${dark ? 'text-white' : 'text-slate-900'}`}>{card.value}</p>
+                  <p className={`text-xl leading-none font-extrabold tabular-nums ${dark ? 'text-white' : 'text-slate-900'}`}>{card.value}</p>
                 </motion.div>
               );
             })}
@@ -397,7 +397,7 @@ const CreatorDashboard = ({ user, dark }) => {
                           return (
                             <motion.div key={r.scriptId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: idx * 0.08 }}
-                              className={`group border rounded-2xl p-6 transition-all duration-300 ${dark ? 'border-[#1c2a3a] hover:border-[#2a3a4e] hover:shadow-md hover:shadow-black/30' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}`}
+                              className={`group rounded-2xl p-6 transition-all duration-300 ${dark ? 'hover:shadow-md hover:shadow-black/30' : 'hover:shadow-md'}`}
                             >
                               <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
                                 {/* Circular Score */}
@@ -452,7 +452,7 @@ const CreatorDashboard = ({ user, dark }) => {
 
                                   {/* AI Feedback */}
                                   {r.feedback && (
-                                    <div className={`mt-4 rounded-xl border p-3.5 ${dark ? 'bg-[#0d1520] border-[#1c2a3a]' : 'bg-gray-50/80 border-gray-100'}`}>
+                                    <div className={`mt-4 rounded-xl p-3.5 ${dark ? 'bg-[#0d1520]' : 'bg-gray-50/80'}`}>
                                       <div className="flex items-center gap-2 mb-2">
                                         <div className="w-6 h-6 rounded-lg bg-[#1e3a5f]/[0.08] flex items-center justify-center shrink-0">
                                           <svg className="w-3.5 h-3.5 text-[#1e3a5f]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
