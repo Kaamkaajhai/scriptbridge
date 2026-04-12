@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Send, CheckCircle2, MessageSquare, Briefcase, HelpCircle, PhoneCall, Clock3 } from "lucide-react";
 import api from "../services/api";
-import BrandLogo from "../components/BrandLogo";
+import MarketingHeader from "../components/MarketingHeader";
 import { useDarkMode } from "../context/DarkModeContext";
 
 const contactReasons = [
@@ -15,21 +15,11 @@ const contactReasons = [
 ];
 
 const ContactPage = () => {
-  const navigate = useNavigate();
   const { isDarkMode } = useDarkMode();
   const [form, setForm] = useState({ reason: "", otherReason: "", name: "", email: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate("/");
-  };
 
   const theme = {
     page: isDarkMode ? "bg-[#060d16] text-white" : "bg-[#f4f7fb] text-gray-900",
@@ -82,21 +72,7 @@ const ContactPage = () => {
 
   return (
     <div className={`min-h-screen ${theme.page}`}>
-      <nav className="fixed top-0 w-full z-50 bg-[#080e18]/90 backdrop-blur-sm border-b border-[#151f2e]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
-          <Link to="/" className="inline-flex items-center" aria-label="Go to landing page">
-            <BrandLogo className="h-8 sm:h-10 w-auto" />
-          </Link>
-
-          <button
-            type="button"
-            onClick={handleBack}
-            className="px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium text-[#8896a7] hover:text-white transition-colors whitespace-nowrap"
-          >
-            Back
-          </button>
-        </div>
-      </nav>
+      <MarketingHeader />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 sm:pt-28 pb-8 sm:pb-12">
         <motion.div
@@ -312,7 +288,7 @@ const ContactPage = () => {
 
       <footer className="py-8 sm:py-10 px-4 sm:px-6 border-t border-[#151f2e] bg-[#080e18]">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs sm:text-sm text-[#4a5a6e] text-center sm:text-left">&copy; 2026 Ckript. Connecting brilliant ideas with brilliant people.</p>
+          <p className="text-xs sm:text-sm text-[#4a5a6e] text-center sm:text-left">&copy; 2026 Ckript. All rights reserved.</p>
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 sm:gap-6 text-xs sm:text-sm text-[#4a5a6e]">
             <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>
             <Link to="/terms-of-service" className="hover:text-white transition-colors">T and C</Link>

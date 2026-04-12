@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
-import { BookOpen, MapPin, Phone } from "lucide-react";
+import { UserPlus, MapPin, Phone } from "lucide-react";
 import OTPVerification from "../components/OTPVerification";
 import BrandLogo from "../components/BrandLogo";
 import api from "../services/api";
@@ -68,10 +68,15 @@ const DEFAULT_ADDRESS_FIELDS = {
   zipCode: "",
 };
 
+const ENABLED_SIGNUP_ROLES = new Set(["creator", "investor"]);
+const DEFAULT_SIGNUP_ROLE = "creator";
+
 const Join = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const requestedRole = String(searchParams.get("role") || "").toLowerCase();
+  const initialRole = ENABLED_SIGNUP_ROLES.has(requestedRole) ? requestedRole : DEFAULT_SIGNUP_ROLE;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -95,10 +100,16 @@ const Join = () => {
     email: "",
     phone: "",
     password: "",
-    role: searchParams.get("role") || "creator",
+    role: initialRole,
   });
 
-  const requiresContactDetails = ["reader", "investor"].includes(formData.role);
+  const requiresContactDetails = formData.role === "investor";
+
+  useEffect(() => {
+    if (requestedRole && !ENABLED_SIGNUP_ROLES.has(requestedRole)) {
+      navigate("/signup", { replace: true });
+    }
+  }, [navigate, requestedRole]);
 
   useEffect(() => {
     if (!requiresContactDetails) {
@@ -346,10 +357,10 @@ const Join = () => {
           </div>
           <div className="flex items-center justify-center mb-0">
             <div className="w-20 h-20 bg-[#0d1520] border border-[#1a2433] rounded-xl flex items-center justify-center shadow-lg shadow-black/25">
-              <BookOpen className="text-white" size={40} strokeWidth={1.5} />
+              <UserPlus className="text-white" size={40} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-[#8ea0b5] text-sm font-medium mb-6">Reader Onboarding</p>
+          <p className="text-[#8ea0b5] text-sm font-medium mb-6">Account Setup</p>
         <div className="reader-signup-panel w-full max-w-[540px] bg-white rounded-2xl shadow-2xl shadow-slate-900/10 border border-slate-200 p-10 backdrop-blur-sm">
           <div className="mb-8">
             <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Create your account</h2>
