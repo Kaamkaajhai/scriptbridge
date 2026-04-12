@@ -7,32 +7,32 @@ const features = [
     icon: Play,
     tag: "AI · Video",
     title: "Text-to-Trailer AI",
-    subtitle: "30-sec visual pitch from scripts",
-    description: "Ckript uses AI to transform written scripts into a captivating 30-second visual trailer. By combining stock footage and AI-generated visuals, your concept is communicated quickly, clearly, and memorably to producers and investors.",
-    benefits: ["Auto-generate trailers in seconds", "Hook decision-makers visually", "Increase discovery rate by 5x"],
+    subtitle: "30-second visual pitch from your script",
+    description: "Ckript turns your written script into a captivating 30-second visual trailer. By blending stock footage with AI-generated visuals, your concept reaches producers and investors quickly, clearly, and memorably.",
+    benefits: ["Auto-generate trailers in seconds", "Hook decision-makers visually", "5x your discovery rate"],
   },
   {
     icon: Lock,
     tag: "Monetisation",
-    title: "Locked Ideas + Paid Unlocks",
-    subtitle: "Summaries public, full ideas protected",
-    description: "Your complete script remains securely protected behind a paywall. Share a curated public summary to generate interest, while producers can purchase access to unlock the full work — ensuring your intellectual property remains safeguarded.",
+    title: "Locked Ideas, Paid Unlocks",
+    subtitle: "Public summaries, protected scripts",
+    description: "Your full script stays safely behind a paywall. Share a curated public summary to spark interest while producers pay to unlock the full work — your IP stays yours, always.",
     benefits: ["Full script IP protection", "Earn from every unlock", "Public teasers drive demand"],
   },
   {
     icon: Star,
     tag: "AI · Discovery",
-    title: "AI Smart Matching Engine",
-    subtitle: "data-driven + targeted discovery",
-    description: "Our recommendation system analyzes producer activity and preferences to surface highly relevant matches. Writers are discovered by producers actively seeking content within their specific genres.",
-    benefits: ["Auto-match by genre & style", "Effortless Connections", "Real-time producer notifications"],
+    title: "Smart Matching Engine",
+    subtitle: "Data-driven, targeted discovery",
+    description: "Our recommendation engine analyzes producer activity and preferences to surface the right matches. Writers get found by producers actively looking for stories in their genre.",
+    benefits: ["Auto-matched by genre & style", "Effortless connections", "Real-time producer alerts"],
   },
   {
     icon: Mic,
     tag: "AI · Analysis",
     title: "Script Validation & Scoring",
-    subtitle: "AI-based story analysis",
-    description: "Each script is analyzed by our AI for structure, originality, market potential, and narrative quality. Creators receive a detailed score breakdown, providing clear insight into the script's strengths and areas for improvement before it reaches industry professionals.",
+    subtitle: "AI-powered story analysis",
+    description: "Every script gets analyzed for structure, originality, market potential, and narrative quality. You receive a detailed score breakdown — clear insight into what's working and what needs polish, before it reaches the industry.",
     benefits: ["Detailed AI score report", "Structure & originality analysis", "Market-fit recommendations"],
   },
   {
@@ -40,24 +40,24 @@ const features = [
     tag: "Business",
     title: "Option Hold Exclusivity",
     subtitle: "30-day paid holding periods",
-    description: "Producers can secure temporary exclusivity by paying to reserve a script for 30 days while creators receive protection and guaranteed compensation during the evaluation period.",
-    benefits: ["Guaranteed income per hold", "Exclusive 30-day lock-in", "Drives faster producer decisions"],
+    description: "Producers can secure temporary exclusivity by paying to reserve a script for 30 days. Creators get protection and guaranteed compensation during the evaluation window — everyone wins.",
+    benefits: ["Guaranteed income per hold", "Exclusive 30-day lock-in", "Faster producer decisions"],
   },
   {
     icon: PenTool,
     tag: "AI · Writing",
     title: "AI Writing Studio",
-    subtitle: "AI-assisted text editor",
-    description: "Create, edit, and refine your scripts directly on the platform with an AI writing assistant. The system offers live guidance on dialogue, pacing, and structural flow, helping creators produce a polished screenplay before submission.",
+    subtitle: "An AI co-writer at your side",
+    description: "Create, edit, and refine your scripts directly on the platform with an AI writing assistant. Get live guidance on dialogue, pacing, and structure — polish your screenplay before you ever submit.",
     benefits: ["Real-time AI co-writing", "Dialogue & pacing suggestions", "In-platform draft management"],
   },
   {
     icon: BookOpen,
     tag: "Review",
     title: "Expert Reader Reviews",
-    subtitle: "Platform-curated professionals",
-    description: "Submissions are reviewed by curated expert readers who provide comprehensive coverage reports. Receive industry-standard feedback that reflects how decision-makers are likely to assess your work.",
-    benefits: ["Industry-standard coverage", "Curated expert reviewers", "Actionable professional feedback"],
+    subtitle: "Curated industry professionals",
+    description: "Submissions are reviewed by hand-picked expert readers who provide industry-standard coverage reports. Get the same kind of feedback decision-makers use to evaluate scripts every day.",
+    benefits: ["Industry-standard coverage", "Hand-picked reviewers", "Actionable professional feedback"],
   },
 ];
 
@@ -67,33 +67,47 @@ const FeaturesShowcase = () => {
   const Icon = f.icon;
 
   return (
-    <section id="platform-innovations" className="py-28 px-6 bg-[#080e18]">
-      <div className="max-w-6xl mx-auto">
+    <section
+      id="platform-innovations"
+      className="relative pt-12 pb-24 sm:pt-16 sm:pb-32 px-4 sm:px-8 bg-[#F8FAFC] overflow-hidden"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      <div className="max-w-7xl mx-auto">
 
-        {/* Header — left aligned */}
+        {/* Header */}
         <motion.div
-          className="max-w-2xl mb-14"
+          className="max-w-3xl mb-14 sm:mb-20"
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.6 }}
         >
-          <p className="text-gray-400 text-sm font-semibold tracking-wide uppercase mb-3">Platform Innovations</p>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight">
-            Revolutionary Features That Change Everything
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] mb-5">
+            What you get
+          </p>
+          <h2
+            className="text-4xl sm:text-5xl lg:text-6xl text-[#111827] leading-[1.05] tracking-tight font-medium"
+            style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+          >
+            Built for writers.<br />
+            <em>Loved by producers.</em>
           </h2>
+          <p className="text-base sm:text-lg text-[#6B7280] mt-5 max-w-xl leading-relaxed">
+            Seven tools that turn your script from a file on your laptop into a film
+            people actually want to make.
+          </p>
         </motion.div>
 
-        {/* Layout: sidebar tabs + detail panel */}
-        <div className="grid lg:grid-cols-[280px_1fr] gap-5">
+        {/* Layout */}
+        <div className="grid lg:grid-cols-[300px_1fr] gap-6">
 
-          {/* Feature list — vertical on desktop, horizontal scroll on mobile */}
+          {/* Sidebar tabs */}
           <motion.div
-            className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0"
+            className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0 pb-2 lg:pb-0"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.5 }}
           >
             {features.map((feat, i) => {
               const TabIcon = feat.icon;
@@ -102,13 +116,21 @@ const FeaturesShowcase = () => {
                 <button
                   key={i}
                   onClick={() => setActive(i)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors duration-150 shrink-0 ${
+                  className={`group flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all duration-200 shrink-0 ${
                     isActive
-                      ? "bg-[#0f1b2c] border-[#324962] text-white shadow-[0_6px_16px_rgba(2,8,18,0.45)]"
-                      : "bg-[#091324] border-[#17283d] text-[#6f8197] hover:text-[#a9bfd8] hover:bg-[#0d1a2c]"
+                      ? "bg-white border-[#6366F1] text-[#111827] shadow-[0_8px_24px_rgba(79,70,229,0.10)]"
+                      : "bg-white border-[#E5E7EB] text-[#6B7280] hover:border-[#D1D5DB] hover:text-[#111827]"
                   }`}
                 >
-                  <TabIcon className={`w-4 h-4 shrink-0 ${isActive ? "text-[#d4e5ff]" : "text-[#6f8197]"}`} />
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      isActive
+                        ? "bg-[#6366F1] text-white"
+                        : "bg-[#F3F4F6] text-[#6B7280] group-hover:bg-[#E5E7EB]"
+                    }`}
+                  >
+                    <TabIcon className="w-3.5 h-3.5" />
+                  </div>
                   <span className="text-sm font-medium whitespace-nowrap">
                     {feat.title}
                   </span>
@@ -121,50 +143,69 @@ const FeaturesShowcase = () => {
           <AnimatePresence mode="wait">
             <motion.div
               key={active}
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
-              transition={{ duration: 0.25 }}
-              className="rounded-xl border border-[#d5deea] bg-white p-7 sm:p-9"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+              className="rounded-3xl bg-white p-7 sm:p-10 shadow-[0_20px_60px_rgba(17,24,39,0.06)] border border-[#E5E7EB]"
             >
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-11 h-11 rounded-lg bg-[#eef4fb] border border-[#d9e4f2] flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5 text-[#355b85]" />
+              {/* Header row */}
+              <div className="flex items-start gap-4 mb-7">
+                <div className="w-12 h-12 rounded-2xl bg-[#F3F4F6] flex items-center justify-center shrink-0">
+                  <Icon className="w-5 h-5 text-[#111827]" />
                 </div>
-                <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6f8197]">{f.tag}</span>
-                  <h3 className="text-xl font-bold text-[#0f2745] leading-tight">{f.title}</h3>
-                  <p className="text-sm text-[#5f738b] mt-0.5">{f.subtitle}</p>
+                <div className="min-w-0 flex-1">
+                  <span className="font-body text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                    {f.tag}
+                  </span>
+                  <h3
+                    className="text-2xl sm:text-3xl text-[#111827] leading-tight font-medium mt-1"
+                    style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+                  >
+                    {f.title}
+                  </h3>
+                  <p className="font-body text-sm text-[#6B7280] mt-1.5 italic">{f.subtitle}</p>
                 </div>
               </div>
 
-              <p className="text-[#4f647c] text-[15px] leading-relaxed mb-7">
+              {/* Description */}
+              <p className="font-body text-[#6B7280] text-[15px] sm:text-base leading-relaxed mb-8">
                 {f.description}
               </p>
 
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#6f8197] mb-3">Key Benefits</p>
-                <ul className="space-y-2.5">
+              {/* Benefits */}
+              <div className="pt-6 border-t border-[#E5E7EB]">
+                <p className="font-body text-xs font-semibold uppercase tracking-wider text-[#6B7280] mb-4">
+                  What you get
+                </p>
+                <ul className="space-y-3">
                   {f.benefits.map((b, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-[#6786aa]" />
-                      <span className="text-sm text-[#4f647c] leading-snug">{b}</span>
+                    <li key={idx} className="flex items-start gap-3">
+                      <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-[#9CA3AF]" />
+                      <span className="font-body text-sm sm:text-base text-[#6B7280] leading-relaxed">
+                        {b}
+                      </span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              {/* Pagination dots */}
-              <div className="mt-8 flex items-center gap-3">
-                <span className="text-xs text-[#6f8197]">
-                  {active + 1} / {features.length}
+              {/* Pagination */}
+              <div className="mt-8 pt-6 border-t border-[#E5E7EB] flex items-center justify-between gap-4">
+                <span className="font-body text-xs font-medium text-[#6B7280]">
+                  {String(active + 1).padStart(2, "0")} / {String(features.length).padStart(2, "0")}
                 </span>
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   {features.map((_, i) => (
                     <button
                       key={i}
                       onClick={() => setActive(i)}
-                      className={`h-1 rounded-full transition-all duration-200 ${i === active ? "w-5 bg-[#1e3a5f]" : "w-1.5 bg-[#d2dbe7] hover:bg-[#9aaec5]"}`}
+                      aria-label={`Go to feature ${i + 1}`}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        i === active
+                          ? "w-6 bg-[#6366F1]"
+                          : "w-1.5 bg-[#E5E7EB] hover:bg-[#9CA3AF]"
+                      }`}
                     />
                   ))}
                 </div>
