@@ -219,8 +219,11 @@ const Search = () => {
   const t = getTokens(dark);
 
   const [searchParams] = useSearchParams();
+  const allowedTabs = ["all", "projects", "writers", "investors"];
   const [query, setQuery] = useState(searchParams.get("q") || "");
-  const [activeTab, setActiveTab] = useState(searchParams.get("type") || "all");
+  const [activeTab, setActiveTab] = useState(
+    allowedTabs.includes(searchParams.get("type")) ? searchParams.get("type") : "all"
+  );
   const [results, setResults] = useState({ users: [], scripts: [] });
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -239,8 +242,9 @@ const Search = () => {
   useEffect(() => {
     const urlQ = searchParams.get("q") || "";
     const urlType = searchParams.get("type") || "all";
+    const normalizedType = allowedTabs.includes(urlType) ? urlType : "all";
     if (urlQ && urlQ !== query) setQuery(urlQ);
-    if (urlType !== activeTab) setActiveTab(urlType);
+    if (normalizedType !== activeTab) setActiveTab(normalizedType);
   }, [searchParams]);
 
   const showProjectFilters = activeTab === "all" || activeTab === "projects";
@@ -266,7 +270,6 @@ const Search = () => {
     { key: "projects", label: "Projects" },
     { key: "writers", label: "Writers" },
     { key: "investors", label: "Investors" },
-    { key: "readers", label: "Readers" },
   ];
 
   useEffect(() => {
@@ -413,11 +416,11 @@ const Search = () => {
           <div className="flex items-center gap-3 max-[580px]:flex-col max-[580px]:items-stretch max-[450px]:gap-2 max-[300px]:gap-1.5">
             {/* Category tabs */}
             <div className={`inline-flex items-center rounded-full p-1 gap-0.5 ${t.tabBar} max-[580px]:w-full max-[580px]:overflow-x-auto max-[580px]:whitespace-nowrap max-[450px]:overflow-visible max-[450px]:whitespace-normal max-[450px]:grid max-[450px]:grid-cols-2 max-[450px]:rounded-2xl max-[450px]:p-1.5 max-[450px]:gap-1 max-[300px]:p-1 max-[300px]:gap-0.5` }>
-              {tabs.map((tab, idx) => (
+              {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`relative px-5 max-[580px]:px-3.5 max-[450px]:px-2.5 max-[300px]:px-2 py-2 max-[580px]:py-1.5 max-[450px]:py-2 max-[300px]:py-1.5 rounded-full max-[450px]:rounded-xl text-[13px] max-[580px]:text-[12px] max-[450px]:text-[11px] max-[300px]:text-[10px] leading-tight font-semibold transition-all duration-250 whitespace-nowrap max-[450px]:whitespace-normal max-[450px]:text-center max-[450px]:w-full ${idx === tabs.length - 1 ? "max-[450px]:col-span-2" : ""} ${activeTab === tab.key
+                  className={`relative px-5 max-[580px]:px-3.5 max-[450px]:px-2.5 max-[300px]:px-2 py-2 max-[580px]:py-1.5 max-[450px]:py-2 max-[300px]:py-1.5 rounded-full max-[450px]:rounded-xl text-[13px] max-[580px]:text-[12px] max-[450px]:text-[11px] max-[300px]:text-[10px] leading-tight font-semibold transition-all duration-250 whitespace-nowrap max-[450px]:whitespace-normal max-[450px]:text-center max-[450px]:w-full ${activeTab === tab.key
                     ? t.tabActive
                     : t.tabIdle
                     }`}

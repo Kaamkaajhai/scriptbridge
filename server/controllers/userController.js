@@ -110,6 +110,11 @@ const sanitizeBankPayload = (bankDetails) => {
   if (!bankDetails || typeof bankDetails !== "object") return null;
 
   const clean = {
+    accountHolderName: normalizeString(bankDetails.accountHolderName),
+    bankName: normalizeString(bankDetails.bankName),
+    accountNumber: typeof bankDetails.accountNumber === "string"
+      ? bankDetails.accountNumber.replace(/\s+/g, "")
+      : "",
     routingNumber: typeof bankDetails.routingNumber === "string"
       ? bankDetails.routingNumber.replace(/\s+/g, "").toUpperCase()
       : "",
@@ -121,7 +126,7 @@ const sanitizeBankPayload = (bankDetails) => {
   };
 
   // Do not allow masked values to overwrite real account number.
-  if (clean.accountNumber.startsWith("****")) {
+  if (typeof clean.accountNumber === "string" && clean.accountNumber.startsWith("****")) {
     clean.accountNumber = undefined;
   }
 
@@ -648,7 +653,7 @@ export const updateUserProfile = async (req, res) => {
 
     // Onboarding completion
     if (onboardingComplete !== undefined) {
-      if (user.role === "writer") {
+      if (["writer", "creator"].includes(String(user.role || "").toLowerCase())) {
         if (!user.writerProfile) user.writerProfile = {};
         user.writerProfile.onboardingComplete = onboardingComplete;
         user.markModified("writerProfile");

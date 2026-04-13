@@ -15,14 +15,12 @@ const buildCommonRequiredChecks = (user) => [
 const buildWriterRequiredChecks = (user) => {
   const writerProfile = user?.writerProfile || {};
   const diversity = writerProfile?.diversity || {};
+  const hasWriterDiversityRegion = hasText(diversity?.nationality) || hasText(diversity?.ethnicity);
 
   return [
-    hasText(writerProfile?.username),
     hasText(user?.bio),
     hasText(diversity?.gender),
-    hasText(diversity?.nationality),
-    hasTruthy(user?.privacyPolicyAccepted),
-    hasTruthy(writerProfile?.onboardingComplete),
+    hasWriterDiversityRegion,
   ];
 };
 
@@ -33,32 +31,12 @@ const buildIndustryRequiredChecks = (user) => {
     hasText(industryProfile?.subRole),
     hasText(industryProfile?.company),
     hasText(industryProfile?.jobTitle),
-    hasTruthy(user?.privacyPolicyAccepted),
-    hasTruthy(industryProfile?.onboardingComplete),
   ];
 };
 
 export const getProfileCompletion = (user = {}) => {
   const role = normalizeRole(user?.role);
   const commonChecks = buildCommonRequiredChecks(user);
-
-  if (WRITER_ROLES.has(role) && user?.writerProfile?.onboardingComplete) {
-    return {
-      percentage: 100,
-      completedFields: commonChecks.length + buildWriterRequiredChecks(user).length,
-      totalFields: commonChecks.length + buildWriterRequiredChecks(user).length,
-      isComplete: true,
-    };
-  }
-
-  if (INDUSTRY_ROLES.has(role) && user?.industryProfile?.onboardingComplete) {
-    return {
-      percentage: 100,
-      completedFields: commonChecks.length + buildIndustryRequiredChecks(user).length,
-      totalFields: commonChecks.length + buildIndustryRequiredChecks(user).length,
-      isComplete: true,
-    };
-  }
 
   const checks = [...commonChecks];
 

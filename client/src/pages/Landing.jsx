@@ -50,7 +50,7 @@ const FontInjection = () => (
       0%   { transform: translateX(0); }
       100% { transform: translateX(-50%); }
     }
-    .marquee-track { animation: marquee 4s linear infinite; }
+    .marquee-track { animation: marquee 9s linear infinite; }
 
     @keyframes soft-pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
