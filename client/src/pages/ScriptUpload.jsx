@@ -91,40 +91,45 @@ const getPageCountWarning = (format, pageCountValue) => {
 
 // Genre options
 const genres = [
-  "Action", "Comedy", "Drama", "Horror", "Thriller",
-  "Romance", "Sci-Fi", "Fantasy", "Mystery", "Adventure",
-  "Crime", "Western", "Animation", "Documentary", "Historical",
-  "War", "Musical", "Biographical", "Sports", "Political",
-  "Legal", "Medical", "Supernatural", "Psychological", "Noir",
-  "Family", "Teen", "Satire", "Dark Comedy", "Mockumentary"
+  "Action", "Adventure", "Animation", "Anime", "Art/Foreign", "Biographical",
+  "Children/Family", "Comedy", "Coming of Age", "Crime", "Dark Comedy", "Documentary",
+  "Drama", "Erotic", "Espionage", "Faith/Spirituality", "Family", "Fantasy",
+  "Film Noir", "Historical", "Horror", "Indie", "Legal", "Martial Arts",
+  "Medical", "Mockumentary", "Musical", "Mystery", "Noir", "Political",
+  "Psychological", "Romance", "Romantic Comedy", "Satire", "Sci-Fi", "Short Film",
+  "Slice of Life", "Sports", "Steampunk", "Superhero", "Supernatural", "Suspense",
+  "Teen", "Thriller", "True Crime", "War", "Western", "Zombie"
 ];
 
 // Classification options
 const toneOptions = [
-  "Dark", "Quirky", "Fast-Paced", "Slow-Burn", "Feel-Good",
-  "Gritty", "Lighthearted", "Noir", "Uplifting", "Tragic",
-  "Suspenseful", "Whimsical", "Intense", "Edgy", "Heartwarming",
-  "Cynical", "Hopeful", "Melancholic", "Surreal", "Cerebral",
-  "Raw", "Poetic", "Epic", "Isolation", "Atmospheric"
+  "Absurdist", "Atmospheric", "Bleak", "Cerebral", "Claustrophobic", "Campy",
+  "Cynical", "Dark", "Dreamlike", "Edgy", "Epic", "Fast-paced", "Gritty",
+  "Heartwarming", "Hopeful", "Intense", "Irreverent", "Lighthearted",
+  "Melancholic", "Mind-bending", "Noir", "Nostalgic", "Poetic", "Provocative",
+  "Quirky", "Raw", "Romantic", "Satirical", "Sensual", "Slow-burn", "Surreal",
+  "Suspenseful", "Tense", "Tragic", "Uplifting", "Whimsical"
 ];
 
 const themeOptions = [
-  "Revenge", "Coming of Age", "Artificial Intelligence", "Survival",
-  "Redemption", "Love Triangle", "Betrayal", "Family Drama",
-  "Social Justice", "Identity Crisis", "Power Struggle", "Forbidden Love",
-  "Loss & Grief", "Ambition", "Good vs Evil", "Man vs Nature",
-  "Isolation", "Corruption", "Second Chance", "Underdog Story",
-  "Fish Out of Water", "Chosen One", "Quest", "Transformation",
-  "Sacrifice", "Justice", "Freedom", "Grief", "Hope"
+  "Abandonment", "Addiction", "Alienation", "Ambition", "Betrayal", "Brotherhood",
+  "Capitalism", "Chosen One", "Class Struggle", "Colonialism", "Coming of Age",
+  "Corruption", "Revenge", "Redemption", "Love Triangle", "Family Drama",
+  "Social Justice", "Identity Crisis", "Survival", "Power Struggle",
+  "Forbidden Love", "Loss & Grief", "Good vs Evil", "Man vs Nature",
+  "Isolation", "Second Chance", "Underdog Story", "Fish Out of Water",
+  "Quest", "Transformation", "Sacrifice", "Justice", "Freedom", "Mental Illness",
+  "Existentialism", "Fate vs Free Will", "Man vs Technology", "War & Peace", "Grief", "Hope"
 ];
 
 const settingOptions = [
-  "New York", "Space", "High School", "Dystopia", "Isolated",
-  "Los Angeles", "Urban", "Rural", "Suburban", "Historical",
-  "Contemporary", "Post-Apocalyptic", "Small Town", "Big City",
-  "Wilderness", "Ocean/Sea", "Desert", "Jungle", "Medieval",
-  "Future", "Alternate Reality", "Virtual Reality", "Underground",
-  "Prison", "Hospital", "School/College", "Military Base"
+  "Ancient", "Cyberpunk", "Contemporary", "Deep Space", "Desert", "Dystopian",
+  "Future", "Haunted House", "Historical", "Hospital", "Jungle", "Medieval",
+  "Military Base", "Ocean/Sea", "Post-Apocalyptic", "Prison", "Rural",
+  "School/College", "Small Town", "Big City", "Space", "Suburban",
+  "Alternate Reality", "Virtual Reality", "Underground", "Wilderness",
+  "Wild West", "Victorian Era", "World War I", "World War II", "Secret Facility",
+  "New York", "Isolated", "Los Angeles"
 ];
 const ROLE_GENDER_OPTIONS = ["Any", "Female", "Male", "Non-binary", "Other"];
 

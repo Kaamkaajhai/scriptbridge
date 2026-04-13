@@ -121,6 +121,29 @@ const parseOptionalNumber = (value) => {
 
 const toPaise = (amount) => Math.round(Number(amount || 0) * 100);
 
+const removeUndefinedValues = (obj = {}) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+
+const ensureCreditsLedger = (user) => {
+  if (!user.credits || typeof user.credits !== "object") {
+    user.credits = {
+      balance: 0,
+      totalPurchased: 0,
+      totalSpent: 0,
+      transactions: [],
+    };
+    return;
+  }
+
+  if (!Array.isArray(user.credits.transactions)) {
+    user.credits.transactions = [];
+  }
+
+  if (!Number.isFinite(Number(user.credits.balance))) user.credits.balance = 0;
+  if (!Number.isFinite(Number(user.credits.totalPurchased))) user.credits.totalPurchased = 0;
+  if (!Number.isFinite(Number(user.credits.totalSpent))) user.credits.totalSpent = 0;
+};
+
 const getRazorpay = () => {
   if (!razorpayInstance) {
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -589,16 +612,12 @@ export const validateDiscount = async (req, res) => {
 // @access  Private
 export const createRazorpayOrder = async (req, res) => {
   try {
-    // Check if Razorpay is configured
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      return res.status(503).json({
-        message: "Payment service is not configured on server",
-        error: "Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET in server environment"
-      });
-    }
-    
     const { packageId, customCredits, discountCode: discountCodeStr } = req.body;
     const user = await User.findById(req.user._id).select("role bankDetails bankDetailsReview");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const bankEligibility = getBankPurchaseEligibility(user);
     if (!bankEligibility.allowed) {
       return res.status(403).json({ message: bankEligibility.message, bankReviewStatus: bankEligibility.reviewStatus });
@@ -625,6 +644,12 @@ export const createRazorpayOrder = async (req, res) => {
       if (discountInfo && discountCodeStr) {
         const discountDoc = await DiscountCode.findOne({ code: discountCodeStr.toUpperCase() });
         if (discountDoc) {
+          if (!Array.isArray(discountDoc.usedBy)) {
+            discountDoc.usedBy = [];
+          }
+          if (!Number.isFinite(Number(discountDoc.usedCount))) {
+            discountDoc.usedCount = 0;
+          }
           discountDoc.usedCount += 1;
           discountDoc.usedBy.push({ user: req.user._id, usedAt: new Date() });
           await discountDoc.save();
@@ -633,14 +658,7 @@ export const createRazorpayOrder = async (req, res) => {
 
       const totalCredits = purchase.totalCredits;
 
-      if (!user.credits) {
-        user.credits = {
-          balance: 0,
-          totalPurchased: 0,
-          totalSpent: 0,
-          transactions: []
-        };
-      }
+      ensureCreditsLedger(user);
 
       const reference = `DIRECT-${Date.now().toString(36).toUpperCase()}`;
 
@@ -665,7 +683,7 @@ export const createRazorpayOrder = async (req, res) => {
         status: "completed",
         description: `Credit purchase: ${purchase.name} (${totalCredits} credits)${discountInfo ? ` — Discount ${discountInfo.discountCode.code}` : ""}`,
         reference,
-        paymentMethod: "direct",
+        paymentMethod: "manual",
         metadata: {
           packageId: purchase.packageRef,
           planCode: purchase.planCode,
@@ -709,24 +727,34 @@ export const createRazorpayOrder = async (req, res) => {
 
     // Razorpay requires at least 1 rupee (100 paise)
     if (finalPrice < 1) finalPrice = 1;
+
+    // Razorpay is only needed for paid orders.
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        message: "Payment service is not configured on server",
+        error: "Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET in server environment"
+      });
+    }
     
     // Create Razorpay order
+    const notes = removeUndefinedValues({
+      userId: req.user._id.toString(),
+      packageId: packageId || "custom",
+      planCode: purchase.planCode,
+      packageName: purchase.name,
+      credits: String(purchase.totalCredits),
+      customCredits: purchase.isCustom ? String(purchase.credits) : undefined,
+      discountCode: discountCodeStr || undefined,
+      discountAmount: discountInfo ? String(discountInfo.discountAmount) : undefined,
+      originalPrice: discountInfo ? String(purchase.price) : undefined,
+      finalPrice: String(finalPrice),
+    });
+
     const options = {
       amount: Math.round(finalPrice * 100), // Amount in paise (INR)
       currency: purchase.currency || "INR",
       receipt: `receipt_${Date.now()}`,
-      notes: {
-        userId: req.user._id.toString(),
-        packageId: packageId || "custom",
-        planCode: purchase.planCode,
-        packageName: purchase.name,
-        credits: String(purchase.totalCredits),
-        customCredits: purchase.isCustom ? String(purchase.credits) : undefined,
-        discountCode: discountCodeStr || undefined,
-        discountAmount: discountInfo ? String(discountInfo.discountAmount) : undefined,
-        originalPrice: discountInfo ? String(purchase.price) : undefined,
-        finalPrice: String(finalPrice),
-      }
+      notes,
     };
     
     const razorpay = getRazorpay();
@@ -754,7 +782,18 @@ export const createRazorpayOrder = async (req, res) => {
       } : null,
     });
   } catch (error) {
-    res.status(500).json({ message: "Failed to create payment order", error: error.message });
+    const statusCode = Number(
+      error?.statusCode ||
+      error?.status ||
+      error?.error?.statusCode ||
+      error?.error?.status_code ||
+      0
+    );
+    const isGatewayError = statusCode >= 400 && statusCode < 600;
+    return res.status(isGatewayError ? 502 : 500).json({
+      message: isGatewayError ? "Payment provider rejected order request" : "Failed to create payment order",
+      error: error?.error?.description || error.message,
+    });
   }
 };
 

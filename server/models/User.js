@@ -49,7 +49,7 @@ const userSchema = new mongoose.Schema({
 
   // Writer-specific profile fields
   writerProfile: {
-    username: { type: String },
+    username: { type: String, trim: true, lowercase: true },
     legalName: { type: String },
     representationStatus: {
       type: String,
@@ -316,6 +316,17 @@ const userSchema = new mongoose.Schema({
     originalEmail: { type: String, default: "" },
   },
 }, { timestamps: true });
+
+userSchema.index(
+  { "writerProfile.username": 1 },
+  {
+    unique: true,
+    sparse: true,
+    partialFilterExpression: {
+      "writerProfile.username": { $exists: true, $type: "string", $ne: "" },
+    },
+  }
+);
 
 userSchema.pre("validate", async function () {
   if (this.sid) return;

@@ -48,20 +48,27 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
 
   // Load Razorpay SDK
   useEffect(() => {
-    if (document.querySelector('script[src*="razorpay"]')) {
+    if (!isOpen) return;
+
+    if (window.Razorpay) {
       setRazorpayLoaded(true);
       return;
     }
+
+    const existingScript = document.querySelector('script[data-razorpay-sdk="true"]');
+    if (existingScript) {
+      setRazorpayLoaded(true);
+      return;
+    }
+
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
+    script.setAttribute("data-razorpay-sdk", "true");
     script.onload = () => setRazorpayLoaded(true);
     script.onerror = () => setError("Failed to load payment gateway");
     document.body.appendChild(script);
-    return () => {
-      if (script.parentNode) script.parentNode.removeChild(script);
-    };
-  }, []);
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -259,9 +266,9 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
       });
       razorpay.open();
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to initiate payment. Please try again."
-      );
+      const serverMessage = err.response?.data?.message;
+      const serverError = err.response?.data?.error;
+      setError(serverError ? `${serverMessage || "Failed to initiate payment"}: ${serverError}` : (serverMessage || "Failed to initiate payment. Please try again."));
       setPurchasing(false);
     }
   };
