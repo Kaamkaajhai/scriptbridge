@@ -150,6 +150,63 @@ const WRITER_TERMS_VERSION = "writer-onboarding-v2026-03-24";
 const WRITER_TERMS_ROUTE = "/terms-conditions?tab=writer";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
 const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+const GENDER_OPTIONS = [
+  "Male",
+  "Female",
+  "Trans",
+  "Prefer not to say",
+  "Other",
+];
+
+const NATIONALITY_OPTIONS = [
+  "Indian",
+  "American",
+  "British",
+  "Canadian",
+  "Australian",
+  "New Zealander",
+  "Irish",
+  "French",
+  "German",
+  "Italian",
+  "Spanish",
+  "Portuguese",
+  "Dutch",
+  "Swedish",
+  "Norwegian",
+  "Danish",
+  "Swiss",
+  "Austrian",
+  "Belgian",
+  "Polish",
+  "Russian",
+  "Ukrainian",
+  "Turkish",
+  "Brazilian",
+  "Mexican",
+  "Argentinian",
+  "South African",
+  "Nigerian",
+  "Egyptian",
+  "Kenyan",
+  "Saudi Arabian",
+  "Emirati",
+  "Pakistani",
+  "Bangladeshi",
+  "Nepalese",
+  "Sri Lankan",
+  "Singaporean",
+  "Malaysian",
+  "Indonesian",
+  "Filipino",
+  "Thai",
+  "Vietnamese",
+  "Chinese",
+  "Japanese",
+  "South Korean",
+  "Other",
+];
 
 const WriterOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
@@ -168,6 +225,7 @@ const WriterOnboarding = () => {
   const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [dobError, setDobError] = useState("");
   const [usernameError, setUsernameError] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState({ state: "idle", message: "" });
   const [openRepSections, setOpenRepSections] = useState(() => ({
     ...DEFAULT_OPEN_REP_SECTIONS,
     ...(initialDraft?.openRepSections || {}),
@@ -215,6 +273,7 @@ const WriterOnboarding = () => {
   const [selectedPlan, setSelectedPlan] = useState("free");
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
   const zipLookupRequestRef = useRef(0);
+  const usernameCheckRequestRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -309,6 +368,57 @@ const WriterOnboarding = () => {
       isActive = false;
     };
   }, [addressFields.zipCode]);
+
+  useEffect(() => {
+    const username = String(writerProfile.username || "").trim().toLowerCase();
+
+    if (!username) {
+      setUsernameStatus({ state: "idle", message: "Use 3-30 characters: a-z, 0-9, or _." });
+      return;
+    }
+
+    if (username.length < 3) {
+      setUsernameStatus({ state: "invalid", message: "Username must be at least 3 characters." });
+      return;
+    }
+
+    if (username.length > 30 || !USERNAME_PATTERN.test(username)) {
+      setUsernameStatus({
+        state: "invalid",
+        message: "Use only lowercase letters, numbers, and underscores (max 30).",
+      });
+      return;
+    }
+
+    const requestId = Date.now();
+    usernameCheckRequestRef.current = requestId;
+    setUsernameStatus({ state: "checking", message: "Checking username availability..." });
+    let isActive = true;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/onboarding/check-username", {
+          params: { username },
+        });
+
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+
+        if (data?.available) {
+          setUsernameStatus({ state: "available", message: "Username is available." });
+        } else {
+          setUsernameStatus({ state: "unavailable", message: "Username is already taken." });
+        }
+      } catch {
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+        setUsernameStatus({ state: "error", message: "Could not verify username right now." });
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [writerProfile.username]);
 
   const steps = [
     { num: 1, title: "Account" },
@@ -471,12 +581,22 @@ const WriterOnboarding = () => {
     setUsernameError("");
     setError("");
 
-    if (!writerProfile.username) {
+    const normalizedUsername = String(writerProfile.username || "").trim().toLowerCase();
+
+    if (!normalizedUsername) {
       setUsernameError("Username is required");
       return;
     }
-    if (writerProfile.username.length < 3) {
-      setUsernameError("Username must be at least 3 characters");
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      setUsernameError("Use 3-30 lowercase letters, numbers, or underscores");
+      return;
+    }
+    if (usernameStatus.state === "checking") {
+      setUsernameError("Please wait while we verify username availability");
+      return;
+    }
+    if (usernameStatus.state === "unavailable") {
+      setUsernameError("Username is already taken");
       return;
     }
 
@@ -490,6 +610,7 @@ const WriterOnboarding = () => {
     try {
       const response = await api.put("/onboarding/writer-profile", {
         ...writerProfile,
+        username: normalizedUsername,
         dateOfBirth: accountData.dateOfBirth,
         phone: accountData.phone,
         address: {
@@ -513,33 +634,40 @@ const WriterOnboarding = () => {
 
   // Genre and Tag Options
   const genreOptions = [
-    "Action", "Comedy", "Drama", "Horror", "Thriller", 
-    "Romance", "Sci-Fi", "Fantasy", "Mystery", "Adventure",
-    "Crime", "Western", "Animation", "Documentary", "Historical",
-    "War", "Musical", "Biographical", "Sports", "Political",
-    "Legal", "Medical", "Supernatural", "Psychological", "Noir",
-    "Family", "Teen", "Satire", "Dark Comedy", "Mockumentary"
+    "Action", "Adventure", "Animation", "Anime", "Art/Foreign", "Biographical",
+    "Children/Family", "Comedy", "Coming of Age", "Crime", "Dark Comedy", "Documentary",
+    "Drama", "Erotic", "Espionage", "Faith/Spirituality", "Family", "Fantasy",
+    "Film Noir", "Historical", "Horror", "Indie", "Legal", "Martial Arts",
+    "Medical", "Mockumentary", "Musical", "Mystery", "Noir", "Political",
+    "Psychological", "Romance", "Romantic Comedy", "Satire", "Sci-Fi", "Short Film",
+    "Slice of Life", "Sports", "Steampunk", "Superhero", "Supernatural", "Suspense",
+    "Teen", "Thriller", "True Crime", "War", "Western", "Zombie"
   ];
 
   const allNuancedTags = [
     // Themes
-    "Revenge", "Redemption", "Coming of Age", "Love Triangle", "Betrayal",
-    "Family Drama", "Social Justice", "Identity Crisis", "Survival",
-    "Power Struggle", "Forbidden Love", "Loss & Grief", "Ambition",
-    "Good vs Evil", "Man vs Nature", "Isolation", "Corruption",
-    "Second Chance", "Underdog Story", "Fish Out of Water", "Chosen One",
-    "Quest", "Transformation", "Sacrifice", "Justice", "Freedom",
+    "Abandonment", "Addiction", "Alienation", "Ambition", "Betrayal", "Brotherhood",
+    "Capitalism", "Chosen One", "Class Struggle", "Colonialism", "Coming of Age",
+    "Corruption", "Revenge", "Redemption", "Love Triangle", "Family Drama",
+    "Social Justice", "Identity Crisis", "Survival", "Power Struggle",
+    "Forbidden Love", "Loss & Grief", "Good vs Evil", "Man vs Nature",
+    "Isolation", "Second Chance", "Underdog Story", "Fish Out of Water",
+    "Quest", "Transformation", "Sacrifice", "Justice", "Freedom", "Mental Illness",
+    "Existentialism", "Fate vs Free Will", "Man vs Technology", "War & Peace",
     // Settings
-    "Urban", "Rural", "Suburban", "Space", "Historical", "Contemporary",
-    "Post-Apocalyptic", "Dystopian", "Small Town", "Big City",
-    "Wilderness", "Ocean/Sea", "Desert", "Jungle", "Medieval",
-    "Future", "Alternate Reality", "Virtual Reality", "Underground",
-    "Prison", "Hospital", "School/College", "Military Base",
+    "Ancient", "Cyberpunk", "Contemporary", "Deep Space", "Desert", "Dystopian",
+    "Future", "Haunted House", "Historical", "Hospital", "Jungle", "Medieval",
+    "Military Base", "Ocean/Sea", "Post-Apocalyptic", "Prison", "Rural",
+    "School/College", "Small Town", "Big City", "Space", "Suburban",
+    "Alternate Reality", "Virtual Reality", "Underground", "Wilderness",
+    "Wild West", "Victorian Era", "World War I", "World War II", "Secret Facility",
     // Tones
-    "Dark", "Satirical", "Gritty", "Lighthearted", "Noir",
-    "Uplifting", "Tragic", "Suspenseful", "Whimsical", "Intense",
-    "Edgy", "Heartwarming", "Cynical", "Hopeful", "Melancholic",
-    "Surreal", "Cerebral", "Raw", "Poetic", "Epic"
+    "Absurdist", "Atmospheric", "Bleak", "Cerebral", "Claustrophobic", "Campy",
+    "Cynical", "Dark", "Dreamlike", "Edgy", "Epic", "Fast-paced", "Gritty",
+    "Heartwarming", "Hopeful", "Intense", "Irreverent", "Lighthearted",
+    "Melancholic", "Mind-bending", "Noir", "Nostalgic", "Poetic", "Provocative",
+    "Quirky", "Raw", "Romantic", "Satirical", "Sensual", "Slow-burn", "Surreal",
+    "Suspenseful", "Tense", "Tragic", "Uplifting", "Whimsical"
   ];
 
   // Tag handlers
@@ -933,12 +1061,35 @@ const WriterOnboarding = () => {
                 <input
                   type="text"
                   value={writerProfile.username}
-                  onChange={(e) => setWriterProfile({...writerProfile, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "")})}
-                  className="w-full pl-7 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                  onChange={(e) => {
+                    setWriterProfile({
+                      ...writerProfile,
+                      username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                    });
+                    if (usernameError) setUsernameError("");
+                  }}
+                  className={`w-full pl-7 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900 ${
+                    usernameError || usernameStatus.state === "unavailable" || usernameStatus.state === "invalid"
+                      ? "border-red-400"
+                      : usernameStatus.state === "available"
+                        ? "border-emerald-400"
+                        : "border-gray-200"
+                  }`}
                   placeholder="e.g. john_doe"
                   required
                 />
               </div>
+              {!usernameError && usernameStatus.message && (
+                <p className={`mt-1.5 text-xs flex items-center gap-1 ${
+                  usernameStatus.state === "available"
+                    ? "text-emerald-600"
+                    : usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" || usernameStatus.state === "error"
+                      ? "text-red-500"
+                      : "text-gray-500"
+                }`}>
+                  <AlertCircle size={12} /> {usernameStatus.message}
+                </p>
+              )}
               {usernameError && (
                 <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                   <AlertCircle size={12} /> {usernameError}
@@ -1005,34 +1156,40 @@ const WriterOnboarding = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Gender
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={writerProfile.diversity.gender}
                     onChange={(e) => setWriterProfile({
                       ...writerProfile, 
                       diversity: {...writerProfile.diversity, gender: e.target.value}
                     })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="Required"
                     required
-                  />
+                  >
+                    <option value="">Select gender</option>
+                    {GENDER_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nationality
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={writerProfile.diversity.nationality}
                     onChange={(e) => setWriterProfile({
                       ...writerProfile, 
                       diversity: {...writerProfile.diversity, nationality: e.target.value}
                     })}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="Required"
                     required
-                  />
+                  >
+                    <option value="">Select nationality</option>
+                    {NATIONALITY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
@@ -1285,7 +1442,7 @@ const WriterOnboarding = () => {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || usernameStatus.state === "checking"}
                 className="flex-1 bg-[#0f2544] text-white py-2.5 rounded-lg hover:bg-[#1a365d] transition font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? "Saving..." : "Continue"}

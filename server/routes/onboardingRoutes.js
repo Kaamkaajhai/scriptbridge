@@ -1,5 +1,6 @@
 import express from "express";
 import { 
+  checkUsernameAvailability,
   updateWriterProfile,
   uploadScript,
   completeOnboarding,
@@ -18,6 +19,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get("/status", getOnboardingStatus);
+router.get("/check-username", checkUsernameAvailability);
 router.post("/send-verification", sendEmailVerification);
 router.post("/verify-email", verifyEmail);
 
