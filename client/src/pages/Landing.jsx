@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import api from "../services/api";
 import BrandLogo from "../components/BrandLogo";
+import MarketingHeader from "../components/MarketingHeader";
 import { AuthContext } from "../context/AuthContext";
 import homeImg1 from "../assets/home-img1.jpeg";
 import homeImg2 from "../assets/home-img2.jpeg";
@@ -49,7 +50,7 @@ const FontInjection = () => (
       0%   { transform: translateX(0); }
       100% { transform: translateX(-50%); }
     }
-    .marquee-track { animation: marquee 50s linear infinite; }
+    .marquee-track { animation: marquee 9s linear infinite; }
 
     @keyframes soft-pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -452,44 +453,7 @@ const Landing = () => {
       {/* ══════════════════════════════════════
           NAVIGATION
           ══════════════════════════════════════ */}
-      <nav className="fixed top-0 w-full z-50 bg-[#0F172A]/85 backdrop-blur-md border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between gap-2">
-          <BrandLogo className="h-7 sm:h-9 w-auto" />
-          <div className="flex items-center gap-2 sm:gap-4">
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="hidden sm:inline font-body text-sm font-medium text-[#94A3B8] hover:text-white transition-colors"
-                >
-                  Profile
-                </Link>
-                <Link
-                  to={user?.role === "reader" ? "/reader" : "/dashboard"}
-                  className="bg-[#6366F1] text-white font-body text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-[#4F46E5] transition-colors whitespace-nowrap"
-                >
-                  {user?.role === "reader" ? "Reader" : "Dashboard"}
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="font-body text-sm font-medium text-[#94A3B8] hover:text-white transition-colors whitespace-nowrap"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  to="/join"
-                  className="bg-[#6366F1] text-white font-body text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-[#4F46E5] transition-colors whitespace-nowrap"
-                >
-                  Get started
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      <MarketingHeader />
 
       {/* ══════════════════════════════════════
           HERO — simple, left-aligned, big headline
@@ -564,17 +528,6 @@ const Landing = () => {
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </motion.div>
-
-              {/* Trust line */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 0.6 }}
-                className="font-body text-xs text-[#94A3B8] mt-8 tracking-wide"
-              >
-                Free to join · No upfront cost · Built for storytellers
-              </motion.p>
-
             </div>
           </div>
         </div>
@@ -882,11 +835,14 @@ const Landing = () => {
             <div className="flex items-center gap-3">
               <BrandLogo className="h-7 w-auto" />
               <span className="font-body text-xs text-[#94A3B8]">
-                © 2026 · Made for storytellers
+                © 2026 Ckript. All rights reserved.
               </span>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-7 font-body text-sm text-[#94A3B8]">
+              <Link to="/about" className="hover:text-white transition-colors">
+                About
+              </Link>
               <Link to="/privacy-policy" className="hover:text-white transition-colors">
                 Privacy
               </Link>

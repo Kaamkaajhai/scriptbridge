@@ -26,6 +26,14 @@ export const publicSeoRoutes = [
     priority: "0.6",
   },
   {
+    path: "/about",
+    title: "About Ckript | Secure Script Marketplace",
+    description:
+      "Learn how Ckript protects writers, streamlines script discovery, and connects creators with film industry professionals.",
+    changefreq: "monthly",
+    priority: "0.7",
+  },
+  {
     path: "/privacy-policy",
     title: "Privacy Policy | Ckript",
     description:

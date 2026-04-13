@@ -8,6 +8,7 @@ import SeoManager from "./components/SeoManager";
 import { applyLanguagePreference, getStoredLanguagePreference } from "./utils/languagePreference";
 
 const Landing = lazy(() => import("./pages/Landing"));
+const About = lazy(() => import("./pages/About"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PolicyPage"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -145,6 +146,7 @@ function App() {
             >
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/about" element={<About />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />

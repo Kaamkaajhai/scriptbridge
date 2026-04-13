@@ -218,8 +218,10 @@ const Profile = () => {
       );
 
       if (tabInitializedForProfileRef.current !== data.user._id) {
-        const isInvestorProfile = String(data.user.role || "").toLowerCase() === "investor";
-        setActiveTab(isInvestorProfile ? "about" : "projects");
+        const role = String(data.user.role || "").toLowerCase();
+        const isInvestorProfile = role === "investor";
+        const isWriterProfile = isWriter(role);
+        setActiveTab(isInvestorProfile || isWriterProfile ? "about" : "projects");
         tabInitializedForProfileRef.current = data.user._id;
       }
     } catch (error) {
@@ -597,8 +599,8 @@ const Profile = () => {
       ? "bg-[#1e3a5f]/20 text-[#7aafff]/75 border-[#1e3a5f]/30"
       : "bg-[#1e3a5f]/[0.06] text-[#1e3a5f] border-[#1e3a5f]/15",
     editBtn: dark
-      ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.1] text-white/70 hover:text-white"
-      : "bg-white hover:bg-[#f4f8ff] border-[#cfdbeb] hover:border-[#b8cae2] text-[#365273] hover:text-[#1a3557] shadow-sm",
+      ? "bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white"
+      : "bg-white hover:bg-[#f4f8ff] text-[#365273] hover:text-[#1a3557] shadow-sm",
     followActive: dark
       ? "bg-white/[0.05] text-white/45 border-white/[0.07] hover:bg-red-950/30 hover:text-red-400 hover:border-red-900/30"
       : "bg-[#f5f8fc] text-[#526780] border-[#d3deeb] hover:bg-red-50 hover:text-red-500 hover:border-red-200",
@@ -652,78 +654,78 @@ const Profile = () => {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className={`rounded-2xl border transition-colors relative overflow-visible ${t.card}`}
+        className={`rounded-2xl transition-colors relative overflow-visible ${t.card}`}
       >
-        {/* Cover — clean solid for writers */}
-        <div
-          className={`h-36 sm:h-44 rounded-t-2xl relative overflow-hidden bg-gradient-to-r ${t.coverFrom} ${t.coverTo}`}
-        >
-          {/* Subtle dot pattern — single, no gradients */}
-          <div className="absolute inset-0" style={{
-            opacity: dark ? 0.035 : 0.05,
-            backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
-            backgroundSize: "24px 24px",
-          }} />
-          {/* Edit / Follow button */}
-          <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-auto sm:right-4 z-10 flex justify-end flex-wrap gap-2">
-            <SocialShareButton
-              share={profileShare}
-              buttonLabel="Share"
-              className={`px-3 sm:px-4 py-1.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] border-white/[0.12] text-white/80" : "bg-white/95 hover:bg-white border-gray-200 text-[#1a3557]"}`}
-            />
-            {isOwnProfile ? (
-              <button onClick={() => setShowEditModal(true)}
-                className={`px-3 sm:px-4 py-1.5 rounded-xl border text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-md ${t.editBtn}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                </svg>
-                Edit Profile
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={handleFollow}
-                  disabled={isBlockedByCurrent || blockedByProfile}
-                  className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
-                >
-                  {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
-                </button>
-                <button
-                  onClick={handleToggleBlock}
-                  disabled={blockingAction || blockedByProfile}
-                  className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border backdrop-blur-md disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
-                >
-                  {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
         {/* Writer-first premium hero */}
         {isWriterUser ? (
-          <div className="px-5 sm:px-8 pb-7 -mt-10 sm:-mt-14 relative z-20">
-            <div className={`rounded-3xl border p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95 border-white/[0.08]" : "bg-white/95 border-[#d6e2ef]"}`}>
-              <div className="flex flex-col lg:flex-row lg:items-start gap-5 sm:gap-6">
-                <div className="flex items-start gap-4 flex-1 min-w-0">
-                  <div className="shrink-0">
+          <div className="px-5 sm:px-8 pt-2 sm:pt-3 pb-7 relative z-20">
+            <div className={`rounded-3xl p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95" : "bg-white/95"}`}>
+              {!isOwnProfile && (
+                <div className="hidden max-[430px]:flex items-center max-[430px]:justify-between gap-1 mb-3.5 max-[430px]:w-full">
+                  <button
+                    onClick={handleFollow}
+                    disabled={isBlockedByCurrent || blockedByProfile}
+                    className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border max-[430px]:flex-1 max-[430px]:px-2 max-[430px]:text-[11px] disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                  >
+                    {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
+                  </button>
+                  <button
+                    onClick={handleToggleBlock}
+                    disabled={blockingAction || blockedByProfile}
+                    className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border max-[430px]:flex-1 max-[430px]:px-2 max-[430px]:text-[11px] disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                  >
+                    {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col md:flex-row md:items-start gap-4 sm:gap-5">
+                <div className="flex items-start gap-3 flex-1 min-w-0 max-[430px]:flex-col max-[430px]:items-center">
+                  <div className="shrink-0 flex flex-col items-start gap-2 max-[430px]:items-center">
                     {profile.profileImage ? (
                       <img
                         src={resolveImage(profile.profileImage)}
                         alt={profile.name}
-                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-[3px] ${t.avatarRing}`}
                       />
                     ) : (
-                      <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                      <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
                         <span className="text-3xl sm:text-4xl font-extrabold text-white/85">
                           {profile.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
+
+                      <div className="flex flex-col items-start gap-2 mt-2 max-[430px]:items-center">
+                        <SocialShareButton
+                          share={profileShare}
+                          buttonLabel="Share"
+                          className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] text-white/80" : "bg-white hover:bg-[#f4f8ff] text-[#1a3557] shadow-sm"}`}
+                        />
+                        {isOwnProfile ? (
+                          <button
+                            onClick={() => setShowEditModal(true)}
+                            className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 ${t.editBtn}`}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                            </svg>
+                            Edit Profile
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleFollow}
+                            disabled={isBlockedByCurrent || blockedByProfile}
+                            className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                          >
+                            {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
+                          </button>
+                        )}
+                      </div>
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="min-w-0 flex-1 max-[430px]:w-full max-[430px]:text-center">
+                    <div className="flex items-center gap-2 flex-wrap max-[430px]:justify-center">
                       <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
                       <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                         {profile.role}
@@ -734,58 +736,57 @@ const Profile = () => {
                       {profile.writerProfile?.sgaMember && (
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>SGA</span>
                       )}
+                      {!isOwnProfile && (
+                        <button
+                          onClick={handleToggleBlock}
+                          disabled={blockingAction || blockedByProfile}
+                          className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border sm:ml-auto max-[430px]:hidden disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                        >
+                          {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
+                        </button>
+                      )}
                     </div>
 
                     {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
-                      <p className={`text-[13px] mt-1.5 capitalize ${dark ? "text-white/50" : "text-gray-600"}`}>
+                      <p className={`text-[13px] mt-1.5 capitalize max-[430px]:text-center ${dark ? "text-white/50" : "text-gray-600"}`}>
                         {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
                         {profile.writerProfile?.agencyName ? ` at ${profile.writerProfile.agencyName}` : ""}
                       </p>
                     )}
 
                     {isOwnProfile && (
-                      <p className={`text-[12px] font-medium mt-1.5 ${t.email}`}>{profile.email}</p>
+                      <p className={`text-[12px] font-medium mt-1.5 max-[430px]:text-center ${t.email}`}>{profile.email}</p>
                     )}
 
                     {profile.bio && (
-                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-3 ${t.body}`}>
+                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-4 max-[430px]:text-center ${t.body}`}>
                         {profile.bio}
                       </p>
                     )}
 
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                      {memberSince && (
-                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                          Joined {memberSince}
-                        </span>
-                      )}
-                      {(profile.writerProfile?.genres?.length || 0) > 0 && (
-                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                          {profile.writerProfile.genres.length} Genres
-                        </span>
-                      )}
+                    <div className="w-full mt-3.5">
+                      <div className="grid grid-cols-3 gap-1.5 w-full max-[430px]:gap-1">
+                        {[
+                          { label: "Projects", value: scripts.length },
+                          { label: "Followers", value: profile.followers.length, connectionType: "followers" },
+                          { label: "Following", value: profile.following.length, connectionType: "following" },
+                        ].map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            disabled={!item.connectionType}
+                            onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
+                            className={`rounded-xl px-2.5 py-2 text-left transition-colors disabled:opacity-100 ${item.connectionType ? dark ? "hover:bg-white/[0.08]" : "hover:bg-[#f0f6ff]" : "cursor-default"}`}
+                          >
+                            <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                            <p className={`text-[10px] font-bold uppercase tracking-[0.12em] mt-0.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2.5 w-full lg:w-[420px]">
-                  {[
-                    { label: "Projects", value: scripts.length },
-                    { label: "Followers", value: profile.followers.length, connectionType: "followers" },
-                    { label: "Following", value: profile.following.length, connectionType: "following" },
-                    { label: "Genres", value: profile.writerProfile?.genres?.length || 0 },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      disabled={!item.connectionType}
-                      onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
-                      className={`rounded-xl border px-3 py-3 text-left transition-colors disabled:opacity-100 ${dark ? "bg-white/[0.03] border-white/[0.08]" : "bg-[#f8fbff] border-[#d6e2ef]"} ${item.connectionType ? dark ? "hover:bg-white/[0.08] hover:border-white/[0.16]" : "hover:bg-[#f0f6ff] hover:border-[#bdd3ec]" : "cursor-default"}`}
-                    >
-                      <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] mt-1 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
-                    </button>
-                  ))}
+
+                  </div>
                 </div>
               </div>
             </div>
@@ -793,52 +794,124 @@ const Profile = () => {
         ) : (
           <>
             {profile.role === "investor" ? (
-              <div className="px-4 sm:px-8 pb-6 sm:pb-7 -mt-8 sm:-mt-14 relative z-20">
+              <div className="px-4 sm:px-8 pt-2 sm:pt-3 pb-6 sm:pb-7 relative z-20">
                 <div className={`rounded-2xl sm:rounded-3xl p-4 sm:p-6 ${dark ? "bg-[#0b1320]/95" : "bg-white/95"}`}>
-                  <div className="flex flex-col min-[760px]:flex-row min-[760px]:items-start gap-4 min-[760px]:max-[850px]:gap-3 min-[851px]:gap-6">
-                    <div className="flex items-start max-[420px]:flex-col max-[420px]:items-start gap-4 min-[760px]:max-[850px]:gap-3 sm:gap-5 min-w-0 flex-1">
-                      <div className="shrink-0">
+                  <div className="hidden max-[460px]:flex items-center justify-center gap-x-3 gap-y-2 mb-5 flex-wrap">
+                    <SocialShareButton
+                      share={profileShare}
+                      buttonLabel="Share"
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-1.5 ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] text-white/80" : "bg-white hover:bg-[#f4f8ff] text-[#1a3557] shadow-sm"}`}
+                    />
+                    {isOwnProfile ? (
+                      <button
+                        onClick={() => setShowEditModal(true)}
+                        className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-1.5 ${t.editBtn}`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Edit
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleFollow}
+                          disabled={isBlockedByCurrent || blockedByProfile}
+                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                        >
+                          {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
+                        </button>
+                        <button
+                          onClick={handleToggleBlock}
+                          disabled={blockingAction || blockedByProfile}
+                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                        >
+                          {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col min-[1000px]:flex-row min-[1000px]:items-start gap-4 sm:gap-5 min-[1000px]:gap-6">
+                    <div className="flex items-start max-[460px]:flex-col max-[460px]:items-center gap-4 sm:gap-5 min-w-0 flex-1">
+                      <div className="shrink-0 flex flex-col items-start gap-2 max-[460px]:items-center">
                         {profile.profileImage ? (
                           <img
                             src={resolveImage(profile.profileImage)}
                             alt={profile.name}
-                            className={`w-20 h-20 min-[420px]:w-24 min-[420px]:h-24 sm:w-28 sm:h-28 rounded-2xl object-cover ring-[3px] ${t.avatarRing}`}
+                            className={`w-20 h-20 min-[420px]:w-24 min-[420px]:h-24 sm:w-28 sm:h-28 rounded-full object-cover ring-[3px] ${t.avatarRing}`}
                           />
                         ) : (
-                          <div className={`w-20 h-20 min-[420px]:w-24 min-[420px]:h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
+                          <div className={`w-20 h-20 min-[420px]:w-24 min-[420px]:h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br flex items-center justify-center ring-[3px] ${t.avatarRing} ${t.avatarGrad}`}>
                             <span className="text-3xl min-[420px]:text-4xl sm:text-5xl font-extrabold text-white/85">
                               {profile.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
                         )}
+
+                        <div className="hidden min-[461px]:flex flex-col items-start gap-2 mt-2">
+                          <SocialShareButton
+                            share={profileShare}
+                            buttonLabel="Share"
+                            className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] text-white/80" : "bg-white hover:bg-[#f4f8ff] text-[#1a3557] shadow-sm"}`}
+                          />
+                          {isOwnProfile ? (
+                            <button
+                              onClick={() => setShowEditModal(true)}
+                              className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 ${t.editBtn}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                              </svg>
+                              Edit Profile
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={handleFollow}
+                                disabled={isBlockedByCurrent || blockedByProfile}
+                                className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                              >
+                                {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
+                              </button>
+                              <button
+                                onClick={handleToggleBlock}
+                                disabled={blockingAction || blockedByProfile}
+                                className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                              >
+                                {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h1 className={`text-[26px] min-[420px]:text-3xl sm:text-4xl min-[760px]:max-[850px]:text-[30px] font-extrabold tracking-tight leading-[1.05] break-words ${t.h1}`}>{profile.name}</h1>
+                      <div className="min-w-0 flex-1 max-[460px]:w-full max-[460px]:text-center">
+                        <div className="flex items-center gap-2 flex-wrap max-[460px]:justify-center">
+                          <h1 className={`text-[26px] min-[420px]:text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.05] break-words ${t.h1}`}>{profile.name}</h1>
                           <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                             Investor
                           </span>
                         </div>
 
                         {(profile.industryProfile?.company || profile.industryProfile?.jobTitle) && (
-                          <p className={`text-[14px] mt-2 font-medium ${dark ? "text-white/55" : "text-gray-600"}`}>
+                          <p className={`text-[14px] mt-2 font-medium max-[460px]:text-center ${dark ? "text-white/55" : "text-gray-600"}`}>
                             {profile.industryProfile?.jobTitle || "Investor"}
                             {profile.industryProfile?.company ? ` at ${profile.industryProfile.company}` : ""}
                           </p>
                         )}
 
                         {isOwnProfile && (
-                          <p className={`text-[13px] font-semibold mt-2 break-all ${t.email}`}>{profile.email}</p>
+                          <p className={`text-[13px] font-semibold mt-2 break-all max-[460px]:text-center ${t.email}`}>{profile.email}</p>
                         )}
 
                         {profile.bio && (
-                          <p className={`text-[15px] leading-relaxed mt-3 line-clamp-3 sm:line-clamp-2 ${t.body}`}>
+                          <p className={`text-[15px] leading-relaxed mt-3 line-clamp-4 max-[460px]:text-center ${t.body}`}>
                             {profile.bio}
                           </p>
                         )}
 
-                        <div className="flex flex-wrap items-center gap-2.5 mt-3.5">
+                        <div className="flex flex-wrap items-center gap-2.5 mt-3.5 max-[460px]:justify-center">
                           {memberSince && (
                             <span className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${dark ? "bg-white/[0.04] text-white/55 border-white/[0.08]" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
                               Joined {memberSince}
@@ -853,22 +926,21 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    <div className={`grid grid-cols-2 max-[360px]:grid-cols-1 gap-2.5 w-full min-[760px]:max-[850px]:w-[248px] min-[851px]:w-[300px] min-[980px]:w-[360px] min-[760px]:shrink-0 rounded-2xl p-2.5 sm:p-3 ${dark ? "bg-white/[0.02]" : "bg-[#eef4fc]"}`}>
+                    <div className="grid grid-cols-3 gap-2.5 w-full min-[1000px]:w-[360px] min-[1000px]:shrink-0 rounded-2xl p-2.5 sm:p-3">
                       {[
                         { label: "Followers", value: profile.followers.length, connectionType: "followers" },
                         { label: "Following", value: profile.following.length, connectionType: "following" },
                         { label: "Purchased", value: purchasedCount },
-                        { label: "Profile Views", value: Number(profile.profileViews || 0) },
                       ].map((item) => (
                         <button
                           key={item.label}
                           type="button"
                           disabled={!item.connectionType}
                           onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
-                          className={`rounded-2xl px-3.5 py-3 min-h-[92px] min-[760px]:max-[850px]:min-h-[84px] text-left transition-all duration-200 disabled:opacity-100 ${dark ? "bg-[#101b2a] shadow-[0_10px_24px_-18px_rgba(0,0,0,0.85)]" : "bg-white shadow-[0_10px_24px_-18px_rgba(30,58,95,0.35)]"} ${item.connectionType ? dark ? "hover:bg-[#142234] hover:-translate-y-[1px]" : "hover:bg-[#f8fbff] hover:shadow-[0_14px_28px_-20px_rgba(30,58,95,0.45)] hover:-translate-y-[1px]" : "cursor-default"}`}
+                          className={`rounded-2xl px-3.5 py-3 min-h-[92px] text-left max-[460px]:text-center transition-all duration-200 disabled:opacity-100 ${item.connectionType ? dark ? "hover:bg-[#142234] hover:-translate-y-[1px]" : "hover:bg-[#f8fbff] hover:-translate-y-[1px]" : "cursor-default"}`}
                         >
-                          <p className={`text-lg min-[760px]:max-[850px]:text-base min-[851px]:text-xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                          <p className={`text-[10px] min-[760px]:max-[850px]:text-[9px] font-bold uppercase tracking-[0.12em] min-[760px]:max-[850px]:tracking-[0.08em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                          <p className={`text-lg min-[1000px]:text-xl font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
+                          <p className={`text-[10px] font-bold uppercase tracking-[0.12em] mt-1.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                         </button>
                       ))}
                     </div>
@@ -879,7 +951,7 @@ const Profile = () => {
               <>
                 {/* Avatar + Info row */}
                 <div className="px-6 sm:px-8">
-                  <div className="-mt-12 sm:-mt-20 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
+                  <div className="pt-2 sm:pt-3 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 relative z-20">
                     <div className="shrink-0">
                       {profile.profileImage ? (
                         <img src={resolveImage(profile.profileImage)} alt={profile.name}
@@ -906,10 +978,46 @@ const Profile = () => {
                       </div>
                       {isOwnProfile && <p className={`text-[13px] font-medium mt-2 ${t.email}`}>{profile.email}</p>}
                       {profile.bio && (
-                        <p className={`text-[14px] leading-relaxed mt-2.5 line-clamp-3 ${t.body}`}>
+                        <p className={`text-[14px] leading-relaxed mt-2.5 line-clamp-4 ${t.body}`}>
                           {profile.bio}
                         </p>
                       )}
+
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <SocialShareButton
+                          share={profileShare}
+                          buttonLabel="Share"
+                          className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 ${dark ? "bg-white/[0.07] hover:bg-white/[0.14] text-white/80" : "bg-white hover:bg-[#f4f8ff] text-[#1a3557] shadow-sm"}`}
+                        />
+                        {isOwnProfile ? (
+                          <button
+                            onClick={() => setShowEditModal(true)}
+                            className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all flex items-center gap-1.5 ${t.editBtn}`}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                            </svg>
+                            Edit Profile
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={handleFollow}
+                              disabled={isBlockedByCurrent || blockedByProfile}
+                              className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                            >
+                              {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
+                            </button>
+                            <button
+                              onClick={handleToggleBlock}
+                              disabled={blockingAction || blockedByProfile}
+                              className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                            >
+                              {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -945,9 +1053,9 @@ const Profile = () => {
       {/* â”€â”€â”€â”€â”€â”€â”€â”€ TABS â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {[
+          { key: "about", label: "About" },
           ...(profile.role !== "investor" ? [{ key: "projects", label: "Projects", count: scripts.length }] : []),
           ...(isOwnProfile ? [{ key: "bookmarks", label: "Bookmarks", count: profile.favoriteScripts?.length || bookmarkedScripts.length }] : []),
-          { key: "about", label: "About" },
           ...(isOwnProfile && ["investor", "producer", "director"].includes(profile.role)
             ? [{ key: "purchased", label: "Purchased", count: purchasedCount }]
             : []),
