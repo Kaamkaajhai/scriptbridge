@@ -29,8 +29,9 @@ router.get("/", authMiddleware, async (req, res) => {
     let results = { users: [], scripts: [] };
 
     // Search users (optionally filter by role)
-    if (type === "all" || type === "users" || type === "writers" || type === "investors" || type === "readers") {
+    if (type === "all" || type === "users" || type === "writers" || type === "investors") {
       const userQuery = {
+        role: { $ne: "reader" },
         $or: [
           { name: searchRegex },
           { sid: searchRegex },
@@ -46,9 +47,7 @@ router.get("/", authMiddleware, async (req, res) => {
         userQuery.role = { $in: ["writer", "creator"] };
       } else if (type === "investors") {
         userQuery.role = "investor";
-      } else if (type === "readers") {
-        userQuery.role = "reader";
-      } else if (role) {
+      } else if (role && role !== "reader") {
         userQuery.role = role;
       }
 
