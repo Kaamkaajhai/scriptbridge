@@ -61,6 +61,46 @@ const normalizeFormatArray = (formats = []) => {
   )];
 };
 
+// @desc    Check writer username availability
+// @route   GET /api/onboarding/check-username?username=foo
+// @access  Private
+export const checkUsernameAvailability = async (req, res) => {
+  try {
+    const normalizedUsername = normalizeString(req.query?.username).toLowerCase();
+
+    if (!normalizedUsername) {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required",
+      });
+    }
+
+    if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
+      return res.status(400).json({
+        success: false,
+        message: "Username must be 3-30 characters and contain only lowercase letters, numbers, or underscores",
+      });
+    }
+
+    const existingUserWithUsername = await User.exists({
+      _id: { $ne: req.user._id },
+      "writerProfile.username": normalizedUsername,
+    });
+
+    return res.json({
+      success: true,
+      username: normalizedUsername,
+      available: !existingUserWithUsername,
+    });
+  } catch (error) {
+    console.error("Error checking username availability:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to check username availability",
+    });
+  }
+};
+
 // @desc    Update writer profile (Phase 2: Identity)
 // @route   PUT /api/onboarding/writer-profile
 // @access  Private
@@ -125,7 +165,28 @@ export const updateWriterProfile = async (req, res) => {
 
     // Update writer profile
     if (username !== undefined) {
-      user.writerProfile.username = normalizeString(username).toLowerCase();
+      const normalizedUsername = normalizeString(username).toLowerCase();
+
+      if (!normalizedUsername) {
+        return res.status(400).json({
+          success: false,
+          message: "Username is required",
+        });
+      }
+
+      const existingUserWithUsername = await User.exists({
+        _id: { $ne: user._id },
+        "writerProfile.username": normalizedUsername,
+      });
+
+      if (existingUserWithUsername) {
+        return res.status(409).json({
+          success: false,
+          message: "Username is already taken",
+        });
+      }
+
+      user.writerProfile.username = normalizedUsername;
     }
     user.bio = bio || user.bio;
     user.writerProfile.representationStatus = nextRepresentationStatus;
@@ -246,6 +307,12 @@ export const updateWriterProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating writer profile:", error);
+    if (error?.code === 11000 && error?.keyPattern?.["writerProfile.username"]) {
+      return res.status(409).json({
+        success: false,
+        message: "Username is already taken",
+      });
+    }
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
