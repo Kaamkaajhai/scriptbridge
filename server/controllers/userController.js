@@ -16,7 +16,7 @@ import {
 import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
-import { uploadToCloudinary } from "../config/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary, buildPrivateDownloadUrl } from "../config/cloudinary.js";
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
 const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
@@ -32,6 +32,36 @@ const LANGUAGE_CODE_ALIASES = {
   "zh-cn": "zh-CN",
 };
 
+const INDUSTRY_SUB_ROLE_VALUES = new Set([
+  "producer",
+  "director",
+  "executive_producer",
+  "line_producer",
+  "showrunner",
+  "development_executive",
+  "studio_executive",
+  "agent",
+  "actor",
+  "other",
+]);
+
+const INDUSTRY_PROFILE_UPLOAD_ROLES = new Set(["investor", "producer", "director"]);
+const INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES = 6;
+const INDUSTRY_NOTABLE_ATTACHMENT_MAX_TOTAL = 12;
+const INDUSTRY_NOTABLE_ATTACHMENT_FILE_SIZE = 25 * 1024 * 1024;
+const INDUSTRY_NOTABLE_ATTACHMENT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-msvideo",
+  "video/x-matroska",
+]);
+
 const normalizeLanguagePreference = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return DEFAULT_LANGUAGE;
@@ -41,6 +71,10 @@ const normalizeLanguagePreference = (value) => {
 };
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const normalizeIndustrySubRole = (value) =>
+  String(normalizeString(value) || "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 const normalizeOtpInput = (otp) => String(otp || "").trim();
 const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
 
@@ -104,6 +138,28 @@ const normalizePreferredFormat = (value = "") => {
   if (raw.includes("poet") || raw.includes("poetry")) return "poet";
 
   return raw.replace(/[\s-]+/g, "_");
+};
+
+const getNotableAttachmentResourceType = (mimeType = "") => {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.startsWith("image/")) return "image";
+  if (normalized.startsWith("video/")) return "video";
+  return "document";
+};
+
+const getCloudinaryUploadResourceType = (mimeType = "") => {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.startsWith("image/")) return "image";
+  if (normalized.startsWith("video/")) return "video";
+  return "raw";
+};
+
+const getCloudinaryResourceTypeFromUrl = (url = "") => {
+  const normalized = String(url || "");
+  if (normalized.includes("/image/upload/")) return "image";
+  if (normalized.includes("/video/upload/")) return "video";
+  if (normalized.includes("/raw/upload/")) return "raw";
+  return "";
 };
 
 const sanitizeBankPayload = (bankDetails) => {
@@ -295,6 +351,38 @@ const fileFilter = (req, file, cb) => {
 };
 
 export const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+
+const notableCreditAttachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: INDUSTRY_NOTABLE_ATTACHMENT_FILE_SIZE,
+    files: INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (INDUSTRY_NOTABLE_ATTACHMENT_MIME_TYPES.has(file?.mimetype)) {
+      return cb(null, true);
+    }
+    return cb(new Error("Only images, PDFs, and videos are allowed"));
+  },
+}).array("attachments", INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES);
+
+export const uploadNotableCreditAttachmentsFile = (req, res, next) => {
+  notableCreditAttachmentUpload(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "Each attachment must be 25MB or smaller" });
+      }
+      if (err.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({ message: `You can upload up to ${INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES} files at once` });
+      }
+      return res.status(400).json({ message: err.message || "Attachment upload failed" });
+    }
+
+    return res.status(400).json({ message: err.message || "Attachment upload failed" });
+  });
+};
 
 export const getWriters = async (req, res) => {
   try {
@@ -642,7 +730,7 @@ export const updateUserProfile = async (req, res) => {
       privacyPolicyAccepted,
       privacyPolicyVersion,
       // investor profile fields
-      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
+      subRole, subRoleOther, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
       // bank details
       bankDetails,
       // notification preferences
@@ -715,9 +803,37 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
+    if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
-      if (subRole !== undefined) user.industryProfile.subRole = normalizeString(subRole);
+
+      const resultingBio = normalizeString(bio !== undefined ? bio : user.bio) || "";
+      if (!resultingBio) {
+        return res.status(400).json({ message: "Bio is required for industry professional profile" });
+      }
+      user.bio = resultingBio;
+
+      let nextSubRole = normalizeIndustrySubRole(user.industryProfile.subRole);
+      if (subRole !== undefined) {
+        const normalizedSubRole = normalizeIndustrySubRole(subRole);
+        if (normalizedSubRole && !INDUSTRY_SUB_ROLE_VALUES.has(normalizedSubRole)) {
+          return res.status(400).json({ message: "Invalid role focus option" });
+        }
+        user.industryProfile.subRole = normalizedSubRole || undefined;
+        nextSubRole = normalizedSubRole;
+      }
+
+      if (subRoleOther !== undefined || nextSubRole === "other") {
+        const normalizedSubRoleOther = normalizeString(subRoleOther);
+        if (nextSubRole === "other") {
+          if (!normalizedSubRoleOther) {
+            return res.status(400).json({ message: "Please specify your role focus for 'Other'" });
+          }
+          user.industryProfile.subRoleOther = normalizedSubRoleOther;
+        } else {
+          user.industryProfile.subRoleOther = "";
+        }
+      }
+
       if (company !== undefined) user.industryProfile.company = normalizeString(company);
       if (jobTitle !== undefined) user.industryProfile.jobTitle = normalizeString(jobTitle);
       if (imdbUrl !== undefined) user.industryProfile.imdbUrl = normalizeString(imdbUrl);
@@ -1039,6 +1155,189 @@ export const uploadProfileImage = async (req, res) => {
     res.json({ profileImage: imageUrl });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const uploadNotableCreditAttachments = async (req, res) => {
+  try {
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length === 0) {
+      return res.status(400).json({ message: "Please attach at least one file" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const normalizedRole = String(user.role || "").toLowerCase();
+    if (!INDUSTRY_PROFILE_UPLOAD_ROLES.has(normalizedRole)) {
+      return res.status(403).json({ message: "Only industry professional accounts can upload notable credit files" });
+    }
+
+    if (!user.industryProfile) user.industryProfile = {};
+    if (!Array.isArray(user.industryProfile.notableCreditAttachments)) {
+      user.industryProfile.notableCreditAttachments = [];
+    }
+
+    const existingCount = user.industryProfile.notableCreditAttachments.length;
+    if (existingCount + files.length > INDUSTRY_NOTABLE_ATTACHMENT_MAX_TOTAL) {
+      return res.status(400).json({
+        message: `You can store up to ${INDUSTRY_NOTABLE_ATTACHMENT_MAX_TOTAL} notable credit attachments`,
+      });
+    }
+
+    const uploadedFiles = [];
+    for (const [index, file] of files.entries()) {
+      const cloudinaryResourceType = getCloudinaryUploadResourceType(file.mimetype);
+      const uploadResult = await uploadToCloudinary(file.buffer, {
+        folder: `scriptbridge/notable-credits/${user._id}`,
+        resource_type: cloudinaryResourceType,
+        public_id: `notable-credit-${user._id}-${Date.now()}-${index}`,
+        originalFilename: file.originalname,
+        mimeType: file.mimetype,
+      });
+
+      uploadedFiles.push({
+        url: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        resourceType: getNotableAttachmentResourceType(file.mimetype),
+        cloudinaryResourceType,
+        uploadedAt: new Date(),
+      });
+    }
+
+    user.industryProfile.notableCreditAttachments.push(...uploadedFiles);
+    user.markModified("industryProfile");
+    await user.save();
+
+    return res.json({
+      message: "Notable credit attachments uploaded successfully",
+      attachments: user.industryProfile.notableCreditAttachments,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to upload notable credit attachments" });
+  }
+};
+
+export const getNotableCreditAttachmentAccessUrl = async (req, res) => {
+  try {
+    const publicId = normalizeString(req.query?.publicId);
+    const fileUrl = normalizeString(req.query?.url);
+
+    if (!publicId && !fileUrl) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
+
+    const user = await User.findById(req.user._id).lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const attachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
+      ? user.industryProfile.notableCreditAttachments
+      : [];
+
+    const attachment = attachments.find((item) => {
+      const itemPublicId = normalizeString(item?.publicId);
+      const itemUrl = normalizeString(item?.url);
+      if (publicId && itemPublicId === publicId) return true;
+      if (fileUrl && itemUrl === fileUrl) return true;
+      return false;
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    const mimeType = String(attachment?.mimeType || "").toLowerCase();
+    if (mimeType !== "application/pdf") {
+      return res.json({ url: attachment.url });
+    }
+
+    const attachmentPublicId = normalizeString(attachment?.publicId);
+    if (!attachmentPublicId) {
+      return res.json({ url: attachment.url });
+    }
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+    const cloudinaryResourceType =
+      normalizeString(attachment?.cloudinaryResourceType) ||
+      getCloudinaryResourceTypeFromUrl(attachment?.url) ||
+      (attachment?.resourceType === "video" ? "video" : attachment?.resourceType === "document" ? "raw" : "image");
+
+    const signedUrl = buildPrivateDownloadUrl(attachmentPublicId, "pdf", {
+      resource_type: cloudinaryResourceType,
+      type: "upload",
+      expires_at: expiresAt,
+      attachment: false,
+    });
+
+    return res.json({ url: signedUrl });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to build attachment access URL" });
+  }
+};
+
+export const removeNotableCreditAttachment = async (req, res) => {
+  try {
+    const publicId = normalizeString(req.body?.publicId);
+    const fileUrl = normalizeString(req.body?.url);
+
+    if (!publicId && !fileUrl) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.industryProfile) user.industryProfile = {};
+    const attachments = Array.isArray(user.industryProfile.notableCreditAttachments)
+      ? user.industryProfile.notableCreditAttachments
+      : [];
+
+    const attachmentIndex = attachments.findIndex((item) => {
+      const itemPublicId = normalizeString(item?.publicId);
+      const itemUrl = normalizeString(item?.url);
+      if (publicId && itemPublicId === publicId) return true;
+      if (fileUrl && itemUrl === fileUrl) return true;
+      return false;
+    });
+
+    if (attachmentIndex === -1) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    const [attachment] = attachments.splice(attachmentIndex, 1);
+
+    const resourceType = String(attachment?.resourceType || "").toLowerCase();
+    const cloudinaryResourceType =
+      normalizeString(attachment?.cloudinaryResourceType) ||
+      (resourceType === "video" ? "video" : resourceType === "document" ? "raw" : "image");
+    const attachmentPublicId = normalizeString(attachment?.publicId);
+
+    if (attachmentPublicId) {
+      try {
+        await deleteFromCloudinary(attachmentPublicId, { resource_type: cloudinaryResourceType });
+      } catch {
+        // Ignore Cloudinary cleanup failures to avoid blocking profile updates.
+      }
+    }
+
+    user.industryProfile.notableCreditAttachments = attachments;
+    user.markModified("industryProfile");
+    await user.save();
+
+    return res.json({
+      message: "Attachment removed successfully",
+      attachments: user.industryProfile.notableCreditAttachments,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to remove attachment" });
   }
 };
 

@@ -159,8 +159,20 @@ const userSchema = new mongoose.Schema({
   industryProfile: {
     subRole: {
       type: String,
-      enum: ["producer", "agent", "director", "actor"],
+      enum: [
+        "producer",
+        "director",
+        "executive_producer",
+        "line_producer",
+        "showrunner",
+        "development_executive",
+        "studio_executive",
+        "agent",
+        "actor",
+        "other",
+      ],
     },
+    subRoleOther: { type: String },
     company: { type: String },
     jobTitle: { type: String },
     imdbUrl: { type: String },
@@ -174,6 +186,16 @@ const userSchema = new mongoose.Schema({
     },
     otherUrl: { type: String },
     previousCredits: { type: String },
+    notableCreditAttachments: [{
+      _id: false,
+      url: { type: String },
+      publicId: { type: String },
+      fileName: { type: String },
+      mimeType: { type: String },
+      resourceType: { type: String },
+      cloudinaryResourceType: { type: String },
+      uploadedAt: { type: Date, default: Date.now },
+    }],
     investmentRange: { type: String },
     isVerified: { type: Boolean, default: false },
     // Mandates (what they're looking for)
