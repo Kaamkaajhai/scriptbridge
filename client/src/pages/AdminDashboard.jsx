@@ -3410,6 +3410,7 @@ const AdminDashboard = () => {
     };
 
     const UserDetailsModal = ({ user, onClose }) => {
+        const [openingAttachmentKey, setOpeningAttachmentKey] = useState("");
         const writerLinks = user?.writerProfile?.links || {};
         const membershipVerification = user?.writerProfile?.membershipVerification || {};
         const wgaVerification = membershipVerification?.wga || {};
@@ -3432,6 +3433,42 @@ const AdminDashboard = () => {
         const wgaRejectLoading = userActionLoading === `membership-reject-wga-${user?._id}`;
         const swaApproveLoading = userActionLoading === `membership-approve-swa-${user?._id}`;
         const swaRejectLoading = userActionLoading === `membership-reject-swa-${user?._id}`;
+
+        const handleOpenAdminAttachment = async (event, file) => {
+            event.preventDefault();
+
+            const fallbackUrl = String(file?.url || "");
+            const fileKey = String(file?.publicId || fallbackUrl || "");
+            if (!fallbackUrl) return;
+
+            const mimeType = String(file?.mimeType || "").toLowerCase();
+            if (mimeType !== "application/pdf") {
+                window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+                return;
+            }
+
+            setOpeningAttachmentKey(fileKey);
+            try {
+                const response = await adminApi.get(`/admin/users/${user?._id}/industry-credit-attachments/file`, {
+                    params: {
+                        publicId: file?.publicId,
+                        url: file?.url,
+                    },
+                    responseType: "blob",
+                });
+
+                const blob = response?.data instanceof Blob
+                    ? response.data
+                    : new Blob([response?.data], { type: "application/pdf" });
+                const objectUrl = URL.createObjectURL(blob);
+                window.open(objectUrl, "_blank", "noopener,noreferrer");
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
+            } catch {
+                window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+            } finally {
+                setOpeningAttachmentKey("");
+            }
+        };
 
         const detailRows = [
             { label: "Name", value: user?.name },
@@ -3712,9 +3749,12 @@ const AdminDashboard = () => {
                                                     href={file?.url}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
+                                                    onClick={(event) => handleOpenAdminAttachment(event, file)}
                                                     className={`block text-sm break-all underline underline-offset-2 ${isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-700"}`}
                                                 >
-                                                    {file?.fileName || `Attachment ${index + 1}`}
+                                                    {openingAttachmentKey === String(file?.publicId || file?.url || "")
+                                                        ? "Opening..."
+                                                        : (file?.fileName || `Attachment ${index + 1}`)}
                                                     {file?.mimeType ? ` (${file.mimeType})` : ""}
                                                 </a>
                                             ))}

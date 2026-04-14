@@ -4,6 +4,7 @@ import adminOnly from "../middleware/adminMiddleware.js";
 import {
     getStats,
     getUsers,
+    getUserNotableCreditAttachmentFile,
     getDeletedAccountRequests,
     freezeUserAccount,
     unfreezeUserAccount,
@@ -57,6 +58,7 @@ router.get("/alerts/summary", getAdminAlertSummary);
 
 // Users
 router.get("/users", getUsers);
+router.get("/users/:id/industry-credit-attachments/file", getUserNotableCreditAttachmentFile);
 router.get("/users/deleted-requests", getDeletedAccountRequests);
 router.put("/users/:id/freeze", freezeUserAccount);
 router.put("/users/:id/unfreeze", unfreezeUserAccount);

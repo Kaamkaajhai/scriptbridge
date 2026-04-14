@@ -1,6 +1,6 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
-import { getWriters, getBlockedUsers, blockUser,getCurrentUser,unblockUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, uploadNotableCreditAttachmentsFile, uploadNotableCreditAttachments, getNotableCreditAttachmentAccessUrl, removeNotableCreditAttachment, updateSettings, changePassword, changeEmail, deleteAccount } from "../controllers/userController.js";
+import { getWriters, getBlockedUsers, blockUser,getCurrentUser,unblockUser, getUserProfile, updateUserProfile, followUser, unfollowUser, getWatchlist, addToWatchlist, removeFromWatchlist, uploadProfileImage, upload, uploadNotableCreditAttachmentsFile, uploadNotableCreditAttachments, getNotableCreditAttachmentAccessUrl, getNotableCreditAttachmentFile, removeNotableCreditAttachment, updateSettings, changePassword, changeEmail, deleteAccount } from "../controllers/userController.js";
 
 const router = express.Router();
 
@@ -23,10 +23,11 @@ router.put("/change-email", protect, changeEmail);
 router.delete("/account", protect, deleteAccount);
 
 // User profile routes
+router.get("/industry-credit-attachments/file", protect, getNotableCreditAttachmentFile);
+router.get("/industry-credit-attachments/access-url", protect, getNotableCreditAttachmentAccessUrl);
 router.get("/:id", protect, getUserProfile);
 router.put("/update", protect, updateUserProfile);
 router.post("/upload-image", protect, upload.single("profileImage"), uploadProfileImage);
-router.get("/industry-credit-attachments/access-url", protect, getNotableCreditAttachmentAccessUrl);
 router.post("/industry-credit-attachments", protect, uploadNotableCreditAttachmentsFile, uploadNotableCreditAttachments);
 router.delete("/industry-credit-attachments", protect, removeNotableCreditAttachment);
 router.post("/follow", protect, followUser);
