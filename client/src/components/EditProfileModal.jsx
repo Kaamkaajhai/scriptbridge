@@ -96,6 +96,18 @@ const normalizePreferredFormat = (value = "") => {
 const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+const INDUSTRY_ROLE_OPTIONS = [
+  { value: "producer", label: "Producer" },
+  { value: "director", label: "Director" },
+  { value: "executive_producer", label: "Executive Producer" },
+  { value: "line_producer", label: "Line Producer" },
+  { value: "showrunner", label: "Showrunner" },
+  { value: "development_executive", label: "Development Executive" },
+  { value: "studio_executive", label: "Studio Executive" },
+  { value: "agent", label: "Agent" },
+  { value: "actor", label: "Actor" },
+  { value: "other", label: "Other" },
+];
 
 const EMPTY_MEMBERSHIP_REVIEW = {
   requested: false,
@@ -135,6 +147,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   // Investor-specific state
   const [investorData, setInvestorData] = useState({
     subRole: ip.subRole || "producer",
+    subRoleOther: ip.subRoleOther || "",
     jobTitle: ip.jobTitle || "",
     company: ip.company || "",
     imdbUrl: ip.imdbUrl || "",
@@ -412,6 +425,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
 
       if (isInvestor) {
         payload.subRole = investorData.subRole;
+        payload.subRoleOther = investorData.subRole === "other" ? investorData.subRoleOther : "";
         payload.jobTitle = investorData.jobTitle;
         payload.company = investorData.company;
         payload.imdbUrl = investorData.imdbUrl;
@@ -1020,15 +1034,37 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   </label>
                   <select
                     value={investorData.subRole}
-                    onChange={(e) => setInvestorData({ ...investorData, subRole: e.target.value })}
+                    onChange={(e) => {
+                      const nextSubRole = e.target.value;
+                      setInvestorData((prev) => ({
+                        ...prev,
+                        subRole: nextSubRole,
+                        subRoleOther: nextSubRole === "other" ? prev.subRoleOther : "",
+                      }));
+                    }}
                     className={inputClass}
                   >
-                    <option value="producer">Producer</option>
-                    <option value="agent">Agent</option>
-                    <option value="director">Director</option>
-                    <option value="actor">Actor</option>
+                    {INDUSTRY_ROLE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
+
+                {investorData.subRole === "other" && (
+                  <div>
+                    <label className={labelClass}>
+                      <span className="flex items-center gap-1.5"><Briefcase size={12} /> Other Role</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={investorData.subRoleOther}
+                      onChange={(e) => setInvestorData({ ...investorData, subRoleOther: e.target.value })}
+                      className={inputClass}
+                      placeholder="Please specify your role focus"
+                      maxLength={80}
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className={labelClass}>

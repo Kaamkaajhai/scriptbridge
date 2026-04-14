@@ -117,6 +117,21 @@ const getUserProfileSummary = (user) => {
     return summaryParts.join(" • ");
 };
 
+const formatIndustrySubRole = (subRole, subRoleOther) => {
+    const normalized = String(subRole || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (!normalized) return "";
+
+    if (normalized === "other") {
+        const custom = String(subRoleOther || "").trim();
+        return custom ? `Other (${custom})` : "Other";
+    }
+
+    return normalized
+        .split("_")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+};
+
 const formatUserExportLine = (user, index) => {
     const address = getUserAddressLine(user);
     const company = getUserCompany(user);
@@ -3401,6 +3416,9 @@ const AdminDashboard = () => {
         const swaVerification = membershipVerification?.swa || {};
         const investorLinks = user?.industryProfile?.socialLinks || {};
         const mandates = user?.industryProfile?.mandates || {};
+        const notableCreditAttachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
+            ? user.industryProfile.notableCreditAttachments
+            : [];
         const addressLine = getUserAddressLine(user);
         const creditBalanceRaw = Number(user?.credits?.balance ?? user?.creditsBalance ?? 0);
         const creditBalance = Number.isFinite(creditBalanceRaw) ? creditBalanceRaw : 0;
@@ -3457,7 +3475,7 @@ const AdminDashboard = () => {
         ].filter((row) => row.value);
 
         const investorRows = [
-            { label: "Sub Role", value: user?.industryProfile?.subRole },
+            { label: "Sub Role", value: formatIndustrySubRole(user?.industryProfile?.subRole, user?.industryProfile?.subRoleOther) },
             { label: "Company", value: user?.industryProfile?.company },
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
             { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
@@ -3681,6 +3699,28 @@ const AdminDashboard = () => {
                                         </div>
                                     ))}
                                 </div>
+
+                                {notableCreditAttachments.length > 0 && (
+                                    <div className={`mt-4 pt-3 border-t ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                                        <p className={`text-[11px] font-bold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                            Notable Credit Attachments ({notableCreditAttachments.length})
+                                        </p>
+                                        <div className="space-y-1.5">
+                                            {notableCreditAttachments.map((file, index) => (
+                                                <a
+                                                    key={`${file?.publicId || file?.url || "credit-file"}-${index}`}
+                                                    href={file?.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className={`block text-sm break-all underline underline-offset-2 ${isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-700"}`}
+                                                >
+                                                    {file?.fileName || `Attachment ${index + 1}`}
+                                                    {file?.mimeType ? ` (${file.mimeType})` : ""}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
