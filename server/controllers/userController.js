@@ -162,6 +162,75 @@ const getCloudinaryResourceTypeFromUrl = (url = "") => {
   return "";
 };
 
+const resolveAttachmentCloudinaryResourceType = (attachment) =>
+  normalizeString(attachment?.cloudinaryResourceType) ||
+  getCloudinaryResourceTypeFromUrl(attachment?.url) ||
+  (attachment?.resourceType === "video" ? "video" : attachment?.resourceType === "document" ? "raw" : "image");
+
+const findNotableAttachment = (attachments = [], { publicId = "", fileUrl = "" } = {}) =>
+  attachments.find((item) => {
+    const itemPublicId = normalizeString(item?.publicId);
+    const itemUrl = normalizeString(item?.url);
+    if (publicId && itemPublicId === publicId) return true;
+    if (fileUrl && itemUrl === fileUrl) return true;
+    return false;
+  });
+
+const sanitizeInlineFileName = (fileName = "attachment.pdf") => {
+  const normalized = String(fileName || "attachment.pdf")
+    .replace(/[\\/]/g, "-")
+    .replace(/[^a-zA-Z0-9._ -]/g, "_")
+    .trim();
+  if (!normalized) return "attachment.pdf";
+  return normalized.toLowerCase().endsWith(".pdf") ? normalized : `${normalized}.pdf`;
+};
+
+const fetchPdfBufferFromCloudinary = async ({ publicId, attachmentUrl, preferredResourceType }) => {
+  const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+  const resourceTypeCandidates = Array.from(new Set([
+    preferredResourceType,
+    "raw",
+    "image",
+  ].filter(Boolean)));
+
+  for (const resourceType of resourceTypeCandidates) {
+    try {
+      const signedUrl = buildPrivateDownloadUrl(publicId, "pdf", {
+        resource_type: resourceType,
+        type: "upload",
+        expires_at: expiresAt,
+        attachment: false,
+      });
+
+      const response = await fetch(signedUrl);
+      if (!response.ok) continue;
+
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > 0) {
+        return Buffer.from(arrayBuffer);
+      }
+    } catch {
+      // Try fallback resource types.
+    }
+  }
+
+  if (attachmentUrl) {
+    try {
+      const fallbackResponse = await fetch(attachmentUrl);
+      if (fallbackResponse.ok) {
+        const fallbackBuffer = await fallbackResponse.arrayBuffer();
+        if (fallbackBuffer.byteLength > 0) {
+          return Buffer.from(fallbackBuffer);
+        }
+      }
+    } catch {
+      // Final fallback failed; return null below.
+    }
+  }
+
+  return null;
+};
+
 const sanitizeBankPayload = (bankDetails) => {
   if (!bankDetails || typeof bankDetails !== "object") return null;
 
@@ -1240,13 +1309,7 @@ export const getNotableCreditAttachmentAccessUrl = async (req, res) => {
       ? user.industryProfile.notableCreditAttachments
       : [];
 
-    const attachment = attachments.find((item) => {
-      const itemPublicId = normalizeString(item?.publicId);
-      const itemUrl = normalizeString(item?.url);
-      if (publicId && itemPublicId === publicId) return true;
-      if (fileUrl && itemUrl === fileUrl) return true;
-      return false;
-    });
+    const attachment = findNotableAttachment(attachments, { publicId, fileUrl });
 
     if (!attachment) {
       return res.status(404).json({ message: "Attachment not found" });
@@ -1263,10 +1326,7 @@ export const getNotableCreditAttachmentAccessUrl = async (req, res) => {
     }
 
     const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
-    const cloudinaryResourceType =
-      normalizeString(attachment?.cloudinaryResourceType) ||
-      getCloudinaryResourceTypeFromUrl(attachment?.url) ||
-      (attachment?.resourceType === "video" ? "video" : attachment?.resourceType === "document" ? "raw" : "image");
+    const cloudinaryResourceType = resolveAttachmentCloudinaryResourceType(attachment);
 
     const signedUrl = buildPrivateDownloadUrl(attachmentPublicId, "pdf", {
       resource_type: cloudinaryResourceType,
@@ -1278,6 +1338,58 @@ export const getNotableCreditAttachmentAccessUrl = async (req, res) => {
     return res.json({ url: signedUrl });
   } catch (error) {
     return res.status(500).json({ message: error.message || "Failed to build attachment access URL" });
+  }
+};
+
+export const getNotableCreditAttachmentFile = async (req, res) => {
+  try {
+    const publicId = normalizeString(req.query?.publicId);
+    const fileUrl = normalizeString(req.query?.url);
+
+    if (!publicId && !fileUrl) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
+
+    const user = await User.findById(req.user._id).lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const attachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
+      ? user.industryProfile.notableCreditAttachments
+      : [];
+    const attachment = findNotableAttachment(attachments, { publicId, fileUrl });
+
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    const mimeType = String(attachment?.mimeType || "").toLowerCase();
+    if (mimeType !== "application/pdf") {
+      return res.redirect(attachment.url);
+    }
+
+    const attachmentPublicId = normalizeString(attachment?.publicId);
+    if (!attachmentPublicId) {
+      return res.redirect(attachment.url);
+    }
+
+    const pdfBuffer = await fetchPdfBufferFromCloudinary({
+      publicId: attachmentPublicId,
+      attachmentUrl: normalizeString(attachment?.url),
+      preferredResourceType: resolveAttachmentCloudinaryResourceType(attachment),
+    });
+
+    if (!pdfBuffer) {
+      return res.status(502).json({ message: "Unable to load PDF attachment" });
+    }
+
+    const fileName = sanitizeInlineFileName(attachment?.fileName || "attachment.pdf");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to load attachment file" });
   }
 };
 

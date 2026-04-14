@@ -11,7 +11,7 @@ import ContactSubmission from "../models/ContactSubmission.js";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import { uploadToCloudinary } from "../config/cloudinary.js";
+import { uploadToCloudinary, buildPrivateDownloadUrl } from "../config/cloudinary.js";
 import {
     sendInvestorApprovalEmail,
     sendInvestorRejectionEmail,
@@ -42,6 +42,76 @@ const resolveClientOriginFromRequest = (req) => {
 const maskAccountNumber = (accountNumber = "") => {
     if (!accountNumber) return "";
     return `****${String(accountNumber).slice(-4)}`;
+};
+
+const normalizeString = (value) => (typeof value === "string" ? value.trim() : "");
+
+const sanitizeInlineFileName = (fileName = "attachment.pdf") => {
+    const normalized = String(fileName || "attachment.pdf")
+        .replace(/[\\/]/g, "-")
+        .replace(/[^a-zA-Z0-9._ -]/g, "_")
+        .trim();
+    if (!normalized) return "attachment.pdf";
+    return normalized.toLowerCase().endsWith(".pdf") ? normalized : `${normalized}.pdf`;
+};
+
+const getCloudinaryResourceTypeFromUrl = (url = "") => {
+    const normalized = String(url || "");
+    if (normalized.includes("/image/upload/")) return "image";
+    if (normalized.includes("/video/upload/")) return "video";
+    if (normalized.includes("/raw/upload/")) return "raw";
+    return "";
+};
+
+const resolveAttachmentCloudinaryResourceType = (attachment) =>
+    normalizeString(attachment?.cloudinaryResourceType) ||
+    getCloudinaryResourceTypeFromUrl(attachment?.url) ||
+    (attachment?.resourceType === "video" ? "video" : attachment?.resourceType === "document" ? "raw" : "image");
+
+const fetchPdfBufferFromCloudinary = async ({ publicId, attachmentUrl, preferredResourceType }) => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+    const resourceTypeCandidates = Array.from(new Set([
+        preferredResourceType,
+        "raw",
+        "image",
+    ].filter(Boolean)));
+
+    for (const resourceType of resourceTypeCandidates) {
+        try {
+            const signedUrl = buildPrivateDownloadUrl(publicId, "pdf", {
+                resource_type: resourceType,
+                type: "upload",
+                expires_at: expiresAt,
+                attachment: false,
+            });
+
+            const response = await fetch(signedUrl);
+            if (!response.ok) continue;
+
+            const arrayBuffer = await response.arrayBuffer();
+            if (arrayBuffer.byteLength > 0) {
+                return Buffer.from(arrayBuffer);
+            }
+        } catch {
+            // Try fallback resource types.
+        }
+    }
+
+    if (attachmentUrl) {
+        try {
+            const fallbackResponse = await fetch(attachmentUrl);
+            if (fallbackResponse.ok) {
+                const fallbackBuffer = await fallbackResponse.arrayBuffer();
+                if (fallbackBuffer.byteLength > 0) {
+                    return Buffer.from(fallbackBuffer);
+                }
+            }
+        } catch {
+            // Final fallback failed; return null below.
+        }
+    }
+
+    return null;
 };
 
 const isAdminUploadedTrailer = (script) => {
@@ -253,6 +323,73 @@ export const getUsers = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+export const getUserNotableCreditAttachmentFile = async (req, res) => {
+    try {
+        const userId = normalizeString(req.params?.id);
+        const publicId = normalizeString(req.query?.publicId);
+        const fileUrl = normalizeString(req.query?.url);
+
+        if (!userId) {
+            return res.status(400).json({ message: "User id is required" });
+        }
+
+        if (!publicId && !fileUrl) {
+            return res.status(400).json({ message: "publicId or url is required" });
+        }
+
+        const targetUser = await User.findById(userId)
+            .select("industryProfile.notableCreditAttachments")
+            .lean();
+
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const attachments = Array.isArray(targetUser?.industryProfile?.notableCreditAttachments)
+            ? targetUser.industryProfile.notableCreditAttachments
+            : [];
+
+        const attachment = attachments.find((item) => {
+            const itemPublicId = normalizeString(item?.publicId);
+            const itemUrl = normalizeString(item?.url);
+            if (publicId && itemPublicId === publicId) return true;
+            if (fileUrl && itemUrl === fileUrl) return true;
+            return false;
+        });
+
+        if (!attachment) {
+            return res.status(404).json({ message: "Attachment not found" });
+        }
+
+        const mimeType = String(attachment?.mimeType || "").toLowerCase();
+        if (mimeType !== "application/pdf") {
+            return res.redirect(attachment.url);
+        }
+
+        const attachmentPublicId = normalizeString(attachment?.publicId);
+        if (!attachmentPublicId) {
+            return res.redirect(attachment.url);
+        }
+
+        const pdfBuffer = await fetchPdfBufferFromCloudinary({
+            publicId: attachmentPublicId,
+            attachmentUrl: normalizeString(attachment?.url),
+            preferredResourceType: resolveAttachmentCloudinaryResourceType(attachment),
+        });
+
+        if (!pdfBuffer) {
+            return res.status(502).json({ message: "Unable to load PDF attachment" });
+        }
+
+        const fileName = sanitizeInlineFileName(attachment?.fileName || "attachment.pdf");
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+        return res.send(pdfBuffer);
+    } catch (error) {
+        return res.status(500).json({ message: error.message || "Failed to load attachment file" });
     }
 };
 

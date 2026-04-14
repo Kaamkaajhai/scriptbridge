@@ -664,14 +664,20 @@ const InvestorOnboarding = () => {
     }
 
     try {
-      const { data } = await api.get("/users/industry-credit-attachments/access-url", {
+      const response = await api.get("/users/industry-credit-attachments/file", {
         params: {
           publicId: attachment?.publicId,
           url: attachment?.url,
         },
+        responseType: "blob",
       });
 
-      window.open(String(data?.url || fallbackUrl), "_blank", "noopener,noreferrer");
+      const blob = response?.data instanceof Blob
+        ? response.data
+        : new Blob([response?.data], { type: "application/pdf" });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
     } catch {
       window.open(fallbackUrl, "_blank", "noopener,noreferrer");
     }
@@ -867,7 +873,7 @@ const InvestorOnboarding = () => {
               <Users className="text-white" size={40} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-sm text-gray-600">Producer/Director Onboarding</p>
+          <p className="text-sm text-gray-600">Industry Professional Onboarding</p>
         </div>
 
         {/* Steps */}
