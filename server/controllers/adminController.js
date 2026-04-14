@@ -12,7 +12,11 @@ import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import { uploadToCloudinary } from "../config/cloudinary.js";
-import { sendInvestorApprovalEmail, sendInvestorRejectionEmail } from "../utils/emailService.js";
+import {
+    sendInvestorApprovalEmail,
+    sendInvestorRejectionEmail,
+    sendWriterMembershipDecisionEmail,
+} from "../utils/emailService.js";
 
 const buildChatId = (idA, idB) => {
     const sorted = [idA.toString(), idB.toString()].sort();
@@ -95,6 +99,43 @@ const getPurchasedUserIdSetForAdminDelete = async (script) => {
 };
 
 const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const WRITER_ROLE_SET = new Set(["writer", "creator"]);
+
+const MEMBERSHIP_TYPE_CONFIG = {
+    wga: { verificationKey: "wga", memberField: "wgaMember", label: "WGA" },
+    swa: { verificationKey: "swa", memberField: "sgaMember", label: "SWA" },
+};
+
+const createEmptyMembershipReview = () => ({
+    requested: false,
+    status: "not_submitted",
+    proofUrl: "",
+    proofPublicId: "",
+    proofFileName: "",
+    proofMimeType: "",
+    submittedAt: undefined,
+    reviewedAt: undefined,
+    reviewedBy: undefined,
+    adminNote: "",
+});
+
+const ensureWriterMembershipVerification = (user) => {
+    if (!user.writerProfile) user.writerProfile = {};
+    if (!user.writerProfile.membershipVerification) {
+        user.writerProfile.membershipVerification = {
+            wga: createEmptyMembershipReview(),
+            swa: createEmptyMembershipReview(),
+        };
+    }
+    if (!user.writerProfile.membershipVerification.wga) {
+        user.writerProfile.membershipVerification.wga = createEmptyMembershipReview();
+    }
+    if (!user.writerProfile.membershipVerification.swa) {
+        user.writerProfile.membershipVerification.swa = createEmptyMembershipReview();
+    }
+    return user.writerProfile.membershipVerification;
+};
 
 const buildAdminUserSearchQuery = (searchTerm) => {
     const normalizedSearch = String(searchTerm || "").trim();
@@ -1166,6 +1207,87 @@ export const getPendingInvestors = async (req, res) => {
     }
 };
 
+export const getPendingWriterMembershipReviews = async (req, res) => {
+    try {
+        const { page = 1, limit = 20, search = "" } = req.query;
+        const pageNumber = Math.max(Number(page) || 1, 1);
+        const pageLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+
+        const pendingMembershipFilter = {
+            $or: [
+                { "writerProfile.membershipVerification.wga.status": "pending" },
+                { "writerProfile.membershipVerification.swa.status": "pending" },
+            ],
+        };
+
+        const filter = {
+            role: { $in: Array.from(WRITER_ROLE_SET) },
+            ...pendingMembershipFilter,
+        };
+
+        const searchFilter = buildAdminUserSearchQuery(search);
+        if (searchFilter) {
+            delete filter.$or;
+            filter.$and = [pendingMembershipFilter, searchFilter];
+        }
+
+        const total = await User.countDocuments(filter);
+        const users = await User.find(filter)
+            .select("name email sid role profileImage writerProfile.username writerProfile.membershipVerification writerProfile.wgaMember writerProfile.sgaMember createdAt")
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .skip((pageNumber - 1) * pageLimit)
+            .limit(pageLimit)
+            .lean();
+
+        const reviews = users.map((user) => {
+            const wga = user?.writerProfile?.membershipVerification?.wga || {};
+            const swa = user?.writerProfile?.membershipVerification?.swa || {};
+
+            const pendingMemberships = [
+                {
+                    type: "wga",
+                    label: "WGA",
+                    status: String(wga?.status || "not_submitted"),
+                    submittedAt: wga?.submittedAt,
+                    proofUrl: wga?.proofUrl || "",
+                    proofFileName: wga?.proofFileName || "",
+                    adminNote: wga?.adminNote || "",
+                },
+                {
+                    type: "swa",
+                    label: "SWA",
+                    status: String(swa?.status || "not_submitted"),
+                    submittedAt: swa?.submittedAt,
+                    proofUrl: swa?.proofUrl || "",
+                    proofFileName: swa?.proofFileName || "",
+                    adminNote: swa?.adminNote || "",
+                },
+            ].filter((item) => item.status === "pending");
+
+            return {
+                _id: user._id,
+                name: user.name || "",
+                email: user.email || "",
+                sid: user.sid || "",
+                role: user.role || "",
+                profileImage: user.profileImage || "",
+                username: user?.writerProfile?.username || "",
+                pendingMemberships,
+                createdAt: user.createdAt,
+            };
+        });
+
+        res.json({
+            reviews,
+            total,
+            page: pageNumber,
+            totalPages: Math.max(1, Math.ceil(total / pageLimit)),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 export const approveInvestor = async (req, res) => {
     try {
         const user = await User.findOne({ _id: req.params.id, role: "investor" });
@@ -1210,6 +1332,80 @@ export const rejectInvestor = async (req, res) => {
         );
 
         res.json({ message: "Investor rejected", user: { _id: user._id, name: user.name, email: user.email, approvalStatus: user.approvalStatus } });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const reviewWriterMembership = async (req, res) => {
+    try {
+        const { note } = req.body || {};
+        const membershipType = String(req.params.membershipType || "").toLowerCase();
+        const decision = String(req.params.decision || "").toLowerCase();
+        const membershipConfig = MEMBERSHIP_TYPE_CONFIG[membershipType];
+
+        if (!membershipConfig) {
+            return res.status(400).json({ message: "Invalid membership type. Use 'wga' or 'swa'." });
+        }
+
+        if (!["approve", "reject"].includes(decision)) {
+            return res.status(400).json({ message: "Invalid decision. Use 'approve' or 'reject'." });
+        }
+
+        const user = await User.findOne({ _id: req.params.id, role: { $in: Array.from(WRITER_ROLE_SET) } });
+        if (!user) return res.status(404).json({ message: "Writer not found" });
+
+        const verification = ensureWriterMembershipVerification(user);
+        const entry = verification[membershipConfig.verificationKey];
+
+        if (!entry.requested) {
+            return res.status(400).json({ message: `${membershipConfig.label} membership is not requested by this writer` });
+        }
+
+        if (entry.status !== "pending") {
+            return res.status(400).json({ message: `No pending ${membershipConfig.label} membership review found` });
+        }
+
+        if (decision === "approve" && !entry.proofUrl) {
+            return res.status(400).json({ message: `${membershipConfig.label} proof is missing` });
+        }
+
+        entry.status = decision === "approve" ? "approved" : "rejected";
+        entry.reviewedAt = new Date();
+        entry.reviewedBy = req.user._id;
+        entry.adminNote = note ? String(note).trim() : (decision === "approve" ? "Approved" : "Rejected");
+
+        user.writerProfile[membershipConfig.memberField] = decision === "approve";
+        user.markModified("writerProfile");
+        await user.save();
+
+        await Notification.create({
+            user: user._id,
+            type: "admin_alert",
+            from: req.user?._id,
+            message: decision === "approve"
+                ? `${membershipConfig.label} membership approved${entry.adminNote ? `: ${entry.adminNote}` : ""}`
+                : `${membershipConfig.label} membership rejected${entry.adminNote ? `: ${entry.adminNote}` : ""}`,
+        }).catch(() => null);
+
+        sendWriterMembershipDecisionEmail(
+            user.email,
+            user.name,
+            membershipConfig.label,
+            decision === "approve" ? "approved" : "rejected",
+            entry.adminNote,
+            { clientBaseUrl: resolveClientOriginFromRequest(req) }
+        ).catch((err) =>
+            console.error(`Failed to send ${membershipConfig.label} membership decision email:`, err.message)
+        );
+
+        res.json({
+            message: `${membershipConfig.label} membership ${decision === "approve" ? "approved" : "rejected"}`,
+            user: {
+                _id: user._id,
+                writerProfile: user.writerProfile,
+            },
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1430,6 +1626,7 @@ export const getAdminAlertSummary = async (req, res) => {
             approvals,
             trailers,
             pendingInvestors,
+            pendingMembershipReviews,
             pendingBankReviews,
             lockedBankUsers,
             queries,
@@ -1455,6 +1652,13 @@ export const getAdminAlertSummary = async (req, res) => {
             Script.countDocuments({ status: "pending_approval" }),
             Script.countDocuments(getAdminTrailerRequestFilter()),
             User.countDocuments({ role: "investor", approvalStatus: "pending" }),
+            User.countDocuments({
+                role: { $in: ["writer", "creator"] },
+                $or: [
+                    { "writerProfile.membershipVerification.wga.status": "pending" },
+                    { "writerProfile.membershipVerification.swa.status": "pending" },
+                ],
+            }),
             User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsReview.status": "pending" }),
             User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsSecurity.isLocked": true }),
             ContactSubmission.countDocuments(),
@@ -1463,7 +1667,7 @@ export const getAdminAlertSummary = async (req, res) => {
         const bankReviewAlerts = pendingBankReviews + lockedBankUsers;
 
         res.json({
-            overview: approvals + trailers + pendingInvestors + bankReviewAlerts + queries,
+            overview: approvals + trailers + pendingInvestors + pendingMembershipReviews + bankReviewAlerts + queries,
             investors: totalInvestors,
             writers: totalWriters,
             readers: totalReaders,
@@ -1477,6 +1681,7 @@ export const getAdminAlertSummary = async (req, res) => {
             approvals,
             trailers,
             "pending-investors": pendingInvestors,
+            "membership-reviews": pendingMembershipReviews,
             "bank-reviews": bankReviewAlerts,
             queries,
         });

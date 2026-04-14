@@ -2,6 +2,8 @@ import express from "express";
 import { 
   checkUsernameAvailability,
   updateWriterProfile,
+  uploadWriterMembershipProofFile,
+  submitWriterMembershipProof,
   uploadScript,
   completeOnboarding,
   sendEmailVerification,
@@ -25,6 +27,7 @@ router.post("/verify-email", verifyEmail);
 
 // Writer onboarding routes
 router.put("/writer-profile", updateWriterProfile);
+router.post("/writer-membership-proof", uploadWriterMembershipProofFile, submitWriterMembershipProof);
 router.post("/upload-script", uploadScript);
 router.post("/complete", completeOnboarding);
 

@@ -117,7 +117,7 @@ const RoleSelection = () => {
                   </div>
                   
                   <h2 className="text-2xl font-extrabold text-slate-900 mb-3 tracking-tight min-h-[72px] flex items-center justify-center">
-                    I'm a Producer/Director
+                    I'm a Film Industry Professional
                   </h2>
                   
                   <p className="text-slate-600 mb-6 text-sm min-h-[64px]">
@@ -160,7 +160,7 @@ const RoleSelection = () => {
                   </ul>
                   
                   <div className="w-full mt-8 bg-[#1e3a5f] text-white py-3 rounded-lg font-semibold hover:bg-[#162d4a] transition flex items-center justify-center gap-2 text-sm">
-                    Join as Producer/Director
+                    Join as Film Industry Professional
                     <ArrowRight size={16} />
                   </div>
                   

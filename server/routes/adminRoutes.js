@@ -30,8 +30,10 @@ import {
     getScriptDetail,
     deleteScriptAsAdmin,
     getPendingInvestors,
+    getPendingWriterMembershipReviews,
     approveInvestor,
     rejectInvestor,
+    reviewWriterMembership,
     getBankDetailReviews,
     approveBankDetailReview,
     rejectBankDetailReview,
@@ -90,8 +92,12 @@ router.post("/login-as/:userId", loginAsUser);
 
 // Investor Approval
 router.get("/investors/pending", getPendingInvestors);
+router.get("/writer-membership/pending", getPendingWriterMembershipReviews);
 router.put("/investors/:id/approve", approveInvestor);
 router.put("/investors/:id/reject", rejectInvestor);
+
+// Writer membership proof review
+router.put("/writer-membership/:id/:membershipType/:decision", reviewWriterMembership);
 
 // Bank details review
 router.get("/bank-details/reviews", getBankDetailReviews);

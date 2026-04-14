@@ -195,7 +195,7 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
                   {isSGA && (
                     <span className={`text-[8px] font-black tracking-widest px-1.5 py-px rounded border shrink-0 ${
                       dark ? "text-[#9db2c9] bg-[#1a2a3d] border-[#2c3d52]" : "text-[#1e3a5f] bg-[#eef2f7] border-[#d4deea]"
-                    }`}>SGA</span>
+                    }`}>SWA</span>
                   )}
                   {isRepped && (
                     <span className={`text-[8px] font-black tracking-widest px-1.5 py-px rounded border shrink-0 ${

@@ -392,6 +392,88 @@ export const sendInvestorRejectionEmail = async (email, name, reason, options = 
   }
 };
 
+// Send writer membership decision email
+export const sendWriterMembershipDecisionEmail = async (
+  email,
+  name,
+  membershipLabel,
+  decision,
+  note = "",
+  options = {}
+) => {
+  try {
+    console.log(`Sending ${membershipLabel} membership ${decision} email to ${email}...`);
+    const transporter = createTransporter();
+    await transporter.verify();
+
+    const normalizedDecision = String(decision || "").toLowerCase() === "approved" ? "approved" : "rejected";
+    const safeMembershipLabel = String(membershipLabel || "Membership").toUpperCase();
+    const safeNote = String(note || "").trim();
+    const profileUrl = buildClientUrl("/profile", options?.clientBaseUrl || "");
+    const isApproved = normalizedDecision === "approved";
+    const subject = isApproved
+      ? `✅ ${safeMembershipLabel} Membership Approved — ckript`
+      : `Update on Your ${safeMembershipLabel} Membership Review — ckript`;
+
+    const mailOptions = {
+      from: `"ckript" <${process.env.EMAIL_USER || 'noreply@ckript.com'}>`,
+      to: email,
+      subject,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8f 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
+            .badge-approved { display: inline-block; background: #d1fae5; color: #065f46; font-size: 14px; font-weight: bold; padding: 6px 16px; border-radius: 20px; margin-bottom: 16px; }
+            .badge-rejected { display: inline-block; background: #fee2e2; color: #991b1b; font-size: 14px; font-weight: bold; padding: 6px 16px; border-radius: 20px; margin-bottom: 16px; }
+            .note { background: #fff; border-left: 4px solid #f59e0b; padding: 12px 14px; border-radius: 6px; margin: 12px 0; }
+            .button { display: inline-block; background: #1e3a5f; color: white !important; padding: 14px 36px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin:0">${safeMembershipLabel} Membership Review</h1>
+            </div>
+            <div class="content">
+              <p>Hi <strong>${name}</strong>,</p>
+              <div><span class="${isApproved ? "badge-approved" : "badge-rejected"}">${isApproved ? "Membership Approved" : "Membership Not Approved"}</span></div>
+              <p>Your ${safeMembershipLabel} membership request has been <strong>${isApproved ? "approved" : "reviewed"}</strong>.</p>
+              ${isApproved
+                ? "<p>Your writer profile now reflects your verified membership status.</p>"
+                : "<p>Your request was not approved at this time. You can upload updated proof and submit again.</p>"}
+              ${safeNote ? `<p><strong>Admin note:</strong></p><div class="note">${safeNote}</div>` : ""}
+              <div style="text-align:center">
+                <a href="${profileUrl}" class="button">Open My Profile</a>
+              </div>
+              <p style="color:#666;font-size:13px">If the button doesn't work, use this link:<br/><a href="${profileUrl}" style="color:#1e3a5f">${profileUrl}</a></p>
+              <p>Regards,<br/><strong>The ckript Team</strong></p>
+            </div>
+            <div class="footer">
+              <p>© 2026 ckript. All rights reserved.</p>
+              <p>This is an automated message, please do not reply.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Hi ${name},\n\nYour ${safeMembershipLabel} membership request has been ${isApproved ? "approved" : "reviewed"}.${safeNote ? `\n\nAdmin note: ${safeNote}` : ""}\n\nOpen profile: ${profileUrl}\n\nThe ckript Team`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`Writer membership decision email sent to ${email}:`, info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending writer membership decision email:", error.message);
+    return { success: false, error: error.message };
+  }
+};
+
 // Send purchase request email to writer
 export const sendPurchaseRequestEmail = async (
   writerEmail,

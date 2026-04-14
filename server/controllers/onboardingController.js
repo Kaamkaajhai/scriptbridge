@@ -1,6 +1,8 @@
 import User from "../models/User.js";
 import Script from "../models/Script.js";
 import Subscription from "../models/Subscription.js";
+import multer from "multer";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 import { sendOTPEmail } from "../utils/emailService.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
 import {
@@ -22,6 +24,14 @@ const normalizeOptionalDate = (value) => {
 };
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
+const WRITER_ROLE_SET = new Set(["writer", "creator"]);
+const MEMBERSHIP_UPLOAD_FILE_SIZE = 10 * 1024 * 1024;
+const MEMBERSHIP_FILE_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 const normalizeOtpInput = (otp) => String(otp || "").trim();
 const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
@@ -98,6 +108,168 @@ export const checkUsernameAvailability = async (req, res) => {
       success: false,
       message: "Unable to check username availability",
     });
+  }
+};
+
+const createEmptyMembershipReview = () => ({
+  requested: false,
+  status: "not_submitted",
+  proofUrl: "",
+  proofPublicId: "",
+  proofFileName: "",
+  proofMimeType: "",
+  submittedAt: undefined,
+  reviewedAt: undefined,
+  reviewedBy: undefined,
+  adminNote: "",
+});
+
+const ensureWriterMembershipVerification = (user) => {
+  if (!user.writerProfile) user.writerProfile = {};
+  if (!user.writerProfile.membershipVerification) {
+    user.writerProfile.membershipVerification = {
+      wga: createEmptyMembershipReview(),
+      swa: createEmptyMembershipReview(),
+    };
+  }
+
+  if (!user.writerProfile.membershipVerification.wga) {
+    user.writerProfile.membershipVerification.wga = createEmptyMembershipReview();
+  }
+
+  if (!user.writerProfile.membershipVerification.swa) {
+    user.writerProfile.membershipVerification.swa = createEmptyMembershipReview();
+  }
+
+  return user.writerProfile.membershipVerification;
+};
+
+const resetMembershipReview = (entry) => {
+  entry.status = "not_submitted";
+  entry.proofUrl = "";
+  entry.proofPublicId = "";
+  entry.proofFileName = "";
+  entry.proofMimeType = "";
+  entry.submittedAt = undefined;
+  entry.reviewedAt = undefined;
+  entry.reviewedBy = undefined;
+  entry.adminNote = "";
+};
+
+const applyWriterMembershipSelection = (user, membershipType, selected) => {
+  const verification = ensureWriterMembershipVerification(user);
+  const key = membershipType === "wga" ? "wga" : "swa";
+  const entry = verification[key];
+  const memberField = key === "wga" ? "wgaMember" : "sgaMember";
+
+  entry.requested = Boolean(selected);
+
+  if (!selected) {
+    resetMembershipReview(entry);
+    user.writerProfile[memberField] = false;
+    return;
+  }
+
+  if (entry.status === "approved") {
+    user.writerProfile[memberField] = true;
+    return;
+  }
+
+  user.writerProfile[memberField] = false;
+  if (!entry.proofUrl && entry.status === "pending") {
+    entry.status = "not_submitted";
+  }
+};
+
+const membershipProofUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MEMBERSHIP_UPLOAD_FILE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (MEMBERSHIP_FILE_MIME_TYPES.has(file?.mimetype)) return cb(null, true);
+    return cb(new Error("Only PDF, JPG, PNG, and WebP files are allowed"));
+  },
+}).single("proof");
+
+export const uploadWriterMembershipProofFile = (req, res, next) => {
+  membershipProofUpload(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ success: false, message: "Proof file must be 10MB or smaller" });
+      }
+      return res.status(400).json({ success: false, message: err.message || "Proof upload failed" });
+    }
+
+    return res.status(400).json({ success: false, message: err.message || "Proof upload failed" });
+  });
+};
+
+// @desc    Submit writer guild membership proof for admin review
+// @route   POST /api/onboarding/writer-membership-proof
+// @access  Private
+export const submitWriterMembershipProof = async (req, res) => {
+  try {
+    const membershipType = normalizeString(req.body?.membershipType).toLowerCase();
+    if (!["wga", "swa"].includes(membershipType)) {
+      return res.status(400).json({ success: false, message: "membershipType must be 'wga' or 'swa'" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Proof file is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (!WRITER_ROLE_SET.has(String(user.role || "").toLowerCase())) {
+      return res.status(403).json({ success: false, message: "Only writer accounts can submit membership proofs" });
+    }
+
+    const verification = ensureWriterMembershipVerification(user);
+    const entry = verification[membershipType];
+
+    const uploadResult = await uploadToCloudinary(req.file.buffer, {
+      folder: `scriptbridge/membership-proofs/${membershipType}`,
+      resource_type: "auto",
+      public_id: `${membershipType}-${user._id}-${Date.now()}`,
+      originalFilename: req.file.originalname,
+      mimeType: req.file.mimetype,
+    });
+
+    entry.requested = true;
+    entry.status = "pending";
+    entry.proofUrl = uploadResult.secure_url;
+    entry.proofPublicId = uploadResult.public_id;
+    entry.proofFileName = req.file.originalname;
+    entry.proofMimeType = req.file.mimetype;
+    entry.submittedAt = new Date();
+    entry.reviewedAt = undefined;
+    entry.reviewedBy = undefined;
+    entry.adminNote = "";
+
+    if (membershipType === "wga") {
+      user.writerProfile.wgaMember = false;
+    } else {
+      user.writerProfile.sgaMember = false;
+    }
+
+    user.markModified("writerProfile");
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: `${membershipType.toUpperCase()} proof submitted for admin review`,
+      user: {
+        _id: user._id,
+        writerProfile: user.writerProfile,
+      },
+    });
+  } catch (error) {
+    console.error("Error submitting writer membership proof:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -192,8 +364,13 @@ export const updateWriterProfile = async (req, res) => {
     user.writerProfile.representationStatus = nextRepresentationStatus;
     user.writerProfile.agencyName =
       nextRepresentationStatus === "unrepresented" ? "" : nextAgencyName;
-    user.writerProfile.wgaMember = wgaMember !== undefined ? wgaMember : user.writerProfile.wgaMember;
-    user.writerProfile.sgaMember = sgaMember !== undefined ? sgaMember : user.writerProfile.sgaMember;
+    if (wgaMember !== undefined) {
+      applyWriterMembershipSelection(user, "wga", Boolean(wgaMember));
+    }
+
+    if (sgaMember !== undefined) {
+      applyWriterMembershipSelection(user, "swa", Boolean(sgaMember));
+    }
 
     if (demographicPrivacy !== undefined) {
       const normalizedPrivacy = normalizeString(demographicPrivacy);

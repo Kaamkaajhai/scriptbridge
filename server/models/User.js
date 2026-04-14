@@ -59,6 +59,40 @@ const userSchema = new mongoose.Schema({
     agencyName: { type: String },
     wgaMember: { type: Boolean, default: false },
     sgaMember: { type: Boolean, default: false },
+    membershipVerification: {
+      wga: {
+        requested: { type: Boolean, default: false },
+        status: {
+          type: String,
+          enum: ["not_submitted", "pending", "approved", "rejected"],
+          default: "not_submitted",
+        },
+        proofUrl: { type: String },
+        proofPublicId: { type: String },
+        proofFileName: { type: String },
+        proofMimeType: { type: String },
+        submittedAt: { type: Date },
+        reviewedAt: { type: Date },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        adminNote: { type: String },
+      },
+      swa: {
+        requested: { type: Boolean, default: false },
+        status: {
+          type: String,
+          enum: ["not_submitted", "pending", "approved", "rejected"],
+          default: "not_submitted",
+        },
+        proofUrl: { type: String },
+        proofPublicId: { type: String },
+        proofFileName: { type: String },
+        proofMimeType: { type: String },
+        submittedAt: { type: Date },
+        reviewedAt: { type: Date },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        adminNote: { type: String },
+      },
+    },
     // Writer's primary genres
     genres: [String],
     // Specialized tags (themes, tones, settings)

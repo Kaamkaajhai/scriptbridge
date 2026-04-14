@@ -97,6 +97,19 @@ const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
 
+const EMPTY_MEMBERSHIP_REVIEW = {
+  requested: false,
+  status: "not_submitted",
+  proofUrl: "",
+  proofPublicId: "",
+  proofFileName: "",
+  proofMimeType: "",
+  submittedAt: undefined,
+  reviewedAt: undefined,
+  reviewedBy: undefined,
+  adminNote: "",
+};
+
 const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const { isDarkMode: dark } = useDarkMode();
   const isWriter = profile.role === "creator" || profile.role === "writer";
@@ -140,8 +153,22 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   // Writer-specific state
   const [representationStatus, setRepresentationStatus] = useState(wp.representationStatus || "unrepresented");
   const [agencyName, setAgencyName] = useState(wp.agencyName || "");
-  const [wgaMember, setWgaMember] = useState(wp.wgaMember || false);
-  const [sgaMember, setSgaMember] = useState(wp.sgaMember || false);
+  const initialMembershipVerification = {
+    wga: {
+      ...EMPTY_MEMBERSHIP_REVIEW,
+      ...(wp.membershipVerification?.wga || {}),
+      requested: Boolean(wp.membershipVerification?.wga?.requested ?? wp.wgaMember ?? false),
+    },
+    swa: {
+      ...EMPTY_MEMBERSHIP_REVIEW,
+      ...(wp.membershipVerification?.swa || {}),
+      requested: Boolean(wp.membershipVerification?.swa?.requested ?? wp.sgaMember ?? false),
+    },
+  };
+  const [membershipVerification, setMembershipVerification] = useState(initialMembershipVerification);
+  const [membershipProofFiles, setMembershipProofFiles] = useState({ wga: null, swa: null });
+  const [wgaMember, setWgaMember] = useState(initialMembershipVerification.wga.requested);
+  const [sgaMember, setSgaMember] = useState(initialMembershipVerification.swa.requested);
   const [selectedGenres, setSelectedGenres] = useState(wp.genres || []);
   const [specializedTags, setSpecializedTags] = useState(wp.specializedTags || []);
   const [diversity, setDiversity] = useState({
@@ -228,6 +255,44 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     }
   };
 
+  const getMembershipStatusMeta = (status) => {
+    const normalized = String(status || "not_submitted").toLowerCase();
+    if (normalized === "approved") {
+      return { label: "Approved", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    }
+    if (normalized === "pending") {
+      return { label: "Pending review", className: "bg-amber-50 text-amber-700 border-amber-200" };
+    }
+    if (normalized === "rejected") {
+      return { label: "Rejected", className: "bg-red-50 text-red-700 border-red-200" };
+    }
+    return { label: "Not submitted", className: "bg-slate-50 text-slate-600 border-slate-200" };
+  };
+
+  const handleMembershipToggle = (type, checked) => {
+    const key = type === "wga" ? "wga" : "swa";
+
+    if (key === "wga") {
+      setWgaMember(checked);
+    } else {
+      setSgaMember(checked);
+    }
+
+    setMembershipVerification((prev) => {
+      const current = prev[key] || EMPTY_MEMBERSHIP_REVIEW;
+      return {
+        ...prev,
+        [key]: checked
+          ? { ...current, requested: true }
+          : { ...EMPTY_MEMBERSHIP_REVIEW, requested: false },
+      };
+    });
+
+    if (!checked) {
+      setMembershipProofFiles((prev) => ({ ...prev, [key]: null }));
+    }
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -285,6 +350,31 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         setError("Please keep specialized tags to 5 or fewer.");
         setLoading(false);
         return;
+      }
+
+      if (isWriter) {
+        const wgaStatus = membershipVerification?.wga?.status || "not_submitted";
+        const swaStatus = membershipVerification?.swa?.status || "not_submitted";
+
+        const needsWgaProof = Boolean(
+          wgaMember &&
+          wgaStatus !== "approved" &&
+          !membershipProofFiles.wga &&
+          !membershipVerification?.wga?.proofUrl
+        );
+
+        const needsSwaProof = Boolean(
+          sgaMember &&
+          swaStatus !== "approved" &&
+          !membershipProofFiles.swa &&
+          !membershipVerification?.swa?.proofUrl
+        );
+
+        if (needsWgaProof || needsSwaProof) {
+          setError("Please upload proof for each selected WGA/SWA membership.");
+          setLoading(false);
+          return;
+        }
       }
 
       const payload = {
@@ -403,7 +493,45 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       }
 
       const { data } = await api.put("/users/update", payload);
-      onUpdate(data);
+      let latestData = data;
+
+      const uploadMembershipProof = async (membershipType, file) => {
+        const formData = new FormData();
+        formData.append("membershipType", membershipType);
+        formData.append("proof", file);
+        const proofResponse = await api.post("/onboarding/writer-membership-proof", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        if (proofResponse?.data?.user?.writerProfile) {
+          latestData = {
+            ...latestData,
+            writerProfile: proofResponse.data.user.writerProfile,
+          };
+          setMembershipVerification((prev) => ({
+            ...prev,
+            wga: {
+              ...EMPTY_MEMBERSHIP_REVIEW,
+              ...(proofResponse.data.user.writerProfile?.membershipVerification?.wga || prev.wga),
+            },
+            swa: {
+              ...EMPTY_MEMBERSHIP_REVIEW,
+              ...(proofResponse.data.user.writerProfile?.membershipVerification?.swa || prev.swa),
+            },
+          }));
+        }
+      };
+
+      if (isWriter && wgaMember && membershipProofFiles.wga) {
+        await uploadMembershipProof("wga", membershipProofFiles.wga);
+      }
+
+      if (isWriter && sgaMember && membershipProofFiles.swa) {
+        await uploadMembershipProof("swa", membershipProofFiles.swa);
+      }
+
+      setMembershipProofFiles({ wga: null, swa: null });
+      onUpdate(latestData);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update profile");
     } finally {
@@ -672,30 +800,94 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 </div>
               )}
 
-              <div className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
-                <input
-                  type="checkbox"
-                  id="wgaMemberEdit"
-                  checked={wgaMember}
-                  onChange={(e) => setWgaMember(e.target.checked)}
-                  className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
-                />
-                <label htmlFor="wgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  I am a WGA member
+              <div className={`p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="wgaMemberEdit"
+                    checked={wgaMember}
+                    onChange={(e) => handleMembershipToggle("wga", e.target.checked)}
+                    className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                  />
+                  <span className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    I am a WGA member
+                  </span>
                 </label>
+                <div className="mt-2">
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${getMembershipStatusMeta(membershipVerification?.wga?.status).className}`}>
+                    {getMembershipStatusMeta(membershipVerification?.wga?.status).label}
+                  </span>
+                </div>
+                {wgaMember && membershipVerification?.wga?.status !== "approved" && (
+                  <div className="mt-2 space-y-2">
+                    <p className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-600'}`}>Upload WGA proof (PDF, JPG, PNG, WebP)</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setMembershipProofFiles((prev) => ({ ...prev, wga: file }));
+                      }}
+                      className="block w-full text-xs"
+                    />
+                    {membershipProofFiles.wga && (
+                      <p className="text-xs text-emerald-500 font-semibold">Selected: {membershipProofFiles.wga.name}</p>
+                    )}
+                    {!membershipProofFiles.wga && membershipVerification?.wga?.proofUrl && (
+                      <a href={membershipVerification.wga.proofUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-500 hover:underline">
+                        View latest uploaded proof
+                      </a>
+                    )}
+                    {membershipVerification?.wga?.status === "rejected" && membershipVerification?.wga?.adminNote && (
+                      <p className="text-xs text-red-500">Admin note: {membershipVerification.wga.adminNote}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
-                <input
-                  type="checkbox"
-                  id="sgaMemberEdit"
-                  checked={sgaMember}
-                  onChange={(e) => setSgaMember(e.target.checked)}
-                  className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
-                />
-                <label htmlFor="sgaMemberEdit" className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  I am a SGA member
+              <div className={`p-3 rounded-lg border ${dark ? 'bg-white/[0.03] border-[#444]' : 'bg-gray-50 border-gray-200'}`}>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="sgaMemberEdit"
+                    checked={sgaMember}
+                    onChange={(e) => handleMembershipToggle("swa", e.target.checked)}
+                    className="w-5 h-5 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d]"
+                  />
+                  <span className={`text-sm font-semibold ${dark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    I am a SWA member
+                  </span>
                 </label>
+                <div className="mt-2">
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${getMembershipStatusMeta(membershipVerification?.swa?.status).className}`}>
+                    {getMembershipStatusMeta(membershipVerification?.swa?.status).label}
+                  </span>
+                </div>
+                {sgaMember && membershipVerification?.swa?.status !== "approved" && (
+                  <div className="mt-2 space-y-2">
+                    <p className={`text-xs ${dark ? 'text-gray-400' : 'text-gray-600'}`}>Upload SWA proof (PDF, JPG, PNG, WebP)</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setMembershipProofFiles((prev) => ({ ...prev, swa: file }));
+                      }}
+                      className="block w-full text-xs"
+                    />
+                    {membershipProofFiles.swa && (
+                      <p className="text-xs text-emerald-500 font-semibold">Selected: {membershipProofFiles.swa.name}</p>
+                    )}
+                    {!membershipProofFiles.swa && membershipVerification?.swa?.proofUrl && (
+                      <a href={membershipVerification.swa.proofUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-500 hover:underline">
+                        View latest uploaded proof
+                      </a>
+                    )}
+                    {membershipVerification?.swa?.status === "rejected" && membershipVerification?.swa?.adminNote && (
+                      <p className="text-xs text-red-500">Admin note: {membershipVerification.swa.adminNote}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

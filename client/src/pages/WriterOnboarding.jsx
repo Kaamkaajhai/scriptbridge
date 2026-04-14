@@ -77,6 +77,19 @@ const DEFAULT_ADDRESS_FIELDS = {
 
 const DEFAULT_OPEN_REP_SECTIONS = { filmTv: false, theater: false, literary: false };
 
+const EMPTY_MEMBERSHIP_REVIEW = {
+  requested: false,
+  status: "not_submitted",
+  proofUrl: "",
+  proofPublicId: "",
+  proofFileName: "",
+  proofMimeType: "",
+  submittedAt: undefined,
+  reviewedAt: undefined,
+  reviewedBy: undefined,
+  adminNote: "",
+};
+
 const DEFAULT_WRITER_PROFILE = {
   username: "",
   bio: "",
@@ -84,6 +97,10 @@ const DEFAULT_WRITER_PROFILE = {
   agencyName: "",
   wgaMember: false,
   sgaMember: false,
+  membershipVerification: {
+    wga: { ...EMPTY_MEMBERSHIP_REVIEW },
+    swa: { ...EMPTY_MEMBERSHIP_REVIEW },
+  },
   links: {
     portfolio: "",
     instagram: "",
@@ -121,6 +138,20 @@ const loadWriterOnboardingDraft = () => {
 const mergeWriterProfile = (profile) => ({
   ...DEFAULT_WRITER_PROFILE,
   ...(profile || {}),
+  wgaMember: Boolean(profile?.membershipVerification?.wga?.requested ?? profile?.wgaMember ?? false),
+  sgaMember: Boolean(profile?.membershipVerification?.swa?.requested ?? profile?.sgaMember ?? false),
+  membershipVerification: {
+    wga: {
+      ...EMPTY_MEMBERSHIP_REVIEW,
+      ...(profile?.membershipVerification?.wga || {}),
+      requested: Boolean(profile?.membershipVerification?.wga?.requested ?? profile?.wgaMember ?? false),
+    },
+    swa: {
+      ...EMPTY_MEMBERSHIP_REVIEW,
+      ...(profile?.membershipVerification?.swa || {}),
+      requested: Boolean(profile?.membershipVerification?.swa?.requested ?? profile?.sgaMember ?? false),
+    },
+  },
   links: {
     ...DEFAULT_WRITER_PROFILE.links,
     ...(profile?.links || {}),
@@ -256,6 +287,10 @@ const WriterOnboarding = () => {
   
   // Step 2: Writer Profile
   const [writerProfile, setWriterProfile] = useState(() => mergeWriterProfile(initialDraft?.writerProfile));
+  const [membershipProofFiles, setMembershipProofFiles] = useState({ wga: null, swa: null });
+  const membershipUploadPromiseRef = useRef(Promise.resolve());
+  const [membershipUploadsInProgress, setMembershipUploadsInProgress] = useState(false);
+  const [membershipUploadNotice, setMembershipUploadNotice] = useState("");
 
   // Step 3: Tags
   const [selectedGenres, setSelectedGenres] = useState(
@@ -274,6 +309,37 @@ const WriterOnboarding = () => {
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
   const zipLookupRequestRef = useRef(0);
   const usernameCheckRequestRef = useRef(0);
+
+  const handleMembershipToggle = (type, checked) => {
+    const verificationKey = type === "wga" ? "wga" : "swa";
+    const memberField = type === "wga" ? "wgaMember" : "sgaMember";
+
+    setWriterProfile((prev) => {
+      const currentReview = prev.membershipVerification?.[verificationKey] || EMPTY_MEMBERSHIP_REVIEW;
+      const nextReview = checked
+        ? {
+            ...currentReview,
+            requested: true,
+          }
+        : {
+            ...EMPTY_MEMBERSHIP_REVIEW,
+            requested: false,
+          };
+
+      return {
+        ...prev,
+        [memberField]: checked,
+        membershipVerification: {
+          ...(prev.membershipVerification || {}),
+          [verificationKey]: nextReview,
+        },
+      };
+    });
+
+    if (!checked) {
+      setMembershipProofFiles((prev) => ({ ...prev, [verificationKey]: null }));
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -605,6 +671,28 @@ const WriterOnboarding = () => {
       return;
     }
 
+    const wgaReview = writerProfile.membershipVerification?.wga || EMPTY_MEMBERSHIP_REVIEW;
+    const swaReview = writerProfile.membershipVerification?.swa || EMPTY_MEMBERSHIP_REVIEW;
+
+    const needsWgaProof = Boolean(
+      writerProfile.wgaMember &&
+      wgaReview.status !== "approved" &&
+      !membershipProofFiles.wga &&
+      !wgaReview.proofUrl
+    );
+
+    const needsSwaProof = Boolean(
+      writerProfile.sgaMember &&
+      swaReview.status !== "approved" &&
+      !membershipProofFiles.swa &&
+      !swaReview.proofUrl
+    );
+
+    if (needsWgaProof || needsSwaProof) {
+      setError("Please upload membership proof for each selected guild before continuing.");
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -621,15 +709,93 @@ const WriterOnboarding = () => {
           formatted: `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
         },
       });
+
+      const latestWriterProfile = response?.data?.user?.writerProfile
+        ? mergeWriterProfile(response.data.user.writerProfile)
+        : writerProfile;
       
       if (response.data.success) {
+        setWriterProfile(latestWriterProfile);
+        const queuedProofFiles = {
+          wga: membershipProofFiles.wga,
+          swa: membershipProofFiles.swa,
+        };
+        setMembershipProofFiles({ wga: null, swa: null });
         setCurrentStep(3); // Move to tags step
+
+        const hasQueuedUploads = Boolean(
+          (writerProfile.wgaMember && queuedProofFiles.wga) ||
+          (writerProfile.sgaMember && queuedProofFiles.swa)
+        );
+
+        if (hasQueuedUploads) {
+          setMembershipUploadsInProgress(true);
+          setMembershipUploadNotice("Membership proof is uploading in the background. You can continue to the next step.");
+
+          membershipUploadPromiseRef.current = (async () => {
+            let mergedProfile = latestWriterProfile;
+
+            const submitMembershipProof = async (membershipType, file) => {
+              const formData = new FormData();
+              formData.append("membershipType", membershipType);
+              formData.append("proof", file);
+              const proofResponse = await api.post("/onboarding/writer-membership-proof", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+              });
+              if (proofResponse?.data?.user?.writerProfile) {
+                mergedProfile = mergeWriterProfile(proofResponse.data.user.writerProfile);
+              }
+            };
+
+            if (writerProfile.wgaMember && queuedProofFiles.wga) {
+              await submitMembershipProof("wga", queuedProofFiles.wga);
+            }
+
+            if (writerProfile.sgaMember && queuedProofFiles.swa) {
+              await submitMembershipProof("swa", queuedProofFiles.swa);
+            }
+
+            return mergedProfile;
+          })()
+            .then((mergedProfile) => {
+              if (mergedProfile) {
+                setWriterProfile(mergedProfile);
+              }
+              setMembershipUploadNotice("");
+            })
+            .catch((uploadErr) => {
+              console.error("Membership proof upload failed:", uploadErr);
+              setMembershipUploadNotice("");
+              setError(uploadErr?.response?.data?.message || "Profile saved, but membership proof upload failed. Please re-upload before completion.");
+            })
+            .finally(() => {
+              setMembershipUploadsInProgress(false);
+            });
+        } else {
+          membershipUploadPromiseRef.current = Promise.resolve();
+          setMembershipUploadsInProgress(false);
+          setMembershipUploadNotice("");
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || "Profile update failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const getMembershipStatusMeta = (status) => {
+    const normalized = String(status || "not_submitted").toLowerCase();
+    if (normalized === "approved") {
+      return { label: "Approved", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    }
+    if (normalized === "pending") {
+      return { label: "Pending review", className: "bg-amber-50 text-amber-700 border-amber-200" };
+    }
+    if (normalized === "rejected") {
+      return { label: "Rejected", className: "bg-red-50 text-red-700 border-red-200" };
+    }
+    return { label: "Not submitted", className: "bg-slate-50 text-slate-600 border-slate-200" };
   };
 
   // Genre and Tag Options
@@ -705,6 +871,12 @@ const WriterOnboarding = () => {
     setError("");
     
     try {
+      if (membershipUploadsInProgress) {
+        setMembershipUploadNotice("Finishing membership proof upload before completing setup...");
+        await membershipUploadPromiseRef.current;
+        setMembershipUploadNotice("");
+      }
+
       const response = await api.post("/onboarding/complete", {
         genres: selectedGenres,
         tags: nuancedTags,
@@ -1114,33 +1286,107 @@ const WriterOnboarding = () => {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className={`flex items-center gap-2.5 p-3 rounded-lg border-2 cursor-pointer transition ${
+              <div className={`p-3 rounded-lg border-2 transition ${
                 writerProfile.wgaMember
                   ? "border-[#0f2544] bg-[#0f2544]/5"
-                  : "border-gray-200 hover:border-gray-300"
+                  : "border-gray-200"
               }`}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(writerProfile.wgaMember)}
-                  onChange={(e) => setWriterProfile({ ...writerProfile, wgaMember: e.target.checked })}
-                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] accent-[#0f2544]"
-                />
-                <span className={`text-sm font-semibold ${writerProfile.wgaMember ? "text-gray-900" : "text-gray-700"}`}>I am a WGA member</span>
-              </label>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(writerProfile.wgaMember)}
+                    onChange={(e) => handleMembershipToggle("wga", e.target.checked)}
+                    className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] accent-[#0f2544]"
+                  />
+                  <span className={`text-sm font-semibold ${writerProfile.wgaMember ? "text-gray-900" : "text-gray-700"}`}>I am a WGA member</span>
+                </label>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${getMembershipStatusMeta(writerProfile.membershipVerification?.wga?.status).className}`}>
+                    {getMembershipStatusMeta(writerProfile.membershipVerification?.wga?.status).label}
+                  </span>
+                </div>
+                {writerProfile.wgaMember && writerProfile.membershipVerification?.wga?.status !== "approved" && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-600">Upload your WGA certificate or proof (PDF, JPG, PNG, WebP)</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setMembershipProofFiles((prev) => ({ ...prev, wga: file }));
+                      }}
+                      className="block w-full text-xs text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-[#0f2544] file:text-white file:font-semibold"
+                    />
+                    {membershipProofFiles.wga && (
+                      <p className="text-xs text-emerald-700 font-medium">Selected: {membershipProofFiles.wga.name}</p>
+                    )}
+                    {!membershipProofFiles.wga && writerProfile.membershipVerification?.wga?.proofUrl && (
+                      <a
+                        href={writerProfile.membershipVerification.wga.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-[#1a365d] hover:underline"
+                      >
+                        View latest uploaded proof
+                      </a>
+                    )}
+                    {writerProfile.membershipVerification?.wga?.status === "rejected" && writerProfile.membershipVerification?.wga?.adminNote && (
+                      <p className="text-xs text-red-600">Admin note: {writerProfile.membershipVerification.wga.adminNote}</p>
+                    )}
+                  </div>
+                )}
+              </div>
 
-              <label className={`flex items-center gap-2.5 p-3 rounded-lg border-2 cursor-pointer transition ${
+              <div className={`p-3 rounded-lg border-2 transition ${
                 writerProfile.sgaMember
                   ? "border-[#0f2544] bg-[#0f2544]/5"
-                  : "border-gray-200 hover:border-gray-300"
+                  : "border-gray-200"
               }`}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(writerProfile.sgaMember)}
-                  onChange={(e) => setWriterProfile({ ...writerProfile, sgaMember: e.target.checked })}
-                  className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] accent-[#0f2544]"
-                />
-                <span className={`text-sm font-semibold ${writerProfile.sgaMember ? "text-gray-900" : "text-gray-700"}`}>I am a SGA member</span>
-              </label>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(writerProfile.sgaMember)}
+                    onChange={(e) => handleMembershipToggle("swa", e.target.checked)}
+                    className="w-4 h-4 text-[#1a365d] border-gray-300 rounded focus:ring-[#1a365d] accent-[#0f2544]"
+                  />
+                  <span className={`text-sm font-semibold ${writerProfile.sgaMember ? "text-gray-900" : "text-gray-700"}`}>I am a SWA member</span>
+                </label>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${getMembershipStatusMeta(writerProfile.membershipVerification?.swa?.status).className}`}>
+                    {getMembershipStatusMeta(writerProfile.membershipVerification?.swa?.status).label}
+                  </span>
+                </div>
+                {writerProfile.sgaMember && writerProfile.membershipVerification?.swa?.status !== "approved" && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-600">Upload your SWA certificate or proof (PDF, JPG, PNG, WebP)</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setMembershipProofFiles((prev) => ({ ...prev, swa: file }));
+                      }}
+                      className="block w-full text-xs text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-[#0f2544] file:text-white file:font-semibold"
+                    />
+                    {membershipProofFiles.swa && (
+                      <p className="text-xs text-emerald-700 font-medium">Selected: {membershipProofFiles.swa.name}</p>
+                    )}
+                    {!membershipProofFiles.swa && writerProfile.membershipVerification?.swa?.proofUrl && (
+                      <a
+                        href={writerProfile.membershipVerification.swa.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-[#1a365d] hover:underline"
+                      >
+                        View latest uploaded proof
+                      </a>
+                    )}
+                    {writerProfile.membershipVerification?.swa?.status === "rejected" && writerProfile.membershipVerification?.swa?.adminNote && (
+                      <p className="text-xs text-red-600">Admin note: {writerProfile.membershipVerification.swa.adminNote}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="border-t pt-6">
@@ -1430,6 +1676,12 @@ const WriterOnboarding = () => {
                 {error}
               </div>
             )}
+
+            {membershipUploadNotice && (
+              <div className="bg-amber-50 text-amber-700 p-4 rounded-lg">
+                {membershipUploadNotice}
+              </div>
+            )}
             
             <div className="flex gap-4">
               <button
@@ -1554,7 +1806,7 @@ const WriterOnboarding = () => {
                 type="submit"
                 className="flex-1 bg-[#0f2544] text-white py-2.5 rounded-lg hover:bg-[#1a365d] transition font-semibold text-sm flex items-center justify-center gap-2"
               >
-                Continue
+                {membershipUploadsInProgress ? "Continue (Uploading proof...)" : "Continue"}
                 <ArrowRight size={20} />
               </button>
             </div>
@@ -1656,6 +1908,12 @@ const WriterOnboarding = () => {
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg">
                 {error}
+              </div>
+            )}
+
+            {membershipUploadNotice && (
+              <div className="bg-amber-50 text-amber-700 p-4 rounded-lg">
+                {membershipUploadNotice}
               </div>
             )}
 
