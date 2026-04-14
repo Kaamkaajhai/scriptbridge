@@ -734,7 +734,7 @@ const Profile = () => {
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>WGA</span>
                       )}
                       {profile.writerProfile?.sgaMember && (
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>SGA</span>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>SWA</span>
                       )}
                       {!isOwnProfile && (
                         <button
@@ -1569,7 +1569,7 @@ const Profile = () => {
                       WGA: {profile.writerProfile.wgaMember ? "Verified" : "Not a Member"}
                     </span>
                     <span className={`px-3 py-1 rounded-lg text-[12px] font-bold border ${profile.writerProfile.sgaMember ? t.wgaYes : t.wgaNo}`}>
-                      SGA: {profile.writerProfile.sgaMember ? "Verified" : "Not a Member"}
+                      SWA: {profile.writerProfile.sgaMember ? "Verified" : "Not a Member"}
                     </span>
                   </div>
                 </div>

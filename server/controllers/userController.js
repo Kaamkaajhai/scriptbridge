@@ -212,6 +212,76 @@ const sanitizeBankReviewForResponse = (bankDetailsReview) => {
   };
 };
 
+const createEmptyMembershipReview = () => ({
+  requested: false,
+  status: "not_submitted",
+  proofUrl: "",
+  proofPublicId: "",
+  proofFileName: "",
+  proofMimeType: "",
+  submittedAt: undefined,
+  reviewedAt: undefined,
+  reviewedBy: undefined,
+  adminNote: "",
+});
+
+const ensureWriterMembershipVerification = (user) => {
+  if (!user.writerProfile) user.writerProfile = {};
+  if (!user.writerProfile.membershipVerification) {
+    user.writerProfile.membershipVerification = {
+      wga: createEmptyMembershipReview(),
+      swa: createEmptyMembershipReview(),
+    };
+  }
+
+  if (!user.writerProfile.membershipVerification.wga) {
+    user.writerProfile.membershipVerification.wga = createEmptyMembershipReview();
+  }
+
+  if (!user.writerProfile.membershipVerification.swa) {
+    user.writerProfile.membershipVerification.swa = createEmptyMembershipReview();
+  }
+
+  return user.writerProfile.membershipVerification;
+};
+
+const resetMembershipReview = (entry) => {
+  entry.status = "not_submitted";
+  entry.proofUrl = "";
+  entry.proofPublicId = "";
+  entry.proofFileName = "";
+  entry.proofMimeType = "";
+  entry.submittedAt = undefined;
+  entry.reviewedAt = undefined;
+  entry.reviewedBy = undefined;
+  entry.adminNote = "";
+};
+
+const applyWriterMembershipSelection = (user, membershipType, selected) => {
+  const verification = ensureWriterMembershipVerification(user);
+  const key = membershipType === "wga" ? "wga" : "swa";
+  const entry = verification[key];
+  const memberField = key === "wga" ? "wgaMember" : "sgaMember";
+
+  entry.requested = Boolean(selected);
+
+  if (!selected) {
+    resetMembershipReview(entry);
+    user.writerProfile[memberField] = false;
+    return;
+  }
+
+  if (entry.status === "approved") {
+    user.writerProfile[memberField] = true;
+    return;
+  }
+
+  user.writerProfile[memberField] = false;
+  if (!entry.proofUrl && entry.status === "pending") {
+    entry.status = "not_submitted";
+  }
+};
+
 // Multer config for profile image uploads
 const storage = multer.memoryStorage();
 
@@ -510,9 +580,24 @@ export const getUserProfile = async (req, res) => {
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
     userObj.language = normalizeLanguagePreference(userObj.language);
-    if (!isOwnProfile && userObj.bankDetails) {
-      delete userObj.bankDetails;
+    if (!isOwnProfile) {
+      if (userObj.bankDetails) {
+        delete userObj.bankDetails;
+      }
       delete userObj.pendingEmail;
+
+      if (userObj.writerProfile?.membershipVerification) {
+        const hideProofDetails = (entry) => {
+          if (!entry) return;
+          delete entry.proofUrl;
+          delete entry.proofPublicId;
+          delete entry.proofFileName;
+          delete entry.proofMimeType;
+          delete entry.reviewedBy;
+        };
+        hideProofDetails(userObj.writerProfile.membershipVerification.wga);
+        hideProofDetails(userObj.writerProfile.membershipVerification.swa);
+      }
     } else if (isOwnProfile && userObj.bankDetails && userObj.bankDetails.accountNumber) {
       // Sanitize account number even for own profile (for security)
       userObj.bankDetails.accountNumber = '****' + userObj.bankDetails.accountNumber.slice(-4);
@@ -687,10 +772,10 @@ export const updateUserProfile = async (req, res) => {
         user.writerProfile.agencyName = normalizeString(writerProfile.agencyName) || "";
       }
       if (writerProfile.wgaMember !== undefined) {
-        user.writerProfile.wgaMember = writerProfile.wgaMember;
+        applyWriterMembershipSelection(user, "wga", Boolean(writerProfile.wgaMember));
       }
       if (writerProfile.sgaMember !== undefined) {
-        user.writerProfile.sgaMember = writerProfile.sgaMember;
+        applyWriterMembershipSelection(user, "swa", Boolean(writerProfile.sgaMember));
       }
       if (writerProfile.genres !== undefined) {
         user.writerProfile.genres = normalizeStringArray(writerProfile.genres);
