@@ -356,11 +356,6 @@ const CreatorDashboard = ({ user, dark }) => {
                       gradient: "from-[#1e3a5f] to-[#162d4a]"
                     },
                     {
-                      key: "reader", label: "Reader Engagement", shortLabel: "Readers",
-                      icon: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z",
-                      gradient: "from-[#1e3a5f] to-[#162d4a]"
-                    },
-                    {
                       key: "platform", label: "Platform Insights", shortLabel: "Platform",
                       icon: "M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6",
                       gradient: "from-[#1e3a5f] to-[#162d4a]"
@@ -541,63 +536,6 @@ const CreatorDashboard = ({ user, dark }) => {
                         </div>
                         <p className={`text-[15px] font-bold mb-1 ${dark ? 'text-white' : 'text-gray-800'}`}>No AI analyses yet</p>
                         <p className={`text-sm max-w-xs text-center ${dark ? 'text-[#4a5a6e]' : 'text-gray-400'}`}>Score a script to receive detailed AI-powered insights and recommendations</p>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Reader Engagement Tab */}
-                {reviewTab === "reader" && (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-                    {reviews.readers?.length > 0 ? (
-                      <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
-                        {reviews.readers.map((r, idx) => (
-                          <motion.div key={r.scriptId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.08 }}
-                            className={`border rounded-2xl p-5 transition-all duration-300 ${dark ? 'border-[#1c2a3a] hover:border-[#2a3a4e] hover:shadow-md hover:shadow-black/30' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}`}
-                          >
-                            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                              {/* Script Info */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? 'bg-[#0d1520]' : 'bg-gray-50'}`}>
-                                    <svg className={`w-4 h-4 ${dark ? 'text-[#8896a7]' : 'text-gray-500'}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                    </svg>
-                                  </div>
-                                  <h3 className={`text-[15px] font-bold truncate tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>{r.scriptTitle}</h3>
-                                </div>
-                                {r.insight && (
-                                  <p className={`text-[13px] leading-relaxed ml-10 ${dark ? 'text-[#8896a7]' : 'text-gray-500'}`}>{r.insight}</p>
-                                )}
-                              </div>
-
-                              {/* Metrics */}
-                              <div className={`flex items-center gap-1 shrink-0 rounded-xl px-3 sm:px-4 py-3 w-full lg:w-auto justify-between lg:justify-start ${dark ? 'bg-[#0d1520] ring-1 ring-[#1c2a3a]' : 'bg-gray-50/80'}`}>
-                                <div className="text-center px-3">
-                                  <p className={`text-lg font-extrabold leading-none mb-0.5 ${dark ? 'text-white' : 'text-gray-900'}`}>{r.views.toLocaleString()}</p>
-                                  <p className={`text-[10px] font-semibold uppercase tracking-wider ${dark ? 'text-[#3a4a5e]' : 'text-gray-400'}`}>Total Views</p>
-                                </div>
-                                <div className={`w-px h-8 mx-1 ${dark ? 'bg-[#1c2a3a]' : 'bg-gray-200/80'}`}></div>
-                                <div className="text-center px-3">
-                                  <p className={`text-lg font-extrabold leading-none mb-0.5 ${r.engagementScore >= 70 ? "text-[#1e3a5f]" : r.engagementScore >= 40 ? (dark ? "text-[#8896a7]" : "text-gray-700") : (dark ? "text-[#4a5a6e]" : "text-gray-400")
-                                    }`}>{r.engagementScore ?? 0}</p>
-                                  <p className={`text-[10px] font-semibold uppercase tracking-wider ${dark ? 'text-[#3a4a5e]' : 'text-gray-400'}`}>Avg Rating</p>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-16">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${dark ? 'bg-[#0d1520]' : 'bg-gray-50'}`}>
-                          <svg className={`w-8 h-8 ${dark ? 'text-[#2a3a4e]' : 'text-gray-300'}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" />
-                          </svg>
-                        </div>
-                        <p className={`text-[15px] font-bold mb-1 ${dark ? 'text-white' : 'text-gray-800'}`}>No reader data yet</p>
-                        <p className={`text-sm max-w-xs text-center ${dark ? 'text-[#4a5a6e]' : 'text-gray-400'}`}>Upload scripts to start tracking reader engagement and conversions</p>
                       </div>
                     )}
                   </motion.div>

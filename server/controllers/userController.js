@@ -16,7 +16,7 @@ import {
 import { buildUserShareMeta, buildScriptShareMeta } from "../utils/shareMeta.js";
 import { getProfileCompletion } from "../utils/profileCompletion.js";
 import multer from "multer";
-import { uploadToCloudinary } from "../config/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary, buildPrivateDownloadUrl } from "../config/cloudinary.js";
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
 const BANK_REVIEW_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
@@ -32,6 +32,36 @@ const LANGUAGE_CODE_ALIASES = {
   "zh-cn": "zh-CN",
 };
 
+const INDUSTRY_SUB_ROLE_VALUES = new Set([
+  "producer",
+  "director",
+  "executive_producer",
+  "line_producer",
+  "showrunner",
+  "development_executive",
+  "studio_executive",
+  "agent",
+  "actor",
+  "other",
+]);
+
+const INDUSTRY_PROFILE_UPLOAD_ROLES = new Set(["investor", "producer", "director"]);
+const INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES = 6;
+const INDUSTRY_NOTABLE_ATTACHMENT_MAX_TOTAL = 12;
+const INDUSTRY_NOTABLE_ATTACHMENT_FILE_SIZE = 25 * 1024 * 1024;
+const INDUSTRY_NOTABLE_ATTACHMENT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-msvideo",
+  "video/x-matroska",
+]);
+
 const normalizeLanguagePreference = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return DEFAULT_LANGUAGE;
@@ -41,6 +71,10 @@ const normalizeLanguagePreference = (value) => {
 };
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const normalizeIndustrySubRole = (value) =>
+  String(normalizeString(value) || "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 const normalizeOtpInput = (otp) => String(otp || "").trim();
 const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
 
@@ -104,6 +138,97 @@ const normalizePreferredFormat = (value = "") => {
   if (raw.includes("poet") || raw.includes("poetry")) return "poet";
 
   return raw.replace(/[\s-]+/g, "_");
+};
+
+const getNotableAttachmentResourceType = (mimeType = "") => {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.startsWith("image/")) return "image";
+  if (normalized.startsWith("video/")) return "video";
+  return "document";
+};
+
+const getCloudinaryUploadResourceType = (mimeType = "") => {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.startsWith("image/")) return "image";
+  if (normalized.startsWith("video/")) return "video";
+  return "raw";
+};
+
+const getCloudinaryResourceTypeFromUrl = (url = "") => {
+  const normalized = String(url || "");
+  if (normalized.includes("/image/upload/")) return "image";
+  if (normalized.includes("/video/upload/")) return "video";
+  if (normalized.includes("/raw/upload/")) return "raw";
+  return "";
+};
+
+const resolveAttachmentCloudinaryResourceType = (attachment) =>
+  normalizeString(attachment?.cloudinaryResourceType) ||
+  getCloudinaryResourceTypeFromUrl(attachment?.url) ||
+  (attachment?.resourceType === "video" ? "video" : attachment?.resourceType === "document" ? "raw" : "image");
+
+const findNotableAttachment = (attachments = [], { publicId = "", fileUrl = "" } = {}) =>
+  attachments.find((item) => {
+    const itemPublicId = normalizeString(item?.publicId);
+    const itemUrl = normalizeString(item?.url);
+    if (publicId && itemPublicId === publicId) return true;
+    if (fileUrl && itemUrl === fileUrl) return true;
+    return false;
+  });
+
+const sanitizeInlineFileName = (fileName = "attachment.pdf") => {
+  const normalized = String(fileName || "attachment.pdf")
+    .replace(/[\\/]/g, "-")
+    .replace(/[^a-zA-Z0-9._ -]/g, "_")
+    .trim();
+  if (!normalized) return "attachment.pdf";
+  return normalized.toLowerCase().endsWith(".pdf") ? normalized : `${normalized}.pdf`;
+};
+
+const fetchPdfBufferFromCloudinary = async ({ publicId, attachmentUrl, preferredResourceType }) => {
+  const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+  const resourceTypeCandidates = Array.from(new Set([
+    preferredResourceType,
+    "raw",
+    "image",
+  ].filter(Boolean)));
+
+  for (const resourceType of resourceTypeCandidates) {
+    try {
+      const signedUrl = buildPrivateDownloadUrl(publicId, "pdf", {
+        resource_type: resourceType,
+        type: "upload",
+        expires_at: expiresAt,
+        attachment: false,
+      });
+
+      const response = await fetch(signedUrl);
+      if (!response.ok) continue;
+
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > 0) {
+        return Buffer.from(arrayBuffer);
+      }
+    } catch {
+      // Try fallback resource types.
+    }
+  }
+
+  if (attachmentUrl) {
+    try {
+      const fallbackResponse = await fetch(attachmentUrl);
+      if (fallbackResponse.ok) {
+        const fallbackBuffer = await fallbackResponse.arrayBuffer();
+        if (fallbackBuffer.byteLength > 0) {
+          return Buffer.from(fallbackBuffer);
+        }
+      }
+    } catch {
+      // Final fallback failed; return null below.
+    }
+  }
+
+  return null;
 };
 
 const sanitizeBankPayload = (bankDetails) => {
@@ -212,6 +337,76 @@ const sanitizeBankReviewForResponse = (bankDetailsReview) => {
   };
 };
 
+const createEmptyMembershipReview = () => ({
+  requested: false,
+  status: "not_submitted",
+  proofUrl: "",
+  proofPublicId: "",
+  proofFileName: "",
+  proofMimeType: "",
+  submittedAt: undefined,
+  reviewedAt: undefined,
+  reviewedBy: undefined,
+  adminNote: "",
+});
+
+const ensureWriterMembershipVerification = (user) => {
+  if (!user.writerProfile) user.writerProfile = {};
+  if (!user.writerProfile.membershipVerification) {
+    user.writerProfile.membershipVerification = {
+      wga: createEmptyMembershipReview(),
+      swa: createEmptyMembershipReview(),
+    };
+  }
+
+  if (!user.writerProfile.membershipVerification.wga) {
+    user.writerProfile.membershipVerification.wga = createEmptyMembershipReview();
+  }
+
+  if (!user.writerProfile.membershipVerification.swa) {
+    user.writerProfile.membershipVerification.swa = createEmptyMembershipReview();
+  }
+
+  return user.writerProfile.membershipVerification;
+};
+
+const resetMembershipReview = (entry) => {
+  entry.status = "not_submitted";
+  entry.proofUrl = "";
+  entry.proofPublicId = "";
+  entry.proofFileName = "";
+  entry.proofMimeType = "";
+  entry.submittedAt = undefined;
+  entry.reviewedAt = undefined;
+  entry.reviewedBy = undefined;
+  entry.adminNote = "";
+};
+
+const applyWriterMembershipSelection = (user, membershipType, selected) => {
+  const verification = ensureWriterMembershipVerification(user);
+  const key = membershipType === "wga" ? "wga" : "swa";
+  const entry = verification[key];
+  const memberField = key === "wga" ? "wgaMember" : "sgaMember";
+
+  entry.requested = Boolean(selected);
+
+  if (!selected) {
+    resetMembershipReview(entry);
+    user.writerProfile[memberField] = false;
+    return;
+  }
+
+  if (entry.status === "approved") {
+    user.writerProfile[memberField] = true;
+    return;
+  }
+
+  user.writerProfile[memberField] = false;
+  if (!entry.proofUrl && entry.status === "pending") {
+    entry.status = "not_submitted";
+  }
+};
+
 // Multer config for profile image uploads
 const storage = multer.memoryStorage();
 
@@ -225,6 +420,38 @@ const fileFilter = (req, file, cb) => {
 };
 
 export const upload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+
+const notableCreditAttachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: INDUSTRY_NOTABLE_ATTACHMENT_FILE_SIZE,
+    files: INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (INDUSTRY_NOTABLE_ATTACHMENT_MIME_TYPES.has(file?.mimetype)) {
+      return cb(null, true);
+    }
+    return cb(new Error("Only images, PDFs, and videos are allowed"));
+  },
+}).array("attachments", INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES);
+
+export const uploadNotableCreditAttachmentsFile = (req, res, next) => {
+  notableCreditAttachmentUpload(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "Each attachment must be 25MB or smaller" });
+      }
+      if (err.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({ message: `You can upload up to ${INDUSTRY_NOTABLE_ATTACHMENT_MAX_FILES} files at once` });
+      }
+      return res.status(400).json({ message: err.message || "Attachment upload failed" });
+    }
+
+    return res.status(400).json({ message: err.message || "Attachment upload failed" });
+  });
+};
 
 export const getWriters = async (req, res) => {
   try {
@@ -510,9 +737,24 @@ export const getUserProfile = async (req, res) => {
     // Sanitize bank details - only show to own profile
     const userObj = user.toObject();
     userObj.language = normalizeLanguagePreference(userObj.language);
-    if (!isOwnProfile && userObj.bankDetails) {
-      delete userObj.bankDetails;
+    if (!isOwnProfile) {
+      if (userObj.bankDetails) {
+        delete userObj.bankDetails;
+      }
       delete userObj.pendingEmail;
+
+      if (userObj.writerProfile?.membershipVerification) {
+        const hideProofDetails = (entry) => {
+          if (!entry) return;
+          delete entry.proofUrl;
+          delete entry.proofPublicId;
+          delete entry.proofFileName;
+          delete entry.proofMimeType;
+          delete entry.reviewedBy;
+        };
+        hideProofDetails(userObj.writerProfile.membershipVerification.wga);
+        hideProofDetails(userObj.writerProfile.membershipVerification.swa);
+      }
     } else if (isOwnProfile && userObj.bankDetails && userObj.bankDetails.accountNumber) {
       // Sanitize account number even for own profile (for security)
       userObj.bankDetails.accountNumber = '****' + userObj.bankDetails.accountNumber.slice(-4);
@@ -557,7 +799,7 @@ export const updateUserProfile = async (req, res) => {
       privacyPolicyAccepted,
       privacyPolicyVersion,
       // investor profile fields
-      subRole, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
+      subRole, subRoleOther, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
       // bank details
       bankDetails,
       // notification preferences
@@ -630,9 +872,37 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
+    if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
-      if (subRole !== undefined) user.industryProfile.subRole = normalizeString(subRole);
+
+      const resultingBio = normalizeString(bio !== undefined ? bio : user.bio) || "";
+      if (!resultingBio) {
+        return res.status(400).json({ message: "Bio is required for industry professional profile" });
+      }
+      user.bio = resultingBio;
+
+      let nextSubRole = normalizeIndustrySubRole(user.industryProfile.subRole);
+      if (subRole !== undefined) {
+        const normalizedSubRole = normalizeIndustrySubRole(subRole);
+        if (normalizedSubRole && !INDUSTRY_SUB_ROLE_VALUES.has(normalizedSubRole)) {
+          return res.status(400).json({ message: "Invalid role focus option" });
+        }
+        user.industryProfile.subRole = normalizedSubRole || undefined;
+        nextSubRole = normalizedSubRole;
+      }
+
+      if (subRoleOther !== undefined || nextSubRole === "other") {
+        const normalizedSubRoleOther = normalizeString(subRoleOther);
+        if (nextSubRole === "other") {
+          if (!normalizedSubRoleOther) {
+            return res.status(400).json({ message: "Please specify your role focus for 'Other'" });
+          }
+          user.industryProfile.subRoleOther = normalizedSubRoleOther;
+        } else {
+          user.industryProfile.subRoleOther = "";
+        }
+      }
+
       if (company !== undefined) user.industryProfile.company = normalizeString(company);
       if (jobTitle !== undefined) user.industryProfile.jobTitle = normalizeString(jobTitle);
       if (imdbUrl !== undefined) user.industryProfile.imdbUrl = normalizeString(imdbUrl);
@@ -687,10 +957,10 @@ export const updateUserProfile = async (req, res) => {
         user.writerProfile.agencyName = normalizeString(writerProfile.agencyName) || "";
       }
       if (writerProfile.wgaMember !== undefined) {
-        user.writerProfile.wgaMember = writerProfile.wgaMember;
+        applyWriterMembershipSelection(user, "wga", Boolean(writerProfile.wgaMember));
       }
       if (writerProfile.sgaMember !== undefined) {
-        user.writerProfile.sgaMember = writerProfile.sgaMember;
+        applyWriterMembershipSelection(user, "swa", Boolean(writerProfile.sgaMember));
       }
       if (writerProfile.genres !== undefined) {
         user.writerProfile.genres = normalizeStringArray(writerProfile.genres);
@@ -954,6 +1224,232 @@ export const uploadProfileImage = async (req, res) => {
     res.json({ profileImage: imageUrl });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const uploadNotableCreditAttachments = async (req, res) => {
+  try {
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length === 0) {
+      return res.status(400).json({ message: "Please attach at least one file" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const normalizedRole = String(user.role || "").toLowerCase();
+    if (!INDUSTRY_PROFILE_UPLOAD_ROLES.has(normalizedRole)) {
+      return res.status(403).json({ message: "Only industry professional accounts can upload notable credit files" });
+    }
+
+    if (!user.industryProfile) user.industryProfile = {};
+    if (!Array.isArray(user.industryProfile.notableCreditAttachments)) {
+      user.industryProfile.notableCreditAttachments = [];
+    }
+
+    const existingCount = user.industryProfile.notableCreditAttachments.length;
+    if (existingCount + files.length > INDUSTRY_NOTABLE_ATTACHMENT_MAX_TOTAL) {
+      return res.status(400).json({
+        message: `You can store up to ${INDUSTRY_NOTABLE_ATTACHMENT_MAX_TOTAL} notable credit attachments`,
+      });
+    }
+
+    const uploadedFiles = [];
+    for (const [index, file] of files.entries()) {
+      const cloudinaryResourceType = getCloudinaryUploadResourceType(file.mimetype);
+      const uploadResult = await uploadToCloudinary(file.buffer, {
+        folder: `scriptbridge/notable-credits/${user._id}`,
+        resource_type: cloudinaryResourceType,
+        public_id: `notable-credit-${user._id}-${Date.now()}-${index}`,
+        originalFilename: file.originalname,
+        mimeType: file.mimetype,
+      });
+
+      uploadedFiles.push({
+        url: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        resourceType: getNotableAttachmentResourceType(file.mimetype),
+        cloudinaryResourceType,
+        uploadedAt: new Date(),
+      });
+    }
+
+    user.industryProfile.notableCreditAttachments.push(...uploadedFiles);
+    user.markModified("industryProfile");
+    await user.save();
+
+    return res.json({
+      message: "Notable credit attachments uploaded successfully",
+      attachments: user.industryProfile.notableCreditAttachments,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to upload notable credit attachments" });
+  }
+};
+
+export const getNotableCreditAttachmentAccessUrl = async (req, res) => {
+  try {
+    const publicId = normalizeString(req.query?.publicId);
+    const fileUrl = normalizeString(req.query?.url);
+
+    if (!publicId && !fileUrl) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
+
+    const user = await User.findById(req.user._id).lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const attachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
+      ? user.industryProfile.notableCreditAttachments
+      : [];
+
+    const attachment = findNotableAttachment(attachments, { publicId, fileUrl });
+
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    const mimeType = String(attachment?.mimeType || "").toLowerCase();
+    if (mimeType !== "application/pdf") {
+      return res.json({ url: attachment.url });
+    }
+
+    const attachmentPublicId = normalizeString(attachment?.publicId);
+    if (!attachmentPublicId) {
+      return res.json({ url: attachment.url });
+    }
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+    const cloudinaryResourceType = resolveAttachmentCloudinaryResourceType(attachment);
+
+    const signedUrl = buildPrivateDownloadUrl(attachmentPublicId, "pdf", {
+      resource_type: cloudinaryResourceType,
+      type: "upload",
+      expires_at: expiresAt,
+      attachment: false,
+    });
+
+    return res.json({ url: signedUrl });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to build attachment access URL" });
+  }
+};
+
+export const getNotableCreditAttachmentFile = async (req, res) => {
+  try {
+    const publicId = normalizeString(req.query?.publicId);
+    const fileUrl = normalizeString(req.query?.url);
+
+    if (!publicId && !fileUrl) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
+
+    const user = await User.findById(req.user._id).lean();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const attachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
+      ? user.industryProfile.notableCreditAttachments
+      : [];
+    const attachment = findNotableAttachment(attachments, { publicId, fileUrl });
+
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    const mimeType = String(attachment?.mimeType || "").toLowerCase();
+    if (mimeType !== "application/pdf") {
+      return res.redirect(attachment.url);
+    }
+
+    const attachmentPublicId = normalizeString(attachment?.publicId);
+    if (!attachmentPublicId) {
+      return res.redirect(attachment.url);
+    }
+
+    const pdfBuffer = await fetchPdfBufferFromCloudinary({
+      publicId: attachmentPublicId,
+      attachmentUrl: normalizeString(attachment?.url),
+      preferredResourceType: resolveAttachmentCloudinaryResourceType(attachment),
+    });
+
+    if (!pdfBuffer) {
+      return res.status(502).json({ message: "Unable to load PDF attachment" });
+    }
+
+    const fileName = sanitizeInlineFileName(attachment?.fileName || "attachment.pdf");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to load attachment file" });
+  }
+};
+
+export const removeNotableCreditAttachment = async (req, res) => {
+  try {
+    const publicId = normalizeString(req.body?.publicId);
+    const fileUrl = normalizeString(req.body?.url);
+
+    if (!publicId && !fileUrl) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.industryProfile) user.industryProfile = {};
+    const attachments = Array.isArray(user.industryProfile.notableCreditAttachments)
+      ? user.industryProfile.notableCreditAttachments
+      : [];
+
+    const attachmentIndex = attachments.findIndex((item) => {
+      const itemPublicId = normalizeString(item?.publicId);
+      const itemUrl = normalizeString(item?.url);
+      if (publicId && itemPublicId === publicId) return true;
+      if (fileUrl && itemUrl === fileUrl) return true;
+      return false;
+    });
+
+    if (attachmentIndex === -1) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    const [attachment] = attachments.splice(attachmentIndex, 1);
+
+    const resourceType = String(attachment?.resourceType || "").toLowerCase();
+    const cloudinaryResourceType =
+      normalizeString(attachment?.cloudinaryResourceType) ||
+      (resourceType === "video" ? "video" : resourceType === "document" ? "raw" : "image");
+    const attachmentPublicId = normalizeString(attachment?.publicId);
+
+    if (attachmentPublicId) {
+      try {
+        await deleteFromCloudinary(attachmentPublicId, { resource_type: cloudinaryResourceType });
+      } catch {
+        // Ignore Cloudinary cleanup failures to avoid blocking profile updates.
+      }
+    }
+
+    user.industryProfile.notableCreditAttachments = attachments;
+    user.markModified("industryProfile");
+    await user.save();
+
+    return res.json({
+      message: "Attachment removed successfully",
+      attachments: user.industryProfile.notableCreditAttachments,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to remove attachment" });
   }
 };
 

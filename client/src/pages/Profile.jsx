@@ -65,6 +65,33 @@ const InfoRow = ({ label, value, dark }) => (
   </div>
 );
 
+const INDUSTRY_SUB_ROLE_LABELS = {
+  producer: "Producer",
+  director: "Director",
+  executive_producer: "Executive Producer",
+  line_producer: "Line Producer",
+  showrunner: "Showrunner",
+  development_executive: "Development Executive",
+  studio_executive: "Studio Executive",
+  agent: "Agent",
+  actor: "Actor",
+  other: "Other",
+};
+
+const formatIndustrySubRole = (value = "", otherValue = "") => {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!normalized) return "";
+  if (normalized === "other") {
+    const custom = String(otherValue || "").trim();
+    return custom ? `Other (${custom})` : "Other";
+  }
+  if (INDUSTRY_SUB_ROLE_LABELS[normalized]) return INDUSTRY_SUB_ROLE_LABELS[normalized];
+  return normalized
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /* â”€â”€ DeleteProjectButton â”€â”€ */
@@ -734,7 +761,7 @@ const Profile = () => {
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>WGA</span>
                       )}
                       {profile.writerProfile?.sgaMember && (
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>SGA</span>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.wgaBadge}`}>SWA</span>
                       )}
                       {!isOwnProfile && (
                         <button
@@ -1340,7 +1367,13 @@ const Profile = () => {
                   <div className="space-y-3">
                     <InfoRow dark={dark} label="Company" value={profile.industryProfile?.company || <span className={`italic ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
                     <InfoRow dark={dark} label="Job Title" value={profile.industryProfile?.jobTitle || <span className={`italic ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
-                    <InfoRow dark={dark} label="Sub-Role" value={profile.industryProfile?.subRole || <span className={`italic ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>} />
+                    <InfoRow
+                      dark={dark}
+                      label="Sub-Role"
+                      value={profile.industryProfile?.subRole
+                        ? formatIndustrySubRole(profile.industryProfile.subRole, profile.industryProfile?.subRoleOther)
+                        : <span className={`italic ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>}
+                    />
                     <div>
                       <p className={`text-[13px] mb-1 ${dark ? "text-white/35" : "text-gray-400"}`}>Previous Credits</p>
                       <p className={`text-[13px] font-medium leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere] ${dark ? "text-white/65" : "text-gray-700"}`}>
@@ -1569,7 +1602,7 @@ const Profile = () => {
                       WGA: {profile.writerProfile.wgaMember ? "Verified" : "Not a Member"}
                     </span>
                     <span className={`px-3 py-1 rounded-lg text-[12px] font-bold border ${profile.writerProfile.sgaMember ? t.wgaYes : t.wgaNo}`}>
-                      SGA: {profile.writerProfile.sgaMember ? "Verified" : "Not a Member"}
+                      SWA: {profile.writerProfile.sgaMember ? "Verified" : "Not a Member"}
                     </span>
                   </div>
                 </div>

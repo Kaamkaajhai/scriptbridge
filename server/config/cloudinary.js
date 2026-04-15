@@ -45,6 +45,14 @@ const uploadToCloudinaryRemote = async (buffer, options = {}) => {
   });
 };
 
+const deleteFromCloudinaryRemote = async (publicId, options = {}) => {
+  const destroyOptions = {
+    resource_type: options.resource_type || "image",
+  };
+
+  return cloudinary.uploader.destroy(publicId, destroyOptions);
+};
+
 export const uploadToCloudinary = async (buffer, options = {}) => {
   if (!Buffer.isBuffer(buffer)) {
     throw new Error("uploadToCloudinary expects a file buffer");
@@ -55,4 +63,38 @@ export const uploadToCloudinary = async (buffer, options = {}) => {
   }
 
   return uploadToCloudinaryRemote(buffer, options);
+};
+
+export const deleteFromCloudinary = async (publicId, options = {}) => {
+  if (!publicId || typeof publicId !== "string") {
+    throw new Error("deleteFromCloudinary expects a publicId string");
+  }
+
+  if (!ensureCloudinaryConfigured()) {
+    throw new Error("Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.");
+  }
+
+  return deleteFromCloudinaryRemote(publicId, options);
+};
+
+export const buildPrivateDownloadUrl = (publicId, format, options = {}) => {
+  if (!publicId || typeof publicId !== "string") {
+    throw new Error("buildPrivateDownloadUrl expects a publicId string");
+  }
+
+  if (!format || typeof format !== "string") {
+    throw new Error("buildPrivateDownloadUrl expects a format string");
+  }
+
+  if (!ensureCloudinaryConfigured()) {
+    throw new Error("Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.");
+  }
+
+  return cloudinary.utils.private_download_url(publicId, format, {
+    resource_type: options.resource_type || "raw",
+    type: options.type || "upload",
+    expires_at: options.expires_at,
+    attachment: options.attachment === true,
+    secure: true,
+  });
 };

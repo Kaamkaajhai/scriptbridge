@@ -196,15 +196,15 @@ export default function TermsOfService() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-white">
+    <div className="min-h-screen bg-white text-slate-900">
       {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-700/50">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <BrandLogo className="h-9 w-auto" />
           <button
             type="button"
             onClick={handleBack}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-cyan-400 transition"
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-blue-600 transition"
           >
             <ChevronRight className="w-4 h-4 rotate-180" />
             Back
@@ -228,18 +228,18 @@ export default function TermsOfService() {
               Legal
             </span>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-4">Terms of Service</h1>
-          <div className="flex flex-wrap gap-6 text-sm text-gray-400">
+          <h1 className="text-4xl font-bold text-slate-900 mb-4">Terms of Service</h1>
+          <div className="flex flex-wrap gap-6 text-sm text-gray-600">
             <span>
               <span className="text-gray-500">Effective:</span>{" "}
-              <span className="text-gray-300">{EFFECTIVE_DATE}</span>
+              <span className="text-gray-700">{EFFECTIVE_DATE}</span>
             </span>
             <span>
               <span className="text-gray-500">Last updated:</span>{" "}
-              <span className="text-gray-300">{LAST_UPDATED}</span>
+              <span className="text-gray-700">{LAST_UPDATED}</span>
             </span>
           </div>
-          <p className="mt-6 text-gray-400 text-base leading-relaxed border-l-2 border-blue-500/30 pl-4">
+          <p className="mt-6 text-gray-700 text-base leading-relaxed border-l-2 border-blue-200 pl-4">
             These Terms of Service set out the legal rules that apply to your access to and use
             of the Ckript platform, including user accounts, paid features, marketplace tools,
             communications, and AI-enabled services. Please read them carefully before using the
@@ -252,9 +252,9 @@ export default function TermsOfService() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="mb-12 p-5 rounded-xl bg-slate-900/60 border border-slate-700/50"
+          className="mb-12 p-5 rounded-xl bg-gray-50 border border-gray-200"
         >
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-3">
             Contents
           </p>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -262,7 +262,7 @@ export default function TermsOfService() {
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="text-sm text-gray-400 hover:text-blue-400 transition flex items-center gap-1.5"
+                  className="text-sm text-gray-700 hover:text-blue-600 transition flex items-center gap-1.5"
                 >
                   <ChevronRight className="w-3 h-3 text-blue-500/50" />
                   {s.title}
@@ -283,25 +283,25 @@ export default function TermsOfService() {
               whileInView="visible"
               viewport={{ once: true, margin: "-60px" }}
             >
-              <h2 className="text-xl font-bold text-white mb-4 pb-2 border-b border-slate-700/50">
+              <h2 className="text-xl font-bold text-slate-900 mb-4 pb-2 border-b border-gray-200">
                 {section.title}
               </h2>
 
               {section.text && (
-                <p className="text-gray-400 text-sm leading-relaxed">{section.text}</p>
+                <p className="text-gray-700 text-sm leading-relaxed">{section.text}</p>
               )}
 
               {section.content?.map((block, bi) => (
                 <div key={bi} className="mb-4">
                   <h3 className="text-sm font-semibold text-blue-400 mb-1.5">{block.subtitle}</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">{block.text}</p>
+                  <p className="text-gray-700 text-sm leading-relaxed">{block.text}</p>
                 </div>
               ))}
 
               {section.bullets && (
                 <ul className="space-y-2">
                   {section.bullets.map((b, bi) => (
-                    <li key={bi} className="flex items-start gap-2.5 text-sm text-gray-400">
+                    <li key={bi} className="flex items-start gap-2.5 text-sm text-gray-700">
                       <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
                       {b}
                     </li>
@@ -310,19 +310,19 @@ export default function TermsOfService() {
               )}
 
               {section.contactBlock && (
-                <div className="rounded-xl bg-slate-900/60 border border-slate-700/50 p-6 text-sm text-gray-400 space-y-2">
+                <div className="rounded-xl bg-gray-50 border border-gray-200 p-6 text-sm text-gray-700 space-y-2">
                   <p>
                     If you have any questions about these Terms or your legal rights, please
                     reach out:
                   </p>
                   <p>
-                    <span className="text-gray-500">Email: </span>
+                    <span className="text-gray-600">Email: </span>
                     <a href="mailto:info.ckript@gmail.com" className="text-blue-400 hover:underline">
                       info.ckript@gmail.com
                     </a>
                   </p>
                   <p>
-                    <span className="text-gray-500">LinkedIn: </span>
+                    <span className="text-gray-600">LinkedIn: </span>
                     <a
                       href="https://www.linkedin.com/company/ckript/?viewAsMember=true"
                       target="_blank"
@@ -339,13 +339,13 @@ export default function TermsOfService() {
         </div>
 
         {/* Footer nav */}
-        <div className="mt-16 pt-8 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-4 text-sm text-gray-500">
+        <div className="mt-16 pt-8 border-t border-gray-200 flex flex-wrap items-center justify-between gap-4 text-sm text-gray-500">
           <span>&copy; 2026 Ckript. All rights reserved.</span>
           <div className="flex gap-6">
-            <Link to="/privacy-policy" className="hover:text-cyan-400 transition">
+            <Link to="/privacy-policy" className="hover:text-blue-600 transition">
               Privacy Policy
             </Link>
-            <Link to="/" className="hover:text-cyan-400 transition">
+            <Link to="/" className="hover:text-blue-600 transition">
               Home
             </Link>
           </div>

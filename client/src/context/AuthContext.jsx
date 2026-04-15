@@ -20,9 +20,11 @@ export const AuthProvider = ({ children }) => {
 
   const isOnInvestorOnboardingPath = useCallback(() => {
     if (typeof window === "undefined") return false;
+    const pathname = String(window.location.pathname || "").toLowerCase();
     return (
-      window.location.pathname.startsWith("/producer-director-onboarding") ||
-      window.location.pathname.startsWith("/investor-onboarding")
+      pathname.includes("/producer-director-onboarding") ||
+      pathname.includes("/investor-onboarding") ||
+      pathname.includes("/industry-onboarding")
     );
   }, []);
 

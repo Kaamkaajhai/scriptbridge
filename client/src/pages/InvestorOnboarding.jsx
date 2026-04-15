@@ -73,6 +73,7 @@ const DEFAULT_ADDRESS_FIELDS = {
 
 const DEFAULT_INVESTOR_PROFILE = {
   subRole: "",
+  subRoleOther: "",
   jobTitle: "",
   company: "",
   investmentRange: "",
@@ -88,7 +89,55 @@ const DEFAULT_INVESTOR_PROFILE = {
   bio: "",
 };
 
+const INDUSTRY_ROLE_OPTIONS = [
+  { value: "producer", label: "Producer" },
+  { value: "director", label: "Director" },
+  { value: "executive_producer", label: "Executive Producer" },
+  { value: "line_producer", label: "Line Producer" },
+  { value: "showrunner", label: "Showrunner" },
+  { value: "development_executive", label: "Development Executive" },
+  { value: "studio_executive", label: "Studio Executive" },
+  { value: "agent", label: "Agent" },
+  { value: "actor", label: "Actor" },
+  { value: "other", label: "Other" },
+];
+
+const INDUSTRY_ROLE_VALUE_SET = new Set(INDUSTRY_ROLE_OPTIONS.map((option) => option.value));
+const NOTABLE_CREDIT_ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-msvideo",
+  "video/x-matroska",
+]);
+const NOTABLE_CREDIT_ALLOWED_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".mp4",
+  ".mov",
+  ".webm",
+  ".avi",
+  ".mkv",
+];
+const NOTABLE_CREDIT_ACCEPT = NOTABLE_CREDIT_ALLOWED_EXTENSIONS.join(",");
+const MAX_NOTABLE_CREDIT_UPLOAD_FILES = 6;
+const MAX_NOTABLE_CREDIT_TOTAL_FILES = 12;
+
 const normalizeUrlInput = (value = "") => value.trim();
+const normalizeIndustryRole = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 
 const isValidHttpUrl = (value = "") => {
   if (!value) return true;
@@ -162,6 +211,13 @@ const normalizePreferredFormat = (value = "") => {
   return raw.replace(/[\s-]+/g, "_");
 };
 
+const isAllowedNotableCreditFile = (file) => {
+  const mimeType = String(file?.type || "").toLowerCase();
+  if (NOTABLE_CREDIT_ALLOWED_MIME_TYPES.has(mimeType)) return true;
+  const fileName = String(file?.name || "").toLowerCase();
+  return NOTABLE_CREDIT_ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+};
+
 const InvestorOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -181,6 +237,7 @@ const InvestorOnboarding = () => {
   const [firmNameError, setFirmNameError] = useState("");
   const [roleFocusError, setRoleFocusError] = useState("");
   const [jobTitleError, setJobTitleError] = useState("");
+  const [bioError, setBioError] = useState("");
   const [socialLinkError, setSocialLinkError] = useState("");
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(Boolean(initialDraft?.showOTPVerification));
@@ -211,6 +268,14 @@ const InvestorOnboarding = () => {
     ...DEFAULT_INVESTOR_PROFILE,
     ...(initialDraft?.investorProfile || {}),
   }));
+  const [creditAttachments, setCreditAttachments] = useState(() => (
+    Array.isArray(initialDraft?.creditAttachments) ? initialDraft.creditAttachments : []
+  ));
+  const [pendingCreditFiles, setPendingCreditFiles] = useState([]);
+  const [creditAttachmentError, setCreditAttachmentError] = useState("");
+  const [creditUploadNotice, setCreditUploadNotice] = useState("");
+  const [creditUploadInProgress, setCreditUploadInProgress] = useState(false);
+  const [removingCreditAttachmentId, setRemovingCreditAttachmentId] = useState("");
 
   // Step 3: Preferences
   const [selectedGenres, setSelectedGenres] = useState(
@@ -246,6 +311,7 @@ const InvestorOnboarding = () => {
       verificationCode,
       verificationSent,
       investorProfile,
+      creditAttachments,
       selectedGenres,
       selectedFormats,
       agreementScrolled,
@@ -259,6 +325,7 @@ const InvestorOnboarding = () => {
     agreementAccepted,
     agreementScrolled,
     currentStep,
+    creditAttachments,
     investorProfile,
     selectedFormats,
     selectedGenres,
@@ -492,18 +559,154 @@ const InvestorOnboarding = () => {
     }
   };
 
-  // ── Step 2: Producer/Director Profile ─────────────────────
+  const handleNotableCreditFileSelection = async (event) => {
+    setCreditAttachmentError("");
+    setCreditUploadNotice("");
+
+    const inputEl = event.target;
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) {
+      setPendingCreditFiles([]);
+      return;
+    }
+
+    if (files.length > MAX_NOTABLE_CREDIT_UPLOAD_FILES) {
+      setCreditAttachmentError(`You can select up to ${MAX_NOTABLE_CREDIT_UPLOAD_FILES} files at once`);
+      setPendingCreditFiles([]);
+      return;
+    }
+
+    const invalidFile = files.find((file) => !isAllowedNotableCreditFile(file));
+    if (invalidFile) {
+      setCreditAttachmentError("Only image, PDF, and video files are allowed");
+      setPendingCreditFiles([]);
+      return;
+    }
+
+    if (creditAttachments.length + files.length > MAX_NOTABLE_CREDIT_TOTAL_FILES) {
+      setCreditAttachmentError(`You can store up to ${MAX_NOTABLE_CREDIT_TOTAL_FILES} notable credit files`);
+      setPendingCreditFiles([]);
+      return;
+    }
+
+    setPendingCreditFiles(files);
+    setCreditUploadInProgress(true);
+    setCreditUploadNotice(`Uploading ${files.length} file(s)...`);
+
+    try {
+      const attachmentForm = new FormData();
+      files.forEach((file) => attachmentForm.append("attachments", file));
+
+      const uploadResponse = await api.post("/users/industry-credit-attachments", attachmentForm, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (Array.isArray(uploadResponse?.data?.attachments)) {
+        setCreditAttachments(uploadResponse.data.attachments);
+      }
+
+      setPendingCreditFiles([]);
+      setCreditUploadNotice("Notable credit files uploaded successfully");
+    } catch (err) {
+      setCreditAttachmentError(err.response?.data?.message || "Failed to upload notable credit files");
+    } finally {
+      setCreditUploadInProgress(false);
+      if (inputEl) inputEl.value = "";
+    }
+  };
+
+  const handleRemoveNotableCreditAttachment = async (attachment) => {
+    const targetId = String(attachment?.publicId || attachment?.url || "");
+    if (!targetId) return;
+
+    setCreditAttachmentError("");
+    setCreditUploadNotice("");
+    setRemovingCreditAttachmentId(targetId);
+
+    try {
+      const response = await api.delete("/users/industry-credit-attachments", {
+        data: {
+          publicId: attachment?.publicId,
+          url: attachment?.url,
+        },
+      });
+
+      if (Array.isArray(response?.data?.attachments)) {
+        setCreditAttachments(response.data.attachments);
+      } else {
+        setCreditAttachments((prev) => prev.filter((item) => {
+          if (attachment?.publicId && item?.publicId === attachment.publicId) return false;
+          if (attachment?.url && item?.url === attachment.url) return false;
+          return true;
+        }));
+      }
+
+      setCreditUploadNotice("Attachment removed");
+    } catch (err) {
+      setCreditAttachmentError(err.response?.data?.message || "Failed to remove attachment");
+    } finally {
+      setRemovingCreditAttachmentId("");
+    }
+  };
+
+  const handleOpenNotableCreditAttachment = async (event, attachment) => {
+    event.preventDefault();
+
+    const fallbackUrl = String(attachment?.url || "");
+    if (!fallbackUrl) return;
+
+    const mimeType = String(attachment?.mimeType || "").toLowerCase();
+    if (mimeType !== "application/pdf") {
+      window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    try {
+      const response = await api.get("/users/industry-credit-attachments/file", {
+        params: {
+          publicId: attachment?.publicId,
+          url: attachment?.url,
+        },
+        responseType: "blob",
+      });
+
+      const blob = response?.data instanceof Blob
+        ? response.data
+        : new Blob([response?.data], { type: "application/pdf" });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
+    } catch {
+      window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  // ── Step 2: Industry Professional Profile ─────────────────
   const handleInvestorProfile = async (e) => {
     e.preventDefault();
     setFirmNameError("");
     setRoleFocusError("");
     setJobTitleError("");
+    setBioError("");
     setSocialLinkError("");
     setError("");
 
-    const sanitizedSubRole = normalizeUrlInput(investorProfile.subRole);
+    const sanitizedSubRole = normalizeIndustryRole(investorProfile.subRole);
+    const sanitizedSubRoleOther = normalizeUrlInput(investorProfile.subRoleOther);
     if (!sanitizedSubRole) {
       setRoleFocusError("Role focus is required");
+      return;
+    }
+
+    if (!INDUSTRY_ROLE_VALUE_SET.has(sanitizedSubRole)) {
+      setRoleFocusError("Please select a valid role focus");
+      return;
+    }
+
+    if (sanitizedSubRole === "other" && !sanitizedSubRoleOther) {
+      setRoleFocusError("Please specify your role focus");
       return;
     }
 
@@ -516,6 +719,12 @@ const InvestorOnboarding = () => {
     const sanitizedCompany = (investorProfile.company || "").trim();
     if (!sanitizedCompany) {
       setFirmNameError("Production house / firm name is required");
+      return;
+    }
+
+    const sanitizedBio = normalizeUrlInput(investorProfile.bio);
+    if (!sanitizedBio) {
+      setBioError("Bio is required");
       return;
     }
 
@@ -536,12 +745,23 @@ const InvestorOnboarding = () => {
       return;
     }
 
+    if (creditUploadInProgress) {
+      setCreditAttachmentError("Please wait for credit file upload to finish");
+      return;
+    }
+
+    if (creditAttachments.length + pendingCreditFiles.length > MAX_NOTABLE_CREDIT_TOTAL_FILES) {
+      setCreditAttachmentError(`You can store up to ${MAX_NOTABLE_CREDIT_TOTAL_FILES} notable credit files`);
+      return;
+    }
+
     setLoading(true);
     try {
       await api.put("/users/update", {
         subRole: sanitizedSubRole,
+        subRoleOther: sanitizedSubRole === "other" ? sanitizedSubRoleOther : "",
         jobTitle: sanitizedJobTitle,
-        bio: investorProfile.bio,
+        bio: sanitizedBio,
         company: sanitizedCompany,
         previousCredits: normalizeUrlInput(investorProfile.previousCredits),
         linkedInUrl: urlFields.linkedInUrl,
@@ -556,6 +776,7 @@ const InvestorOnboarding = () => {
         },
         investmentRange: investorProfile.investmentRange,
       });
+
       setCurrentStep(3);
     } catch (err) {
       setError(err.response?.data?.message || "Profile update failed");
@@ -652,7 +873,7 @@ const InvestorOnboarding = () => {
               <Users className="text-white" size={40} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-sm text-gray-600">Producer/Director Onboarding</p>
+          <p className="text-sm text-gray-600">Industry Professional Onboarding</p>
         </div>
 
         {/* Steps */}
@@ -980,32 +1201,63 @@ const InvestorOnboarding = () => {
             {currentStep === 2 && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
-                  <h2 className="text-xl font-black text-gray-900">Producer/Director profile</h2>
+                  <h2 className="text-xl font-black text-gray-900">Industry Professional profile</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Tell writers and creators about your production focus</p>
                 </div>
                 <form onSubmit={handleInvestorProfile} className="p-8 space-y-5">
                   <div>
                     <label className={labelClass}>Role Focus</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <ChipButton
-                        label="Producer"
-                        active={investorProfile.subRole === "producer"}
-                        onClick={() => {
-                          setInvestorProfile({ ...investorProfile, subRole: "producer" });
+                    <div className="relative">
+                      <Briefcase size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                      <select
+                        value={normalizeIndustryRole(investorProfile.subRole)}
+                        onChange={(e) => {
+                          const nextSubRole = e.target.value;
+                          setInvestorProfile((prev) => ({
+                            ...prev,
+                            subRole: nextSubRole,
+                            subRoleOther: nextSubRole === "other" ? prev.subRoleOther : "",
+                          }));
                           if (roleFocusError) setRoleFocusError("");
                         }}
-                      />
-                      <ChipButton
-                        label="Director"
-                        active={investorProfile.subRole === "director"}
-                        onClick={() => {
-                          setInvestorProfile({ ...investorProfile, subRole: "director" });
-                          if (roleFocusError) setRoleFocusError("");
-                        }}
-                      />
+                        className={`${inputClass} pl-10 pr-10 appearance-none ${roleFocusError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                        required
+                      >
+                        <option value="">Select role focus</option>
+                        {INDUSTRY_ROLE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <svg
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
                     {roleFocusError && (
                       <p className="mt-1.5 text-xs font-semibold text-red-500">{roleFocusError}</p>
+                    )}
+
+                    {normalizeIndustryRole(investorProfile.subRole) === "other" && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          placeholder="Please specify your role focus"
+                          value={investorProfile.subRoleOther}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, subRoleOther: e.target.value });
+                            if (roleFocusError) setRoleFocusError("");
+                          }}
+                          maxLength={80}
+                          className={`${inputClass} ${roleFocusError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                          required
+                        />
+                      </div>
                     )}
                   </div>
 
@@ -1188,6 +1440,9 @@ const InvestorOnboarding = () => {
                     ) : (
                       <p className="mt-1.5 text-xs text-gray-400">Add as many links as you want. Use full URLs including http:// or https://</p>
                     )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Privacy note: these links are private and are not visible to users, writers, or other industry professionals.
+                    </p>
                   </div>
 
                   <div>
@@ -1199,17 +1454,87 @@ const InvestorOnboarding = () => {
                       onChange={(e) => setInvestorProfile({ ...investorProfile, previousCredits: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/40 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all bg-gray-50 text-gray-900 placeholder:text-gray-400 resize-none"
                     />
+
+                    <div className="mt-3 space-y-2">
+                      <label className={labelClass}>Attach Credit Files <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
+                      <input
+                        type="file"
+                        multiple
+                        accept={NOTABLE_CREDIT_ACCEPT}
+                        onChange={handleNotableCreditFileSelection}
+                        className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#1e3a5f] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-[#162d4a]"
+                      />
+                      <p className="text-xs text-gray-400">
+                        Upload images, PDFs, or videos (up to {MAX_NOTABLE_CREDIT_UPLOAD_FILES} at once, max {MAX_NOTABLE_CREDIT_TOTAL_FILES} total). Files upload immediately after selection.
+                      </p>
+
+                      {pendingCreditFiles.length > 0 && (
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 p-2.5">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-blue-700">Selected For Upload</p>
+                          <ul className="mt-1.5 space-y-1">
+                            {pendingCreditFiles.map((file) => (
+                              <li key={`${file.name}-${file.lastModified}`} className="text-xs text-blue-800 break-all">
+                                {file.name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {creditAttachments.length > 0 && (
+                        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Uploaded Files</p>
+                          <ul className="mt-1.5 space-y-1">
+                            {creditAttachments.map((item, index) => (
+                              <li key={`${item?.publicId || item?.url || "uploaded"}-${index}`} className="flex items-start justify-between gap-2 text-xs text-emerald-800 break-all">
+                                <a
+                                  href={item?.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(event) => handleOpenNotableCreditAttachment(event, item)}
+                                  className="underline underline-offset-2 hover:text-emerald-700"
+                                >
+                                  {item?.fileName || `Attachment ${index + 1}`}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveNotableCreditAttachment(item)}
+                                  disabled={creditUploadInProgress || removingCreditAttachmentId === String(item?.publicId || item?.url || "")}
+                                  className="shrink-0 font-semibold text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {removingCreditAttachmentId === String(item?.publicId || item?.url || "") ? "Removing..." : "Remove"}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {creditAttachmentError && (
+                        <p className="text-xs font-semibold text-red-500">{creditAttachmentError}</p>
+                      )}
+                      {!creditAttachmentError && creditUploadNotice && (
+                        <p className="text-xs font-semibold text-emerald-600">{creditUploadNotice}</p>
+                      )}
+                    </div>
                   </div>
 
                   <div>
-                    <label className={labelClass}>Bio <span className="normal-case text-gray-300 font-medium">(optional)</span></label>
+                    <label className={labelClass}>Bio</label>
                     <textarea
                       rows={3}
                       placeholder="Brief background on your creative and production experience..."
                       value={investorProfile.bio}
-                      onChange={(e) => setInvestorProfile({ ...investorProfile, bio: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[14px] font-medium focus:outline-none focus:border-[#1e3a5f]/40 focus:ring-2 focus:ring-[#1e3a5f]/5 transition-all bg-gray-50 text-gray-900 placeholder:text-gray-400 resize-none"
+                      onChange={(e) => {
+                        setInvestorProfile({ ...investorProfile, bio: e.target.value });
+                        if (bioError) setBioError("");
+                      }}
+                      className={`w-full px-4 py-3 border rounded-xl text-[14px] font-medium focus:outline-none focus:ring-2 transition-all bg-gray-50 text-gray-900 placeholder:text-gray-400 resize-none ${bioError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-[#1e3a5f]/40 focus:ring-[#1e3a5f]/5"}`}
+                      required
                     />
+                    {bioError && (
+                      <p className="mt-1.5 text-xs font-semibold text-red-500">{bioError}</p>
+                    )}
                   </div>
 
                   {error && (
@@ -1224,9 +1549,9 @@ const InvestorOnboarding = () => {
                       className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
-                    <button type="submit" disabled={loading}
+                    <button type="submit" disabled={loading || creditUploadInProgress}
                       className="flex-1 h-11 bg-[#1e3a5f] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#162d4a] transition-all disabled:opacity-60">
-                      {loading ? "Saving..." : <>Continue <ArrowRight size={16} /></>}
+                      {loading ? "Saving..." : creditUploadInProgress ? "Uploading files..." : <>Continue <ArrowRight size={16} /></>}
                     </button>
                   </div>
                 </form>
