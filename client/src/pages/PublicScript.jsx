@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import publicApi from "../services/publicApi";
@@ -8,9 +8,8 @@ import { resolveMediaUrl } from "../utils/mediaUrl";
 const PublicScript = () => {
   const { id } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
-  const { user, loading: authLoading } = useContext(AuthContext);
+  const { loading: authLoading } = useContext(AuthContext);
 
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,13 +20,6 @@ const PublicScript = () => {
     let cancelled = false;
 
     if (authLoading) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (user?.token && id) {
-      navigate(`/script/${id}`, { replace: true });
       return () => {
         cancelled = true;
       };
@@ -59,7 +51,7 @@ const PublicScript = () => {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, id, navigate, user?.token]);
+  }, [authLoading, id]);
 
   const loginLink = useMemo(() => {
     const next = `${location.pathname}${location.search || ""}`;
