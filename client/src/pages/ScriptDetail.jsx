@@ -56,8 +56,8 @@ const ScriptDetail = () => {
 
   const scriptShare = {
     url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/share/project/${script._id}` : ""),
-    title: script?.shareMeta?.title || `${script?.title || "Project"} | ScriptBridge`,
-    text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on ScriptBridge."),
+    title: script?.shareMeta?.title || `${script?.title || "Project"} | Ckript`,
+    text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on Ckript."),
   };
   const showNotice = (message, type = "success") => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);

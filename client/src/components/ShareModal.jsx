@@ -17,12 +17,12 @@ import { X, Copy, Check, Share2, Twitter, ExternalLink } from "lucide-react";
 import { useDarkMode } from "../context/DarkModeContext";
 
 /* ── Helpers ── */
-const APP_URL = typeof window !== "undefined" ? window.location.origin : "https://scriptbridge.app";
+const APP_URL = typeof window !== "undefined" ? window.location.origin : "https://ckript.com";
 
 const scriptUrl = (id) => `${APP_URL}/share/project/${id}`;
 
 const buildText = (script) =>
-  `🎬 "${script.title}"${script.genre ? ` · ${script.genre}` : ""} — ${script.logline || script.description || "A great script on ScriptBridge"}`;
+  `🎬 "${script.title}"${script.genre ? ` · ${script.genre}` : ""} — ${script.logline || script.description || "A great script on Ckript"}`;
 
 /* ── Platform configs ── */
 const platforms = (script) => {

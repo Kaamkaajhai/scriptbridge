@@ -25,6 +25,19 @@ const PrivateRoute = ({ children }) => {
     return <Navigate to="/?investorReview=rejected" replace />;
   }
 
+  if (!user) {
+    const pathname = String(location.pathname || "");
+    const profileMatch = pathname.match(/^\/profile\/([^/?#]+)/i);
+    if (profileMatch?.[1]) {
+      return <Navigate to={`/share/profile/${profileMatch[1]}${location.search}${location.hash}`} replace />;
+    }
+
+    const scriptMatch = pathname.match(/^\/script\/([^/?#]+)/i);
+    if (scriptMatch?.[1]) {
+      return <Navigate to={`/share/project/${scriptMatch[1]}${location.search}${location.hash}`} replace />;
+    }
+  }
+
   const destination = `${location.pathname}${location.search}${location.hash}`;
   return user ? children : <Navigate to="/login" replace state={{ from: destination }} />;
 };

@@ -10,6 +10,15 @@ import ReviewCard from "../components/ReviewCard";
 import SocialShareButton from "../components/SocialShareButton";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 
+const normalizePublicShareUrl = (rawUrl = "", fallbackUrl = "") => {
+  const candidate = String(rawUrl || fallbackUrl || "").trim();
+  if (!candidate) return "";
+  if (candidate.includes("/share/profile/") || candidate.includes("/share/project/")) return candidate;
+  return candidate
+    .replace(/\/profile\/([^/?#]+)/i, "/share/profile/$1")
+    .replace(/\/script\/([^/?#]+)/i, "/share/project/$1");
+};
+
 /* ── Edit Profile Modal ─────────────────────────────── */
 const EditProfileModal = ({ profile, onClose, onSaved }) => {
   const { isDarkMode: dark } = useDarkMode();
@@ -418,10 +427,11 @@ const ReaderProfile = () => {
     ? new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
     : null;
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const fallbackShareUrl = profile?._id ? `${browserOrigin}/share/profile/${profile._id}` : "";
   const readerShare = {
-    url: profile?.shareMeta?.url || (profile?._id ? `${browserOrigin}/share/profile/${profile._id}` : ""),
-    title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | ScriptBridge`,
-    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on ScriptBridge.`,
+    url: normalizePublicShareUrl(profile?.shareMeta?.url, fallbackShareUrl),
+    title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | Ckript`,
+    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on Ckript.`,
   };
   const readScriptsCount = readScripts.length;
 
