@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
+import { AuthContext } from "../context/AuthContext";
 import publicApi from "../services/publicApi";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
 const PublicProfile = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
+  const { user, loading: authLoading } = useContext(AuthContext);
 
   const [profile, setProfile] = useState(null);
   const [scripts, setScripts] = useState([]);
@@ -16,6 +19,19 @@ const PublicProfile = () => {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (authLoading) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (user?.token && id) {
+      navigate(`/profile/${id}`, { replace: true });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const fetchPublicProfile = async () => {
       try {
@@ -44,7 +60,7 @@ const PublicProfile = () => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [authLoading, id, navigate, user?.token]);
 
   const loginLink = useMemo(() => {
     const next = `${location.pathname}${location.search || ""}`;
@@ -105,9 +121,25 @@ const PublicProfile = () => {
               </Link>
             </div>
 
-            {profile.bio ? (
-              <p className={`mt-5 text-sm leading-relaxed ${dark ? "text-gray-200" : "text-gray-700"}`}>{profile.bio}</p>
-            ) : null}
+            <div className={`mt-5 rounded-2xl border px-4 py-4 sm:px-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-blue-100 bg-blue-50/40"}`}>
+              <h3 className={`text-xs font-extrabold uppercase tracking-[0.15em] ${dark ? "text-blue-200" : "text-blue-700"}`}>About</h3>
+              <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-200" : "text-gray-700"}`}>
+                {profile.bio || "No about details shared yet."}
+              </p>
+
+              {Array.isArray(profile.skills) && profile.skills.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {profile.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${dark ? "bg-white/10 text-gray-200" : "bg-white border border-gray-200 text-gray-700"}`}
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className={`px-3 py-1 rounded-full text-xs font-bold ${dark ? "bg-white/10 text-gray-200" : "bg-gray-100 text-gray-700"}`}>

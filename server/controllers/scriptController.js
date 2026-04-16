@@ -1558,6 +1558,47 @@ export const getPublicScriptById = async (req, res) => {
       subGenres: Array.isArray(script.subGenres) ? script.subGenres : [],
       format: script.format || "",
       formatOther: script.formatOther || "",
+      pageCount: Number(script.pageCount || 0),
+      budget: script.budget || "",
+      views: Number(script.views || 0),
+      tags: Array.isArray(script.tags) ? script.tags.slice(0, 20) : [],
+      classification: {
+        primaryGenre: script.classification?.primaryGenre || "",
+        secondaryGenre: script.classification?.secondaryGenre || "",
+        tones: Array.isArray(script.classification?.tones) ? script.classification.tones.slice(0, 8) : [],
+        themes: Array.isArray(script.classification?.themes) ? script.classification.themes.slice(0, 8) : [],
+        settings: Array.isArray(script.classification?.settings) ? script.classification.settings.slice(0, 8) : [],
+      },
+      contentIndicators: {
+        bechdelTest: Boolean(script.contentIndicators?.bechdelTest),
+        basedOnTrueStory: Boolean(script.contentIndicators?.basedOnTrueStory),
+        adaptation: Boolean(script.contentIndicators?.adaptation),
+        adaptationSource: script.contentIndicators?.adaptationSource || "",
+      },
+      evaluation: script.scriptScore?.overall
+        ? {
+            overall: Number(script.scriptScore.overall || 0),
+            plot: Number(script.scriptScore.plot || 0),
+            characters: Number(script.scriptScore.characters || 0),
+            dialogue: Number(script.scriptScore.dialogue || 0),
+            pacing: Number(script.scriptScore.pacing || 0),
+            marketability: Number(script.scriptScore.marketability || 0),
+            feedback: script.scriptScore.feedback || "",
+          }
+        : null,
+      roles: Array.isArray(script.roles)
+        ? script.roles.slice(0, 30).map((role) => ({
+            _id: role?._id,
+            characterName: role?.characterName || "",
+            description: role?.description || "",
+            type: role?.type || "",
+            ageRange: {
+              min: Number(role?.ageRange?.min || 0) || undefined,
+              max: Number(role?.ageRange?.max || 0) || undefined,
+            },
+            gender: role?.gender || "",
+          }))
+        : [],
       coverImage: script.coverImage || "",
       trailerUrl: script.trailerUrl || "",
       uploadedTrailerUrl: script.uploadedTrailerUrl || "",
