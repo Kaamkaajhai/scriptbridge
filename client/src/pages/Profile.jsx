@@ -92,6 +92,15 @@ const formatIndustrySubRole = (value = "", otherValue = "") => {
     .join(" ");
 };
 
+const normalizePublicShareUrl = (rawUrl = "", fallbackUrl = "") => {
+  const candidate = String(rawUrl || fallbackUrl || "").trim();
+  if (!candidate) return "";
+  if (candidate.includes("/share/profile/") || candidate.includes("/share/project/")) return candidate;
+  return candidate
+    .replace(/\/profile\/([^/?#]+)/i, "/share/profile/$1")
+    .replace(/\/script\/([^/?#]+)/i, "/share/project/$1");
+};
+
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /* â”€â”€ DeleteProjectButton â”€â”€ */
@@ -522,10 +531,11 @@ const Profile = () => {
   const defaultProfileRoute = profile?._id
     ? `/share/profile/${profile._id}`
     : "";
+  const fallbackShareUrl = defaultProfileRoute ? `${browserOrigin}${defaultProfileRoute}` : "";
   const profileShare = {
-    url: profile?.shareMeta?.url || (defaultProfileRoute ? `${browserOrigin}${defaultProfileRoute}` : ""),
-    title: profile?.shareMeta?.title || `${profile?.name || "Profile"} | ScriptBridge`,
-    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this creator"}'s profile on ScriptBridge.`,
+    url: normalizePublicShareUrl(profile?.shareMeta?.url, fallbackShareUrl),
+    title: profile?.shareMeta?.title || `${profile?.name || "Profile"} | Ckript`,
+    text: profile?.shareMeta?.text || `Check out ${profile?.name || "this creator"}'s profile on Ckript.`,
   };
 
   const resolveImage = (url) => {

@@ -55,7 +55,7 @@ const buildPlatformLinks = ({ url, title, text }) => {
     {
       id: "email",
       label: "Email",
-      href: `mailto:?subject=${encode(title || "Shared from ScriptBridge")}&body=${encode(`${text || ""}\n\n${url}`.trim())}`,
+      href: `mailto:?subject=${encode(title || "Shared from Ckript")}&body=${encode(`${text || ""}\n\n${url}`.trim())}`,
       openDirect: true,
     },
   ];
@@ -147,8 +147,8 @@ const SocialShareButton = ({
   const [infoText, setInfoText] = useState("");
 
   const url = share?.url || "";
-  const title = share?.title || "Shared from ScriptBridge";
-  const text = share?.text || "";
+  const title = String(share?.title || "Shared from Ckript").replace(/scriptbridge/gi, "Ckript");
+  const text = String(share?.text || "").replace(/scriptbridge/gi, "Ckript");
   const payloadText = `${text} ${url}`.trim();
   const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 

@@ -84,8 +84,8 @@ const ProjectCard = ({ project, userName }) => {
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const projectShare = {
     url: project?.shareMeta?.url || (project?._id ? `${browserOrigin}/share/project/${project._id}` : ""),
-    title: project?.shareMeta?.title || `${project?.title || "Project"} | ScriptBridge`,
-    text: project?.shareMeta?.text || (project?.logline || project?.synopsis || "Check out this project on ScriptBridge."),
+    title: project?.shareMeta?.title || `${project?.title || "Project"} | Ckript`,
+    text: project?.shareMeta?.text || (project?.logline || project?.synopsis || "Check out this project on Ckript."),
   };
 
   useEffect(() => {

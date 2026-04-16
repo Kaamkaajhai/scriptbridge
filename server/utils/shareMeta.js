@@ -30,13 +30,13 @@ export const buildUserShareMeta = (req, user = {}) => {
   const baseUrl = resolveClientBaseUrl(req);
   const path = getProfilePathByRole(user.role, user._id);
   const url = `${baseUrl}${path}`;
-  const name = user.name || "ScriptBridge User";
+  const name = user.name || "Ckript User";
   const roleLabel = String(user.role || "member").toLowerCase();
 
   return {
     url,
-    title: `${name} | ScriptBridge`,
-    text: `Check out ${name}'s ${roleLabel} profile on ScriptBridge.`,
+    title: `${name} | Ckript`,
+    text: `Check out ${name}'s ${roleLabel} profile on Ckript.`,
   };
 };
 
@@ -46,11 +46,11 @@ export const buildScriptShareMeta = (req, script = {}) => {
   const url = `${baseUrl}${scriptId ? `/share/project/${scriptId}` : "/"}`;
   const title = script.title || "Project";
   const genre = script.primaryGenre || script.genre;
-  const logline = script.logline || script.synopsis || script.description || "Explore this project on ScriptBridge.";
+  const logline = script.logline || script.synopsis || script.description || "Explore this project on Ckript.";
 
   return {
     url,
-    title: `${title} | ScriptBridge`,
+    title: `${title} | Ckript`,
     text: genre ? `${title} (${genre}) - ${logline}` : `${title} - ${logline}`,
   };
 };
