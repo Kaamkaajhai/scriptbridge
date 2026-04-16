@@ -1363,6 +1363,7 @@ export const getScriptById = async (req, res) => {
     // Check if user has unlocked this script
     const isUnlocked = isBuyer || hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
     const isCreator = script.creator._id.toString() === req.user._id.toString();
+    const canViewFullScript = isUnlocked || isCreator || isAdmin;
     const userRole = req.user.role;
     const isWriter = userRole === 'writer' || userRole === 'creator';
     const canPurchase = ['investor', 'producer', 'director', 'industry', 'professional'].includes(userRole);
@@ -1371,9 +1372,8 @@ export const getScriptById = async (req, res) => {
     const Audition = (await import("../models/Audition.js")).default;
     const auditionCount = await Audition.countDocuments({ script: script._id });
 
-    // Synopsis visibility: only show full synopsis if creator or unlocked by a paying user
-    const synopsisTeaser = script.synopsis ? script.synopsis.substring(0, 120) + (script.synopsis.length > 120 ? '...' : '') : null;
-    const isSynopsisLocked = !isCreator && !isUnlocked;
+    // Keep synopsis fully visible; lock applies to full script content, not synopsis text.
+    const isSynopsisLocked = !canViewFullScript;
 
     // Check if the viewer has a pending purchase request for this script
     let myPendingRequest = null;
@@ -1484,6 +1484,8 @@ export const getScriptById = async (req, res) => {
       ...script.toObject(),
       isUnlocked,
       isCreator,
+      isAdmin,
+      canViewFullScript,
       isSynopsisLocked,
       canPurchase,
       isWriter: isWriter && !isCreator,
@@ -1492,12 +1494,12 @@ export const getScriptById = async (req, res) => {
       pendingRequestsCount,
       viewBreakdown,
       reviewBreakdown,
-      // Hide full synopsis unless unlocked or creator
-      synopsis: (isUnlocked || isCreator) ? script.synopsis : synopsisTeaser,
-      // Hide full content unless unlocked or creator
-      fullContent: (isUnlocked || isCreator) ? script.fullContent : null,
-      // Hide script text unless unlocked or creator
-      textContent: (isUnlocked || isCreator) ? script.textContent : null,
+      // Always return full synopsis. Only script body/content remains gated.
+      synopsis: script.synopsis,
+      // Hide full content unless unlocked, creator, or admin.
+      fullContent: canViewFullScript ? script.fullContent : null,
+      // Hide script text unless unlocked, creator, or admin.
+      textContent: canViewFullScript ? script.textContent : null,
       shareMeta: buildScriptShareMeta(req, script),
     };
 
