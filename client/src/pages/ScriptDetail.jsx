@@ -887,13 +887,6 @@ const ScriptDetail = () => {
       : []),
   ];
 
-  const stats = [
-    { label: "Views", value: script.views || 0, g: isDarkMode ? "from-blue-500/10 to-blue-500/5" : "from-blue-50 to-white", c: "text-blue-500", b: isDarkMode ? "border-white/[0.06]" : "border-blue-100" },
-    { label: "Reader Reviews", value: script?.reviewBreakdown?.reader || 0, g: isDarkMode ? "from-sky-500/10 to-sky-500/5" : "from-sky-50 to-white", c: "text-sky-500", b: isDarkMode ? "border-white/[0.06]" : "border-sky-100" },
-    { label: "Writer Reviews", value: script?.reviewBreakdown?.writer || 0, g: isDarkMode ? "from-fuchsia-500/10 to-fuchsia-500/5" : "from-fuchsia-50 to-white", c: "text-fuchsia-500", b: isDarkMode ? "border-white/[0.06]" : "border-fuchsia-100" },
-    { label: "Investor Reviews", value: script?.reviewBreakdown?.investor || 0, g: isDarkMode ? "from-teal-500/10 to-teal-500/5" : "from-teal-50 to-white", c: "text-teal-500", b: isDarkMode ? "border-white/[0.06]" : "border-teal-100" },
-  ];
-
   /* ══════════════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════════════ */
@@ -1453,16 +1446,6 @@ const ScriptDetail = () => {
             {activeTab === "overview" && (
               <motion.div key="overview" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {stats.map((s) => (
-                    <div key={s.label} className={`bg-gradient-to-br ${s.g} rounded-xl border ${s.b} p-4 ${t.cardHov} transition group`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${t.label}`}>{s.label}</p>
-                      <p className={`text-2xl font-extrabold tabular-nums ${s.c}`}>{s.value}</p>
-                    </div>
-                  ))}
-                </div>
-
                 {/* Details table */}
                 <div className={`rounded-xl border p-6 ${t.card}`}>
                   <h3 className={`text-[13px] font-bold mb-4 flex items-center gap-2 ${t.title}`}>
@@ -1478,11 +1461,10 @@ const ScriptDetail = () => {
                       { label: "Company Name", value: script.companyName },
                       { label: "Format", value: fmtFormat(script.format) },
                       { label: "Primary Genre", value: cl.primaryGenre || script.primaryGenre || script.genre },
+                      { label: "Views", value: Number(script.views || 0).toLocaleString("en-IN") },
                       { label: "Secondary Genre", value: cl.secondaryGenre },
                       { label: "Page Count", value: script.pageCount },
                       { label: "Budget Level", value: fmtBudget(script.budget) },
-                      { label: "Hold Fee", value: script.holdFee ? `₹${script.holdFee}` : null },
-                      { label: "Hold Status", value: script.holdStatus?.charAt(0).toUpperCase() + script.holdStatus?.slice(1) },
                       { label: "Published", value: formatDateTime(publishedAtValue) },
                     ]
                       .filter((i) => i.value && i.value !== "\u2014")

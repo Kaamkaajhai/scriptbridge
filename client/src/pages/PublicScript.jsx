@@ -15,7 +15,6 @@ const PublicScript = () => {
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     let cancelled = false;
@@ -98,14 +97,6 @@ const PublicScript = () => {
   const evaluation = script.evaluation || null;
   const roles = Array.isArray(script.roles) ? script.roles : [];
 
-  const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "classification", label: "Classification" },
-    { id: "evaluation", label: "Evaluation" },
-    { id: "roles", label: "Roles" },
-    { id: "synopsis", label: "Synopsis" },
-  ];
-
   const formatBudget = (value) => {
     const normalized = String(value || "").toLowerCase();
     const map = {
@@ -154,29 +145,10 @@ const PublicScript = () => {
               )}
             </div>
 
-            <div className={`mt-6 rounded-xl p-1 border flex flex-wrap gap-1 ${dark ? "bg-[#0b1426] border-[#1a3050]" : "bg-blue-50/60 border-blue-100"}`}>
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-colors ${activeTab === tab.id
-                    ? dark
-                      ? "bg-blue-500/20 text-blue-100"
-                      : "bg-white text-blue-700 shadow-sm"
-                    : dark
-                      ? "text-gray-300 hover:bg-white/10"
-                      : "text-gray-600 hover:bg-white/70"
-                    }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className={`mt-5 rounded-2xl border p-4 sm:p-5 ${dark ? "bg-[#0b1426] border-[#1a3050]" : "bg-[#f8fafc] border-gray-200"}`}>
-              {activeTab === "overview" && (
-                <div className="space-y-4">
+            <div className={`mt-5 rounded-2xl border p-4 sm:p-5 space-y-6 ${dark ? "bg-[#0b1426] border-[#1a3050]" : "bg-[#f8fafc] border-gray-200"}`}>
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Overview</h2>
+                <div className="mt-3 space-y-4">
                   {script.logline ? (
                     <p className={`text-base sm:text-lg font-bold leading-relaxed ${dark ? "text-white" : "text-gray-900"}`}>{script.logline}</p>
                   ) : (
@@ -216,10 +188,11 @@ const PublicScript = () => {
                     </div>
                   )}
                 </div>
-              )}
+              </section>
 
-              {activeTab === "classification" && (
-                <div className="space-y-4">
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Classification</h2>
+                <div className="mt-3 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
                       <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Primary Genre</p>
@@ -248,10 +221,11 @@ const PublicScript = () => {
                     </div>
                   ))}
                 </div>
-              )}
+              </section>
 
-              {activeTab === "evaluation" && (
-                <div className="space-y-4">
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Evaluation</h2>
+                <div className="mt-3 space-y-4">
                   {evaluation ? (
                     <>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -277,10 +251,11 @@ const PublicScript = () => {
                     <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-700"}`}>No evaluation available for this shared project.</p>
                   )}
                 </div>
-              )}
+              </section>
 
-              {activeTab === "roles" && (
-                <div className="space-y-3">
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Roles</h2>
+                <div className="mt-3 space-y-3">
                   {roles.length > 0 ? (
                     roles.map((role) => (
                       <div key={role._id || `${role.characterName}-${role.type}`} className={`rounded-xl border p-3 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
@@ -303,14 +278,12 @@ const PublicScript = () => {
                     <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-700"}`}>No roles listed for this shared project.</p>
                   )}
                 </div>
-              )}
+              </section>
 
-              {activeTab === "synopsis" && (
-                <div>
-                  <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Synopsis</h2>
-                  <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.synopsis || "No synopsis available."}</p>
-                </div>
-              )}
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Synopsis</h2>
+                <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.synopsis || "No synopsis available."}</p>
+              </section>
             </div>
 
             {trailerUrl ? (

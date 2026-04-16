@@ -121,9 +121,13 @@ const PublicProfile = () => {
               </Link>
             </div>
 
-            <div className={`mt-5 rounded-2xl border px-4 py-4 sm:px-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-blue-100 bg-blue-50/40"}`}>
-              <h3 className={`text-xs font-extrabold uppercase tracking-[0.15em] ${dark ? "text-blue-200" : "text-blue-700"}`}>About</h3>
-              <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-200" : "text-gray-700"}`}>
+            <div className="mt-5">
+              <h3 className={`text-sm font-extrabold uppercase tracking-[0.12em] ${dark ? "text-blue-200" : "text-blue-700"}`}>About</h3>
+            </div>
+
+            <div className={`mt-2 rounded-2xl border px-4 py-4 sm:px-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-blue-100 bg-blue-50/40"}`}>
+              <p className={`text-sm leading-relaxed ${dark ? "text-gray-200" : "text-gray-700"}`}>
+                <span className={`font-bold mr-1 ${dark ? "text-blue-200" : "text-blue-700"}`}>About:</span>
                 {profile.bio || "No about details shared yet."}
               </p>
 
