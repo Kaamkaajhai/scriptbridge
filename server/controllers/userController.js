@@ -71,6 +71,12 @@ const normalizeLanguagePreference = (value) => {
 };
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
+const sanitizePreviousCredits = (value) => {
+  const normalized = normalizeString(value) || "";
+  if (!normalized) return "";
+  return normalized.replace(LOCALHOST_URL_REGEX, "").replace(/\s{2,}/g, " ").trim();
+};
 const normalizeIndustrySubRole = (value) =>
   String(normalizeString(value) || "")
     .toLowerCase()
@@ -662,12 +668,22 @@ export const getPublicUserProfile = async (req, res) => {
             subRoleOther: user.industryProfile.subRoleOther || "",
             company: user.industryProfile.company || "",
             jobTitle: user.industryProfile.jobTitle || "",
-            socialLinks: {
-              instagram: user.industryProfile.socialLinks?.instagram || "",
-              twitter: user.industryProfile.socialLinks?.twitter || "",
-              website: user.industryProfile.socialLinks?.website || "",
-              youtube: user.industryProfile.socialLinks?.youtube || "",
-              facebook: user.industryProfile.socialLinks?.facebook || "",
+            mandates: {
+              genres: Array.isArray(user.industryProfile.mandates?.genres)
+                ? user.industryProfile.mandates.genres.filter(Boolean).slice(0, 20)
+                : [],
+              formats: Array.isArray(user.industryProfile.mandates?.formats)
+                ? user.industryProfile.mandates.formats.filter(Boolean).slice(0, 20)
+                : [],
+              budgetTiers: Array.isArray(user.industryProfile.mandates?.budgetTiers)
+                ? user.industryProfile.mandates.budgetTiers.filter(Boolean).slice(0, 20)
+                : [],
+              specificHooks: Array.isArray(user.industryProfile.mandates?.specificHooks)
+                ? user.industryProfile.mandates.specificHooks.filter(Boolean).slice(0, 20)
+                : [],
+              excludeGenres: Array.isArray(user.industryProfile.mandates?.excludeGenres)
+                ? user.industryProfile.mandates.excludeGenres.filter(Boolean).slice(0, 20)
+                : [],
             },
           }
         : undefined,
@@ -1018,7 +1034,7 @@ export const updateUserProfile = async (req, res) => {
         user.industryProfile.socialLinks.youtube = normalizeString(socialLinks?.youtube);
         user.industryProfile.socialLinks.facebook = normalizeString(socialLinks?.facebook);
       }
-      if (previousCredits !== undefined) user.industryProfile.previousCredits = normalizeString(previousCredits);
+      if (previousCredits !== undefined) user.industryProfile.previousCredits = sanitizePreviousCredits(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
       user.markModified("industryProfile");
     }

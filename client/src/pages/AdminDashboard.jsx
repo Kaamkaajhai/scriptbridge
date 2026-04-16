@@ -132,6 +132,13 @@ const formatIndustrySubRole = (subRole, subRoleOther) => {
         .join(" ");
 };
 
+const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
+const sanitizePreviousCreditsDisplay = (value = "") =>
+    String(value || "")
+        .replace(LOCALHOST_URL_REGEX, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+
 const formatUserExportLine = (user, index) => {
     const address = getUserAddressLine(user);
     const company = getUserCompany(user);
@@ -3973,7 +3980,6 @@ const AdminDashboard = () => {
         const membershipVerification = user?.writerProfile?.membershipVerification || {};
         const wgaVerification = membershipVerification?.wga || {};
         const swaVerification = membershipVerification?.swa || {};
-        const investorLinks = user?.industryProfile?.socialLinks || {};
         const mandates = user?.industryProfile?.mandates || {};
         const notableCreditAttachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
             ? user.industryProfile.notableCreditAttachments
@@ -4075,15 +4081,7 @@ const AdminDashboard = () => {
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
             { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
             { label: "Investment Range", value: user?.industryProfile?.investmentRange },
-            { label: "Previous Credits", value: user?.industryProfile?.previousCredits },
-            { label: "Other URL", value: user?.industryProfile?.otherUrl },
-            { label: "LinkedIn", value: user?.industryProfile?.linkedInUrl },
-            { label: "IMDb", value: user?.industryProfile?.imdbUrl },
-            { label: "Website", value: investorLinks?.website },
-            { label: "Instagram", value: investorLinks?.instagram },
-            { label: "Twitter", value: investorLinks?.twitter },
-            { label: "YouTube", value: investorLinks?.youtube },
-            { label: "Facebook", value: investorLinks?.facebook },
+            { label: "Previous Credits", value: sanitizePreviousCreditsDisplay(user?.industryProfile?.previousCredits) },
             { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
             { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
             { label: "Mandates Exclude Genres", value: Array.isArray(mandates?.excludeGenres) ? mandates.excludeGenres.join(", ") : "" },

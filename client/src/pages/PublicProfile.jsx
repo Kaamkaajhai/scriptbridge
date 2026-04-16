@@ -5,6 +5,20 @@ import { AuthContext } from "../context/AuthContext";
 import publicApi from "../services/publicApi";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
+const formatIndustrySubRole = (value = "", otherValue = "") => {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!normalized) return "";
+  if (normalized === "other") {
+    const custom = String(otherValue || "").trim();
+    return custom ? `Other (${custom})` : "Other";
+  }
+
+  return normalized
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
 const PublicProfile = () => {
   const { id } = useParams();
   const location = useLocation();
@@ -13,7 +27,6 @@ const PublicProfile = () => {
   const { user, loading: authLoading } = useContext(AuthContext);
 
   const [profile, setProfile] = useState(null);
-  const [scripts, setScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -40,7 +53,6 @@ const PublicProfile = () => {
         const { data } = await publicApi.get(`/users/public/${id}`);
         if (cancelled) return;
         setProfile(data?.user || null);
-        setScripts(Array.isArray(data?.scripts) ? data.scripts : []);
       } catch (err) {
         if (cancelled) return;
         const apiMessage = err?.response?.data?.message;
@@ -201,6 +213,96 @@ const PublicProfile = () => {
                   </div>
                 </div>
               )}
+
+              {String(profile.role || "").toLowerCase() === "investor" && (
+                <>
+                  <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className={`w-9 h-9 rounded-full border flex items-center justify-center ${dark ? "border-white/10 text-blue-200" : "border-gray-200 text-blue-700 bg-blue-50"}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                        </svg>
+                      </span>
+                      <h3 className={`text-2xl font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Professional Info</h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
+                        <span className={`text-[15px] ${dark ? "text-gray-400" : "text-gray-400"}`}>Company</span>
+                        <span className={`text-[15px] font-semibold text-right max-[420px]:text-left break-words [overflow-wrap:anywhere] ${dark ? "text-gray-200" : "text-gray-700"}`}>
+                          {profile.industryProfile?.company || <span className={`italic font-normal ${dark ? "text-gray-500" : "text-gray-300"}`}>Not set</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
+                        <span className={`text-[15px] ${dark ? "text-gray-400" : "text-gray-400"}`}>Job Title</span>
+                        <span className={`text-[15px] font-semibold text-right max-[420px]:text-left break-words [overflow-wrap:anywhere] ${dark ? "text-gray-200" : "text-gray-700"}`}>
+                          {profile.industryProfile?.jobTitle || <span className={`italic font-normal ${dark ? "text-gray-500" : "text-gray-300"}`}>Not set</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
+                        <span className={`text-[15px] ${dark ? "text-gray-400" : "text-gray-400"}`}>Sub-Role</span>
+                        <span className={`text-[15px] font-semibold text-right max-[420px]:text-left break-words [overflow-wrap:anywhere] ${dark ? "text-gray-200" : "text-gray-700"}`}>
+                          {profile.industryProfile?.subRole
+                            ? formatIndustrySubRole(profile.industryProfile.subRole, profile.industryProfile?.subRoleOther)
+                            : <span className={`italic font-normal ${dark ? "text-gray-500" : "text-gray-300"}`}>Not set</span>}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className={`w-9 h-9 rounded-full border flex items-center justify-center ${dark ? "border-white/10 text-blue-200" : "border-gray-200 text-blue-700 bg-blue-50"}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                        </svg>
+                      </span>
+                      <h3 className={`text-2xl font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Investment Mandates</h3>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-gray-400" : "text-gray-400"}`}>Preferred Genres</p>
+                        {Array.isArray(profile.industryProfile?.mandates?.genres) && profile.industryProfile.mandates.genres.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {profile.industryProfile.mandates.genres.map((genre) => (
+                              <span key={genre} className={`px-3 py-1.5 rounded-2xl text-[12px] font-semibold border ${dark ? "bg-blue-500/10 text-blue-200 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200"}`}>{genre}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={`text-[13px] italic ${dark ? "text-gray-500" : "text-gray-300"}`}>No genres selected</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-gray-400" : "text-gray-400"}`}>Formats</p>
+                        {Array.isArray(profile.industryProfile?.mandates?.formats) && profile.industryProfile.mandates.formats.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {profile.industryProfile.mandates.formats.map((format) => (
+                              <span key={format} className={`px-3 py-1.5 rounded-2xl text-[12px] font-semibold border ${dark ? "bg-cyan-500/10 text-cyan-200 border-cyan-500/20" : "bg-cyan-50 text-cyan-700 border-cyan-200"}`}>{format}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={`text-[13px] italic ${dark ? "text-gray-500" : "text-gray-300"}`}>No formats selected</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className={`text-[11px] font-bold uppercase tracking-[0.15em] mb-2 ${dark ? "text-gray-400" : "text-gray-400"}`}>Budget Tiers</p>
+                        {Array.isArray(profile.industryProfile?.mandates?.budgetTiers) && profile.industryProfile.mandates.budgetTiers.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {profile.industryProfile.mandates.budgetTiers.map((tier) => (
+                              <span key={tier} className={`px-3 py-1.5 rounded-2xl text-[12px] font-semibold border ${dark ? "bg-amber-500/10 text-amber-200 border-amber-500/20" : "bg-amber-50 text-amber-700 border-amber-200"}`}>{tier}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className={`text-[13px] italic ${dark ? "text-gray-500" : "text-gray-300"}`}>No budget tiers selected</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -217,42 +319,6 @@ const PublicProfile = () => {
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={`text-xl sm:text-2xl font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Published Projects</h2>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${dark ? "bg-white/10 text-gray-200" : "bg-white border border-gray-200 text-gray-700"}`}>
-              {scripts.length}
-            </span>
-          </div>
-
-          {scripts.length === 0 ? (
-            <div className={`rounded-2xl border p-8 text-center ${dark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200"}`}>
-              <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-600"}`}>No public projects available right now.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {scripts.map((script) => (
-                <Link
-                  key={script._id}
-                  to={`/share/project/${script._id}`}
-                  className={`rounded-2xl border overflow-hidden transition-transform hover:-translate-y-0.5 ${dark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200 shadow-sm"}`}
-                >
-                  <div className={`aspect-[16/7] ${dark ? "bg-[#0a1322]" : "bg-gray-100"}`}>
-                    {script.coverImage ? (
-                      <img src={resolveMediaUrl(script.coverImage)} alt={script.title || "Project"} className="w-full h-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="p-4">
-                    <h3 className={`text-lg font-extrabold leading-tight ${dark ? "text-white" : "text-gray-900"}`}>{script.title || "Untitled Project"}</h3>
-                    {script.logline ? <p className={`mt-1 text-sm font-semibold ${dark ? "text-gray-200" : "text-gray-700"}`}>{script.logline}</p> : null}
-                    {script.synopsis ? <p className={`mt-2 text-xs leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>{script.synopsis}</p> : null}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>

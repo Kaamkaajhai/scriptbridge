@@ -1353,8 +1353,8 @@ const Profile = () => {
           {/* â”€â”€â”€â”€â”€â”€â”€â”€ INVESTOR-SPECIFIC SECTIONS â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {profile.role === "investor" && (
             <>
-              {/* Row 1: Professional Info + External Links */}
-              <div className="grid grid-cols-2 max-[430px]:grid-cols-1 gap-3">
+              {/* Professional Info */}
+              <div className="grid grid-cols-1 gap-3">
                 <SectionCard
                   dark={dark}
                   title="Professional Info"
@@ -1374,92 +1374,6 @@ const Profile = () => {
                         ? formatIndustrySubRole(profile.industryProfile.subRole, profile.industryProfile?.subRoleOther)
                         : <span className={`italic ${dark ? "text-white/20" : "text-gray-300"}`}>Not set</span>}
                     />
-                    <div>
-                      <p className={`text-[13px] mb-1 ${dark ? "text-white/35" : "text-gray-400"}`}>Previous Credits</p>
-                      <p className={`text-[13px] font-medium leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere] ${dark ? "text-white/65" : "text-gray-700"}`}>
-                        {profile.industryProfile?.previousCredits || <span className={`italic font-normal ${dark ? "text-white/20" : "text-gray-300"}`}>No credits added yet</span>}
-                      </p>
-                    </div>
-                  </div>
-                </SectionCard>
-
-                {/* External Links */}
-                <SectionCard
-                  dark={dark}
-                  title="External Links"
-                  icon={
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                    </svg>
-                  }
-                >
-                  <div className="space-y-2.5">
-                    {profile.industryProfile?.imdbUrl ? (
-                      <a href={profile.industryProfile.imdbUrl} target="_blank" rel="noopener noreferrer"
-                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors group ${dark ? "border-white/[0.06] hover:bg-white/[0.03]" : "border-gray-200 hover:bg-gray-50"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-amber-500/10" : "bg-amber-50"}`}>
-                          <span className={`text-[11px] font-extrabold ${dark ? "text-amber-400" : "text-amber-600"}`}>IMDb</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/70 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900"}`}>IMDb Profile</p>
-                          <p className={`text-[11px] truncate ${dark ? "text-white/30" : "text-gray-400"}`}>{profile.industryProfile.imdbUrl}</p>
-                        </div>
-                        <svg className={`w-3.5 h-3.5 shrink-0 ${dark ? "text-white/20" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                      </a>
-                    ) : (
-                      <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border ${dark ? "border-white/[0.04]" : "border-gray-100"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
-                          <span className={`text-[11px] font-extrabold ${dark ? "text-white/15" : "text-gray-300"}`}>IMDb</span>
-                        </div>
-                        <p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No IMDb profile linked</p>
-                      </div>
-                    )}
-                    {profile.industryProfile?.linkedInUrl ? (
-                      <a href={profile.industryProfile.linkedInUrl} target="_blank" rel="noopener noreferrer"
-                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors group ${dark ? "border-white/[0.06] hover:bg-white/[0.03]" : "border-gray-200 hover:bg-gray-50"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-blue-500/10" : "bg-blue-50"}`}>
-                          <span className={`text-[11px] font-extrabold ${dark ? "text-blue-400" : "text-blue-600"}`}>in</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/70 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900"}`}>LinkedIn Profile</p>
-                          <p className={`text-[11px] truncate ${dark ? "text-white/30" : "text-gray-400"}`}>{profile.industryProfile.linkedInUrl}</p>
-                        </div>
-                        <svg className={`w-3.5 h-3.5 shrink-0 ${dark ? "text-white/20" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                      </a>
-                    ) : (
-                      <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border ${dark ? "border-white/[0.04]" : "border-gray-100"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
-                          <span className={`text-[11px] font-extrabold ${dark ? "text-white/15" : "text-gray-300"}`}>in</span>
-                        </div>
-                        <p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No LinkedIn profile linked</p>
-                      </div>
-                    )}
-                    {profile.industryProfile?.otherUrl ? (
-                      <a href={profile.industryProfile.otherUrl} target="_blank" rel="noopener noreferrer"
-                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors group ${dark ? "border-white/[0.06] hover:bg-white/[0.03]" : "border-gray-200 hover:bg-gray-50"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-emerald-500/10" : "bg-emerald-50"}`}>
-                          <span className={`text-[11px] font-extrabold ${dark ? "text-emerald-400" : "text-emerald-600"}`}>URL</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-[13px] font-semibold truncate ${dark ? "text-white/70 group-hover:text-white" : "text-gray-700 group-hover:text-gray-900"}`}>Other Link</p>
-                          <p className={`text-[11px] truncate ${dark ? "text-white/30" : "text-gray-400"}`}>{profile.industryProfile.otherUrl}</p>
-                        </div>
-                        <svg className={`w-3.5 h-3.5 shrink-0 ${dark ? "text-white/20" : "text-gray-300"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                      </a>
-                    ) : (
-                      <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border ${dark ? "border-white/[0.04]" : "border-gray-100"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-white/[0.03]" : "bg-gray-50"}`}>
-                          <span className={`text-[11px] font-extrabold ${dark ? "text-white/15" : "text-gray-300"}`}>URL</span>
-                        </div>
-                        <p className={`text-[12px] italic ${dark ? "text-white/20" : "text-gray-300"}`}>No additional link provided</p>
-                      </div>
-                    )}
                   </div>
                 </SectionCard>
               </div>
