@@ -46,6 +46,7 @@ import {
     deleteDiscountCode,
 } from "../controllers/adminController.js";
 import { getContactSubmissions } from "../controllers/contactController.js";
+import { getAdminAnalytics, getAdminAnalyticsAnonymousDetail, getAdminAnalyticsUserDetail } from "../controllers/analyticsController.js";
 
 const router = express.Router();
 
@@ -55,6 +56,9 @@ router.use(protect, adminOnly);
 // Dashboard
 router.get("/stats", getStats);
 router.get("/alerts/summary", getAdminAlertSummary);
+router.get("/analytics", getAdminAnalytics);
+router.get("/analytics/anonymous/:anonymousId", getAdminAnalyticsAnonymousDetail);
+router.get("/analytics/users/:userId", getAdminAnalyticsUserDetail);
 
 // Users
 router.get("/users", getUsers);
