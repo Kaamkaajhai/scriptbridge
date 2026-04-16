@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
+import { AuthContext } from "../context/AuthContext";
 import publicApi from "../services/publicApi";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
 const PublicScript = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { isDarkMode: dark } = useDarkMode();
+  const { user, loading: authLoading } = useContext(AuthContext);
 
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,6 +18,19 @@ const PublicScript = () => {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (authLoading) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (user?.token && id) {
+      navigate(`/script/${id}`, { replace: true });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const fetchPublicScript = async () => {
       try {
@@ -42,7 +58,7 @@ const PublicScript = () => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [authLoading, id, navigate, user?.token]);
 
   const loginLink = useMemo(() => {
     const next = `${location.pathname}${location.search || ""}`;
@@ -77,6 +93,21 @@ const PublicScript = () => {
 
   const coverUrl = resolveMediaUrl(script.coverImage);
   const trailerUrl = resolveMediaUrl(script.uploadedTrailerUrl || script.trailerUrl);
+  const classification = script.classification || {};
+  const evaluation = script.evaluation || null;
+  const roles = Array.isArray(script.roles) ? script.roles : [];
+
+  const formatBudget = (value) => {
+    const normalized = String(value || "").toLowerCase();
+    const map = {
+      micro: "Micro (<₹1Cr)",
+      low: "Low (₹1Cr-₹10Cr)",
+      medium: "Medium (₹10Cr-₹150Cr)",
+      high: "High (₹150Cr-₹750Cr)",
+      blockbuster: "Blockbuster (₹750Cr+)",
+    };
+    return map[normalized] || "-";
+  };
 
   return (
     <div className={`min-h-screen ${dark ? "bg-[#060e1a]" : "bg-[#f5f7fb]"}`}>
@@ -114,16 +145,146 @@ const PublicScript = () => {
               )}
             </div>
 
-            {script.logline ? (
-              <p className={`mt-5 text-base sm:text-lg font-bold leading-relaxed ${dark ? "text-white" : "text-gray-900"}`}>{script.logline}</p>
-            ) : null}
+            <div className={`mt-5 rounded-2xl border p-4 sm:p-5 space-y-6 ${dark ? "bg-[#0b1426] border-[#1a3050]" : "bg-[#f8fafc] border-gray-200"}`}>
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Overview</h2>
+                <div className="mt-3 space-y-4">
+                  {script.logline ? (
+                    <p className={`text-base sm:text-lg font-bold leading-relaxed ${dark ? "text-white" : "text-gray-900"}`}>{script.logline}</p>
+                  ) : (
+                    <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-700"}`}>No logline available.</p>
+                  )}
 
-            {script.synopsis ? (
-              <div className="mt-5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Format</p>
+                      <p className={`text-sm font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{script.formatOther || script.format || "-"}</p>
+                    </div>
+                    <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Genre</p>
+                      <p className={`text-sm font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{script.primaryGenre || script.genre || "-"}</p>
+                    </div>
+                    <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Pages</p>
+                      <p className={`text-sm font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{script.pageCount || "-"}</p>
+                    </div>
+                    <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Budget</p>
+                      <p className={`text-sm font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{formatBudget(script.budget)}</p>
+                    </div>
+                  </div>
+
+                  {script.description ? (
+                    <p className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.description}</p>
+                  ) : null}
+
+                  {Array.isArray(script.tags) && script.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {script.tags.map((tag) => (
+                        <span key={tag} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${dark ? "bg-white/10 text-gray-200" : "bg-white border border-gray-200 text-gray-700"}`}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Classification</h2>
+                <div className="mt-3 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Primary Genre</p>
+                      <p className={`text-sm font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{classification.primaryGenre || script.primaryGenre || script.genre || "-"}</p>
+                    </div>
+                    <div className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>Secondary Genre</p>
+                      <p className={`text-sm font-bold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{classification.secondaryGenre || "-"}</p>
+                    </div>
+                  </div>
+
+                  {[
+                    { label: "Tones", items: classification.tones },
+                    { label: "Themes", items: classification.themes },
+                    { label: "Settings", items: classification.settings },
+                  ].map((group) => (
+                    <div key={group.label}>
+                      <p className={`text-xs uppercase font-extrabold tracking-wider mb-2 ${dark ? "text-gray-300" : "text-gray-700"}`}>{group.label}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(group.items) && group.items.length > 0 ? group.items : ["-"]).map((item, idx) => (
+                          <span key={`${group.label}-${item}-${idx}`} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${dark ? "bg-white/10 text-gray-200" : "bg-white border border-gray-200 text-gray-700"}`}>
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Evaluation</h2>
+                <div className="mt-3 space-y-4">
+                  {evaluation ? (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {[
+                          ["Overall", evaluation.overall],
+                          ["Plot", evaluation.plot],
+                          ["Characters", evaluation.characters],
+                          ["Dialogue", evaluation.dialogue],
+                          ["Pacing", evaluation.pacing],
+                          ["Marketability", evaluation.marketability],
+                        ].map(([label, value]) => (
+                          <div key={label} className={`rounded-xl border px-3 py-2 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                            <p className={`text-[10px] uppercase font-bold tracking-wider ${dark ? "text-gray-400" : "text-gray-500"}`}>{label}</p>
+                            <p className={`text-base font-extrabold mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{Number(value || 0)}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {evaluation.feedback ? (
+                        <p className={`text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{evaluation.feedback}</p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-700"}`}>No evaluation available for this shared project.</p>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Roles</h2>
+                <div className="mt-3 space-y-3">
+                  {roles.length > 0 ? (
+                    roles.map((role) => (
+                      <div key={role._id || `${role.characterName}-${role.type}`} className={`rounded-xl border p-3 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <h3 className={`text-sm font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>{role.characterName || "Unnamed Role"}</h3>
+                          {role.gender ? (
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${dark ? "bg-white/10 text-gray-200" : "bg-gray-100 text-gray-700"}`}>{role.gender}</span>
+                          ) : null}
+                        </div>
+                        {role.type ? <p className={`mt-1 text-xs font-semibold ${dark ? "text-blue-200" : "text-blue-700"}`}>{role.type}</p> : null}
+                        {role.description ? <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{role.description}</p> : null}
+                        {(role.ageRange?.min || role.ageRange?.max) ? (
+                          <p className={`mt-2 text-xs font-semibold ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                            Age: {role.ageRange?.min || "-"} - {role.ageRange?.max || "-"}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-700"}`}>No roles listed for this shared project.</p>
+                  )}
+                </div>
+              </section>
+
+              <section>
                 <h2 className={`text-sm uppercase tracking-wider font-extrabold ${dark ? "text-gray-200" : "text-gray-800"}`}>Synopsis</h2>
-                <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.synopsis}</p>
-              </div>
-            ) : null}
+                <p className={`mt-2 text-sm leading-relaxed ${dark ? "text-gray-300" : "text-gray-700"}`}>{script.synopsis || "No synopsis available."}</p>
+              </section>
+            </div>
 
             {trailerUrl ? (
               <div className="mt-6">
