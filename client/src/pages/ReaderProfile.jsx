@@ -419,7 +419,7 @@ const ReaderProfile = () => {
     : null;
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const readerShare = {
-    url: profile?.shareMeta?.url || (profile?._id ? `${browserOrigin}/reader/profile/${profile._id}` : ""),
+    url: profile?.shareMeta?.url || (profile?._id ? `${browserOrigin}/share/profile/${profile._id}` : ""),
     title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | ScriptBridge`,
     text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on ScriptBridge.`,
   };

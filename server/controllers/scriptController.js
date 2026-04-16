@@ -1507,6 +1507,77 @@ export const getScriptById = async (req, res) => {
   }
 };
 
+export const getPublicScriptById = async (req, res) => {
+  try {
+    const scriptId = String(req.params.id || "").trim();
+    if (!scriptId) {
+      return res.status(400).json({ message: "Invalid script id" });
+    }
+
+    const script = await Script.findById(scriptId)
+      .populate("creator", "name profileImage role bio isPrivate isDeactivated")
+      .lean();
+
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    const creator = script.creator || {};
+    const isCreatorPrivate = Boolean(creator.isPrivate);
+    const isCreatorDeactivated = Boolean(creator.isDeactivated);
+
+    const isPubliclyViewable =
+      script.status === "published" &&
+      !script.isDeleted &&
+      !script.isSold &&
+      !script.purchaseRequestLocked &&
+      !isCreatorDeactivated &&
+      !isCreatorPrivate;
+
+    if (!isPubliclyViewable) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    const synopsis = String(script.synopsis || "");
+    const synopsisTeaser = synopsis
+      ? `${synopsis.slice(0, 320)}${synopsis.length > 320 ? "..." : ""}`
+      : "";
+
+    const publicScript = {
+      _id: script._id,
+      sid: script.sid,
+      title: script.title,
+      companyName: script.companyName || "",
+      logline: script.logline || "",
+      description: script.description || "",
+      synopsis: synopsisTeaser,
+      genre: script.genre || "",
+      primaryGenre: script.primaryGenre || "",
+      subGenres: Array.isArray(script.subGenres) ? script.subGenres : [],
+      format: script.format || "",
+      formatOther: script.formatOther || "",
+      coverImage: script.coverImage || "",
+      trailerUrl: script.trailerUrl || "",
+      uploadedTrailerUrl: script.uploadedTrailerUrl || "",
+      trailerSource: script.trailerSource || "none",
+      createdAt: script.createdAt,
+      publishedAt: script.publishedAt,
+      creator: {
+        _id: creator._id,
+        name: creator.name || "",
+        role: creator.role || "",
+        profileImage: creator.profileImage || "",
+        bio: creator.bio || "",
+      },
+      shareMeta: buildScriptShareMeta(req, script),
+    };
+
+    return res.json(publicScript);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to fetch shared project" });
+  }
+};
+
 export const unlockScript = async (req, res) => {
   try {
     const script = await Script.findById(req.body.scriptId);

@@ -55,7 +55,7 @@ const ScriptDetail = () => {
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
   const scriptShare = {
-    url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/script/${script._id}` : ""),
+    url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/share/project/${script._id}` : ""),
     title: script?.shareMeta?.title || `${script?.title || "Project"} | ScriptBridge`,
     text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on ScriptBridge."),
   };
