@@ -5,6 +5,8 @@ import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
 import SeoManager from "./components/SeoManager";
+import CookieConsentBanner from "./components/CookieConsentBanner";
+import AnalyticsBootstrap from "./components/AnalyticsBootstrap";
 import { applyLanguagePreference, getStoredLanguagePreference } from "./utils/languagePreference";
 
 const Landing = lazy(() => import("./pages/Landing"));
@@ -136,6 +138,8 @@ function App() {
           <LanguagePreferenceSync />
           <ScrollToTopOnRouteChange />
           <SeoManager />
+          <CookieConsentBanner />
+          <AnalyticsBootstrap />
           <AdminLoginHandler>
             <Suspense
               fallback={

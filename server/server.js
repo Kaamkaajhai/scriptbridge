@@ -37,6 +37,7 @@ import creditsRoutes from "./routes/creditsRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import scriptPitchRoutes from "./routes/scriptPitchRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 import {
   applyGlobalSecurity,
   apiLimiter,
@@ -328,6 +329,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/credits", paymentLimiter, creditsRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api", analyticsRoutes);
 app.use("/api/script-pitches", scriptPitchRoutes);
 app.use("/api/invoices", invoiceRoutes);
 
