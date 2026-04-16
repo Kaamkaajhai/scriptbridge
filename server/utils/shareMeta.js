@@ -19,13 +19,11 @@ const resolveClientBaseUrl = (req) => {
 const getProfilePathByRole = (role, id) => {
   const normalizedRole = String(role || "").toLowerCase();
   const profileId = String(id || "").trim();
-  if (!profileId) return "/profile";
+  if (!profileId) return "/";
 
-  if (normalizedRole === "reader") {
-    return `/reader/profile/${profileId}`;
-  }
+  if (normalizedRole === "reader") return `/share/profile/${profileId}`;
 
-  return `/profile/${profileId}`;
+  return `/share/profile/${profileId}`;
 };
 
 export const buildUserShareMeta = (req, user = {}) => {
@@ -45,7 +43,7 @@ export const buildUserShareMeta = (req, user = {}) => {
 export const buildScriptShareMeta = (req, script = {}) => {
   const baseUrl = resolveClientBaseUrl(req);
   const scriptId = String(script._id || "").trim();
-  const url = `${baseUrl}${scriptId ? `/script/${scriptId}` : "/"}`;
+  const url = `${baseUrl}${scriptId ? `/share/project/${scriptId}` : "/"}`;
   const title = script.title || "Project";
   const genre = script.primaryGenre || script.genre;
   const logline = script.logline || script.synopsis || script.description || "Explore this project on ScriptBridge.";

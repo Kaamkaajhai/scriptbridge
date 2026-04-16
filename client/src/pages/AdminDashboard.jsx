@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useDarkMode } from "../context/DarkModeContext";
 import axios from "axios";
 import { jsPDF } from "jspdf";
 import BrandLogo from "../components/BrandLogo";
@@ -752,7 +751,7 @@ const DiscountCodeFormModal = ({ initial, onClose, onSave, isDark }) => {
 };
 
 const AdminDashboard = () => {
-    const { isDarkMode: isDark } = useDarkMode();
+    const isDark = true;
     const [activeTab, setActiveTab] = useState("overview");
     const [loading, setLoading] = useState(false);
 
@@ -3419,9 +3418,9 @@ const AdminDashboard = () => {
                 const selectedActions = analyticsUserDetail?.latestActions || [];
 
                 const sectionButtonClass = (key) => (
-                    `px-3 py-2 rounded-lg text-xs font-bold transition-all ${analyticsSection === key
-                        ? (isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700")
-                        : (isDark ? "text-gray-400 hover:bg-white/[0.05]" : "text-gray-600 hover:bg-gray-100")
+                    `px-3 py-2 rounded-lg border text-xs font-bold transition-all ${analyticsSection === key
+                        ? (isDark ? "border-blue-400/40 bg-blue-500/25 text-blue-100 shadow-sm shadow-blue-500/20" : "border-blue-200 bg-blue-100 text-blue-700")
+                        : (isDark ? "border-[#294468] bg-[#132744]/60 text-gray-200 hover:bg-[#1b3558] hover:text-white" : "border-gray-200 text-gray-600 hover:bg-gray-100")
                     }`
                 );
 

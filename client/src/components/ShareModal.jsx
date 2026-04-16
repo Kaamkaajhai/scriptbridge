@@ -19,7 +19,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 /* ── Helpers ── */
 const APP_URL = typeof window !== "undefined" ? window.location.origin : "https://scriptbridge.app";
 
-const scriptUrl = (id) => `${APP_URL}/reader/script/${id}`;
+const scriptUrl = (id) => `${APP_URL}/share/project/${id}`;
 
 const buildText = (script) =>
   `🎬 "${script.title}"${script.genre ? ` · ${script.genre}` : ""} — ${script.logline || script.description || "A great script on ScriptBridge"}`;

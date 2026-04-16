@@ -594,6 +594,106 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
+export const getPublicUserProfile = async (req, res) => {
+  try {
+    const profileId = String(req.params.id || "").trim();
+    if (!profileId) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const user = await User.findById(profileId)
+      .select("name role bio profileImage coverImage writerProfile industryProfile followers following isPrivate isDeactivated")
+      .lean();
+
+    if (!user || user.isDeactivated) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isPrivate) {
+      return res.status(403).json({ message: "This account is private." });
+    }
+
+    const publicScripts = await Script.find({
+      creator: profileId,
+      status: "published",
+      isDeleted: { $ne: true },
+      isSold: { $ne: true },
+      purchaseRequestLocked: { $ne: true },
+    })
+      .select("title sid logline description synopsis genre primaryGenre format formatOther coverImage trailerUrl uploadedTrailerUrl trailerSource createdAt publishedAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const userForShareMeta = {
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+    };
+
+    const publicUser = {
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+      bio: user.bio || "",
+      profileImage: user.profileImage || "",
+      coverImage: user.coverImage || "",
+      followerCount: Array.isArray(user.followers) ? user.followers.length : 0,
+      followingCount: Array.isArray(user.following) ? user.following.length : 0,
+      writerProfile: user.writerProfile
+        ? {
+            username: user.writerProfile.username || "",
+            genres: Array.isArray(user.writerProfile.genres) ? user.writerProfile.genres : [],
+            specializedTags: Array.isArray(user.writerProfile.specializedTags) ? user.writerProfile.specializedTags : [],
+            links: {
+              portfolio: user.writerProfile.links?.portfolio || "",
+              instagram: user.writerProfile.links?.instagram || "",
+              twitter: user.writerProfile.links?.twitter || "",
+              linkedin: user.writerProfile.links?.linkedin || "",
+              imdb: user.writerProfile.links?.imdb || "",
+              facebook: user.writerProfile.links?.facebook || "",
+            },
+          }
+        : undefined,
+      industryProfile: user.industryProfile
+        ? {
+            subRole: user.industryProfile.subRole || "",
+            subRoleOther: user.industryProfile.subRoleOther || "",
+            company: user.industryProfile.company || "",
+            jobTitle: user.industryProfile.jobTitle || "",
+            socialLinks: {
+              instagram: user.industryProfile.socialLinks?.instagram || "",
+              twitter: user.industryProfile.socialLinks?.twitter || "",
+              website: user.industryProfile.socialLinks?.website || "",
+              youtube: user.industryProfile.socialLinks?.youtube || "",
+              facebook: user.industryProfile.socialLinks?.facebook || "",
+            },
+          }
+        : undefined,
+      shareMeta: buildUserShareMeta(req, userForShareMeta),
+    };
+
+    const scripts = publicScripts.map((script) => {
+      const synopsis = String(script.synopsis || "");
+      const synopsisTeaser = synopsis
+        ? `${synopsis.slice(0, 220)}${synopsis.length > 220 ? "..." : ""}`
+        : "";
+
+      return {
+        ...script,
+        synopsis: synopsisTeaser,
+        shareMeta: buildScriptShareMeta(req, script),
+      };
+    });
+
+    return res.json({
+      user: publicUser,
+      scripts,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to fetch public profile" });
+  }
+};
+
 export const getUserProfile = async (req, res) => {
   try {
     const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();

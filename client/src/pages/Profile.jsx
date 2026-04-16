@@ -520,7 +520,7 @@ const Profile = () => {
     : null;
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const defaultProfileRoute = profile?._id
-    ? `${String(profile?.role || "").toLowerCase() === "reader" ? "/reader/profile" : "/profile"}/${profile._id}`
+    ? `/share/profile/${profile._id}`
     : "";
   const profileShare = {
     url: profile?.shareMeta?.url || (defaultProfileRoute ? `${browserOrigin}${defaultProfileRoute}` : ""),
