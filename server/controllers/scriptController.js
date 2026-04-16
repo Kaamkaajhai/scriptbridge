@@ -1558,6 +1558,7 @@ export const getPublicScriptById = async (req, res) => {
       subGenres: Array.isArray(script.subGenres) ? script.subGenres : [],
       format: script.format || "",
       formatOther: script.formatOther || "",
+      price: Number(script.price || 0),
       pageCount: Number(script.pageCount || 0),
       budget: script.budget || "",
       views: Number(script.views || 0),
