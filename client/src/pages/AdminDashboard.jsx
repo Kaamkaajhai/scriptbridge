@@ -3492,8 +3492,8 @@ const AdminDashboard = () => {
                                                 <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No location data yet.</p>
                                             ) : (
                                                 locations.slice(0, 25).map((entry) => (
-                                                    <div key={`${entry.city}-${entry.country}`} className="flex items-center justify-between rounded-lg bg-black/5 px-3 py-2">
-                                                        <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>{entry.city}, {entry.country}</span>
+                                                    <div key={`${entry.region}-${entry.city}-${entry.country}`} className="flex items-center justify-between rounded-lg bg-black/5 px-3 py-2">
+                                                        <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>{entry.region || "Unknown"}, {entry.city || "Unknown"}, {entry.country || "Unknown"}</span>
                                                         <span className={`text-sm font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>{entry.count}</span>
                                                     </div>
                                                 ))

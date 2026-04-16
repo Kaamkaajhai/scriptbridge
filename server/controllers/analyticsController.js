@@ -45,17 +45,50 @@ const isPrivateIp = (ip) => {
   );
 };
 
+const normalizeIpAddress = (value) => {
+  const raw = toTrimmedString(value);
+  if (!raw) return "";
+
+  const first = raw.split(",")[0]?.trim() || "";
+  const noPort = first.includes(":") && first.includes(".")
+    ? first.replace(/:\d+$/, "")
+    : first;
+
+  if (noPort.startsWith("::ffff:")) return noPort.replace("::ffff:", "");
+  return noPort;
+};
+
 const getRequestIp = (req) => {
-  const forwarded = toTrimmedString(req.headers["x-forwarded-for"]);
+  const forwarded = normalizeIpAddress(req.headers["x-forwarded-for"]);
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+    return forwarded;
   }
 
-  const realIp = toTrimmedString(req.headers["x-real-ip"]);
+  const vercelIp = normalizeIpAddress(req.headers["x-vercel-forwarded-for"]);
+  if (vercelIp) return vercelIp;
+
+  const cfIp = normalizeIpAddress(req.headers["cf-connecting-ip"]);
+  if (cfIp) return cfIp;
+
+  const realIp = normalizeIpAddress(req.headers["x-real-ip"]);
   if (realIp) return realIp;
 
-  return toTrimmedString(req.ip || req.connection?.remoteAddress || "");
+  const fastlyIp = normalizeIpAddress(req.headers["fastly-client-ip"]);
+  if (fastlyIp) return fastlyIp;
+
+  return normalizeIpAddress(req.ip || req.connection?.remoteAddress || "");
+};
+
+const pickEffectiveIp = (requestIp, clientIp = "") => {
+  const normalizedRequestIp = normalizeIpAddress(requestIp);
+  const normalizedClientIp = normalizeIpAddress(clientIp);
+
+  if (!normalizedRequestIp) return normalizedClientIp;
+  if (isPrivateIp(normalizedRequestIp) && normalizedClientIp && !isPrivateIp(normalizedClientIp)) {
+    return normalizedClientIp;
+  }
+
+  return normalizedRequestIp;
 };
 
 const getOrCreateSession = (visitor, sessionId, startedAt) => {
@@ -309,43 +342,74 @@ const getAuthUserFromRequest = async (req) => {
 };
 
 const fetchRoughLocation = async (ipAddress) => {
-  if (!ipAddress || isPrivateIp(ipAddress)) {
+  const normalizedIp = normalizeIpAddress(ipAddress);
+  if (!normalizedIp || isPrivateIp(normalizedIp)) {
     return { city: "", country: "", region: "", source: "private_ip" };
   }
 
   const providerKey = toTrimmedString(process.env.IP_API_KEY);
-  const endpoint = providerKey
-    ? `https://api.ipgeolocation.io/ipgeo?apiKey=${encodeURIComponent(providerKey)}&ip=${encodeURIComponent(ipAddress)}`
-    : `https://ipapi.co/${encodeURIComponent(ipAddress)}/json/`;
+  const providers = [
+    providerKey
+      ? {
+        url: `https://api.ipgeolocation.io/ipgeo?apiKey=${encodeURIComponent(providerKey)}&ip=${encodeURIComponent(normalizedIp)}`,
+        source: "ipgeolocation",
+      }
+      : null,
+    {
+      url: `https://ipapi.co/${encodeURIComponent(normalizedIp)}/json/`,
+      source: "ipapi",
+    },
+    {
+      url: `https://ipwho.is/${encodeURIComponent(normalizedIp)}`,
+      source: "ipwhois",
+    },
+    {
+      url: `https://ipinfo.io/${encodeURIComponent(normalizedIp)}/json`,
+      source: "ipinfo",
+    },
+  ].filter(Boolean);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  for (const provider of providers) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-  try {
-    const response = await fetch(endpoint, {
-      signal: controller.signal,
-      headers: { Accept: "application/json" },
-    });
+    try {
+      const response = await fetch(provider.url, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
 
-    if (!response.ok) {
-      return { city: "", country: "", region: "", source: "ip_lookup_failed" };
+      if (!response.ok) {
+        continue;
+      }
+
+      const data = await response.json();
+      const city = sanitizeText(data.city || data.city_name || "", 80);
+      const country = sanitizeText(data.country_name || data.country || "", 80);
+      const region = sanitizeText(data.state_prov || data.region || data.region_name || "", 80);
+      const latitude = Number(data.latitude || data.lat || "");
+      const longitude = Number(data.longitude || data.lon || "");
+
+      if (!city && !country && !region && !Number.isFinite(latitude) && !Number.isFinite(longitude)) {
+        continue;
+      }
+
+      return {
+        city,
+        country,
+        region,
+        latitude: Number.isFinite(latitude) ? latitude : undefined,
+        longitude: Number.isFinite(longitude) ? longitude : undefined,
+        source: provider.source,
+      };
+    } catch {
+      // Try next provider.
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-
-    return {
-      city: sanitizeText(data.city || data.city_name || "", 80),
-      country: sanitizeText(data.country_name || data.country || "", 80),
-      region: sanitizeText(data.state_prov || data.region || data.region_name || "", 80),
-      latitude: Number.isFinite(Number(data.latitude || data.lat)) ? Number(data.latitude || data.lat) : undefined,
-      longitude: Number.isFinite(Number(data.longitude || data.lon)) ? Number(data.longitude || data.lon) : undefined,
-      source: "ip_lookup",
-    };
-  } catch {
-    return { city: "", country: "", region: "", source: "ip_lookup_error" };
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  return { city: "", country: "", region: "", source: "ip_lookup_failed" };
 };
 
 const detectReturningFlag = (existingVisitor, providedReturning) => {
@@ -453,6 +517,7 @@ export const trackEvent = async (req, res) => {
       isReturning,
       device,
       clientGeo,
+      clientIp,
       userContext,
       consent,
     } = req.body || {};
@@ -465,7 +530,7 @@ export const trackEvent = async (req, res) => {
       return res.status(400).json({ message: "anonymousId, sessionId, and eventType are required." });
     }
 
-    const ipAddress = getRequestIp(req);
+    const ipAddress = pickEffectiveIp(getRequestIp(req), clientIp);
     const authUser = await getAuthUserFromRequest(req);
     const now = parseDate(timestamp);
     const safeDevice = buildSafeDevice(device, req);
@@ -612,6 +677,7 @@ export const trackSession = async (req, res) => {
       consent,
       device,
       clientGeo,
+      clientIp,
       metadata,
       userContext,
     } = req.body || {};
@@ -624,7 +690,7 @@ export const trackSession = async (req, res) => {
       return res.status(400).json({ message: "anonymousId and sessionId are required." });
     }
 
-    const ipAddress = getRequestIp(req);
+    const ipAddress = pickEffectiveIp(getRequestIp(req), clientIp);
     const authUser = await getAuthUserFromRequest(req);
     const sessionStart = parseDate(startedAt);
     const sessionEnd = endedAt ? parseDate(endedAt) : null;
@@ -890,7 +956,8 @@ export const getAdminAnalytics = async (req, res) => {
     visitors.forEach((visitor) => {
       const city = visitor.location?.city || "Unknown";
       const country = visitor.location?.country || "Unknown";
-      const key = `${city}|${country}`;
+      const region = visitor.location?.region || "Unknown";
+      const key = `${region}|${city}|${country}`;
       locationMap.set(key, (locationMap.get(key) || 0) + 1);
 
       let totalPageVisits = 0;
@@ -958,8 +1025,8 @@ export const getAdminAnalytics = async (req, res) => {
 
     const locationBreakdown = [...locationMap.entries()]
       .map(([key, count]) => {
-        const [city, country] = key.split("|");
-        return { city, country, count };
+        const [region, city, country] = key.split("|");
+        return { region, city, country, count };
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 50);
