@@ -602,7 +602,7 @@ export const getPublicUserProfile = async (req, res) => {
     }
 
     const user = await User.findById(profileId)
-      .select("name role bio skills profileImage coverImage writerProfile industryProfile followers following isPrivate isDeactivated")
+      .select("name role bio skills profileImage coverImage writerProfile industryProfile followers following createdAt isPrivate isDeactivated")
       .lean();
 
     if (!user || user.isDeactivated) {
@@ -634,6 +634,7 @@ export const getPublicUserProfile = async (req, res) => {
       _id: user._id,
       name: user.name,
       role: user.role,
+      createdAt: user.createdAt,
       bio: user.bio || "",
       skills: Array.isArray(user.skills) ? user.skills.filter(Boolean).slice(0, 12) : [],
       profileImage: user.profileImage || "",
