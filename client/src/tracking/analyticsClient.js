@@ -3,6 +3,38 @@ import { ensureAnonymousId, ensureSessionId, hasConsent } from "./storage";
 import { trackFirebaseEvent } from "./firebaseTracking";
 
 const API_BASE_URL = getApiBaseUrl();
+let publicIpPromise = null;
+
+const resolvePublicIp = async () => {
+  if (publicIpPromise) return publicIpPromise;
+
+  const lookup = async (url) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (!response.ok) return "";
+      const data = await response.json();
+      return String(data?.ip || "").trim();
+    } catch {
+      return "";
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  publicIpPromise = (async () => {
+    const first = await lookup("https://api64.ipify.org?format=json");
+    if (first) return first;
+    return lookup("https://api.ipify.org?format=json");
+  })();
+
+  return publicIpPromise;
+};
 
 const syncFirebaseTracking = (kind, payload) => {
   if (!hasConsent()) return;
@@ -100,9 +132,11 @@ export const getTrackingContext = () => ({
 
 export const sendTrackEvent = async (payload, options = {}) => {
   const context = getTrackingContext();
+  const clientIp = await resolvePublicIp();
   const outboundPayload = {
     ...context,
     ...payload,
+    clientIp: clientIp || undefined,
     timestamp: payload?.timestamp || new Date().toISOString(),
   };
 
@@ -115,9 +149,11 @@ export const sendTrackEvent = async (payload, options = {}) => {
 
 export const sendTrackSession = async (payload, options = {}) => {
   const context = getTrackingContext();
+  const clientIp = await resolvePublicIp();
   const outboundPayload = {
     ...context,
     ...payload,
+    clientIp: clientIp || undefined,
   };
 
   await postJson(`${API_BASE_URL}/track-session`, {
