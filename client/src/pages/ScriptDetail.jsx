@@ -803,6 +803,7 @@ const ScriptDetail = () => {
   const creatorId = script?.creator?._id || script?.creator;
   const viewerId = user?._id || user?.id;
   const isOwner = Boolean(script?.isCreator || (creatorId && viewerId && String(creatorId) === String(viewerId)));
+  const canViewFullScript = Boolean(isOwner || script?.isUnlocked || script?.isAdmin || script?.canViewFullScript);
   const isReaderReviewer = String(user?.role || "").toLowerCase() === "reader";
   const isSoldScript = Boolean(script?.isSold || script?.holdStatus === "sold");
   const canBookmark = Boolean(user?._id && !isOwner);
@@ -881,7 +882,7 @@ const ScriptDetail = () => {
     { id: "evaluation", label: "Evaluation" },
     { id: "roles", label: "Roles" },
     { id: "synopsis", label: "Synopsis" },
-    ...((isOwner || script.isUnlocked) && script.textContent
+    ...(canViewFullScript && script.textContent
       ? [{ id: "content", label: isOwner ? "My Script" : "Full Script" }]
       : []),
   ];
@@ -1115,7 +1116,7 @@ const ScriptDetail = () => {
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                             <path d="M7 11V7a5 5 0 0110 0v4" />
                           </svg>
-                          <span className="font-semibold">Full synopsis locked &mdash; teaser shown</span>
+                          <span className="font-semibold">Full script locked &mdash; full synopsis is visible</span>
                         </div>
                       )}
                     </div>
@@ -2011,7 +2012,7 @@ const ScriptDetail = () => {
             )}
 
             {/* ── Full Script (owner or purchased) ────────── */}
-            {activeTab === "content" && (isOwner || script.isUnlocked) && (
+            {activeTab === "content" && canViewFullScript && (
               <motion.div key="content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className={`mb-4 rounded-xl border px-3 py-3 sm:px-5 ${t.card}`}>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2146,7 +2147,7 @@ const ScriptDetail = () => {
                               <path d="M7 11V7a5 5 0 0110 0v4" />
                             </svg>
                           </div>
-                          <h4 className={`text-base font-bold mb-2 ${t.title}`}>Full Synopsis Locked</h4>
+                          <h4 className={`text-base font-bold mb-2 ${t.title}`}>Full Script Locked</h4>
                           {script.isWriter ? (
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (

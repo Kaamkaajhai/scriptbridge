@@ -43,6 +43,7 @@ const ReaderHome = lazy(() => import("./pages/ReaderHome"));
 const ScriptReader = lazy(() => import("./pages/ScriptReader"));
 const ReaderProfile = lazy(() => import("./pages/ReaderProfile"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminScriptView = lazy(() => import("./pages/AdminScriptView"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
 
@@ -414,6 +415,10 @@ function App() {
               <Route
                 path="/admin"
                 element={<AdminDashboard />}
+              />
+              <Route
+                path="/admin/scripts/:id"
+                element={<AdminScriptView />}
               />
             </Routes>
             </Suspense>
