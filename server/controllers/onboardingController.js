@@ -16,6 +16,9 @@ import {
 
 const normalizeString = (value) =>
   value === undefined || value === null ? "" : String(value).trim();
+const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
+const sanitizePreviousCredits = (value) =>
+  normalizeString(value).replace(LOCALHOST_URL_REGEX, "").replace(/\s{2,}/g, " ").trim();
 
 const normalizeOptionalDate = (value) => {
   if (!value) return undefined;
@@ -840,7 +843,9 @@ export const updateProfessionalIdentity = async (req, res) => {
     user.industryProfile.jobTitle = jobTitle || user.industryProfile.jobTitle;
     user.industryProfile.imdbUrl = imdbUrl || user.industryProfile.imdbUrl;
     user.industryProfile.linkedInUrl = linkedInUrl || user.industryProfile.linkedInUrl;
-    user.industryProfile.previousCredits = previousCredits || user.industryProfile.previousCredits;
+    if (previousCredits !== undefined) {
+      user.industryProfile.previousCredits = sanitizePreviousCredits(previousCredits);
+    }
     
     // Update onboarding step
     if (user.industryProfile.onboardingStep < 2) {
