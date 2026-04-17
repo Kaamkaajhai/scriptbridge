@@ -2,6 +2,9 @@ import { createContext, useEffect, useContext, useState } from "react";
 
 const DarkModeContext = createContext({ isDarkMode: false, toggleDarkMode: () => {} });
 const DARK_MODE_STORAGE_KEY = "sb-dark-mode";
+const DARK_MODE_USER_SET_KEY = "sb-dark-mode-user-set";
+
+const isStoredDarkModeValue = (value) => value === "1" || value === "0";
 
 const getInitialDarkMode = () => {
   if (typeof window === "undefined") {
@@ -9,26 +12,45 @@ const getInitialDarkMode = () => {
   }
 
   const storedPreference = localStorage.getItem(DARK_MODE_STORAGE_KEY);
-  if (storedPreference === "1") return true;
-  if (storedPreference === "0") return false;
+  const wasUserSet = localStorage.getItem(DARK_MODE_USER_SET_KEY) === "1";
 
-  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false;
+  if (wasUserSet && isStoredDarkModeValue(storedPreference)) {
+    return storedPreference === "1";
+  }
+
+  // Keep a deterministic cross-browser default unless user explicitly chooses.
+  return false;
+};
+
+const getInitialUserSetPreference = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return localStorage.getItem(DARK_MODE_USER_SET_KEY) === "1";
 };
 
 export const DarkModeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
+  const [isPreferenceUserSet, setIsPreferenceUserSet] = useState(getInitialUserSetPreference);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.classList.toggle("dark-mode", isDarkMode);
     }
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(DARK_MODE_STORAGE_KEY, isDarkMode ? "1" : "0");
-    }
   }, [isDarkMode]);
 
-  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+  useEffect(() => {
+    if (typeof window !== "undefined" && isPreferenceUserSet) {
+      localStorage.setItem(DARK_MODE_STORAGE_KEY, isDarkMode ? "1" : "0");
+      localStorage.setItem(DARK_MODE_USER_SET_KEY, "1");
+    }
+  }, [isDarkMode, isPreferenceUserSet]);
+
+  const toggleDarkMode = () => {
+    setIsPreferenceUserSet(true);
+    setIsDarkMode((prev) => !prev);
+  };
 
   return (
     <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>

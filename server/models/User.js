@@ -370,6 +370,9 @@ const userSchema = new mongoose.Schema({
     source: { type: String, enum: ["user", "admin"], default: "user" },
     originalName: { type: String, default: "" },
     originalEmail: { type: String, default: "" },
+    archivedAt: { type: Date },
+    archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    archivedProfile: { type: mongoose.Schema.Types.Mixed, default: null },
   },
 }, { timestamps: true });
 
