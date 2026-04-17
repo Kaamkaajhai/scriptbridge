@@ -650,6 +650,10 @@ export const getPublicUserProfile = async (req, res) => {
       writerProfile: user.writerProfile
         ? {
             username: user.writerProfile.username || "",
+            representationStatus: user.writerProfile.representationStatus || "",
+            agencyName: user.writerProfile.agencyName || "",
+            wgaMember: Boolean(user.writerProfile.wgaMember),
+            sgaMember: Boolean(user.writerProfile.sgaMember),
             genres: Array.isArray(user.writerProfile.genres) ? user.writerProfile.genres : [],
             specializedTags: Array.isArray(user.writerProfile.specializedTags) ? user.writerProfile.specializedTags : [],
             links: {
