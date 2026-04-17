@@ -19,6 +19,24 @@ const formatIndustrySubRole = (value = "", otherValue = "") => {
     .join(" ");
 };
 
+const isWriterRole = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "writer" || normalized === "creator";
+};
+
+const formatRepresentationStatus = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!normalized) return "Unrepresented";
+  if (normalized === "manager_and_agent") return "Manager & Agent";
+  if (normalized === "manager") return "Manager";
+  if (normalized === "agent") return "Agent";
+  if (normalized === "unrepresented") return "Unrepresented";
+  return normalized
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
 const PublicProfile = () => {
   const { id } = useParams();
   const location = useLocation();
@@ -26,6 +44,7 @@ const PublicProfile = () => {
   const { loading: authLoading } = useContext(AuthContext);
 
   const [profile, setProfile] = useState(null);
+  const [scripts, setScripts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -45,6 +64,7 @@ const PublicProfile = () => {
         const { data } = await publicApi.get(`/users/public/${id}`);
         if (cancelled) return;
         setProfile(data?.user || null);
+        setScripts(Array.isArray(data?.scripts) ? data.scripts : []);
       } catch (err) {
         if (cancelled) return;
         const apiMessage = err?.response?.data?.message;
@@ -81,6 +101,18 @@ const PublicProfile = () => {
       year: "numeric",
     });
   }, [profile?.createdAt]);
+
+  const writerLinks = profile?.writerProfile?.links || {};
+  const writerPublicLinks = [
+    { key: "portfolio", label: "Portfolio", value: writerLinks.portfolio },
+    { key: "linkedin", label: "LinkedIn", value: writerLinks.linkedin },
+    { key: "imdb", label: "IMDb", value: writerLinks.imdb },
+    { key: "instagram", label: "Instagram", value: writerLinks.instagram },
+    { key: "twitter", label: "Twitter", value: writerLinks.twitter },
+    { key: "facebook", label: "Facebook", value: writerLinks.facebook },
+  ].filter((item) => String(item.value || "").trim());
+
+  const writerProfilePublic = isWriterRole(profile?.role);
 
   if (loading) {
     return (
@@ -206,6 +238,95 @@ const PublicProfile = () => {
                 </div>
               )}
 
+              {writerProfilePublic && profile.writerProfile && (
+                <>
+                  <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className={`w-9 h-9 rounded-full border flex items-center justify-center ${dark ? "border-white/10 text-blue-200" : "border-gray-200 text-blue-700 bg-blue-50"}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                      </span>
+                      <h3 className={`text-2xl font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Writer Profile</h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      {profile.writerProfile.username ? (
+                        <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
+                          <span className={`text-[15px] ${dark ? "text-gray-400" : "text-gray-400"}`}>Username</span>
+                          <span className={`text-[15px] font-semibold ${dark ? "text-gray-200" : "text-gray-700"}`}>@{profile.writerProfile.username}</span>
+                        </div>
+                      ) : null}
+                      <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
+                        <span className={`text-[15px] ${dark ? "text-gray-400" : "text-gray-400"}`}>Representation</span>
+                        <span className={`text-[15px] font-semibold ${dark ? "text-gray-200" : "text-gray-700"}`}>{formatRepresentationStatus(profile.writerProfile.representationStatus)}</span>
+                      </div>
+                      {profile.writerProfile.agencyName ? (
+                        <div className="flex items-start justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start">
+                          <span className={`text-[15px] ${dark ? "text-gray-400" : "text-gray-400"}`}>Agency</span>
+                          <span className={`text-[15px] font-semibold ${dark ? "text-gray-200" : "text-gray-700"}`}>{profile.writerProfile.agencyName}</span>
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${profile.writerProfile.wgaMember ? (dark ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/20" : "bg-emerald-100 text-emerald-700 border-emerald-200") : (dark ? "bg-white/10 text-gray-200 border-white/10" : "bg-gray-100 text-gray-700 border-gray-200")}`}>
+                          WGA: {profile.writerProfile.wgaMember ? "Verified" : "No"}
+                        </span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${profile.writerProfile.sgaMember ? (dark ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/20" : "bg-emerald-100 text-emerald-700 border-emerald-200") : (dark ? "bg-white/10 text-gray-200 border-white/10" : "bg-gray-100 text-gray-700 border-gray-200")}`}>
+                          SWA: {profile.writerProfile.sgaMember ? "Verified" : "No"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <h3 className={`text-[18px] font-extrabold mb-3 ${dark ? "text-white" : "text-gray-900"}`}>Genres</h3>
+                      {Array.isArray(profile.writerProfile.genres) && profile.writerProfile.genres.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {profile.writerProfile.genres.map((genre) => (
+                            <span key={genre} className={`px-3 py-1.5 rounded-2xl text-[12px] font-semibold border ${dark ? "bg-blue-500/10 text-blue-200 border-blue-500/20" : "bg-blue-50 text-blue-700 border-blue-200"}`}>{genre}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={`text-[13px] italic ${dark ? "text-gray-500" : "text-gray-300"}`}>No genres selected</p>
+                      )}
+                    </div>
+
+                    <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <h3 className={`text-[18px] font-extrabold mb-3 ${dark ? "text-white" : "text-gray-900"}`}>Specialized Tags</h3>
+                      {Array.isArray(profile.writerProfile.specializedTags) && profile.writerProfile.specializedTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {profile.writerProfile.specializedTags.map((tag) => (
+                            <span key={tag} className={`px-3 py-1.5 rounded-2xl text-[12px] font-semibold border ${dark ? "bg-white/10 text-gray-200 border-white/10" : "bg-gray-50 text-gray-700 border-gray-200"}`}>{tag}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={`text-[13px] italic ${dark ? "text-gray-500" : "text-gray-300"}`}>No tags shared</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {writerPublicLinks.length > 0 && (
+                    <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
+                      <h3 className={`text-[18px] font-extrabold mb-3 ${dark ? "text-white" : "text-gray-900"}`}>Public Links</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {writerPublicLinks.map((item) => (
+                          <a
+                            key={item.key}
+                            href={item.value}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`px-3 py-1.5 rounded-2xl text-[12px] font-semibold border ${dark ? "bg-white/10 text-gray-200 border-white/10 hover:bg-white/15" : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"}`}
+                          >
+                            {item.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
               {String(profile.role || "").toLowerCase() === "investor" && (
                 <>
                   <div className={`rounded-3xl border p-5 ${dark ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-white"}`}>
@@ -312,6 +433,44 @@ const PublicProfile = () => {
             </div>
           </div>
         </div>
+
+        {writerProfilePublic && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-xl sm:text-2xl font-extrabold ${dark ? "text-white" : "text-gray-900"}`}>Published Projects</h2>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${dark ? "bg-white/10 text-gray-200" : "bg-white border border-gray-200 text-gray-700"}`}>
+                {scripts.length}
+              </span>
+            </div>
+
+            {scripts.length === 0 ? (
+              <div className={`rounded-2xl border p-8 text-center ${dark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200"}`}>
+                <p className={`text-sm ${dark ? "text-gray-300" : "text-gray-600"}`}>No public projects available right now.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {scripts.map((script) => (
+                  <Link
+                    key={script._id}
+                    to={`/share/project/${script._id}`}
+                    className={`rounded-2xl border overflow-hidden transition-transform hover:-translate-y-0.5 ${dark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200 shadow-sm"}`}
+                  >
+                    <div className={`aspect-[16/7] ${dark ? "bg-[#0a1322]" : "bg-gray-100"}`}>
+                      {script.coverImage ? (
+                        <img src={resolveMediaUrl(script.coverImage)} alt={script.title || "Project"} className="w-full h-full object-cover" />
+                      ) : null}
+                    </div>
+                    <div className="p-4">
+                      <h3 className={`text-lg font-extrabold leading-tight ${dark ? "text-white" : "text-gray-900"}`}>{script.title || "Untitled Project"}</h3>
+                      {script.logline ? <p className={`mt-1 text-sm font-semibold ${dark ? "text-gray-200" : "text-gray-700"}`}>{script.logline}</p> : null}
+                      {script.synopsis ? <p className={`mt-2 text-xs leading-relaxed ${dark ? "text-gray-300" : "text-gray-600"}`}>{script.synopsis}</p> : null}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
