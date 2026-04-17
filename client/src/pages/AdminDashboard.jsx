@@ -26,25 +26,26 @@ adminApi.interceptors.request.use((config) => {
 
 const TABS = [
     { key: "overview", label: "Overview", icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" },
-    { key: "investors", label: "Investors", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { key: "analytics", label: "Analytics", icon: "M3 3v18h18M7.5 14.25l3-3 2.25 2.25 4.5-4.5" },
+    { key: "investors", label: "Film Professionals", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
     { key: "writers", label: "Writers", icon: "M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" },
-    { key: "readers", label: "Readers", icon: "M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" },
-    { key: "projects", label: "Projects", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" },
+    { key: "projects", label: "Scripts", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" },
+    { key: "pending-investors", label: "Film Professional Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
+    { key: "approvals", label: "Script Approvals", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { key: "trailers", label: "AI Trailer Approvals", icon: "M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" },
+    { key: "evaluations", label: "AI Evaluations", icon: "M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" },
+    { key: "messages", label: "Messages", icon: "M7.5 8.25h9m-9 3h6m-9 9h12A2.25 2.25 0 0018.75 18V6A2.25 2.25 0 0016.5 3.75h-9A2.25 2.25 0 005.25 6v12A2.25 2.25 0 007.5 20.25z" },
+    { key: "membership-reviews", label: "SWA/WGA Reviews", icon: "M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 0h1.5A2.25 2.25 0 0115 2.25v1.134a9 9 0 11-6 0V2.25z" },
+    { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
+    { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "ai-usage", label: "AI Usage", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" },
-    { key: "evaluations", label: "Evaluations", icon: "M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" },
     { key: "investor-purchases", label: "Purchases", icon: "M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" },
     { key: "invoices", label: "Invoices", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5A3.375 3.375 0 0010.125 2.25H6.75A2.25 2.25 0 004.5 4.5v15A2.25 2.25 0 006.75 21.75h10.5A2.25 2.25 0 0019.5 19.5v-1.125M15 12h-6m6 3h-6m3-6h.008v.008H12V9z" },
     { key: "payments", label: "Payments", icon: "M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" },
     { key: "scores", label: "Scores", icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" },
-    { key: "approvals", label: "Approvals", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-    { key: "trailers", label: "AI Trailers", icon: "M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" },
-    { key: "messages", label: "Messages", icon: "M7.5 8.25h9m-9 3h6m-9 9h12A2.25 2.25 0 0018.75 18V6A2.25 2.25 0 0016.5 3.75h-9A2.25 2.25 0 005.25 6v12A2.25 2.25 0 007.5 20.25z" },
-    { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
-    { key: "membership-reviews", label: "Membership Reviews", icon: "M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 0h1.5A2.25 2.25 0 0115 2.25v1.134a9 9 0 11-6 0V2.25z" },
-    { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
-    { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
-    { key: "deleted-accounts", label: "Deleted Accounts", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
-    { key: "analytics", label: "Analytics", icon: "M3 3v18h18M7.5 14.25l3-3 2.25 2.25 4.5-4.5" },
+    { key: "deleted-film-professionals", label: "Deleted Film Professionals", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
+    { key: "deleted-writers", label: "Deleted Writers", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
+    { key: "deleted-scripts", label: "Deleted Scripts", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79" },
     { key: "discount-codes", label: "Discount Codes", icon: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" },
 ];
 
@@ -146,6 +147,35 @@ const formatUserExportLine = (user, index) => {
 
     return `${index + 1}. ${toDisplayText(user?.name)} | ${toDisplayText(user?.email)} | Phone: ${toDisplayText(user?.phone)} | Role: ${toDisplayText(user?.role)} | SID: ${toDisplayText(user?.sid)} | Company: ${toDisplayText(company)} | Genres: ${toDisplayText(genres)} | Address: ${toDisplayText(address)} | Joined: ${formatExportDate(user?.createdAt)}`;
 };
+
+const buildOverviewExportLines = (overview) => [
+    `Total Users: ${overview?.totalUsers || 0}`,
+    `Total Scripts: ${overview?.totalScripts || 0}`,
+    `Published Scripts: ${overview?.publishedScripts || 0}`,
+    `Deleted Scripts: ${overview?.deletedScripts || 0}`,
+    `Draft Scripts: ${overview?.draftScripts || 0}`,
+    `Rejected Scripts: ${overview?.rejectedScripts || 0}`,
+    `Sold Scripts: ${overview?.soldScripts || 0}`,
+    `Writers: ${overview?.totalWriters || 0}`,
+    `Film Professionals: ${overview?.totalInvestors || 0}`,
+    `Readers: ${overview?.totalReaders || 0}`,
+    `Pending Script Approvals: ${overview?.pendingApprovals || 0}`,
+    `Pending AI Trailer Approvals: ${overview?.pendingTrailerRequests || 0}`,
+    `AI Usage Scripts: ${overview?.aiUsageScripts || 0}`,
+    `Evaluation Scripts: ${overview?.evaluationScripts || 0}`,
+    `Pending Film Professional Requests: ${overview?.pendingInvestors || 0}`,
+    `Pending SWA/WGA Reviews: ${overview?.pendingMembershipReviews || 0}`,
+    `Pending Bank Reviews: ${overview?.pendingBankReviews || 0}`,
+    `Locked Bank Users: ${overview?.lockedBankUsers || 0}`,
+    `Bank Review Alerts: ${overview?.bankReviewAlerts || 0}`,
+    `Queries: ${overview?.queries || 0}`,
+    `Deleted Accounts: ${overview?.deletedAccounts || 0}`,
+    `Deleted Film Professionals: ${overview?.deletedFilmProfessionals || 0}`,
+    `Deleted Writers: ${overview?.deletedWriters || 0}`,
+    `Open Admin Actions: ${overview?.openAdminActions || 0}`,
+    `Transactions: ${overview?.totalTransactions || 0}`,
+    `Total Revenue: ${formatCurrency(overview?.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+];
 
 const PROJECT_CREATOR_ROLES = new Set(["writer", "creator"]);
 
@@ -319,11 +349,12 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                             )}
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.genre || s.primaryGenre || "—"}</td>
                             <td className="px-5 py-3.5">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.status === "published" ? "bg-emerald-100 text-emerald-700" :
-                                    s.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
-                                        s.status === "rejected" ? "bg-red-100 text-red-700" :
-                                            "bg-gray-100 text-gray-600"
-                                    }`}>{s.status?.replace("_", " ") || "draft"}</span>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.isDeleted ? "bg-red-100 text-red-700" :
+                                    s.status === "published" ? "bg-emerald-100 text-emerald-700" :
+                                        s.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
+                                            s.status === "rejected" ? "bg-red-100 text-red-700" :
+                                                "bg-gray-100 text-gray-600"
+                                    }`}>{s.isDeleted ? "deleted" : (s.status?.replace("_", " ") || "draft")}</span>
                             </td>
                             {showScore && (
                                 <td className={`px-5 py-3.5 text-sm font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>
@@ -500,26 +531,27 @@ const formatBadgeCount = (count) => {
 
 const SEARCH_PLACEHOLDER_BY_TAB = {
     overview: "Search everything in admin...",
-    investors: "Search investors...",
+    investors: "Search film professionals...",
     writers: "Search writers...",
-    readers: "Search readers...",
-    projects: "Search projects...",
+    projects: "Search scripts...",
+    "deleted-scripts": "Search deleted scripts...",
     "ai-usage": "Search AI usage...",
-    evaluations: "Search evaluations...",
+    evaluations: "Search AI evaluations...",
     "investor-purchases": "Search purchases...",
     invoices: "Search invoices...",
     payments: "Search payments...",
     scores: "Search scores...",
     analytics: "Search analytics...",
     "discount-codes": "Search discount codes...",
-    approvals: "Search approvals...",
-    trailers: "Search AI trailers...",
+    approvals: "Search script approvals...",
+    trailers: "Search AI trailer approvals...",
     messages: "Search writer messages...",
-    "pending-investors": "Search investor requests...",
-    "membership-reviews": "Search membership reviews...",
+    "pending-investors": "Search film professional requests...",
+    "membership-reviews": "Search SWA/WGA reviews...",
     "bank-reviews": "Search bank review requests...",
     queries: "Search queries...",
-    "deleted-accounts": "Search deleted account requests...",
+    "deleted-film-professionals": "Search deleted film professionals...",
+    "deleted-writers": "Search deleted writers...",
 };
 
 const EMPTY_GLOBAL_RESULTS = {
@@ -909,10 +941,10 @@ const AdminDashboard = () => {
                 const increasedSections = BADGE_WATCH_KEYS.filter((key) => (summary[key] || 0) > (previous[key] || 0));
                 if (increasedSections.length > 0) {
                     const sectionLabelMap = {
-                        approvals: "Project approvals",
-                        trailers: "AI trailer requests",
-                        "pending-investors": "Investor requests",
-                        "membership-reviews": "Membership reviews",
+                        approvals: "Script approvals",
+                        trailers: "AI trailer approvals",
+                        "pending-investors": "Film professional requests",
+                        "membership-reviews": "SWA/WGA reviews",
                         "bank-reviews": "Bank detail reviews",
                         queries: "Queries",
                     };
@@ -996,7 +1028,10 @@ const AdminDashboard = () => {
     );
     const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
     const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
-    const filteredDeletedAccounts = sourceDeletedAccounts.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
+    const deletedFilmProfessionals = sourceDeletedAccounts.filter((item) => String(item?.role || "").toLowerCase() === "investor");
+    const deletedWriters = sourceDeletedAccounts.filter((item) => PROJECT_CREATOR_ROLES.has(String(item?.role || "").toLowerCase()));
+    const filteredDeletedFilmProfessionals = deletedFilmProfessionals.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
+    const filteredDeletedWriters = deletedWriters.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
     const filteredMessageUsers = sourceMessageUsers.filter((u) => matchesSearch(u.name, u.email, u.sid));
 
     const buildCurrentSectionPayload = () => {
@@ -1004,27 +1039,22 @@ const AdminDashboard = () => {
             case "overview":
                 return {
                     title: "Platform Overview",
-                    lines: stats
-                        ? [
-                            `Total Users: ${stats.totalUsers || 0}`,
-                            `Total Scripts: ${stats.totalScripts || 0}`,
-                            `Writers: ${stats.totalWriters || 0}`,
-                            `Investors: ${stats.totalInvestors || 0}`,
-                            `Readers: ${stats.totalReaders || 0}`,
-                            `Pending Approvals: ${stats.pendingApprovals || 0}`,
-                            `Transactions: ${stats.totalTransactions || 0}`,
-                            `Total Revenue: ${formatCurrency(stats.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        ]
-                        : ["No records"],
+                    lines: stats ? buildOverviewExportLines(stats) : ["No records"],
                 };
             case "investors":
             case "writers":
             case "readers":
+                const sectionTitleByTab = {
+                    investors: "Film Professionals",
+                    writers: "Writers",
+                    readers: "Readers",
+                };
                 return {
-                    title: `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} (${users.length})`,
+                    title: `${sectionTitleByTab[activeTab] || activeTab} (${users.length})`,
                     lines: users.map((u, idx) => formatUserExportLine(u, idx)),
                 };
             case "projects":
+            case "deleted-scripts":
             case "ai-usage":
             case "evaluations":
             case "investor-purchases":
@@ -1047,12 +1077,12 @@ const AdminDashboard = () => {
                 };
             case "pending-investors":
                 return {
-                    title: `Investor Requests (${pendingInvestors.length})`,
+                    title: `Film Professional Requests (${pendingInvestors.length})`,
                     lines: pendingInvestors.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
                 };
             case "membership-reviews":
                 return {
-                    title: `Membership Reviews (${membershipReviews.length})`,
+                    title: `SWA/WGA Reviews (${membershipReviews.length})`,
                     lines: membershipReviews.map((review, idx) => `${idx + 1}. ${review.name || "-"} | ${review.email || "-"} | SID: ${review.sid || "-"} | Pending: ${(review.pendingMemberships || []).map((item) => `${item.label}:${item.status}`).join(", ") || "-"}`),
                 };
             case "bank-reviews":
@@ -1065,10 +1095,15 @@ const AdminDashboard = () => {
                     title: `Queries (${contacts.length})`,
                     lines: contacts.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
                 };
-            case "deleted-accounts":
+            case "deleted-film-professionals":
                 return {
-                    title: `Deleted Accounts (${deletedAccounts.length})`,
-                    lines: deletedAccounts.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                    title: `Deleted Film Professionals (${deletedFilmProfessionals.length})`,
+                    lines: deletedFilmProfessionals.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                };
+            case "deleted-writers":
+                return {
+                    title: `Deleted Writers (${deletedWriters.length})`,
+                    lines: deletedWriters.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                 };
             case "analytics":
                 return {
@@ -1198,6 +1233,7 @@ const AdminDashboard = () => {
                 creatorsData,
                 readersData,
                 projectsData,
+                deletedScriptsData,
                 aiUsageData,
                 evaluationsData,
                 purchasesData,
@@ -1220,6 +1256,7 @@ const AdminDashboard = () => {
                 fetchList("/admin/users?role=creator&page=1&limit=1000", "users"),
                 fetchList("/admin/users?role=reader&page=1&limit=1000", "users"),
                 fetchList("/admin/scripts?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts?status=deleted&page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/ai-usage?page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/evaluation-purchases?page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/investor-purchases?page=1&limit=1000", "scripts"),
@@ -1253,21 +1290,13 @@ const AdminDashboard = () => {
                 sections: [
                     {
                         title: "Overview",
-                        lines: [
-                            `Total Users: ${overview?.totalUsers || 0}`,
-                            `Total Scripts: ${overview?.totalScripts || 0}`,
-                            `Writers: ${overview?.totalWriters || 0}`,
-                            `Investors: ${overview?.totalInvestors || 0}`,
-                            `Readers: ${overview?.totalReaders || 0}`,
-                            `Pending Approvals: ${overview?.pendingApprovals || 0}`,
-                            `Transactions: ${overview?.totalTransactions || 0}`,
-                            `Total Revenue: ${formatCurrency(overview?.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        ],
+                        lines: buildOverviewExportLines(overview),
                     },
                     sectionFromUsers("Investors", investorsData),
                     sectionFromUsers("Writers", [...writersData, ...creatorsData]),
                     sectionFromUsers("Readers", readersData),
                     sectionFromScripts("Projects", projectsData),
+                    sectionFromScripts("Deleted Scripts", deletedScriptsData),
                     sectionFromScripts("AI Usage", aiUsageData),
                     sectionFromScripts("Evaluation Purchases", evaluationsData),
                     sectionFromScripts("Investor Purchases", purchasesData),
@@ -1283,13 +1312,13 @@ const AdminDashboard = () => {
                     sectionFromScripts("Platform Scores", platformScoresData),
                     sectionFromScripts("Reader Scores", readerScoresData),
                     sectionFromScripts("Pending Approvals", approvalsData),
-                    sectionFromScripts("AI Trailers", trailersData),
+                    sectionFromScripts("AI Trailer Approvals", trailersData),
                     {
-                        title: `Investor Requests (${pendingInvestorsData.length})`,
+                        title: `Film Professional Requests (${pendingInvestorsData.length})`,
                         lines: pendingInvestorsData.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
                     },
                     {
-                        title: `Membership Reviews (${membershipReviewsData.length})`,
+                        title: `SWA/WGA Reviews (${membershipReviewsData.length})`,
                         lines: membershipReviewsData.map((review, idx) => `${idx + 1}. ${review.name || "-"} | ${review.email || "-"} | SID: ${review.sid || "-"} | Pending: ${(review.pendingMemberships || []).map((item) => `${item.label}:${item.status}`).join(", ") || "-"}`),
                     },
                     {
@@ -1301,8 +1330,16 @@ const AdminDashboard = () => {
                         lines: queriesData.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
                     },
                     {
-                        title: `Deleted Accounts (${deletedAccountsData.length})`,
-                        lines: deletedAccountsData.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                        title: `Deleted Film Professionals (${deletedAccountsData.filter((item) => String(item?.role || "").toLowerCase() === "investor").length})`,
+                        lines: deletedAccountsData
+                            .filter((item) => String(item?.role || "").toLowerCase() === "investor")
+                            .map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                    },
+                    {
+                        title: `Deleted Writers (${deletedAccountsData.filter((item) => PROJECT_CREATOR_ROLES.has(String(item?.role || "").toLowerCase())).length})`,
+                        lines: deletedAccountsData
+                            .filter((item) => PROJECT_CREATOR_ROLES.has(String(item?.role || "").toLowerCase()))
+                            .map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                     },
                 ],
             });
@@ -1348,6 +1385,11 @@ const AdminDashboard = () => {
                     setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
+                case "deleted-scripts": {
+                    const { data } = await adminApi.get(`/admin/scripts?status=deleted&page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                    setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
                 case "ai-usage": {
                     const { data } = await adminApi.get(`/admin/scripts/ai-usage?page=${page}`);
                     setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
@@ -1355,7 +1397,10 @@ const AdminDashboard = () => {
                 }
                 case "evaluations": {
                     const { data } = await adminApi.get(`/admin/scripts/evaluation-purchases?page=${page}`);
-                    setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
+                    const evaluationScripts = Array.isArray(data?.scripts)
+                        ? data.scripts.filter((script) => ![true, "true", 1].includes(script?.isDeleted) && script?.status !== "rejected")
+                        : [];
+                    setScripts(evaluationScripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
                 case "investor-purchases": {
@@ -1386,7 +1431,10 @@ const AdminDashboard = () => {
                 }
                 case "trailers": {
                     const { data } = await adminApi.get(`/admin/scripts/trailer-requests?page=${page}`);
-                    setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
+                    const trailerScripts = Array.isArray(data?.scripts)
+                        ? data.scripts.filter((script) => ![true, "true", 1].includes(script?.isDeleted))
+                        : [];
+                    setScripts(trailerScripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
                 case "messages": {
@@ -1413,8 +1461,13 @@ const AdminDashboard = () => {
                     setContacts(data.submissions); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
-                case "deleted-accounts": {
-                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                case "deleted-film-professionals": {
+                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&role=investor&search=${encodeURIComponent(activeSearch)}`);
+                    setDeletedAccounts(data.requests || []); setTotalPages(data.totalPages || 1); setTotal(data.total || 0);
+                    break;
+                }
+                case "deleted-writers": {
+                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&role=writer&search=${encodeURIComponent(activeSearch)}`);
                     setDeletedAccounts(data.requests || []); setTotalPages(data.totalPages || 1); setTotal(data.total || 0);
                     break;
                 }
@@ -2468,15 +2521,50 @@ const AdminDashboard = () => {
                 return (
                     <div>
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Platform Overview</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <StatCard isDark={isDark} label="Total Users" value={stats.totalUsers} icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" color="bg-blue-500/15 text-blue-500" />
-                            <StatCard isDark={isDark} label="Total Scripts" value={stats.totalScripts} icon="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" color="bg-purple-500/15 text-purple-500" />
-                            <StatCard isDark={isDark} label="Writers" value={stats.totalWriters} icon="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" color="bg-amber-500/15 text-amber-500" />
-                            <StatCard isDark={isDark} label="Investors" value={stats.totalInvestors} icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-emerald-500/15 text-emerald-500" />
-                            <StatCard isDark={isDark} label="Readers" value={stats.totalReaders} icon="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" color="bg-cyan-500/15 text-cyan-500" />
-                            <StatCard isDark={isDark} label="Pending Approvals" value={stats.pendingApprovals} icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-500/15 text-orange-500" />
-                            <StatCard isDark={isDark} label="Transactions" value={stats.totalTransactions} icon="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" color="bg-pink-500/15 text-pink-500" />
-                            <StatCard isDark={isDark} label="Total Revenue" value={`₹${stats.totalRevenue?.toFixed(2) || "0.00"}`} icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-green-500/15 text-green-500" />
+                        <div className="space-y-8">
+                            <div>
+                                <h3 className={`text-sm font-extrabold uppercase tracking-wide mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Platform Snapshot</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <StatCard isDark={isDark} label="Total Users" value={stats.totalUsers || 0} icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" color="bg-blue-500/15 text-blue-500" />
+                                    <StatCard isDark={isDark} label="Total Scripts" value={stats.totalScripts || 0} icon="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" color="bg-purple-500/15 text-purple-500" />
+                                    <StatCard isDark={isDark} label="Published Scripts" value={stats.publishedScripts || 0} icon="M5.25 6.75h13.5M5.25 12h13.5m-13.5 5.25h13.5" color="bg-indigo-500/15 text-indigo-500" />
+                                    <StatCard isDark={isDark} label="Deleted Scripts" value={stats.deletedScripts || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79" color="bg-rose-500/15 text-rose-500" />
+                                    <StatCard isDark={isDark} label="Writers" value={stats.totalWriters || 0} icon="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" color="bg-amber-500/15 text-amber-500" />
+                                    <StatCard isDark={isDark} label="Film Professionals" value={stats.totalInvestors || 0} icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-emerald-500/15 text-emerald-500" />
+                                    <StatCard isDark={isDark} label="Readers" value={stats.totalReaders || 0} icon="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" color="bg-cyan-500/15 text-cyan-500" />
+                                    <StatCard isDark={isDark} label="Total Revenue" value={`₹${stats.totalRevenue?.toFixed(2) || "0.00"}`} icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-green-500/15 text-green-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className={`text-sm font-extrabold uppercase tracking-wide mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Script Pipeline</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <StatCard isDark={isDark} label="Draft Scripts" value={stats.draftScripts || 0} icon="M3.375 19.5h17.25M4.5 16.5V6.75A2.25 2.25 0 016.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v9.75" color="bg-slate-500/15 text-slate-500" />
+                                    <StatCard isDark={isDark} label="Rejected Scripts" value={stats.rejectedScripts || 0} icon="M6 18L18 6M6 6l12 12" color="bg-red-500/15 text-red-500" />
+                                    <StatCard isDark={isDark} label="Sold Scripts" value={stats.soldScripts || 0} icon="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25h11.218" color="bg-lime-500/15 text-lime-500" />
+                                    <StatCard isDark={isDark} label="Pending Script Approvals" value={stats.pendingApprovals || 0} icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-500/15 text-orange-500" />
+                                    <StatCard isDark={isDark} label="Pending AI Trailer Approvals" value={stats.pendingTrailerRequests || 0} icon="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" color="bg-fuchsia-500/15 text-fuchsia-500" />
+                                    <StatCard isDark={isDark} label="AI Usage Scripts" value={stats.aiUsageScripts || 0} icon="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" color="bg-violet-500/15 text-violet-500" />
+                                    <StatCard isDark={isDark} label="Evaluation Scripts" value={stats.evaluationScripts || 0} icon="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" color="bg-sky-500/15 text-sky-500" />
+                                    <StatCard isDark={isDark} label="Transactions" value={stats.totalTransactions || 0} icon="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" color="bg-pink-500/15 text-pink-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className={`text-sm font-extrabold uppercase tracking-wide mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Pending Actions</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <StatCard isDark={isDark} label="Pending Film Professional Requests" value={stats.pendingInvestors || 0} icon="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" color="bg-teal-500/15 text-teal-500" />
+                                    <StatCard isDark={isDark} label="Pending SWA/WGA Reviews" value={stats.pendingMembershipReviews || 0} icon="M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 0h1.5A2.25 2.25 0 0115 2.25v1.134a9 9 0 11-6 0V2.25z" color="bg-amber-500/15 text-amber-500" />
+                                    <StatCard isDark={isDark} label="Pending Bank Reviews" value={stats.pendingBankReviews || 0} icon="M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" color="bg-orange-500/15 text-orange-500" />
+                                    <StatCard isDark={isDark} label="Locked Bank Users" value={stats.lockedBankUsers || 0} icon="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 0h10.5A1.5 1.5 0 0118.75 12v7.5a1.5 1.5 0 01-1.5 1.5H6.75a1.5 1.5 0 01-1.5-1.5V12a1.5 1.5 0 011.5-1.5z" color="bg-yellow-500/15 text-yellow-500" />
+                                    <StatCard isDark={isDark} label="Bank Review Alerts" value={stats.bankReviewAlerts || 0} icon="M12 9v3.75m9 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-red-500/15 text-red-500" />
+                                    <StatCard isDark={isDark} label="Queries" value={stats.queries || 0} icon="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75" color="bg-cyan-500/15 text-cyan-500" />
+                                    <StatCard isDark={isDark} label="Deleted Accounts" value={stats.deletedAccounts || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166" color="bg-rose-500/15 text-rose-500" />
+                                    <StatCard isDark={isDark} label="Deleted Film Professionals" value={stats.deletedFilmProfessionals || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166" color="bg-orange-500/15 text-orange-500" />
+                                    <StatCard isDark={isDark} label="Deleted Writers" value={stats.deletedWriters || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166" color="bg-pink-500/15 text-pink-500" />
+                                    <StatCard isDark={isDark} label="Open Admin Actions" value={stats.openAdminActions || 0} icon="M11.25 3.75h1.5m-1.5 16.5h1.5m-7.5-7.5h16.5" color="bg-indigo-500/15 text-indigo-500" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
@@ -2488,7 +2576,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                {activeTab === "investors" ? "Investors" : activeTab === "writers" ? "Writers" : "Readers"}
+                                {activeTab === "investors" ? "Film Professionals" : activeTab === "writers" ? "Writers" : "Readers"}
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredUsers.length : total})</span>
                             </h2>
                         </div>
@@ -2511,7 +2599,7 @@ const AdminDashboard = () => {
                 return (
                     <div>
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>All Projects<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>All Scripts<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         </div>
                         <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true}
                             actions={(s) => (
@@ -2532,6 +2620,24 @@ const AdminDashboard = () => {
                     </div>
                 );
 
+            case "deleted-scripts":
+                return (
+                    <div>
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Deleted Scripts<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        </div>
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true}
+                            actions={(s) => (
+                                <div className="flex items-center gap-2">
+                                    <a href={`/admin/scripts/${s._id}`} className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isDark ? "bg-red-500/15 text-red-300" : "bg-red-50 text-red-700"}`}>Deleted</span>
+                                </div>
+                            )}
+                        />
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                    </div>
+                );
+
             case "ai-usage":
                 return (
                     <div>
@@ -2544,7 +2650,7 @@ const AdminDashboard = () => {
             case "evaluations":
                 return (
                     <div>
-                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Evaluation Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>AI Evaluations<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true} />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
@@ -2683,7 +2789,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                Pending Approvals
+                                Script Approvals
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span>
                             </h2>
                         </div>
@@ -2720,7 +2826,7 @@ const AdminDashboard = () => {
                             onChange={handleAdminTrailerFileChange}
                         />
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Requests<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Approvals<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         </div>
                         {regenerationRequests.length > 0 && (
                             <div className={`rounded-2xl border p-5 mb-5 ${isDark ? "bg-amber-500/5 border-amber-500/20" : "bg-amber-50 border-amber-200/60"}`}>
@@ -2988,7 +3094,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                Investor Account Requests
+                                Film Professional Requests
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredPendingInvestors.length : total})</span>
                             </h2>
                         </div>
@@ -2999,14 +3105,14 @@ const AdminDashboard = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
-                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending investor requests</p>
+                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending film professional requests</p>
                             </div>
                         ) : (
                             <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                                 <table className="w-full">
                                     <thead>
                                         <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
-                                            {["Investor", "Email", "Signed Up", "Actions"].map((h) => (
+                                            {["Film Professional", "Email", "Signed Up", "Actions"].map((h) => (
                                                 <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
                                             ))}
                                         </tr>
@@ -3062,7 +3168,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                Pending Membership Reviews
+                                SWA/WGA Reviews
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredMembershipReviews.length : total})</span>
                             </h2>
                         </div>
@@ -3074,7 +3180,7 @@ const AdminDashboard = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
-                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending membership reviews</p>
+                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending SWA/WGA reviews</p>
                             </div>
                         ) : (
                             <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
@@ -3084,7 +3190,7 @@ const AdminDashboard = () => {
                                             <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
                                                 {[
                                                     "Writer",
-                                                    "Pending Membership",
+                                                    "Pending SWA/WGA",
                                                     "Submitted",
                                                     "Proof",
                                                     "Actions",
@@ -3345,25 +3451,28 @@ const AdminDashboard = () => {
                     </div>
                 );
 
-            case "deleted-accounts":
+            case "deleted-film-professionals":
+            case "deleted-writers":
                 return (
                     <div>
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>
-                            Deleted Account Requests
-                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredDeletedAccounts.length : total})</span>
+                            {activeTab === "deleted-film-professionals" ? "Deleted Film Professionals" : "Deleted Writers"}
+                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                                ({activeTab === "deleted-film-professionals" ? filteredDeletedFilmProfessionals.length : filteredDeletedWriters.length})
+                            </span>
                         </h2>
                         <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
                                         <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
-                                            {["User", "SID", "Role", "Reason", "Source", "Requested", "Deleted"].map((h) => (
+                                            {["User", "SID", "Role", "Reason", "Source", "Requested", "Deleted", "Actions"].map((h) => (
                                                 <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
-                                        {filteredDeletedAccounts.map((item) => (
+                                        {(activeTab === "deleted-film-professionals" ? filteredDeletedFilmProfessionals : filteredDeletedWriters).map((item) => (
                                             <tr key={item._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
                                                 <td className="px-5 py-3.5">
                                                     <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{item.name || "-"}</p>
@@ -3383,10 +3492,33 @@ const AdminDashboard = () => {
                                                 </td>
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.requestedAt ? new Date(item.requestedAt).toLocaleString() : "-"}</td>
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.deactivatedAt ? new Date(item.deactivatedAt).toLocaleString() : "-"}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <button
+                                                        onClick={() => setSelectedUserDetail(item.profileSnapshot || {
+                                                            _id: item._id,
+                                                            sid: item.sid,
+                                                            role: item.role,
+                                                            name: item.name,
+                                                            email: item.email,
+                                                            isDeactivated: true,
+                                                            deactivatedAt: item.deactivatedAt,
+                                                            accountDeletion: {
+                                                                reason: item.reason,
+                                                                source: item.source,
+                                                                requestedAt: item.requestedAt,
+                                                                originalName: item.name,
+                                                                originalEmail: item.email,
+                                                            },
+                                                        })}
+                                                        className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10"
+                                                    >
+                                                        View Details
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
-                                        {filteredDeletedAccounts.length === 0 && (
-                                            <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No deleted account requests found</td></tr>
+                                        {(activeTab === "deleted-film-professionals" ? filteredDeletedFilmProfessionals.length : filteredDeletedWriters.length) === 0 && (
+                                            <tr><td colSpan={8} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No deleted accounts found in this section</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -3525,7 +3657,7 @@ const AdminDashboard = () => {
                                 </div>
 
                                 <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
-                                    <div className="overflow-x-auto">
+                                    <div className="max-h-80 overflow-auto">
                                         <table className="w-full">
                                             <thead>
                                                 <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>

@@ -71,6 +71,22 @@ const normalizeLanguagePreference = (value) => {
 };
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const buildArchivedUserProfileSnapshot = (userDoc) => {
+  const source = typeof userDoc?.toObject === "function"
+    ? userDoc.toObject({ depopulate: false })
+    : { ...(userDoc || {}) };
+
+  delete source.password;
+  delete source.emailVerificationToken;
+  delete source.emailVerificationExpires;
+  delete source.emailVerificationResendAvailableAt;
+  delete source.resetPasswordToken;
+  delete source.resetPasswordExpires;
+  delete source.pendingEmail;
+
+  return source;
+};
+
 const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
 const sanitizePreviousCredits = (value) => {
   const normalized = normalizeString(value) || "";
@@ -508,7 +524,15 @@ export const getWriters = async (req, res) => {
           from: "scripts",
           let: { uid: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$creator", "$$uid"] }, isSold: { $ne: true } } },
+            {
+              $match: {
+                $expr: { $eq: ["$creator", "$$uid"] },
+                status: "published",
+                isDeleted: { $ne: true },
+                isSold: { $ne: true },
+                purchaseRequestLocked: { $ne: true },
+              },
+            },
             {
               $project: {
                 views: 1,
@@ -1940,6 +1964,24 @@ export const deleteAccount = async (req, res) => {
     const now = new Date();
     const originalName = String(user.name || "").trim();
     const originalEmail = String(user.email || "").trim();
+    const archivedProfile = buildArchivedUserProfileSnapshot(user);
+
+    archivedProfile.isDeactivated = true;
+    archivedProfile.deactivatedAt = now;
+    archivedProfile.deactivatedBy = req.user._id;
+    archivedProfile.isFrozen = true;
+    archivedProfile.frozenAt = now;
+    archivedProfile.frozenReason = "Account deleted by user";
+    archivedProfile.frozenBy = req.user._id;
+    archivedProfile.accountDeletion = {
+      reason,
+      requestedAt: now,
+      source: "user",
+      originalName,
+      originalEmail,
+      archivedAt: now,
+      archivedBy: req.user._id,
+    };
 
     user.accountDeletion = {
       reason,
@@ -1947,6 +1989,9 @@ export const deleteAccount = async (req, res) => {
       source: "user",
       originalName,
       originalEmail,
+      archivedAt: now,
+      archivedBy: req.user._id,
+      archivedProfile,
     };
 
     user.isFrozen = true;
