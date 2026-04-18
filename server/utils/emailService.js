@@ -798,7 +798,6 @@ export const sendAdminCreditsGrantedEmail = async (
     validateEmailConfig();
 
     const transporter = createTransporter();
-    await transporter.verify();
 
     const numericAmount = Number(amount) || 0;
     const safeReason = String(reason || "Admin credit grant").trim() || "Admin credit grant";
@@ -851,7 +850,6 @@ export const sendAdminMessageEmail = async (
     validateEmailConfig();
 
     const transporter = createTransporter();
-    await transporter.verify();
 
     const safeSenderName = String(senderName || "Admin").trim() || "Admin";
     const safePreview = String(previewText || "").trim();

@@ -615,6 +615,10 @@ export const freezeUserAccount = async (req, res) => {
         const targetUser = await User.findById(req.params.id);
         if (!targetUser) return res.status(404).json({ message: "User not found" });
 
+        if (!String(targetUser.email || "").trim()) {
+            return res.status(400).json({ message: "User email is missing. Cannot send credit notification email." });
+        }
+
         if (targetUser.role === "admin") {
             return res.status(403).json({ message: "Admin accounts cannot be frozen" });
         }
@@ -740,21 +744,34 @@ export const grantCreditsToUser = async (req, res) => {
             message: `Admin added ${amount} credits to your account.`,
         }).catch(() => null);
 
-        sendAdminCreditsGrantedEmail(targetUser.email, targetUser.name, {
+        let emailResult = await sendAdminCreditsGrantedEmail(targetUser.email, targetUser.name, {
             amount,
             reason,
             balanceAfter,
             adminName: req.user?.name || "Admin",
             clientBaseUrl: resolveClientOriginFromRequest(req),
-        }).catch((err) => {
-            console.error("Failed to send admin credit grant email:", err.message);
         });
 
+        if (!emailResult?.success) {
+            // One lightweight retry can recover from transient SMTP transport hiccups.
+            emailResult = await sendAdminCreditsGrantedEmail(targetUser.email, targetUser.name, {
+                amount,
+                reason,
+                balanceAfter,
+                adminName: req.user?.name || "Admin",
+                clientBaseUrl: resolveClientOriginFromRequest(req),
+            });
+        }
+
         res.json({
-            message: "Credits granted successfully",
+            message: emailResult?.success
+                ? "Credits granted successfully and email notification sent"
+                : "Credits granted successfully, but email notification could not be sent",
             granted: amount,
             balanceBefore,
             balanceAfter,
+            emailSent: Boolean(emailResult?.success),
+            emailError: emailResult?.success ? undefined : (emailResult?.error || "Email send failed"),
             user: buildAdminManagedUserSummary(targetUser),
         });
     } catch (error) {
