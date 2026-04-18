@@ -126,13 +126,19 @@ const normalizeAddressPayload = (value) => {
   const city = normalizeString(value.city) || "";
   const state = normalizeString(value.state) || "";
   const zipCode = normalizeString(value.zipCode) || "";
-  const computedFormatted = [street, city, state, zipCode].filter(Boolean).join(", ");
+  const country = normalizeString(value.country) || "";
+  const computedFormattedParts = [street, city, state, zipCode].filter(Boolean);
+  if (country && country.toLowerCase() !== "india") {
+    computedFormattedParts.push(country);
+  }
+  const computedFormatted = computedFormattedParts.join(", ");
 
   return {
     street,
     city,
     state,
     zipCode,
+    country,
     formatted: normalizeString(value.formatted) || computedFormatted,
   };
 };

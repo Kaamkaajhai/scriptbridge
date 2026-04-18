@@ -100,8 +100,24 @@ const buildVerificationResponse = (email) => ({
 const CONTACT_REQUIRED_ROLES = new Set(["reader", "investor"]);
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 const USERNAME_REQUIRED_ROLES = new Set(["investor"]);
+const INDIA_COUNTRY_NAME = "India";
+const INDIA_ZIP_REGEX = /^\d{6}$/;
+const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
 
 const normalizeInputValue = (value = "") => String(value).trim();
+const normalizeCountryName = (value = "") => normalizeInputValue(value);
+const isIndiaCountry = (value = "") => normalizeCountryName(value).toLowerCase() === "india";
+
+const buildFormattedAddress = ({ street = "", city = "", state = "", zipCode = "", country = "" } = {}) => {
+  const normalizedCountry = normalizeCountryName(country);
+  const parts = [street, city, state, zipCode];
+
+  if (normalizedCountry && !isIndiaCountry(normalizedCountry)) {
+    parts.push(normalizedCountry);
+  }
+
+  return parts.filter(Boolean).join(", ");
+};
 
 const normalizeAddressPayload = (addressPayload) => {
   if (!addressPayload || typeof addressPayload !== "object") return null;
@@ -110,6 +126,8 @@ const normalizeAddressPayload = (addressPayload) => {
   const city = normalizeInputValue(addressPayload.city);
   const state = normalizeInputValue(addressPayload.state);
   const zipCode = normalizeInputValue(addressPayload.zipCode);
+  const countryInput = normalizeCountryName(addressPayload.country);
+  const country = countryInput || INDIA_COUNTRY_NAME;
   const formattedInput = normalizeInputValue(addressPayload.formatted);
 
   return {
@@ -117,7 +135,8 @@ const normalizeAddressPayload = (addressPayload) => {
     city,
     state,
     zipCode,
-    formatted: formattedInput || `${street}, ${city}, ${state}, ${zipCode}`,
+    country,
+    formatted: formattedInput || buildFormattedAddress({ street, city, state, zipCode, country }),
   };
 };
 
@@ -137,13 +156,19 @@ const parseAddressForValidation = (address = "") => {
 
   if (parts.length < 3) return null;
 
-  const zipSource = parts[parts.length - 1] || "";
-  const zipMatch = zipSource.match(/(\d{6})/);
+  let zipIndex = parts.length - 1;
+  let zipMatch = (parts[zipIndex] || "").match(/(\d{6})/);
+
+  if (!zipMatch && parts.length >= 2) {
+    zipIndex = parts.length - 2;
+    zipMatch = (parts[zipIndex] || "").match(/(\d{6})/);
+  }
+
   if (!zipMatch) return null;
 
   const zipCode = zipMatch[1];
-  const state = parts[parts.length - 2] || "";
-  const city = parts[parts.length - 3] || "";
+  const state = parts[zipIndex - 1] || "";
+  const city = parts[zipIndex - 2] || "";
 
   if (!state || !city) return null;
 
@@ -328,14 +353,18 @@ export const join = async (req, res) => {
         return res.status(400).json({ message: "Address details are required" });
       }
 
-      const { street, city, state, zipCode, formatted } = normalizedAddress;
+      const { street, city, state, zipCode, country, formatted } = normalizedAddress;
 
-      if (!street || !city || !state || !zipCode) {
-        return res.status(400).json({ message: "Street, city, state, and ZIP code are required" });
+      if (!street || !city || !state || !zipCode || !country) {
+        return res.status(400).json({ message: "Street, city, state, postal code, and country are required" });
       }
 
-      if (!/^\d{6}$/.test(zipCode)) {
-        return res.status(400).json({ message: "ZIP code must be exactly 6 digits" });
+      if (isIndiaCountry(country)) {
+        if (!INDIA_ZIP_REGEX.test(zipCode)) {
+          return res.status(400).json({ message: "ZIP code must be exactly 6 digits" });
+        }
+      } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
+        return res.status(400).json({ message: "Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)" });
       }
 
       const cityStatePattern = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
@@ -343,14 +372,11 @@ export const join = async (req, res) => {
         return res.status(400).json({ message: "Enter a valid city and state name" });
       }
 
-      const parsedAddress = parseAddressForValidation(formatted);
-      if (!parsedAddress) {
-        return res.status(400).json({ message: "Enter address as: Street, City, State, ZIP (6-digit)." });
-      }
-
-      const validationResult = await validateAddressWithPostalData(parsedAddress);
-      if (!validationResult.valid) {
-        return res.status(validationResult.statusCode || 400).json({ message: validationResult.message });
+      if (isIndiaCountry(country)) {
+        const validationResult = await validateAddressWithPostalData({ city, state, zipCode });
+        if (!validationResult.valid) {
+          return res.status(validationResult.statusCode || 400).json({ message: validationResult.message });
+        }
       }
 
       address = {
@@ -358,7 +384,8 @@ export const join = async (req, res) => {
         city,
         state,
         zipCode,
-        formatted,
+        country,
+        formatted: formatted || buildFormattedAddress({ street, city, state, zipCode, country }),
       };
       phone = normalizedPhone;
     }
@@ -858,7 +885,16 @@ export const lookupZipInfo = async (req, res) => {
 
 export const validateSignupAddress = async (req, res) => {
   try {
-    const { address } = req.body;
+    const { address, country = INDIA_COUNTRY_NAME } = req.body;
+
+    if (!isIndiaCountry(country)) {
+      return res.json({
+        valid: true,
+        skipped: true,
+        message: "International address format accepted.",
+      });
+    }
+
     const parsed = parseAddressForValidation(address);
 
     if (!parsed) {
