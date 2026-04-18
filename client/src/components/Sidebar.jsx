@@ -5,6 +5,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 import ConfirmDialog from "./ConfirmDialog";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
@@ -37,6 +38,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
     ? `/reader/profile/${user?._id || ""}`
     : `/profile/${user?._id || ""}`;
   const isDarkMode = appDarkMode || isReader || isWriterRole || isInvestorRole;
+  const logoutAccentColor = isDarkMode ? "#fb4b4b" : "#dc2626";
   const apiBaseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "");
   const rawProfileImage = user?.profileImage || user?.profilePicture || "";
   const normalizedProfileImagePath = typeof rawProfileImage === "string"
@@ -99,7 +101,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
     logout();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const isActive = (path) => {
@@ -303,7 +305,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
                   <div className="pl-3">
                     {myScripts.length > 0 ? (
                       myScripts.map((script) => (
-                        <Link key={script._id} to={`/script/${script._id}`} onClick={() => setMobileOpen(false)}
+                        <Link key={script._id} to={getScriptCanonicalPath(script)} onClick={() => setMobileOpen(false)}
                           className={`flex items-center gap-2.5 px-5 py-2 transition-colors ${isDarkMode ? "text-[#8896a7] hover:text-white" : "text-gray-500 hover:text-gray-700"}`}>
                           <div className={`w-2 h-2 rounded-full shrink-0 ${isDarkMode ? "bg-[#1c2a3a]" : "bg-gray-300"}`}></div>
                           <span className="text-[15px] font-semibold truncate">{script.title}</span>
@@ -322,7 +324,8 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
 
       <div className={`border-t p-3 ${isDarkMode ? "border-[#151f2e]" : "border-gray-100"}`}>
         <button onClick={handleLogout}
-          className={`w-full px-3 py-2.5 text-[14px] font-semibold rounded-xl transition-all duration-200 flex items-center gap-2.5 justify-center ${isDarkMode ? "text-[#8896a7] hover:text-red-400 hover:bg-[#0d1520]" : "text-gray-400 hover:text-red-500 hover:bg-red-50/80"}`}>
+          style={{ color: logoutAccentColor, opacity: 1 }}
+          className={`w-full px-3 py-2.5 text-[14px] font-semibold rounded-xl transition-all duration-200 flex items-center gap-2.5 justify-center ${isDarkMode ? "!text-red-400 hover:!text-red-300 hover:bg-red-500/10" : "!text-red-600 hover:!text-red-700 hover:bg-red-50/80"}`}>
           <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           Log out
         </button>
@@ -399,7 +402,8 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
             )}
           </button>
           <button onClick={handleLogout} title="Log out"
-            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${isDarkMode ? "text-[#4a5a6e] hover:text-[#8896a7] hover:bg-[#0d1520]" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"}`}>
+            style={{ color: logoutAccentColor, opacity: 1 }}
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${isDarkMode ? "!text-red-400 hover:!text-red-300 hover:bg-red-500/10" : "!text-red-600 hover:!text-red-700 hover:bg-red-50"}`}>
             <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </button>
         </div>

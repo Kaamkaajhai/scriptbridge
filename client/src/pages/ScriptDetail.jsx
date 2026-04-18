@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
@@ -9,12 +9,14 @@ import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
 import SocialShareButton from "../components/SocialShareButton";
 import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const ScriptDetail = () => {
-  const { id } = useParams();
+  const { id, projectHeading, writerUsername } = useParams();
   const { user, setUser } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,11 +55,12 @@ const ScriptDetail = () => {
   const viewStartRef = useRef(Date.now());
   const noticeTimerRef = useRef(null);
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const activeScriptId = script?._id || id;
 
   const scriptShare = {
-    url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/script/${script._id}` : ""),
-    title: script?.shareMeta?.title || `${script?.title || "Project"} | ScriptBridge`,
-    text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on ScriptBridge."),
+    url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/share/project/${script._id}` : ""),
+    title: script?.shareMeta?.title || `${script?.title || "Project"} | Ckript`,
+    text: script?.shareMeta?.text || (script?.logline || script?.synopsis || "Check out this project on Ckript."),
   };
   const showNotice = (message, type = "success") => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -68,10 +71,11 @@ const ScriptDetail = () => {
   /* ── Handlers ─────────────────────────────────────────── */
 
   const handleDeleteScript = async () => {
+    if (!activeScriptId) return;
     try {
       setDeleteLoading(true);
-      await api.delete(`/scripts/${id}`);
-      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id } }));
+      await api.delete(`/scripts/${activeScriptId}`);
+      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: activeScriptId } }));
       setShowDeleteModal(false);
       navigate(`/profile/${user._id}`);
     } catch (err) {
@@ -156,7 +160,7 @@ const ScriptDetail = () => {
     setCoverError(false);
     setTrailerError(false);
     setHasRecordedSynopsisRead(false);
-  }, [id]);
+  }, [id, projectHeading, writerUsername]);
 
   useEffect(() => {
     if (!script?._id || activeTab !== "synopsis" || hasRecordedSynopsisRead || script?.isCreator) return;
@@ -188,7 +192,7 @@ const ScriptDetail = () => {
   }, [script?._id, script?.evaluationStatus, script?.scriptScore?.overall]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!activeScriptId) return;
 
     viewStartRef.current = Date.now();
 
@@ -196,14 +200,14 @@ const ScriptDetail = () => {
       const elapsed = Date.now() - viewStartRef.current;
       if (elapsed < 2000) return;
       api
-        .post(`/scripts/${id}/interactions`, {
+        .post(`/scripts/${activeScriptId}/interactions`, {
           type: "time_spent",
           timeSpentMs: elapsed,
           source: "script_detail_page",
         })
         .catch(() => null);
     };
-  }, [id]);
+  }, [activeScriptId]);
 
   useEffect(() => {
     return () => {
@@ -214,10 +218,10 @@ const ScriptDetail = () => {
   useEffect(() => {
     const favoriteIds = user?.favoriteScripts || [];
     const hasBookmark = Array.isArray(favoriteIds)
-      ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === id)
+      ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === activeScriptId)
       : false;
     setIsBookmarked(hasBookmark);
-  }, [user?.favoriteScripts, id]);
+  }, [user?.favoriteScripts, activeScriptId]);
 
   useEffect(() => {
     if (script?.isCreator) {
@@ -243,12 +247,24 @@ const ScriptDetail = () => {
       if (!silent) {
         setLoading(true);
       }
-      const { data } = await api.get(`/scripts/${id}`);
+      const hasCanonicalPathParams = Boolean(projectHeading && writerUsername);
+      const endpoint = hasCanonicalPathParams
+        ? `/scripts/path/${encodeURIComponent(projectHeading)}/${encodeURIComponent(writerUsername)}`
+        : `/scripts/${id}`;
+      const { data } = await api.get(endpoint);
       setScript(data);
+
+      // Keep old /script/:id URLs backward compatible while rewriting to canonical path.
+      if (id) {
+        const canonicalPath = getScriptCanonicalPath(data || {});
+        if (canonicalPath && canonicalPath !== location.pathname) {
+          navigate(canonicalPath, { replace: true });
+        }
+      }
     } catch {
       /* demo fallback */
       setScript({
-        _id: id,
+        _id: activeScriptId || "demo-script",
         title: "The Last Detective",
         logline:
           "A retired detective is drawn back into one final case that will challenge everything he believes.",
@@ -803,6 +819,7 @@ const ScriptDetail = () => {
   const creatorId = script?.creator?._id || script?.creator;
   const viewerId = user?._id || user?.id;
   const isOwner = Boolean(script?.isCreator || (creatorId && viewerId && String(creatorId) === String(viewerId)));
+  const canViewFullScript = Boolean(isOwner || script?.isUnlocked || script?.isAdmin || script?.canViewFullScript);
   const isReaderReviewer = String(user?.role || "").toLowerCase() === "reader";
   const isSoldScript = Boolean(script?.isSold || script?.holdStatus === "sold");
   const canBookmark = Boolean(user?._id && !isOwner);
@@ -881,16 +898,9 @@ const ScriptDetail = () => {
     { id: "evaluation", label: "Evaluation" },
     { id: "roles", label: "Roles" },
     { id: "synopsis", label: "Synopsis" },
-    ...((isOwner || script.isUnlocked) && script.textContent
+    ...(canViewFullScript && script.textContent
       ? [{ id: "content", label: isOwner ? "My Script" : "Full Script" }]
       : []),
-  ];
-
-  const stats = [
-    { label: "Views", value: script.views || 0, g: isDarkMode ? "from-blue-500/10 to-blue-500/5" : "from-blue-50 to-white", c: "text-blue-500", b: isDarkMode ? "border-white/[0.06]" : "border-blue-100" },
-    { label: "Reader Reviews", value: script?.reviewBreakdown?.reader || 0, g: isDarkMode ? "from-sky-500/10 to-sky-500/5" : "from-sky-50 to-white", c: "text-sky-500", b: isDarkMode ? "border-white/[0.06]" : "border-sky-100" },
-    { label: "Writer Reviews", value: script?.reviewBreakdown?.writer || 0, g: isDarkMode ? "from-fuchsia-500/10 to-fuchsia-500/5" : "from-fuchsia-50 to-white", c: "text-fuchsia-500", b: isDarkMode ? "border-white/[0.06]" : "border-fuchsia-100" },
-    { label: "Investor Reviews", value: script?.reviewBreakdown?.investor || 0, g: isDarkMode ? "from-teal-500/10 to-teal-500/5" : "from-teal-50 to-white", c: "text-teal-500", b: isDarkMode ? "border-white/[0.06]" : "border-teal-100" },
   ];
 
   /* ══════════════════════════════════════════════════════════
@@ -1115,7 +1125,7 @@ const ScriptDetail = () => {
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                             <path d="M7 11V7a5 5 0 0110 0v4" />
                           </svg>
-                          <span className="font-semibold">Full synopsis locked &mdash; teaser shown</span>
+                          <span className="font-semibold">Full script locked &mdash; full synopsis is visible</span>
                         </div>
                       )}
                     </div>
@@ -1452,16 +1462,6 @@ const ScriptDetail = () => {
             {activeTab === "overview" && (
               <motion.div key="overview" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {stats.map((s) => (
-                    <div key={s.label} className={`bg-gradient-to-br ${s.g} rounded-xl border ${s.b} p-4 ${t.cardHov} transition group`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 ${t.label}`}>{s.label}</p>
-                      <p className={`text-2xl font-extrabold tabular-nums ${s.c}`}>{s.value}</p>
-                    </div>
-                  ))}
-                </div>
-
                 {/* Details table */}
                 <div className={`rounded-xl border p-6 ${t.card}`}>
                   <h3 className={`text-[13px] font-bold mb-4 flex items-center gap-2 ${t.title}`}>
@@ -1477,11 +1477,10 @@ const ScriptDetail = () => {
                       { label: "Company Name", value: script.companyName },
                       { label: "Format", value: fmtFormat(script.format) },
                       { label: "Primary Genre", value: cl.primaryGenre || script.primaryGenre || script.genre },
+                      { label: "Views", value: Number(script.views || 0).toLocaleString("en-IN") },
                       { label: "Secondary Genre", value: cl.secondaryGenre },
                       { label: "Page Count", value: script.pageCount },
                       { label: "Budget Level", value: fmtBudget(script.budget) },
-                      { label: "Hold Fee", value: script.holdFee ? `₹${script.holdFee}` : null },
-                      { label: "Hold Status", value: script.holdStatus?.charAt(0).toUpperCase() + script.holdStatus?.slice(1) },
                       { label: "Published", value: formatDateTime(publishedAtValue) },
                     ]
                       .filter((i) => i.value && i.value !== "\u2014")
@@ -2011,7 +2010,7 @@ const ScriptDetail = () => {
             )}
 
             {/* ── Full Script (owner or purchased) ────────── */}
-            {activeTab === "content" && (isOwner || script.isUnlocked) && (
+            {activeTab === "content" && canViewFullScript && (
               <motion.div key="content" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className={`mb-4 rounded-xl border px-3 py-3 sm:px-5 ${t.card}`}>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2146,7 +2145,7 @@ const ScriptDetail = () => {
                               <path d="M7 11V7a5 5 0 0110 0v4" />
                             </svg>
                           </div>
-                          <h4 className={`text-base font-bold mb-2 ${t.title}`}>Full Synopsis Locked</h4>
+                          <h4 className={`text-base font-bold mb-2 ${t.title}`}>Full Script Locked</h4>
                           {script.isWriter ? (
                             <p className={`text-sm ${t.muted}`}>Writers cannot purchase synopsis access. Only industry professionals can unlock full scripts.</p>
                           ) : script.canPurchase ? (

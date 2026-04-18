@@ -2,9 +2,12 @@ import { useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
+const FORCE_DEFAULT_REDIRECT_KEY = "auth:force-default-redirect";
+
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   const location = useLocation();
+  const destination = `${location.pathname}${location.search}${location.hash}`;
 
   if (loading) {
     return (
@@ -25,7 +28,24 @@ const PrivateRoute = ({ children }) => {
     return <Navigate to="/?investorReview=rejected" replace />;
   }
 
-  const destination = `${location.pathname}${location.search}${location.hash}`;
+  if (!user) {
+    if (typeof window !== "undefined" && sessionStorage.getItem(FORCE_DEFAULT_REDIRECT_KEY) === "1") {
+      sessionStorage.removeItem(FORCE_DEFAULT_REDIRECT_KEY);
+      return <Navigate to="/login" replace state={{ from: destination }} />;
+    }
+
+    const pathname = String(location.pathname || "");
+    const profileMatch = pathname.match(/^\/profile\/([^/?#]+)/i);
+    if (profileMatch?.[1]) {
+      return <Navigate to={`/share/profile/${profileMatch[1]}${location.search}${location.hash}`} replace />;
+    }
+
+    const scriptMatch = pathname.match(/^\/script\/([^/?#]+)/i);
+    if (scriptMatch?.[1]) {
+      return <Navigate to={`/share/project/${scriptMatch[1]}${location.search}${location.hash}`} replace />;
+    }
+  }
+
   return user ? children : <Navigate to="/login" replace state={{ from: destination }} />;
 };
 

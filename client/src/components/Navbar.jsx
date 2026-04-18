@@ -122,6 +122,7 @@ const Navbar = () => {
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
     logout();
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -145,7 +146,10 @@ const Navbar = () => {
             onFocus={() => setShowDropdown(true)}
             onKeyDown={handleKeyDown}
             placeholder="Search..."
-            className="w-56 h-9 pl-9 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#111111]/15 focus:border-[#111111]/40 focus:bg-white transition-all"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="none"
+            className={`app-search-input w-56 h-9 pl-9 pr-3 border rounded-lg text-[13px] placeholder:text-gray-400 focus:outline-none focus:ring-2 transition-all ${dark ? "app-search-input-dark bg-[#0f1d35] border-[#1a3050] text-white !text-white placeholder:!text-slate-400 focus:ring-white/10 focus:border-[#2a4570]" : "bg-gray-50 border-gray-200 text-gray-800 focus:ring-[#111111]/15 focus:border-[#111111]/40 focus:bg-white"}`}
           />
         </div>
 

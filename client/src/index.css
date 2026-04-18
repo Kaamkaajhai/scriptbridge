@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 :root {
+  --app-font-family: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --brand-900: #0c1f37;
   --brand-800: #122b4d;
   --brand-700: #1a3a63;
@@ -52,24 +53,50 @@
   --tracking-ui: 0.2px;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 * {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--app-font-family);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
 }
 
 html {
   font-size: 17px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  text-rendering: auto;
+  font-optical-sizing: auto;
+  font-synthesis: none;
   background: var(--surface-overlay);
   color: var(--text-primary);
   font-size: 17px;
   line-height: var(--lh-body);
   letter-spacing: var(--tracking-ui);
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
 /* ── Global Shadow Reset (requested) ── */
@@ -1294,6 +1321,72 @@ html.dark-mode .script-content img {
 
 .reader-signup-page .reader-primary-link:hover {
   color: #162d4a !important;
+}
+
+/* Accessibility: strengthen text contrast for critical actions and muted copy. */
+:where(button, a, [role="button"])[class*="bg-[#1e3a5f]"],
+:where(button, a, [role="button"])[class*="bg-blue-700"],
+:where(button, a, [role="button"])[class*="bg-blue-600"] {
+  color: #ffffff !important;
+}
+
+:where(button, a, [role="button"])[class*="bg-[#1e3a5f]"] :is(svg, span),
+:where(button, a, [role="button"])[class*="bg-blue-700"] :is(svg, span),
+:where(button, a, [role="button"])[class*="bg-blue-600"] :is(svg, span) {
+  color: inherit !important;
+}
+
+.login-page .text-slate-500 {
+  color: #475569 !important;
+}
+
+.investor-onboarding-page .text-gray-400,
+.writer-onboarding-page .text-gray-400,
+.reader-signup-page .reader-muted {
+  color: #64748b !important;
+}
+
+.industry-onboarding-page .text-gray-500 {
+  color: #90a3b8 !important;
+}
+
+.industry-onboarding-page .text-gray-400 {
+  color: #a8b8ca !important;
+}
+
+/* Search readability helpers used across dark surfaces. */
+.app-search-input {
+  font-weight: 500;
+}
+
+.app-search-input-dark {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+}
+
+.app-search-input-dark::placeholder {
+  color: #9fb0c8 !important;
+  opacity: 1;
+}
+
+.app-search-input-dark:focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Fallback: if dark-mode inputs miss explicit text classes, keep content readable. */
+html.dark-mode input:not([class*="text-"]):not([type="checkbox"]):not([type="radio"]),
+html.dark-mode textarea:not([class*="text-"]),
+html.dark-mode select:not([class*="text-"]) {
+  color: #e5edf7;
+  caret-color: #e5edf7;
+}
+
+html.dark-mode input:not([class*="placeholder:"])::placeholder,
+html.dark-mode textarea:not([class*="placeholder:"])::placeholder {
+  color: #94a3b8;
+  opacity: 1;
 }
 
 /* ── Print styles ────────────────────────────────────────── */

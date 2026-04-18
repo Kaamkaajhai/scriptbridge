@@ -5,6 +5,8 @@ import { DarkModeProvider } from "./context/DarkModeContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import { AuthContext } from "./context/AuthContext";
 import SeoManager from "./components/SeoManager";
+import CookieConsentBanner from "./components/CookieConsentBanner";
+import AnalyticsBootstrap from "./components/AnalyticsBootstrap";
 import { applyLanguagePreference, getStoredLanguagePreference } from "./utils/languagePreference";
 
 const Landing = lazy(() => import("./pages/Landing"));
@@ -22,12 +24,14 @@ const WriterOnboarding = lazy(() => import("./pages/WriterOnboarding"));
 const InvestorOnboarding = lazy(() => import("./pages/InvestorOnboarding"));
 const IndustryOnboarding = lazy(() => import("./pages/IndustryOnboarding"));
 const Profile = lazy(() => import("./pages/Profile"));
+const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ScriptUpload = lazy(() => import("./pages/ScriptUpload"));
 const NewProject = lazy(() => import("./pages/NewProject"));
 const CreateProject = lazy(() => import("./pages/CreateProject"));
 const Search = lazy(() => import("./pages/Search"));
 const ScriptDetail = lazy(() => import("./pages/ScriptDetail"));
+const PublicScript = lazy(() => import("./pages/PublicScript"));
 const ScriptPaymentPage = lazy(() => import("./pages/ScriptPaymentPage"));
 const FeaturedProjects = lazy(() => import("./pages/FeaturedProjects"));
 const Mandates = lazy(() => import("./pages/Mandates"));
@@ -39,6 +43,7 @@ const ReaderHome = lazy(() => import("./pages/ReaderHome"));
 const ScriptReader = lazy(() => import("./pages/ScriptReader"));
 const ReaderProfile = lazy(() => import("./pages/ReaderProfile"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminScriptView = lazy(() => import("./pages/AdminScriptView"));
 const WriterPurchaseRequests = lazy(() => import("./pages/WriterPurchaseRequests"));
 const MainLayout = lazy(() => import("./layouts/MainLayout"));
 
@@ -136,6 +141,8 @@ function App() {
           <LanguagePreferenceSync />
           <ScrollToTopOnRouteChange />
           <SeoManager />
+          <CookieConsentBanner />
+          <AnalyticsBootstrap />
           <AdminLoginHandler>
             <Suspense
               fallback={
@@ -161,6 +168,8 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/join" element={<RoleSelection />} />
               <Route path="/signup" element={<Join />} />
+              <Route path="/share/profile/:id" element={<PublicProfile />} />
+              <Route path="/share/project/:id" element={<PublicScript />} />
               <Route path="/writer-onboarding" element={<WriterOnboarding />} />
               <Route path="/producer-director-onboarding" element={<InvestorOnboarding />} />
               <Route path="/investor-onboarding" element={<Navigate to="/producer-director-onboarding" replace />} />
@@ -320,6 +329,16 @@ function App() {
                 }
               />
               <Route
+                path="/script/:projectHeading/:writerUsername"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <ScriptDetail />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/mandates"
                 element={
                   <PrivateRoute>
@@ -406,6 +425,10 @@ function App() {
               <Route
                 path="/admin"
                 element={<AdminDashboard />}
+              />
+              <Route
+                path="/admin/scripts/:id"
+                element={<AdminScriptView />}
               />
             </Routes>
             </Suspense>

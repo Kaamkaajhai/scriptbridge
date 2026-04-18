@@ -25,6 +25,7 @@ const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
 const BANK_DETAILS_BLOCKED_MESSAGE = "Too many invalid attempts. Bank detail updates are blocked. Please contact support team.";
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_LANGUAGE_CODES = new Set(["en", "hi", "es", "fr", "de", "ja", "ko", "zh-CN"]);
 const LANGUAGE_CODE_ALIASES = {
@@ -70,7 +71,41 @@ const normalizeLanguagePreference = (value) => {
   return SUPPORTED_LANGUAGE_CODES.has(mapped) ? mapped : DEFAULT_LANGUAGE;
 };
 
+const normalizeProfileLookupKey = (value) => String(value || "").trim();
+const isLikelyObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || "").trim());
+
+const buildUserProfileLookupQuery = (profileKey) => {
+  const normalized = normalizeProfileLookupKey(profileKey);
+  if (!normalized) return null;
+  if (isLikelyObjectId(normalized)) {
+    return { _id: normalized };
+  }
+  return { "writerProfile.username": normalized.toLowerCase() };
+};
+
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+const buildArchivedUserProfileSnapshot = (userDoc) => {
+  const source = typeof userDoc?.toObject === "function"
+    ? userDoc.toObject({ depopulate: false })
+    : { ...(userDoc || {}) };
+
+  delete source.password;
+  delete source.emailVerificationToken;
+  delete source.emailVerificationExpires;
+  delete source.emailVerificationResendAvailableAt;
+  delete source.resetPasswordToken;
+  delete source.resetPasswordExpires;
+  delete source.pendingEmail;
+
+  return source;
+};
+
+const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
+const sanitizePreviousCredits = (value) => {
+  const normalized = normalizeString(value) || "";
+  if (!normalized) return "";
+  return normalized.replace(LOCALHOST_URL_REGEX, "").replace(/\s{2,}/g, " ").trim();
+};
 const normalizeIndustrySubRole = (value) =>
   String(normalizeString(value) || "")
     .toLowerCase()
@@ -502,7 +537,15 @@ export const getWriters = async (req, res) => {
           from: "scripts",
           let: { uid: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$creator", "$$uid"] }, isSold: { $ne: true } } },
+            {
+              $match: {
+                $expr: { $eq: ["$creator", "$$uid"] },
+                status: "published",
+                isDeleted: { $ne: true },
+                isSold: { $ne: true },
+                purchaseRequestLocked: { $ne: true },
+              },
+            },
             {
               $project: {
                 views: 1,
@@ -594,23 +637,148 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
-export const getUserProfile = async (req, res) => {
+export const getPublicUserProfile = async (req, res) => {
   try {
-    const isOwnProfile = req.user?._id?.toString() === req.params.id.toString();
-
-    let userQuery = User.findById(req.params.id)
-      .select("-password")
-      .populate("followers", "name profileImage")
-      .populate("following", "name profileImage");
-
-    if (isOwnProfile) {
-      userQuery = userQuery.populate("blockedUsers", "name profileImage role");
+    const profileKey = normalizeProfileLookupKey(req.params.id);
+    const profileLookupQuery = buildUserProfileLookupQuery(profileKey);
+    if (!profileLookupQuery) {
+      return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const user = await userQuery;
+    const user = await User.findOne(profileLookupQuery)
+      .select("name role bio skills profileImage coverImage writerProfile industryProfile followers following createdAt isPrivate isDeactivated")
+      .lean();
+
+    if (!user || user.isDeactivated) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isPrivate) {
+      return res.status(403).json({ message: "This account is private." });
+    }
+
+    const publicScripts = await Script.find({
+      creator: user._id,
+      status: "published",
+      isDeleted: { $ne: true },
+      isSold: { $ne: true },
+      purchaseRequestLocked: { $ne: true },
+    })
+      .select("title sid logline description synopsis genre primaryGenre format formatOther coverImage trailerUrl uploadedTrailerUrl trailerSource createdAt publishedAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const userForShareMeta = {
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+      writerProfile: {
+        username: user.writerProfile?.username || "",
+      },
+    };
+
+    const publicUser = {
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+      createdAt: user.createdAt,
+      bio: user.bio || "",
+      skills: Array.isArray(user.skills) ? user.skills.filter(Boolean).slice(0, 12) : [],
+      profileImage: user.profileImage || "",
+      coverImage: user.coverImage || "",
+      followerCount: Array.isArray(user.followers) ? user.followers.length : 0,
+      followingCount: Array.isArray(user.following) ? user.following.length : 0,
+      writerProfile: user.writerProfile
+        ? {
+            username: user.writerProfile.username || "",
+            representationStatus: user.writerProfile.representationStatus || "",
+            agencyName: user.writerProfile.agencyName || "",
+            wgaMember: Boolean(user.writerProfile.wgaMember),
+            sgaMember: Boolean(user.writerProfile.sgaMember),
+            genres: Array.isArray(user.writerProfile.genres) ? user.writerProfile.genres : [],
+            specializedTags: Array.isArray(user.writerProfile.specializedTags) ? user.writerProfile.specializedTags : [],
+            links: {
+              portfolio: user.writerProfile.links?.portfolio || "",
+              instagram: user.writerProfile.links?.instagram || "",
+              twitter: user.writerProfile.links?.twitter || "",
+              linkedin: user.writerProfile.links?.linkedin || "",
+              imdb: user.writerProfile.links?.imdb || "",
+              facebook: user.writerProfile.links?.facebook || "",
+            },
+          }
+        : undefined,
+      industryProfile: user.industryProfile
+        ? {
+            subRole: user.industryProfile.subRole || "",
+            subRoleOther: user.industryProfile.subRoleOther || "",
+            company: user.industryProfile.company || "",
+            jobTitle: user.industryProfile.jobTitle || "",
+            mandates: {
+              genres: Array.isArray(user.industryProfile.mandates?.genres)
+                ? user.industryProfile.mandates.genres.filter(Boolean).slice(0, 20)
+                : [],
+              formats: Array.isArray(user.industryProfile.mandates?.formats)
+                ? user.industryProfile.mandates.formats.filter(Boolean).slice(0, 20)
+                : [],
+              budgetTiers: Array.isArray(user.industryProfile.mandates?.budgetTiers)
+                ? user.industryProfile.mandates.budgetTiers.filter(Boolean).slice(0, 20)
+                : [],
+              specificHooks: Array.isArray(user.industryProfile.mandates?.specificHooks)
+                ? user.industryProfile.mandates.specificHooks.filter(Boolean).slice(0, 20)
+                : [],
+              excludeGenres: Array.isArray(user.industryProfile.mandates?.excludeGenres)
+                ? user.industryProfile.mandates.excludeGenres.filter(Boolean).slice(0, 20)
+                : [],
+            },
+          }
+        : undefined,
+      shareMeta: buildUserShareMeta(req, userForShareMeta),
+    };
+
+    const scripts = publicScripts.map((script) => {
+      const synopsis = String(script.synopsis || "");
+      const synopsisTeaser = synopsis
+        ? `${synopsis.slice(0, 220)}${synopsis.length > 220 ? "..." : ""}`
+        : "";
+
+      return {
+        ...script,
+        synopsis: synopsisTeaser,
+        shareMeta: buildScriptShareMeta(req, script),
+      };
+    });
+
+    return res.json({
+      user: publicUser,
+      scripts,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to fetch public profile" });
+  }
+};
+
+export const getUserProfile = async (req, res) => {
+  try {
+    const profileKey = normalizeProfileLookupKey(req.params.id);
+    const profileLookupQuery = buildUserProfileLookupQuery(profileKey);
+    if (!profileLookupQuery) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    let user = await User.findOne(profileLookupQuery)
+      .select("-password")
+      .populate("followers", "name profileImage role writerProfile.username")
+      .populate("following", "name profileImage role writerProfile.username");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    const targetUserId = user?._id?.toString?.();
+    const isOwnProfile = req.user?._id?.toString() === targetUserId;
+
+    if (isOwnProfile) {
+      await user.populate("blockedUsers", "name profileImage role writerProfile.username");
     }
 
     let blockedByCurrent = false;
@@ -618,8 +786,11 @@ export const getUserProfile = async (req, res) => {
 
     if (!isOwnProfile) {
       const currentUser = await User.findById(req.user._id).select("blockedUsers role");
-      blockedByCurrent = currentUser?.blockedUsers?.some((uid) => uid.toString() === req.params.id.toString()) || false;
-      blockedByProfile = user?.blockedUsers?.some((uid) => uid.toString() === req.user._id.toString()) || false;
+      blockedByCurrent = currentUser?.blockedUsers?.some((uid) => uid.toString() === targetUserId) || false;
+      blockedByProfile = user?.blockedUsers?.some((uid) => {
+        const blockedId = uid?._id?.toString?.() || uid?.toString?.();
+        return blockedId === req.user._id.toString();
+      }) || false;
 
       if (blockedByProfile) {
         return res.status(403).json({
@@ -657,14 +828,14 @@ export const getUserProfile = async (req, res) => {
       }
     }
 
-    const posts = await Post.find({ user: req.params.id })
+    const posts = await Post.find({ user: user._id })
       .populate("user", "name profileImage role")
       .sort({ createdAt: -1 });
 
     const scriptQuery = isOwnProfile
-      ? { creator: req.params.id, isDeleted: { $ne: true } }
+      ? { creator: user._id, isDeleted: { $ne: true } }
       : {
-          creator: req.params.id,
+          creator: user._id,
           status: { $ne: "draft" },
           purchaseRequestLocked: { $ne: true },
           isDeleted: { $ne: true },
@@ -678,7 +849,7 @@ export const getUserProfile = async (req, res) => {
 
     let deletedScripts = [];
     if (isOwnProfile && isWriterUser) {
-      deletedScripts = await Script.find({ creator: req.params.id, isDeleted: true })
+      deletedScripts = await Script.find({ creator: user._id, isDeleted: true })
         .populate("creator", "name profileImage role")
         .select("_id title genre format coverImage logline isDeleted deletedAt createdAt publishedAt")
         .sort({ deletedAt: -1, updatedAt: -1 });
@@ -689,8 +860,8 @@ export const getUserProfile = async (req, res) => {
     let purchasedScripts = [];
     if (isOwnProfile && isPro) {
       const [approvedPurchaseScriptIds, convertedOptionScriptIds] = await Promise.all([
-        ScriptPurchaseRequest.distinct("script", { investor: req.params.id, status: "approved" }),
-        ScriptOption.distinct("script", { holder: req.params.id, status: "converted" }),
+        ScriptPurchaseRequest.distinct("script", { investor: user._id, status: "approved" }),
+        ScriptOption.distinct("script", { holder: user._id, status: "converted" }),
       ]);
 
       const linkedPurchaseScriptIds = [
@@ -701,15 +872,15 @@ export const getUserProfile = async (req, res) => {
       const purchasedQuery = linkedPurchaseScriptIds.length > 0
         ? {
             $or: [
-              { unlockedBy: req.params.id },
-              { purchasedBy: req.params.id },
+              { unlockedBy: user._id },
+              { purchasedBy: user._id },
               { _id: { $in: linkedPurchaseScriptIds } },
             ],
           }
         : {
             $or: [
-              { unlockedBy: req.params.id },
-              { purchasedBy: req.params.id },
+              { unlockedBy: user._id },
+              { purchasedBy: user._id },
             ],
           };
 
@@ -791,6 +962,7 @@ export const updateUserProfile = async (req, res) => {
   try {
     const {
       name, bio, skills, profileImage, writerProfile,
+      username,
       phone, dateOfBirth, address,
       // Investor / industry preference fields (from onboarding Step 3)
       preferredGenres, preferredBudgets, preferredFormats,
@@ -871,6 +1043,31 @@ export const updateUserProfile = async (req, res) => {
       user.markModified("industryProfile");
     }
 
+    if (username !== undefined) {
+      const normalizedUsername = String(normalizeString(username) || "").toLowerCase();
+
+      if (!normalizedUsername) {
+        return res.status(400).json({ message: "Username is required" });
+      }
+
+      if (!USERNAME_PATTERN.test(normalizedUsername)) {
+        return res.status(400).json({ message: "Username must be 3-30 characters and contain only lowercase letters, numbers, or underscores" });
+      }
+
+      const existingUserWithUsername = await User.exists({
+        _id: { $ne: user._id },
+        "writerProfile.username": normalizedUsername,
+      });
+
+      if (existingUserWithUsername) {
+        return res.status(409).json({ message: "Username is already taken" });
+      }
+
+      if (!user.writerProfile) user.writerProfile = {};
+      user.writerProfile.username = normalizedUsername;
+      user.markModified("writerProfile");
+    }
+
     // Investor profile fields
     if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
@@ -916,7 +1113,7 @@ export const updateUserProfile = async (req, res) => {
         user.industryProfile.socialLinks.youtube = normalizeString(socialLinks?.youtube);
         user.industryProfile.socialLinks.facebook = normalizeString(socialLinks?.facebook);
       }
-      if (previousCredits !== undefined) user.industryProfile.previousCredits = normalizeString(previousCredits);
+      if (previousCredits !== undefined) user.industryProfile.previousCredits = sanitizePreviousCredits(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
       user.markModified("industryProfile");
     }
@@ -1143,9 +1340,13 @@ export const updateUserProfile = async (req, res) => {
       notificationPrefs: user.notificationPrefs,
       bankDetails: sanitizedBankDetails,
       bankDetailsReview: sanitizedBankReview,
+      shareMeta: buildUserShareMeta(req, user),
       profileCompletion: getProfileCompletion(user),
     });
   } catch (error) {
+    if (error?.code === 11000 && error?.keyPattern?.["writerProfile.username"]) {
+      return res.status(409).json({ message: "Username is already taken" });
+    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -1818,6 +2019,24 @@ export const deleteAccount = async (req, res) => {
     const now = new Date();
     const originalName = String(user.name || "").trim();
     const originalEmail = String(user.email || "").trim();
+    const archivedProfile = buildArchivedUserProfileSnapshot(user);
+
+    archivedProfile.isDeactivated = true;
+    archivedProfile.deactivatedAt = now;
+    archivedProfile.deactivatedBy = req.user._id;
+    archivedProfile.isFrozen = true;
+    archivedProfile.frozenAt = now;
+    archivedProfile.frozenReason = "Account deleted by user";
+    archivedProfile.frozenBy = req.user._id;
+    archivedProfile.accountDeletion = {
+      reason,
+      requestedAt: now,
+      source: "user",
+      originalName,
+      originalEmail,
+      archivedAt: now,
+      archivedBy: req.user._id,
+    };
 
     user.accountDeletion = {
       reason,
@@ -1825,6 +2044,9 @@ export const deleteAccount = async (req, res) => {
       source: "user",
       originalName,
       originalEmail,
+      archivedAt: now,
+      archivedBy: req.user._id,
+      archivedProfile,
     };
 
     user.isFrozen = true;

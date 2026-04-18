@@ -5,6 +5,7 @@ import Notification from "../models/Notification.js";
 import DiscountCode from "../models/DiscountCode.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { sendAdminCreditsGrantedEmail } from "../utils/emailService.js";
 
 // Lazy initialization of Razorpay
 let razorpayInstance = null;
@@ -494,6 +495,10 @@ export const grantBonusCredits = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (!String(user.email || "").trim()) {
+      return res.status(400).json({ message: "User email is missing. Cannot send credit notification email." });
+    }
+
     if (user.role === "admin") {
       return res
         .status(403)
@@ -526,11 +531,40 @@ export const grantBonusCredits = async (req, res) => {
     });
     
     await user.save();
+
+    await Notification.create({
+      user: user._id,
+      type: "admin_alert",
+      from: req.user?._id,
+      message: `Admin added ${parsedAmount} credits to your account.`,
+    }).catch(() => null);
+
+    let emailResult = await sendAdminCreditsGrantedEmail(user.email, user.name, {
+      amount: parsedAmount,
+      reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Bonus credits",
+      balanceAfter: user.credits.balance,
+      adminName: req.user?.name || "Admin",
+      clientBaseUrl: String(req.get("origin") || "").trim(),
+    });
+
+    if (!emailResult?.success) {
+      emailResult = await sendAdminCreditsGrantedEmail(user.email, user.name, {
+        amount: parsedAmount,
+        reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Bonus credits",
+        balanceAfter: user.credits.balance,
+        adminName: req.user?.name || "Admin",
+        clientBaseUrl: String(req.get("origin") || "").trim(),
+      });
+    }
     
     res.json({
-      message: "Bonus credits granted successfully",
+      message: emailResult?.success
+        ? "Bonus credits granted successfully and email notification sent"
+        : "Bonus credits granted successfully, but email notification could not be sent",
       balance: user.credits.balance,
-      granted: parsedAmount
+      granted: parsedAmount,
+      emailSent: Boolean(emailResult?.success),
+      emailError: emailResult?.success ? undefined : (emailResult?.error || "Email send failed"),
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

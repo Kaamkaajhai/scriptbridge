@@ -1,6 +1,8 @@
 import { createContext, useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { getApiBaseUrl } from "../utils/apiOrigin";
+import { linkAnonymousSessionToUser } from "../tracking/linkUserSession";
+import { sendTrackEvent } from "../tracking/analyticsClient";
 
 export const AuthContext = createContext();
 
@@ -69,6 +71,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const trackAuthEvent = useCallback(async (action, currentUser) => {
+    if (!currentUser?._id || typeof window === "undefined") return;
+
+    await sendTrackEvent({
+      eventType: "auth",
+      action,
+      path: `${window.location.pathname}${window.location.search}`,
+      userContext: {
+        userId: currentUser._id,
+        email: currentUser.email || "",
+        phone: currentUser.phone || "",
+      },
+      metadata: {
+        role: currentUser.role || "",
+        source: "auth-context",
+      },
+    });
+  }, []);
+
   // On mount, restore session from localStorage and validate token
   useEffect(() => {
     const restoreSession = async () => {
@@ -121,6 +142,8 @@ export const AuthProvider = ({ children }) => {
           setUser(refreshedUser);
           localStorage.setItem("user", JSON.stringify(refreshedUser));
           scheduleAutoLogout(refreshedUser.expiresAt);
+          await linkAnonymousSessionToUser(refreshedUser);
+          await trackAuthEvent("session_restored", refreshedUser);
         } catch (error) {
           const status = error?.response?.status;
           const isUnauthorized = status === 401 || status === 403;
@@ -159,6 +182,8 @@ export const AuthProvider = ({ children }) => {
     setUser(data);
     localStorage.setItem("user", JSON.stringify(data));
     if (data.expiresAt) scheduleAutoLogout(data.expiresAt);
+    await linkAnonymousSessionToUser(data);
+    await trackAuthEvent("login_success", data);
     return data;
   };
 
@@ -173,10 +198,13 @@ export const AuthProvider = ({ children }) => {
     setUser(data);
     localStorage.setItem("user", JSON.stringify(data));
     if (data.expiresAt) scheduleAutoLogout(data.expiresAt);
+    await linkAnonymousSessionToUser(data);
+    await trackAuthEvent("signup_success", data);
     return data;
   };
 
-  const logout = () => {
+  const logout = (options = {}) => {
+    const { redirect = true } = options;
     clearLogoutTimer();
 
     if (typeof window !== "undefined") {
@@ -185,6 +213,10 @@ export const AuthProvider = ({ children }) => {
 
     setUser(null);
     localStorage.removeItem("user");
+
+    if (redirect && typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
   };
 
   return (

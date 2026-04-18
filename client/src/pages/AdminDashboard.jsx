@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useDarkMode } from "../context/DarkModeContext";
 import axios from "axios";
 import { jsPDF } from "jspdf";
 import BrandLogo from "../components/BrandLogo";
@@ -27,24 +26,26 @@ adminApi.interceptors.request.use((config) => {
 
 const TABS = [
     { key: "overview", label: "Overview", icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" },
-    { key: "investors", label: "Investors", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { key: "analytics", label: "Analytics", icon: "M3 3v18h18M7.5 14.25l3-3 2.25 2.25 4.5-4.5" },
+    { key: "investors", label: "Film Professionals", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
     { key: "writers", label: "Writers", icon: "M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" },
-    { key: "readers", label: "Readers", icon: "M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" },
-    { key: "projects", label: "Projects", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" },
+    { key: "projects", label: "Scripts", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" },
+    { key: "pending-investors", label: "Film Professional Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
+    { key: "approvals", label: "Script Approvals", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+    { key: "trailers", label: "AI Trailer Approvals", icon: "M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" },
+    { key: "evaluations", label: "AI Evaluations", icon: "M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" },
+    { key: "messages", label: "Messages", icon: "M7.5 8.25h9m-9 3h6m-9 9h12A2.25 2.25 0 0018.75 18V6A2.25 2.25 0 0016.5 3.75h-9A2.25 2.25 0 005.25 6v12A2.25 2.25 0 007.5 20.25z" },
+    { key: "membership-reviews", label: "SWA/WGA Reviews", icon: "M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 0h1.5A2.25 2.25 0 0115 2.25v1.134a9 9 0 11-6 0V2.25z" },
+    { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
+    { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
     { key: "ai-usage", label: "AI Usage", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" },
-    { key: "evaluations", label: "Evaluations", icon: "M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" },
     { key: "investor-purchases", label: "Purchases", icon: "M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" },
     { key: "invoices", label: "Invoices", icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5A3.375 3.375 0 0010.125 2.25H6.75A2.25 2.25 0 004.5 4.5v15A2.25 2.25 0 006.75 21.75h10.5A2.25 2.25 0 0019.5 19.5v-1.125M15 12h-6m6 3h-6m3-6h.008v.008H12V9z" },
     { key: "payments", label: "Payments", icon: "M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" },
     { key: "scores", label: "Scores", icon: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" },
-    { key: "approvals", label: "Approvals", icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-    { key: "trailers", label: "AI Trailers", icon: "M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" },
-    { key: "messages", label: "Messages", icon: "M7.5 8.25h9m-9 3h6m-9 9h12A2.25 2.25 0 0018.75 18V6A2.25 2.25 0 0016.5 3.75h-9A2.25 2.25 0 005.25 6v12A2.25 2.25 0 007.5 20.25z" },
-    { key: "pending-investors", label: "Investor Requests", icon: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" },
-    { key: "membership-reviews", label: "Membership Reviews", icon: "M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 0h1.5A2.25 2.25 0 0115 2.25v1.134a9 9 0 11-6 0V2.25z" },
-    { key: "bank-reviews", label: "Bank Reviews", icon: "M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" },
-    { key: "queries", label: "Queries", icon: "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" },
-    { key: "deleted-accounts", label: "Deleted Accounts", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
+    { key: "deleted-film-professionals", label: "Deleted Film Professionals", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
+    { key: "deleted-writers", label: "Deleted Writers", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" },
+    { key: "deleted-scripts", label: "Deleted Scripts", icon: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79" },
     { key: "discount-codes", label: "Discount Codes", icon: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" },
 ];
 
@@ -132,6 +133,13 @@ const formatIndustrySubRole = (subRole, subRoleOther) => {
         .join(" ");
 };
 
+const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
+const sanitizePreviousCreditsDisplay = (value = "") =>
+    String(value || "")
+        .replace(LOCALHOST_URL_REGEX, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+
 const formatUserExportLine = (user, index) => {
     const address = getUserAddressLine(user);
     const company = getUserCompany(user);
@@ -139,6 +147,35 @@ const formatUserExportLine = (user, index) => {
 
     return `${index + 1}. ${toDisplayText(user?.name)} | ${toDisplayText(user?.email)} | Phone: ${toDisplayText(user?.phone)} | Role: ${toDisplayText(user?.role)} | SID: ${toDisplayText(user?.sid)} | Company: ${toDisplayText(company)} | Genres: ${toDisplayText(genres)} | Address: ${toDisplayText(address)} | Joined: ${formatExportDate(user?.createdAt)}`;
 };
+
+const buildOverviewExportLines = (overview) => [
+    `Total Users: ${overview?.totalUsers || 0}`,
+    `Total Scripts: ${overview?.totalScripts || 0}`,
+    `Published Scripts: ${overview?.publishedScripts || 0}`,
+    `Deleted Scripts: ${overview?.deletedScripts || 0}`,
+    `Draft Scripts: ${overview?.draftScripts || 0}`,
+    `Rejected Scripts: ${overview?.rejectedScripts || 0}`,
+    `Sold Scripts: ${overview?.soldScripts || 0}`,
+    `Writers: ${overview?.totalWriters || 0}`,
+    `Film Professionals: ${overview?.totalInvestors || 0}`,
+    `Readers: ${overview?.totalReaders || 0}`,
+    `Pending Script Approvals: ${overview?.pendingApprovals || 0}`,
+    `Pending AI Trailer Approvals: ${overview?.pendingTrailerRequests || 0}`,
+    `AI Usage Scripts: ${overview?.aiUsageScripts || 0}`,
+    `Evaluation Scripts: ${overview?.evaluationScripts || 0}`,
+    `Pending Film Professional Requests: ${overview?.pendingInvestors || 0}`,
+    `Pending SWA/WGA Reviews: ${overview?.pendingMembershipReviews || 0}`,
+    `Pending Bank Reviews: ${overview?.pendingBankReviews || 0}`,
+    `Locked Bank Users: ${overview?.lockedBankUsers || 0}`,
+    `Bank Review Alerts: ${overview?.bankReviewAlerts || 0}`,
+    `Queries: ${overview?.queries || 0}`,
+    `Deleted Accounts: ${overview?.deletedAccounts || 0}`,
+    `Deleted Film Professionals: ${overview?.deletedFilmProfessionals || 0}`,
+    `Deleted Writers: ${overview?.deletedWriters || 0}`,
+    `Open Admin Actions: ${overview?.openAdminActions || 0}`,
+    `Transactions: ${overview?.totalTransactions || 0}`,
+    `Total Revenue: ${formatCurrency(overview?.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+];
 
 const PROJECT_CREATOR_ROLES = new Set(["writer", "creator"]);
 
@@ -312,11 +349,12 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                             )}
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.genre || s.primaryGenre || "—"}</td>
                             <td className="px-5 py-3.5">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.status === "published" ? "bg-emerald-100 text-emerald-700" :
-                                    s.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
-                                        s.status === "rejected" ? "bg-red-100 text-red-700" :
-                                            "bg-gray-100 text-gray-600"
-                                    }`}>{s.status?.replace("_", " ") || "draft"}</span>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.isDeleted ? "bg-red-100 text-red-700" :
+                                    s.status === "published" ? "bg-emerald-100 text-emerald-700" :
+                                        s.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
+                                            s.status === "rejected" ? "bg-red-100 text-red-700" :
+                                                "bg-gray-100 text-gray-600"
+                                    }`}>{s.isDeleted ? "deleted" : (s.status?.replace("_", " ") || "draft")}</span>
                             </td>
                             {showScore && (
                                 <td className={`px-5 py-3.5 text-sm font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>
@@ -376,14 +414,30 @@ const TransactionTable = ({ transactions, isDark }) => (
 
 // ─── Score Modal ───
 const ScoreModal = ({ script, isDark, onClose, onSave }) => {
-    const [scores, setScores] = useState({ content: 0, trailer: 0, title: 0, synopsis: 0, tags: 0, feedback: "", strengths: "", weaknesses: "", prospects: "" });
+    const getInitialScores = (currentScript) => ({
+        content: Number(currentScript?.platformScore?.content) || 0,
+        trailer: Number(currentScript?.platformScore?.trailer) || 0,
+        title: Number(currentScript?.platformScore?.title) || 0,
+        synopsis: Number(currentScript?.platformScore?.synopsis) || 0,
+        tags: Number(currentScript?.platformScore?.tags) || 0,
+        feedback: currentScript?.platformScore?.feedback || "",
+        strengths: currentScript?.platformScore?.strengths || "",
+        weaknesses: currentScript?.platformScore?.weaknesses || "",
+        prospects: currentScript?.platformScore?.prospects || "",
+    });
+
+    const [scores, setScores] = useState(() => getInitialScores(script));
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setScores(getInitialScores(script));
+    }, [script?._id]);
 
     const handleSave = async () => {
         setSaving(true);
-        await onSave(script._id, scores);
+        const saved = await onSave(script._id, scores);
         setSaving(false);
-        onClose();
+        if (saved) onClose();
     };
 
     const dims = [
@@ -493,25 +547,27 @@ const formatBadgeCount = (count) => {
 
 const SEARCH_PLACEHOLDER_BY_TAB = {
     overview: "Search everything in admin...",
-    investors: "Search investors...",
+    investors: "Search film professionals...",
     writers: "Search writers...",
-    readers: "Search readers...",
-    projects: "Search projects...",
+    projects: "Search scripts...",
+    "deleted-scripts": "Search deleted scripts...",
     "ai-usage": "Search AI usage...",
-    evaluations: "Search evaluations...",
+    evaluations: "Search AI evaluations...",
     "investor-purchases": "Search purchases...",
     invoices: "Search invoices...",
     payments: "Search payments...",
     scores: "Search scores...",
+    analytics: "Search analytics...",
     "discount-codes": "Search discount codes...",
-    approvals: "Search approvals...",
-    trailers: "Search AI trailers...",
+    approvals: "Search script approvals...",
+    trailers: "Search AI trailer approvals...",
     messages: "Search writer messages...",
-    "pending-investors": "Search investor requests...",
-    "membership-reviews": "Search membership reviews...",
+    "pending-investors": "Search film professional requests...",
+    "membership-reviews": "Search SWA/WGA reviews...",
     "bank-reviews": "Search bank review requests...",
     queries: "Search queries...",
-    "deleted-accounts": "Search deleted account requests...",
+    "deleted-film-professionals": "Search deleted film professionals...",
+    "deleted-writers": "Search deleted writers...",
 };
 
 const EMPTY_GLOBAL_RESULTS = {
@@ -548,6 +604,17 @@ const formatFileSize = (bytes = 0) => {
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
     if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
+
+const formatDuration = (seconds = 0) => {
+    const safeSeconds = Number(seconds || 0);
+    if (!safeSeconds) return "0s";
+    if (safeSeconds < 60) return `${safeSeconds}s`;
+    const minutes = Math.floor(safeSeconds / 60);
+    const remaining = safeSeconds % 60;
+    if (minutes < 60) return `${minutes}m ${remaining}s`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m`;
 };
 
 const getTransactionMetadataValue = (transaction, key) => {
@@ -739,7 +806,7 @@ const DiscountCodeFormModal = ({ initial, onClose, onSave, isDark }) => {
 };
 
 const AdminDashboard = () => {
-    const { isDarkMode: isDark } = useDarkMode();
+    const isDark = true;
     const [activeTab, setActiveTab] = useState("overview");
     const [loading, setLoading] = useState(false);
 
@@ -770,6 +837,12 @@ const AdminDashboard = () => {
     const [userActionLoading, setUserActionLoading] = useState("");
     const [contacts, setContacts] = useState([]);
     const [deletedAccounts, setDeletedAccounts] = useState([]);
+    const [analyticsData, setAnalyticsData] = useState(null);
+    const [analyticsSection, setAnalyticsSection] = useState("anonymous");
+    const [analyticsAnonymousDetail, setAnalyticsAnonymousDetail] = useState(null);
+    const [analyticsAnonymousDetailLoading, setAnalyticsAnonymousDetailLoading] = useState(false);
+    const [analyticsUserDetail, setAnalyticsUserDetail] = useState(null);
+    const [analyticsUserDetailLoading, setAnalyticsUserDetailLoading] = useState(false);
     const [discountCodes, setDiscountCodes] = useState([]);
     const [discountCodeModal, setDiscountCodeModal] = useState(null); // null = closed, {} = create, {_id:...} = edit
     const [alertSummary, setAlertSummary] = useState({});
@@ -884,10 +957,10 @@ const AdminDashboard = () => {
                 const increasedSections = BADGE_WATCH_KEYS.filter((key) => (summary[key] || 0) > (previous[key] || 0));
                 if (increasedSections.length > 0) {
                     const sectionLabelMap = {
-                        approvals: "Project approvals",
-                        trailers: "AI trailer requests",
-                        "pending-investors": "Investor requests",
-                        "membership-reviews": "Membership reviews",
+                        approvals: "Script approvals",
+                        trailers: "AI trailer approvals",
+                        "pending-investors": "Film professional requests",
+                        "membership-reviews": "SWA/WGA reviews",
                         "bank-reviews": "Bank detail reviews",
                         queries: "Queries",
                     };
@@ -971,7 +1044,10 @@ const AdminDashboard = () => {
     );
     const filteredBankReviews = sourceBankReviews.filter((review) => matchesSearch(review.name, review.email, review.sid, review.requestedDetails?.bankName, review.status));
     const filteredContacts = sourceContacts.filter((c) => matchesSearch(c.name, c.email, c.reason, c.message, c.createdAt));
-    const filteredDeletedAccounts = sourceDeletedAccounts.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
+    const deletedFilmProfessionals = sourceDeletedAccounts.filter((item) => String(item?.role || "").toLowerCase() === "investor");
+    const deletedWriters = sourceDeletedAccounts.filter((item) => PROJECT_CREATOR_ROLES.has(String(item?.role || "").toLowerCase()));
+    const filteredDeletedFilmProfessionals = deletedFilmProfessionals.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
+    const filteredDeletedWriters = deletedWriters.filter((item) => matchesSearch(item.name, item.email, item.sid, item.reason, item.source, item.deactivatedAt, item.requestedAt));
     const filteredMessageUsers = sourceMessageUsers.filter((u) => matchesSearch(u.name, u.email, u.sid));
 
     const buildCurrentSectionPayload = () => {
@@ -979,27 +1055,22 @@ const AdminDashboard = () => {
             case "overview":
                 return {
                     title: "Platform Overview",
-                    lines: stats
-                        ? [
-                            `Total Users: ${stats.totalUsers || 0}`,
-                            `Total Scripts: ${stats.totalScripts || 0}`,
-                            `Writers: ${stats.totalWriters || 0}`,
-                            `Investors: ${stats.totalInvestors || 0}`,
-                            `Readers: ${stats.totalReaders || 0}`,
-                            `Pending Approvals: ${stats.pendingApprovals || 0}`,
-                            `Transactions: ${stats.totalTransactions || 0}`,
-                            `Total Revenue: ${formatCurrency(stats.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        ]
-                        : ["No records"],
+                    lines: stats ? buildOverviewExportLines(stats) : ["No records"],
                 };
             case "investors":
             case "writers":
             case "readers":
+                const sectionTitleByTab = {
+                    investors: "Film Professionals",
+                    writers: "Writers",
+                    readers: "Readers",
+                };
                 return {
-                    title: `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} (${users.length})`,
+                    title: `${sectionTitleByTab[activeTab] || activeTab} (${users.length})`,
                     lines: users.map((u, idx) => formatUserExportLine(u, idx)),
                 };
             case "projects":
+            case "deleted-scripts":
             case "ai-usage":
             case "evaluations":
             case "investor-purchases":
@@ -1022,12 +1093,12 @@ const AdminDashboard = () => {
                 };
             case "pending-investors":
                 return {
-                    title: `Investor Requests (${pendingInvestors.length})`,
+                    title: `Film Professional Requests (${pendingInvestors.length})`,
                     lines: pendingInvestors.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
                 };
             case "membership-reviews":
                 return {
-                    title: `Membership Reviews (${membershipReviews.length})`,
+                    title: `SWA/WGA Reviews (${membershipReviews.length})`,
                     lines: membershipReviews.map((review, idx) => `${idx + 1}. ${review.name || "-"} | ${review.email || "-"} | SID: ${review.sid || "-"} | Pending: ${(review.pendingMemberships || []).map((item) => `${item.label}:${item.status}`).join(", ") || "-"}`),
                 };
             case "bank-reviews":
@@ -1040,10 +1111,29 @@ const AdminDashboard = () => {
                     title: `Queries (${contacts.length})`,
                     lines: contacts.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
                 };
-            case "deleted-accounts":
+            case "deleted-film-professionals":
                 return {
-                    title: `Deleted Accounts (${deletedAccounts.length})`,
-                    lines: deletedAccounts.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                    title: `Deleted Film Professionals (${deletedFilmProfessionals.length})`,
+                    lines: deletedFilmProfessionals.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                };
+            case "deleted-writers":
+                return {
+                    title: `Deleted Writers (${deletedWriters.length})`,
+                    lines: deletedWriters.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                };
+            case "analytics":
+                return {
+                    title: "Analytics Summary",
+                    lines: analyticsData
+                        ? [
+                            `Anonymous Visitors: ${analyticsData?.anonymousVisitors?.totalVisitors || 0}`,
+                            `New Visitors: ${analyticsData?.anonymousVisitors?.newVisitors || 0}`,
+                            `Returning Visitors: ${analyticsData?.anonymousVisitors?.returningVisitors || 0}`,
+                            `Tracked Registered Users: ${analyticsData?.registeredUsers?.totalUsers || 0}`,
+                            `Live Anonymous Users: ${analyticsData?.liveActivity?.activeAnonymousUsers || 0}`,
+                            `Live Registered Users: ${analyticsData?.liveActivity?.activeRegisteredUsers || 0}`,
+                        ]
+                        : ["No records"],
                 };
             case "messages":
                 return {
@@ -1159,6 +1249,7 @@ const AdminDashboard = () => {
                 creatorsData,
                 readersData,
                 projectsData,
+                deletedScriptsData,
                 aiUsageData,
                 evaluationsData,
                 purchasesData,
@@ -1181,6 +1272,7 @@ const AdminDashboard = () => {
                 fetchList("/admin/users?role=creator&page=1&limit=1000", "users"),
                 fetchList("/admin/users?role=reader&page=1&limit=1000", "users"),
                 fetchList("/admin/scripts?page=1&limit=1000", "scripts"),
+                fetchList("/admin/scripts?status=deleted&page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/ai-usage?page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/evaluation-purchases?page=1&limit=1000", "scripts"),
                 fetchList("/admin/scripts/investor-purchases?page=1&limit=1000", "scripts"),
@@ -1214,21 +1306,13 @@ const AdminDashboard = () => {
                 sections: [
                     {
                         title: "Overview",
-                        lines: [
-                            `Total Users: ${overview?.totalUsers || 0}`,
-                            `Total Scripts: ${overview?.totalScripts || 0}`,
-                            `Writers: ${overview?.totalWriters || 0}`,
-                            `Investors: ${overview?.totalInvestors || 0}`,
-                            `Readers: ${overview?.totalReaders || 0}`,
-                            `Pending Approvals: ${overview?.pendingApprovals || 0}`,
-                            `Transactions: ${overview?.totalTransactions || 0}`,
-                            `Total Revenue: ${formatCurrency(overview?.totalRevenue || 0, "INR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        ],
+                        lines: buildOverviewExportLines(overview),
                     },
                     sectionFromUsers("Investors", investorsData),
                     sectionFromUsers("Writers", [...writersData, ...creatorsData]),
                     sectionFromUsers("Readers", readersData),
                     sectionFromScripts("Projects", projectsData),
+                    sectionFromScripts("Deleted Scripts", deletedScriptsData),
                     sectionFromScripts("AI Usage", aiUsageData),
                     sectionFromScripts("Evaluation Purchases", evaluationsData),
                     sectionFromScripts("Investor Purchases", purchasesData),
@@ -1244,13 +1328,13 @@ const AdminDashboard = () => {
                     sectionFromScripts("Platform Scores", platformScoresData),
                     sectionFromScripts("Reader Scores", readerScoresData),
                     sectionFromScripts("Pending Approvals", approvalsData),
-                    sectionFromScripts("AI Trailers", trailersData),
+                    sectionFromScripts("AI Trailer Approvals", trailersData),
                     {
-                        title: `Investor Requests (${pendingInvestorsData.length})`,
+                        title: `Film Professional Requests (${pendingInvestorsData.length})`,
                         lines: pendingInvestorsData.map((inv, idx) => `${idx + 1}. ${inv.name || "-"} | ${inv.email || "-"} | Date: ${formatExportDate(inv.createdAt)} | Status: pending`),
                     },
                     {
-                        title: `Membership Reviews (${membershipReviewsData.length})`,
+                        title: `SWA/WGA Reviews (${membershipReviewsData.length})`,
                         lines: membershipReviewsData.map((review, idx) => `${idx + 1}. ${review.name || "-"} | ${review.email || "-"} | SID: ${review.sid || "-"} | Pending: ${(review.pendingMemberships || []).map((item) => `${item.label}:${item.status}`).join(", ") || "-"}`),
                     },
                     {
@@ -1262,8 +1346,16 @@ const AdminDashboard = () => {
                         lines: queriesData.map((c, idx) => `${idx + 1}. ${c.name || "-"} | ${c.email || "-"} | Reason: ${c.reason || "-"} | Message: ${c.message || "-"} | Date: ${formatExportDate(c.createdAt)}`),
                     },
                     {
-                        title: `Deleted Accounts (${deletedAccountsData.length})`,
-                        lines: deletedAccountsData.map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                        title: `Deleted Film Professionals (${deletedAccountsData.filter((item) => String(item?.role || "").toLowerCase() === "investor").length})`,
+                        lines: deletedAccountsData
+                            .filter((item) => String(item?.role || "").toLowerCase() === "investor")
+                            .map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
+                    },
+                    {
+                        title: `Deleted Writers (${deletedAccountsData.filter((item) => PROJECT_CREATOR_ROLES.has(String(item?.role || "").toLowerCase())).length})`,
+                        lines: deletedAccountsData
+                            .filter((item) => PROJECT_CREATOR_ROLES.has(String(item?.role || "").toLowerCase()))
+                            .map((item, idx) => `${idx + 1}. ${item.name || "-"} | ${item.email || "-"} | SID: ${item.sid || "-"} | Role: ${item.role || "-"} | Source: ${item.source || "-"} | Reason: ${item.reason || "-"} | Requested: ${formatExportDate(item.requestedAt)} | Deactivated: ${formatExportDate(item.deactivatedAt)}`),
                     },
                 ],
             });
@@ -1309,6 +1401,11 @@ const AdminDashboard = () => {
                     setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
+                case "deleted-scripts": {
+                    const { data } = await adminApi.get(`/admin/scripts?status=deleted&page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                    setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
                 case "ai-usage": {
                     const { data } = await adminApi.get(`/admin/scripts/ai-usage?page=${page}`);
                     setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
@@ -1316,7 +1413,10 @@ const AdminDashboard = () => {
                 }
                 case "evaluations": {
                     const { data } = await adminApi.get(`/admin/scripts/evaluation-purchases?page=${page}`);
-                    setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
+                    const evaluationScripts = Array.isArray(data?.scripts)
+                        ? data.scripts.filter((script) => ![true, "true", 1].includes(script?.isDeleted) && script?.status !== "rejected")
+                        : [];
+                    setScripts(evaluationScripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
                 case "investor-purchases": {
@@ -1347,7 +1447,10 @@ const AdminDashboard = () => {
                 }
                 case "trailers": {
                     const { data } = await adminApi.get(`/admin/scripts/trailer-requests?page=${page}`);
-                    setScripts(data.scripts); setTotalPages(data.totalPages); setTotal(data.total);
+                    const trailerScripts = Array.isArray(data?.scripts)
+                        ? data.scripts.filter((script) => ![true, "true", 1].includes(script?.isDeleted))
+                        : [];
+                    setScripts(trailerScripts); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
                 case "messages": {
@@ -1374,14 +1477,26 @@ const AdminDashboard = () => {
                     setContacts(data.submissions); setTotalPages(data.totalPages); setTotal(data.total);
                     break;
                 }
-                case "deleted-accounts": {
-                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&search=${encodeURIComponent(activeSearch)}`);
+                case "deleted-film-professionals": {
+                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&role=investor&search=${encodeURIComponent(activeSearch)}`);
+                    setDeletedAccounts(data.requests || []); setTotalPages(data.totalPages || 1); setTotal(data.total || 0);
+                    break;
+                }
+                case "deleted-writers": {
+                    const { data } = await adminApi.get(`/admin/users/deleted-requests?page=${page}&role=writer&search=${encodeURIComponent(activeSearch)}`);
                     setDeletedAccounts(data.requests || []); setTotalPages(data.totalPages || 1); setTotal(data.total || 0);
                     break;
                 }
                 case "discount-codes": {
                     const { data } = await adminApi.get(`/admin/discount-codes?page=${page}&search=${encodeURIComponent(activeSearch)}`);
                     setDiscountCodes(data.codes); setTotalPages(data.totalPages); setTotal(data.total);
+                    break;
+                }
+                case "analytics": {
+                    const { data } = await adminApi.get(`/admin/analytics`);
+                    setAnalyticsData(data);
+                    setTotalPages(1);
+                    setTotal(data?.anonymousVisitors?.totalVisitors || 0);
                     break;
                 }
             }
@@ -1457,6 +1572,36 @@ const AdminDashboard = () => {
         setLoading(false);
     };
 
+    const fetchAnalyticsUserDetail = async (userId) => {
+        if (!userId) return;
+        try {
+            setAnalyticsUserDetailLoading(true);
+            const { data } = await adminApi.get(`/admin/analytics/users/${userId}`);
+            setAnalyticsUserDetail(data || null);
+            setAnalyticsSection("registered");
+        } catch (err) {
+            console.error("Admin analytics user detail error:", err);
+            showToast(err?.response?.data?.message || "Failed to load user activity details", "error");
+        } finally {
+            setAnalyticsUserDetailLoading(false);
+        }
+    };
+
+    const fetchAnalyticsAnonymousDetail = async (anonymousId) => {
+        if (!anonymousId) return;
+        try {
+            setAnalyticsAnonymousDetailLoading(true);
+            const { data } = await adminApi.get(`/admin/analytics/anonymous/${encodeURIComponent(anonymousId)}`);
+            setAnalyticsAnonymousDetail(data || null);
+            setAnalyticsSection("anonymous");
+        } catch (err) {
+            console.error("Admin analytics anonymous detail error:", err);
+            showToast(err?.response?.data?.message || "Failed to load anonymous user details", "error");
+        } finally {
+            setAnalyticsAnonymousDetailLoading(false);
+        }
+    };
+
     // ─── Effects ───
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -1472,6 +1617,16 @@ const AdminDashboard = () => {
     useEffect(() => {
         if (authorized) setPage(1);
     }, [search, authorized]);
+
+    useEffect(() => {
+        if (activeTab !== "analytics") {
+            setAnalyticsSection("anonymous");
+            setAnalyticsAnonymousDetail(null);
+            setAnalyticsAnonymousDetailLoading(false);
+            setAnalyticsUserDetail(null);
+            setAnalyticsUserDetailLoading(false);
+        }
+    }, [activeTab]);
 
     useEffect(() => {
         if (!authorized) return;
@@ -1742,9 +1897,11 @@ const AdminDashboard = () => {
             showToast("Platform score saved successfully");
             setScoreModal(null);
             fetchData();
+            return true;
         } catch (err) {
             console.error(err);
             showToast("Failed to save score", "error");
+            return false;
         }
     };
 
@@ -2382,15 +2539,50 @@ const AdminDashboard = () => {
                 return (
                     <div>
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Platform Overview</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <StatCard isDark={isDark} label="Total Users" value={stats.totalUsers} icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" color="bg-blue-500/15 text-blue-500" />
-                            <StatCard isDark={isDark} label="Total Scripts" value={stats.totalScripts} icon="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" color="bg-purple-500/15 text-purple-500" />
-                            <StatCard isDark={isDark} label="Writers" value={stats.totalWriters} icon="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" color="bg-amber-500/15 text-amber-500" />
-                            <StatCard isDark={isDark} label="Investors" value={stats.totalInvestors} icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-emerald-500/15 text-emerald-500" />
-                            <StatCard isDark={isDark} label="Readers" value={stats.totalReaders} icon="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" color="bg-cyan-500/15 text-cyan-500" />
-                            <StatCard isDark={isDark} label="Pending Approvals" value={stats.pendingApprovals} icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-500/15 text-orange-500" />
-                            <StatCard isDark={isDark} label="Transactions" value={stats.totalTransactions} icon="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" color="bg-pink-500/15 text-pink-500" />
-                            <StatCard isDark={isDark} label="Total Revenue" value={`₹${stats.totalRevenue?.toFixed(2) || "0.00"}`} icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-green-500/15 text-green-500" />
+                        <div className="space-y-8">
+                            <div>
+                                <h3 className={`text-sm font-extrabold uppercase tracking-wide mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Platform Snapshot</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <StatCard isDark={isDark} label="Total Users" value={stats.totalUsers || 0} icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" color="bg-blue-500/15 text-blue-500" />
+                                    <StatCard isDark={isDark} label="Total Scripts" value={stats.totalScripts || 0} icon="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" color="bg-purple-500/15 text-purple-500" />
+                                    <StatCard isDark={isDark} label="Published Scripts" value={stats.publishedScripts || 0} icon="M5.25 6.75h13.5M5.25 12h13.5m-13.5 5.25h13.5" color="bg-indigo-500/15 text-indigo-500" />
+                                    <StatCard isDark={isDark} label="Deleted Scripts" value={stats.deletedScripts || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79" color="bg-rose-500/15 text-rose-500" />
+                                    <StatCard isDark={isDark} label="Writers" value={stats.totalWriters || 0} icon="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" color="bg-amber-500/15 text-amber-500" />
+                                    <StatCard isDark={isDark} label="Film Professionals" value={stats.totalInvestors || 0} icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-emerald-500/15 text-emerald-500" />
+                                    <StatCard isDark={isDark} label="Readers" value={stats.totalReaders || 0} icon="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" color="bg-cyan-500/15 text-cyan-500" />
+                                    <StatCard isDark={isDark} label="Total Revenue" value={`₹${stats.totalRevenue?.toFixed(2) || "0.00"}`} icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-green-500/15 text-green-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className={`text-sm font-extrabold uppercase tracking-wide mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Script Pipeline</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <StatCard isDark={isDark} label="Draft Scripts" value={stats.draftScripts || 0} icon="M3.375 19.5h17.25M4.5 16.5V6.75A2.25 2.25 0 016.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v9.75" color="bg-slate-500/15 text-slate-500" />
+                                    <StatCard isDark={isDark} label="Rejected Scripts" value={stats.rejectedScripts || 0} icon="M6 18L18 6M6 6l12 12" color="bg-red-500/15 text-red-500" />
+                                    <StatCard isDark={isDark} label="Sold Scripts" value={stats.soldScripts || 0} icon="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25h11.218" color="bg-lime-500/15 text-lime-500" />
+                                    <StatCard isDark={isDark} label="Pending Script Approvals" value={stats.pendingApprovals || 0} icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-orange-500/15 text-orange-500" />
+                                    <StatCard isDark={isDark} label="Pending AI Trailer Approvals" value={stats.pendingTrailerRequests || 0} icon="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375V5.625A1.125 1.125 0 016 4.5h12a1.125 1.125 0 011.125 1.125v12.75c0 .621-.504 1.125-1.125 1.125h1.5" color="bg-fuchsia-500/15 text-fuchsia-500" />
+                                    <StatCard isDark={isDark} label="AI Usage Scripts" value={stats.aiUsageScripts || 0} icon="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" color="bg-violet-500/15 text-violet-500" />
+                                    <StatCard isDark={isDark} label="Evaluation Scripts" value={stats.evaluationScripts || 0} icon="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" color="bg-sky-500/15 text-sky-500" />
+                                    <StatCard isDark={isDark} label="Transactions" value={stats.totalTransactions || 0} icon="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" color="bg-pink-500/15 text-pink-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className={`text-sm font-extrabold uppercase tracking-wide mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Pending Actions</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <StatCard isDark={isDark} label="Pending Film Professional Requests" value={stats.pendingInvestors || 0} icon="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" color="bg-teal-500/15 text-teal-500" />
+                                    <StatCard isDark={isDark} label="Pending SWA/WGA Reviews" value={stats.pendingMembershipReviews || 0} icon="M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 0h1.5A2.25 2.25 0 0115 2.25v1.134a9 9 0 11-6 0V2.25z" color="bg-amber-500/15 text-amber-500" />
+                                    <StatCard isDark={isDark} label="Pending Bank Reviews" value={stats.pendingBankReviews || 0} icon="M3.75 4.5h16.5A1.5 1.5 0 0121.75 6v12a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM6 9h12M6 13.5h5.25" color="bg-orange-500/15 text-orange-500" />
+                                    <StatCard isDark={isDark} label="Locked Bank Users" value={stats.lockedBankUsers || 0} icon="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 0h10.5A1.5 1.5 0 0118.75 12v7.5a1.5 1.5 0 01-1.5 1.5H6.75a1.5 1.5 0 01-1.5-1.5V12a1.5 1.5 0 011.5-1.5z" color="bg-yellow-500/15 text-yellow-500" />
+                                    <StatCard isDark={isDark} label="Bank Review Alerts" value={stats.bankReviewAlerts || 0} icon="M12 9v3.75m9 0a9 9 0 11-18 0 9 9 0 0118 0z" color="bg-red-500/15 text-red-500" />
+                                    <StatCard isDark={isDark} label="Queries" value={stats.queries || 0} icon="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75" color="bg-cyan-500/15 text-cyan-500" />
+                                    <StatCard isDark={isDark} label="Deleted Accounts" value={stats.deletedAccounts || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166" color="bg-rose-500/15 text-rose-500" />
+                                    <StatCard isDark={isDark} label="Deleted Film Professionals" value={stats.deletedFilmProfessionals || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166" color="bg-orange-500/15 text-orange-500" />
+                                    <StatCard isDark={isDark} label="Deleted Writers" value={stats.deletedWriters || 0} icon="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166" color="bg-pink-500/15 text-pink-500" />
+                                    <StatCard isDark={isDark} label="Open Admin Actions" value={stats.openAdminActions || 0} icon="M11.25 3.75h1.5m-1.5 16.5h1.5m-7.5-7.5h16.5" color="bg-indigo-500/15 text-indigo-500" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
@@ -2402,7 +2594,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                {activeTab === "investors" ? "Investors" : activeTab === "writers" ? "Writers" : "Readers"}
+                                {activeTab === "investors" ? "Film Professionals" : activeTab === "writers" ? "Writers" : "Readers"}
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredUsers.length : total})</span>
                             </h2>
                         </div>
@@ -2425,13 +2617,13 @@ const AdminDashboard = () => {
                 return (
                     <div>
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>All Projects<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>All Scripts<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         </div>
                         <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true}
                             actions={(s) => (
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
-                                    <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <a href={`/admin/scripts/${s._id}`} className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
                                     <button
                                         onClick={() => handleDeleteProject(s)}
                                         disabled={Boolean(s.isDeleted) || deletingScriptId === s._id}
@@ -2439,6 +2631,24 @@ const AdminDashboard = () => {
                                     >
                                         {s.isDeleted ? "Deleted" : deletingScriptId === s._id ? "Deleting..." : "Delete"}
                                     </button>
+                                </div>
+                            )}
+                        />
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
+                    </div>
+                );
+
+            case "deleted-scripts":
+                return (
+                    <div>
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Deleted Scripts<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        </div>
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true}
+                            actions={(s) => (
+                                <div className="flex items-center gap-2">
+                                    <a href={`/admin/scripts/${s._id}`} className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${isDark ? "bg-red-500/15 text-red-300" : "bg-red-50 text-red-700"}`}>Deleted</span>
                                 </div>
                             )}
                         />
@@ -2458,7 +2668,7 @@ const AdminDashboard = () => {
             case "evaluations":
                 return (
                     <div>
-                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Evaluation Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                        <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>AI Evaluations<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={true} />
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
@@ -2597,7 +2807,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                Pending Approvals
+                                Script Approvals
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span>
                             </h2>
                         </div>
@@ -2607,7 +2817,7 @@ const AdminDashboard = () => {
                                     <button onClick={() => handleApprove(s._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">✓ Approve</button>
                                     <button onClick={() => handleReject(s._id)} className="text-xs font-bold text-red-500 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors">✕ Reject</button>
                                     <button onClick={() => setScoreModal(s)} className="text-xs font-bold text-purple-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 transition-colors">Score</button>
-                                    <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <a href={`/admin/scripts/${s._id}`} className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
                                     <button
                                         onClick={() => handleDeleteProject(s)}
                                         disabled={Boolean(s.isDeleted) || deletingScriptId === s._id}
@@ -2634,7 +2844,7 @@ const AdminDashboard = () => {
                             onChange={handleAdminTrailerFileChange}
                         />
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Requests<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>AI Trailer Approvals<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         </div>
                         {regenerationRequests.length > 0 && (
                             <div className={`rounded-2xl border p-5 mb-5 ${isDark ? "bg-amber-500/5 border-amber-500/20" : "bg-amber-50 border-amber-200/60"}`}>
@@ -2686,7 +2896,7 @@ const AdminDashboard = () => {
                                     >
                                         {uploadingTrailerScriptId === String(s._id) ? "Uploading..." : "Add Trailer"}
                                     </button>
-                                    <a href={`/script/${s._id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
+                                    <a href={`/admin/scripts/${s._id}`} className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/10 transition-colors">View</a>
                                 </div>
                             )}
                         />
@@ -2902,7 +3112,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                Investor Account Requests
+                                Film Professional Requests
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredPendingInvestors.length : total})</span>
                             </h2>
                         </div>
@@ -2913,14 +3123,14 @@ const AdminDashboard = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
-                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending investor requests</p>
+                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending film professional requests</p>
                             </div>
                         ) : (
                             <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                                 <table className="w-full">
                                     <thead>
                                         <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
-                                            {["Investor", "Email", "Signed Up", "Actions"].map((h) => (
+                                            {["Film Professional", "Email", "Signed Up", "Actions"].map((h) => (
                                                 <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
                                             ))}
                                         </tr>
@@ -2976,7 +3186,7 @@ const AdminDashboard = () => {
                     <div>
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>
-                                Pending Membership Reviews
+                                SWA/WGA Reviews
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredMembershipReviews.length : total})</span>
                             </h2>
                         </div>
@@ -2988,7 +3198,7 @@ const AdminDashboard = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
-                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending membership reviews</p>
+                                <p className={`text-sm font-semibold ${isDark ? "text-gray-400" : "text-gray-600"}`}>No pending SWA/WGA reviews</p>
                             </div>
                         ) : (
                             <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
@@ -2998,7 +3208,7 @@ const AdminDashboard = () => {
                                             <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
                                                 {[
                                                     "Writer",
-                                                    "Pending Membership",
+                                                    "Pending SWA/WGA",
                                                     "Submitted",
                                                     "Proof",
                                                     "Actions",
@@ -3259,25 +3469,28 @@ const AdminDashboard = () => {
                     </div>
                 );
 
-            case "deleted-accounts":
+            case "deleted-film-professionals":
+            case "deleted-writers":
                 return (
                     <div>
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>
-                            Deleted Account Requests
-                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredDeletedAccounts.length : total})</span>
+                            {activeTab === "deleted-film-professionals" ? "Deleted Film Professionals" : "Deleted Writers"}
+                            <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                                ({activeTab === "deleted-film-professionals" ? filteredDeletedFilmProfessionals.length : filteredDeletedWriters.length})
+                            </span>
                         </h2>
                         <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
                                         <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
-                                            {["User", "SID", "Role", "Reason", "Source", "Requested", "Deleted"].map((h) => (
+                                            {["User", "SID", "Role", "Reason", "Source", "Requested", "Deleted", "Actions"].map((h) => (
                                                 <th key={h} className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
-                                        {filteredDeletedAccounts.map((item) => (
+                                        {(activeTab === "deleted-film-professionals" ? filteredDeletedFilmProfessionals : filteredDeletedWriters).map((item) => (
                                             <tr key={item._id} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50/50"}`}>
                                                 <td className="px-5 py-3.5">
                                                     <p className={`text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{item.name || "-"}</p>
@@ -3297,10 +3510,33 @@ const AdminDashboard = () => {
                                                 </td>
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.requestedAt ? new Date(item.requestedAt).toLocaleString() : "-"}</td>
                                                 <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.deactivatedAt ? new Date(item.deactivatedAt).toLocaleString() : "-"}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <button
+                                                        onClick={() => setSelectedUserDetail(item.profileSnapshot || {
+                                                            _id: item._id,
+                                                            sid: item.sid,
+                                                            role: item.role,
+                                                            name: item.name,
+                                                            email: item.email,
+                                                            isDeactivated: true,
+                                                            deactivatedAt: item.deactivatedAt,
+                                                            accountDeletion: {
+                                                                reason: item.reason,
+                                                                source: item.source,
+                                                                requestedAt: item.requestedAt,
+                                                                originalName: item.name,
+                                                                originalEmail: item.email,
+                                                            },
+                                                        })}
+                                                        className="text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/10"
+                                                    >
+                                                        View Details
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
-                                        {filteredDeletedAccounts.length === 0 && (
-                                            <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No deleted account requests found</td></tr>
+                                        {(activeTab === "deleted-film-professionals" ? filteredDeletedFilmProfessionals.length : filteredDeletedWriters.length) === 0 && (
+                                            <tr><td colSpan={8} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No deleted accounts found in this section</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -3309,6 +3545,485 @@ const AdminDashboard = () => {
                         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} isDark={isDark} />
                     </div>
                 );
+
+            case "analytics": {
+                const anonymousSummary = analyticsData?.anonymousVisitors || {};
+                const registeredSummary = analyticsData?.registeredUsers || {};
+                const alerts = analyticsData?.alerts?.returnedUsers || [];
+                const live = analyticsData?.liveActivity || {};
+                const pageVisits = anonymousSummary.pageVisits || [];
+                const locations = anonymousSummary.locationBreakdown || [];
+                const anonymousUsers = anonymousSummary.anonymousUsers || [];
+                const usersTimeline = registeredSummary.users || [];
+                const authSummary = registeredSummary.authSummary || {};
+                const recentAuthEvents = registeredSummary.recentAuthEvents || [];
+                const selectedAnonymous = analyticsAnonymousDetail?.anonymous || {};
+                const selectedAnonymousSummary = analyticsAnonymousDetail?.summary || {};
+                const selectedAnonymousDevices = analyticsAnonymousDetail?.devices || [];
+                const selectedAnonymousLocations = analyticsAnonymousDetail?.locations || [];
+                const selectedAnonymousPages = analyticsAnonymousDetail?.pages || [];
+                const selectedAnonymousSessions = analyticsAnonymousDetail?.sessions || [];
+                const selectedAnonymousEvents = analyticsAnonymousDetail?.latestEvents || [];
+                const selectedAnonymousClicks = analyticsAnonymousDetail?.latestClicks || [];
+                const selectedUser = analyticsUserDetail?.user || {};
+                const selectedSummary = analyticsUserDetail?.summary || {};
+                const selectedDevices = analyticsUserDetail?.devices || [];
+                const selectedLocations = analyticsUserDetail?.locations || [];
+                const selectedPages = analyticsUserDetail?.pages || [];
+                const selectedSessions = analyticsUserDetail?.sessions || [];
+                const selectedAuthEvents = analyticsUserDetail?.authEvents || [];
+                const selectedActions = analyticsUserDetail?.latestActions || [];
+
+                const sectionButtonClass = (key) => (
+                    `px-3 py-2 rounded-lg border text-xs font-bold transition-all ${analyticsSection === key
+                        ? (isDark ? "border-blue-400/40 bg-blue-500/25 text-blue-100 shadow-sm shadow-blue-500/20" : "border-blue-200 bg-blue-100 text-blue-700")
+                        : (isDark ? "border-[#294468] bg-[#132744]/60 text-gray-200 hover:bg-[#1b3558] hover:text-white" : "border-gray-200 text-gray-600 hover:bg-gray-100")
+                    }`
+                );
+
+                return (
+                    <div className="space-y-6">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <h2 className={`text-xl font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>User Tracking Analytics</h2>
+                            <div className="flex items-center gap-2">
+                                <button className={sectionButtonClass("anonymous")} onClick={() => setAnalyticsSection("anonymous")}>Anonymous Visitors</button>
+                                <button className={sectionButtonClass("registered")} onClick={() => setAnalyticsSection("registered")}>Registered Users</button>
+                                <a
+                                    href={`${API_BASE_URL}/admin/analytics?format=csv`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex w-fit items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
+                                >
+                                    Export CSV
+                                </a>
+                            </div>
+                        </div>
+
+                        {analyticsSection === "anonymous" ? (
+                            <>
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                    <StatCard isDark={isDark} label="Total Visitors" value={anonymousSummary.totalVisitors || 0} icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493" color="bg-blue-500/15 text-blue-500" />
+                                    <StatCard isDark={isDark} label="New Visitors" value={anonymousSummary.newVisitors || 0} icon="M12 4.5v15m7.5-7.5h-15" color="bg-emerald-500/15 text-emerald-500" />
+                                    <StatCard isDark={isDark} label="Returning Visitors" value={anonymousSummary.returningVisitors || 0} icon="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992" color="bg-amber-500/15 text-amber-500" />
+                                    <StatCard isDark={isDark} label="Live Anonymous" value={live.activeAnonymousUsers || 0} icon="M3 12h4l3 8 4-16 3 8h4" color="bg-purple-500/15 text-purple-500" />
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <h3 className={`mb-3 text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Device Breakdown</h3>
+                                        <div className="space-y-2">
+                                            {Object.entries(anonymousSummary.deviceBreakdown || {}).map(([key, value]) => (
+                                                <div key={key} className="flex items-center justify-between rounded-lg bg-black/5 px-3 py-2">
+                                                    <span className={`text-xs font-semibold uppercase ${isDark ? "text-gray-300" : "text-gray-700"}`}>{key}</span>
+                                                    <span className={`text-sm font-bold ${isDark ? "text-blue-300" : "text-blue-700"}`}>{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <h3 className={`mb-3 text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Returning Visitor Alerts</h3>
+                                        <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                                            {alerts.length === 0 ? (
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No return alerts yet.</p>
+                                            ) : (
+                                                alerts.map((alert, index) => (
+                                                    <div key={`${alert.anonymousId}-${index}`} className={`rounded-lg border px-3 py-2 ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                                                        <p className={`text-xs font-semibold ${isDark ? "text-gray-100" : "text-gray-800"}`}>{alert.anonymousId}</p>
+                                                        <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                                                            {alert.city || "Unknown"}, {alert.country || "Unknown"} • {alert.path || "-"}
+                                                        </p>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <h3 className={`mb-3 text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Top Locations</h3>
+                                        <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                                            {locations.length === 0 ? (
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No location data yet.</p>
+                                            ) : (
+                                                locations.slice(0, 25).map((entry) => (
+                                                    <div key={`${entry.region}-${entry.city}-${entry.country}`} className="flex items-center justify-between rounded-lg bg-black/5 px-3 py-2">
+                                                        <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>{entry.region || "Unknown"}, {entry.city || "Unknown"}, {entry.country || "Unknown"}</span>
+                                                        <span className={`text-sm font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>{entry.count}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <h3 className={`mb-3 text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Click Heatmap Samples</h3>
+                                        <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                                            {(anonymousSummary.clickHeatmap || []).slice(-50).reverse().map((click, index) => (
+                                                <div key={`${click.path}-${index}`} className={`rounded-lg border px-3 py-2 ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                                                    <p className={`text-xs font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>Button: {click.label || click.text || click.element || "Unknown"}</p>
+                                                    <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Page: {click.path || "-"} • Section: {click.section || "General"}</p>
+                                                    <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Position: ({click.x}, {click.y})</p>
+                                                </div>
+                                            ))}
+                                            {(anonymousSummary.clickHeatmap || []).length === 0 && (
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No click samples yet.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                    <div className="max-h-80 overflow-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                                    {["Page", "Visits", "Avg Time", "Total Time"].map((h) => (
+                                                        <th key={h} className={`px-5 py-3 text-left text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                                {pageVisits.slice(0, 25).map((item) => (
+                                                    <tr key={item.page}>
+                                                        <td className={`px-5 py-3.5 text-sm font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{item.page}</td>
+                                                        <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{item.visits}</td>
+                                                        <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{formatDuration(item.avgTimeSeconds)}</td>
+                                                        <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{formatDuration(item.totalTimeSeconds)}</td>
+                                                    </tr>
+                                                ))}
+                                                {pageVisits.length === 0 && (
+                                                    <tr><td colSpan={4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No page analytics yet</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+                                    <div className={`xl:col-span-2 rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead>
+                                                    <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                                        {["Temporary ID", "Last Active", "Location", "Browser / OS", "Action"].map((h) => (
+                                                            <th key={h} className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                                    {anonymousUsers.slice(0, 120).map((entry) => (
+                                                        <tr key={entry.anonymousId}>
+                                                            <td className={`px-4 py-3 text-xs font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{entry.anonymousId}</td>
+                                                            <td className={`px-4 py-3 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>{entry.lastEventAt ? new Date(entry.lastEventAt).toLocaleString() : "-"}</td>
+                                                            <td className={`px-4 py-3 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>{entry.location || "Unknown"}</td>
+                                                            <td className={`px-4 py-3 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                                                <p>{entry.browser || "Unknown"} / {entry.os || "Unknown"}</p>
+                                                                <p className={`${isDark ? "text-gray-500" : "text-gray-500"}`}>{entry.deviceType || "unknown"}</p>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => fetchAnalyticsAnonymousDetail(entry.anonymousId)}
+                                                                    disabled={!entry.anonymousId || analyticsAnonymousDetailLoading}
+                                                                    className="rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                                                                >
+                                                                    View Details
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {anonymousUsers.length === 0 && (
+                                                        <tr><td colSpan={5} className={`px-4 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No anonymous visitors yet</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div className={`xl:col-span-3 rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        {analyticsAnonymousDetailLoading ? (
+                                            <div className="flex items-center justify-center py-20">
+                                                <div className="w-7 h-7 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                                            </div>
+                                        ) : !analyticsAnonymousDetail ? (
+                                            <div className="py-20 text-center">
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Select a temporary anonymous ID to inspect full behavior.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h3 className={`text-base font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Temp ID: {selectedAnonymous.temporaryId || "-"}</h3>
+                                                        <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>Returning: {selectedAnonymous.isReturning ? "Yes" : "No"} • Last Active: {selectedAnonymous.lastEventAt ? new Date(selectedAnonymous.lastEventAt).toLocaleString() : "-"}</p>
+                                                        <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>Device: {selectedAnonymous.device?.deviceType || "unknown"} / {selectedAnonymous.device?.browser || "Unknown"} / {selectedAnonymous.device?.os || "Unknown"}</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className={`text-xs font-bold ${isDark ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"}`}
+                                                        onClick={() => setAnalyticsAnonymousDetail(null)}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Sessions</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{selectedAnonymousSummary.totalSessions || 0}</p></div>
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Events</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{selectedAnonymousSummary.totalEvents || 0}</p></div>
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Page Visits</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{selectedAnonymousSummary.totalPageVisits || 0}</p></div>
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Time Spent</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{formatDuration(selectedAnonymousSummary.totalTimeSeconds || 0)}</p></div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Devices</h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {selectedAnonymousDevices.length === 0 ? <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No data</span> : selectedAnonymousDevices.map((item) => (
+                                                                <span key={item.label || `${item.deviceType}-${item.browser}-${item.os}`} className={`px-2 py-1 rounded-full text-xs font-semibold ${isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>{item.label || `${item.deviceType || "unknown"} / ${item.browser || "Unknown"} / ${item.os || "Unknown"}`} ({item.count})</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Locations</h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {selectedAnonymousLocations.length === 0 ? <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No data</span> : selectedAnonymousLocations.map((item) => (
+                                                                <span key={item.location} className={`px-2 py-1 rounded-full text-xs font-semibold ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700"}`}>{item.location} ({item.count})</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Top Pages</h4>
+                                                        <div className="max-h-40 overflow-y-auto space-y-1">
+                                                            {selectedAnonymousPages.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No page events</p> : selectedAnonymousPages.slice(0, 30).map((page) => (
+                                                                <p key={page.path} className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>{page.path} • {page.visits} visits • {formatDuration(page.totalTimeSeconds)}</p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Latest Clicks</h4>
+                                                        <div className="max-h-40 overflow-y-auto space-y-1">
+                                                            {selectedAnonymousClicks.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No click data</p> : selectedAnonymousClicks.slice(0, 30).map((click, index) => (
+                                                                <p key={`${click.sessionId}-${index}`} className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>{click.timestamp ? new Date(click.timestamp).toLocaleString() : "-"} • Page: {click.path || "-"} • Button: {click.label || click.text || click.element || "Unknown"} • Section: {click.section || "General"} • ({click.x}, {click.y})</p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-lg border p-3">
+                                                    <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Session Journey</h4>
+                                                    <div className="max-h-48 overflow-y-auto space-y-2">
+                                                        {selectedAnonymousSessions.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No sessions found</p> : selectedAnonymousSessions.slice(0, 20).map((session) => (
+                                                            <div key={session.sessionId} className={`rounded-md border px-2.5 py-2 ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                                                                <p className={`text-xs font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{session.sessionId}</p>
+                                                                <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{`${session.entryPath || "-"} to ${session.exitPath || "-"} - ${formatDuration(session.durationSeconds || 0)}`}</p>
+                                                                <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{`${session.location?.city || "Unknown"}, ${session.location?.country || "Unknown"} - ${session.device?.deviceType || "unknown"} / ${session.device?.browser || "Unknown"} / ${session.device?.os || "Unknown"}`}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-lg border p-3">
+                                                    <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Latest Events</h4>
+                                                    <div className="max-h-52 overflow-y-auto space-y-1">
+                                                        {selectedAnonymousEvents.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No events</p> : selectedAnonymousEvents.slice(0, 80).map((event, index) => (
+                                                            <p key={`${event.eventType}-${index}`} className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>{event.timestamp ? new Date(event.timestamp).toLocaleString() : "-"} • {event.eventType} • {event.action || "-"} • {event.path || "-"}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                    <StatCard isDark={isDark} label="Tracked Users" value={registeredSummary.totalUsers || 0} icon="M12 12c2.761 0 5-2.239 5-5S14.761 2 12 2 7 4.239 7 7s2.239 5 5 5z" color="bg-emerald-500/15 text-emerald-500" />
+                                    <StatCard isDark={isDark} label="Users Signed Up" value={authSummary.usersWithSignupEvent || 0} icon="M12 4.5v15m7.5-7.5h-15" color="bg-blue-500/15 text-blue-500" />
+                                    <StatCard isDark={isDark} label="Users Logged In" value={authSummary.usersWithLoginEvent || 0} icon="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6" color="bg-amber-500/15 text-amber-500" />
+                                    <StatCard isDark={isDark} label="Live Registered" value={live.activeRegisteredUsers || 0} icon="M3 12h4l3 8 4-16 3 8h4" color="bg-purple-500/15 text-purple-500" />
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <h3 className={`mb-3 text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Auth Event Summary</h3>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between rounded-lg bg-black/5 px-3 py-2">
+                                                <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>Total Signup Events</span>
+                                                <span className={`text-sm font-bold ${isDark ? "text-blue-300" : "text-blue-700"}`}>{authSummary.totalSignupEvents || 0}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between rounded-lg bg-black/5 px-3 py-2">
+                                                <span className={`text-xs font-semibold ${isDark ? "text-gray-300" : "text-gray-700"}`}>Total Login Events</span>
+                                                <span className={`text-sm font-bold ${isDark ? "text-amber-300" : "text-amber-700"}`}>{authSummary.totalLoginEvents || 0}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className={`rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <h3 className={`mb-3 text-sm font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>Recent Login / Signup Events</h3>
+                                        <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                                            {recentAuthEvents.length === 0 ? (
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>No auth events yet.</p>
+                                            ) : (
+                                                recentAuthEvents.slice(0, 25).map((event, index) => (
+                                                    <div key={`${event.userId}-${index}`} className={`rounded-lg border px-3 py-2 ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                                                        <p className={`text-xs font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{event.userName} • {event.type}</p>
+                                                        <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{event.userEmail || "-"} • {event.timestamp ? new Date(event.timestamp).toLocaleString() : "-"}</p>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+                                    <div className={`xl:col-span-2 rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead>
+                                                    <tr className={isDark ? "bg-[#132744]" : "bg-gray-50"}>
+                                                        {["User", "Last Active", "Sessions", "Action"].map((h) => (
+                                                            <th key={h} className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>{h}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody className={`divide-y ${isDark ? "divide-[#1a3050]" : "divide-gray-100"}`}>
+                                                    {usersTimeline.slice(0, 80).map((entry) => (
+                                                        <tr key={String(entry.userId || entry.email)}>
+                                                            <td className={`px-4 py-3 text-sm ${isDark ? "text-gray-200" : "text-gray-800"}`}>
+                                                                <p className="font-semibold">{entry.name || "Unknown"}</p>
+                                                                <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>{entry.email || "-"}</p>
+                                                            </td>
+                                                            <td className={`px-4 py-3 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>{entry.lastActiveAt ? new Date(entry.lastActiveAt).toLocaleString() : "-"}</td>
+                                                            <td className={`px-4 py-3 text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{entry.sessionCount || 0}</td>
+                                                            <td className="px-4 py-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => fetchAnalyticsUserDetail(String(entry.userId || ""))}
+                                                                    disabled={!entry.userId || analyticsUserDetailLoading}
+                                                                    className="rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                                                                >
+                                                                    View Details
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {usersTimeline.length === 0 && (
+                                                        <tr><td colSpan={4} className={`px-4 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No registered user activity yet</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div className={`xl:col-span-3 rounded-2xl border p-4 ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
+                                        {analyticsUserDetailLoading ? (
+                                            <div className="flex items-center justify-center py-20">
+                                                <div className="w-7 h-7 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                                            </div>
+                                        ) : !analyticsUserDetail ? (
+                                            <div className="py-20 text-center">
+                                                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>Select a registered user to see full journey details.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h3 className={`text-base font-extrabold ${isDark ? "text-white" : "text-gray-900"}`}>{selectedUser.name || "Unknown User"}</h3>
+                                                        <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>{selectedUser.email || "-"} • {selectedUser.phoneMasked || "-"} • SID: {selectedUser.sid || "-"}</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className={`text-xs font-bold ${isDark ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"}`}
+                                                        onClick={() => setAnalyticsUserDetail(null)}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Sessions</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{selectedSummary.totalSessions || 0}</p></div>
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Actions</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{selectedSummary.totalActions || 0}</p></div>
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Page Visits</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{selectedSummary.totalPageVisits || 0}</p></div>
+                                                    <div className="rounded-lg bg-black/5 px-3 py-2"><p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>Time Spent</p><p className={`text-sm font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{formatDuration(selectedSummary.totalTimeSeconds || 0)}</p></div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Devices Used</h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {selectedDevices.length === 0 ? <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No data</span> : selectedDevices.map((item) => (
+                                                                <span key={item.label || `${item.deviceType}-${item.browser}-${item.os}`} className={`px-2 py-1 rounded-full text-xs font-semibold ${isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>{item.label || `${item.deviceType || "unknown"} / ${item.browser || "Unknown"} / ${item.os || "Unknown"}`} ({item.count})</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Locations</h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {selectedLocations.length === 0 ? <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No data</span> : selectedLocations.map((item) => (
+                                                                <span key={item.location} className={`px-2 py-1 rounded-full text-xs font-semibold ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700"}`}>{item.location} ({item.count})</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Auth Timeline</h4>
+                                                        <div className="max-h-40 overflow-y-auto space-y-1">
+                                                            {selectedAuthEvents.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No login/signup events</p> : selectedAuthEvents.slice(0, 30).map((event, index) => (
+                                                                <p key={`${event.type}-${index}`} className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>{event.type} • {event.timestamp ? new Date(event.timestamp).toLocaleString() : "-"}</p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="rounded-lg border p-3">
+                                                        <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Top Pages</h4>
+                                                        <div className="max-h-40 overflow-y-auto space-y-1">
+                                                            {selectedPages.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No page events</p> : selectedPages.slice(0, 30).map((page) => (
+                                                                <p key={page.path} className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>{page.path} • {page.visits} visits • {formatDuration(page.totalTimeSeconds)}</p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-lg border p-3">
+                                                    <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Session Journey</h4>
+                                                    <div className="max-h-48 overflow-y-auto space-y-2">
+                                                        {selectedSessions.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No sessions found</p> : selectedSessions.slice(0, 20).map((session) => (
+                                                            <div key={session.sessionId} className={`rounded-md border px-2.5 py-2 ${isDark ? "border-[#1a3050]" : "border-gray-200"}`}>
+                                                                <p className={`text-xs font-semibold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{session.sessionId}</p>
+                                                                <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{`${session.entryPath || "-"} to ${session.exitPath || "-"} - ${formatDuration(session.durationSeconds || 0)}`}</p>
+                                                                <p className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>{`${session.location?.city || "Unknown"}, ${session.location?.country || "Unknown"} - ${session.device?.deviceType || "unknown"} / ${session.device?.browser || "Unknown"} / ${session.device?.os || "Unknown"}`}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-lg border p-3">
+                                                    <h4 className={`mb-2 text-xs font-bold uppercase ${isDark ? "text-gray-400" : "text-gray-600"}`}>Latest Actions</h4>
+                                                    <div className="max-h-56 overflow-y-auto space-y-1">
+                                                        {selectedActions.length === 0 ? <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>No action logs</p> : selectedActions.slice(0, 80).map((item, index) => (
+                                                            <p key={`${item.eventType}-${index}`} className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>{item.timestamp ? new Date(item.timestamp).toLocaleString() : "-"} • {item.eventType} • {item.action || "-"} • {item.page || item.path || "-"}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                );
+            }
 
             case "discount-codes":
                 return (
@@ -3415,7 +4130,6 @@ const AdminDashboard = () => {
         const membershipVerification = user?.writerProfile?.membershipVerification || {};
         const wgaVerification = membershipVerification?.wga || {};
         const swaVerification = membershipVerification?.swa || {};
-        const investorLinks = user?.industryProfile?.socialLinks || {};
         const mandates = user?.industryProfile?.mandates || {};
         const notableCreditAttachments = Array.isArray(user?.industryProfile?.notableCreditAttachments)
             ? user.industryProfile.notableCreditAttachments
@@ -3517,15 +4231,7 @@ const AdminDashboard = () => {
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
             { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
             { label: "Investment Range", value: user?.industryProfile?.investmentRange },
-            { label: "Previous Credits", value: user?.industryProfile?.previousCredits },
-            { label: "Other URL", value: user?.industryProfile?.otherUrl },
-            { label: "LinkedIn", value: user?.industryProfile?.linkedInUrl },
-            { label: "IMDb", value: user?.industryProfile?.imdbUrl },
-            { label: "Website", value: investorLinks?.website },
-            { label: "Instagram", value: investorLinks?.instagram },
-            { label: "Twitter", value: investorLinks?.twitter },
-            { label: "YouTube", value: investorLinks?.youtube },
-            { label: "Facebook", value: investorLinks?.facebook },
+            { label: "Previous Credits", value: sanitizePreviousCreditsDisplay(user?.industryProfile?.previousCredits) },
             { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
             { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
             { label: "Mandates Exclude Genres", value: Array.isArray(mandates?.excludeGenres) ? mandates.excludeGenres.join(", ") : "" },

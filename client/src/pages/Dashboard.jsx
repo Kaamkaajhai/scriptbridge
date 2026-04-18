@@ -123,7 +123,12 @@ const CreatorDashboard = ({ user, dark }) => {
     { label: "Avg Score", value: stats.avgScore ?? "N/A" },
 
   ] : [];
-  const profileEditPath = user?._id ? `/profile/${user._id}` : "/profile";
+  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
+  const profileEditPath = currentWriterUsername
+    ? `/profile/${currentWriterUsername}`
+    : user?._id
+      ? `/profile/${user._id}`
+      : "/profile";
 
   return (
     <div className="bg-white min-h-full relative max-[640px]:-mx-4 max-[640px]:-mt-4">

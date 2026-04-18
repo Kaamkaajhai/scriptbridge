@@ -1,7 +1,7 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
 import {
-  uploadScript, getScripts, getScriptById, unlockScript,
+  uploadScript, getScripts, getScriptById, getScriptByPath, getPublicScriptById, unlockScript,
   holdScript, releaseHold, getMyHolds, addRoles,
   getFeaturedScripts, getTopScripts, searchScriptsReader,
   getLatestScripts, recordRead, toggleFavorite, getCategories,
@@ -92,6 +92,8 @@ router.get("/reader-search", protect, searchScriptsReader);
 router.get("/latest", protect, getLatestScripts);
 router.get("/categories", protect, getCategories);
 router.get("/investor-home", protect, getInvestorHomeFeed);
+router.get("/public/:id", getPublicScriptById);
+router.get("/path/:projectHeading/:writerUsername", protect, getScriptByPath);
 // Purchase request routes (must be before /:id)
 router.post("/purchase-request", protect, requestScriptPurchase);
 router.get("/purchase-requests/mine", protect, getMyPurchaseRequests);

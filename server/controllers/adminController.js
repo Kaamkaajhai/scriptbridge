@@ -16,6 +16,7 @@ import {
     sendInvestorApprovalEmail,
     sendInvestorRejectionEmail,
     sendWriterMembershipDecisionEmail,
+    sendAdminCreditsGrantedEmail,
 } from "../utils/emailService.js";
 
 const buildChatId = (idA, idB) => {
@@ -45,6 +46,22 @@ const maskAccountNumber = (accountNumber = "") => {
 };
 
 const normalizeString = (value) => (typeof value === "string" ? value.trim() : "");
+
+const buildArchivedUserProfileSnapshot = (userDoc) => {
+    const source = typeof userDoc?.toObject === "function"
+        ? userDoc.toObject({ depopulate: false })
+        : { ...(userDoc || {}) };
+
+    delete source.password;
+    delete source.emailVerificationToken;
+    delete source.emailVerificationExpires;
+    delete source.emailVerificationResendAvailableAt;
+    delete source.resetPasswordToken;
+    delete source.resetPasswordExpires;
+    delete source.pendingEmail;
+
+    return source;
+};
 
 const sanitizeInlineFileName = (fileName = "attachment.pdf") => {
     const normalized = String(fileName || "attachment.pdf")
@@ -127,16 +144,9 @@ const shouldQueueSpotlightAiTrailer = (script) => {
 };
 
 const getAdminTrailerRequestFilter = () => ({
+    isDeleted: { $nin: [true, "true", 1] },
     "services.aiTrailer": true,
-    $or: [
-        { trailerStatus: { $in: ["requested", "generating"] } },
-        {
-            trailerUrl: { $in: [null, ""] },
-            trailerSource: "uploaded",
-            uploadedTrailerUrl: { $exists: true, $nin: [null, ""] },
-            "trailerWriterFeedback.note": { $ne: "Trailer uploaded by admin" },
-        },
-    ],
+    trailerStatus: { $in: ["requested", "generating"] },
 });
 
 const getSettledPurchaseQuery = (extra = {}) => ({
@@ -264,15 +274,70 @@ export const uploadAdminTrailerFile = (req, res, next) => {
 // ─── Dashboard Stats ───
 export const getStats = async (req, res) => {
     try {
-        const [totalUsers, totalScripts, totalInvestors, totalWriters, totalReaders, pendingApprovals, totalTransactions] = await Promise.all([
+        const [
+            totalUsers,
+            totalScripts,
+            publishedScripts,
+            deletedScripts,
+            draftScripts,
+            rejectedScripts,
+            soldScripts,
+            totalInvestors,
+            totalWriters,
+            totalReaders,
+            pendingApprovals,
+            pendingTrailerRequests,
+            aiUsageScripts,
+            evaluationScripts,
+            pendingInvestors,
+            pendingMembershipReviews,
+            pendingBankReviews,
+            lockedBankUsers,
+            queries,
+            deletedAccounts,
+            deletedFilmProfessionals,
+            deletedWriters,
+            totalTransactions,
+        ] = await Promise.all([
             User.countDocuments({ role: { $ne: "admin" } }),
             Script.countDocuments(),
+            Script.countDocuments({ status: "published", isDeleted: { $ne: true } }),
+            Script.countDocuments({ isDeleted: true }),
+            Script.countDocuments({ status: "draft", isDeleted: { $ne: true } }),
+            Script.countDocuments({ status: "rejected", isDeleted: { $ne: true } }),
+            Script.countDocuments({ isSold: true, isDeleted: { $ne: true } }),
             User.countDocuments({ role: "investor" }),
             User.countDocuments({ role: { $in: ["writer", "creator"] } }),
             User.countDocuments({ role: "reader" }),
             Script.countDocuments({ status: "pending_approval" }),
+            Script.countDocuments(getAdminTrailerRequestFilter()),
+            Script.countDocuments({
+                $or: [
+                    { "services.evaluation": true },
+                    { "services.aiTrailer": true },
+                    { "scriptScore.overall": { $exists: true, $ne: null } },
+                ],
+            }),
+            Script.countDocuments({ "services.evaluation": true }),
+            User.countDocuments({ role: "investor", approvalStatus: "pending" }),
+            User.countDocuments({
+                role: { $in: ["writer", "creator"] },
+                $or: [
+                    { "writerProfile.membershipVerification.wga.status": "pending" },
+                    { "writerProfile.membershipVerification.swa.status": "pending" },
+                ],
+            }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsReview.status": "pending" }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, "bankDetailsSecurity.isLocked": true }),
+            ContactSubmission.countDocuments(),
+            User.countDocuments({ role: { $ne: "admin" }, isDeactivated: true }),
+            User.countDocuments({ role: "investor", isDeactivated: true }),
+            User.countDocuments({ role: { $in: ["writer", "creator"] }, isDeactivated: true }),
             Transaction.countDocuments({ status: "completed" }),
         ]);
+
+        const bankReviewAlerts = pendingBankReviews + lockedBankUsers;
+        const openAdminActions = pendingApprovals + pendingTrailerRequests + pendingInvestors + pendingMembershipReviews + bankReviewAlerts + queries;
 
         const revenueResult = await Transaction.aggregate([
             { $match: { status: "completed", type: { $in: ["credit", "payment"] } } },
@@ -283,10 +348,28 @@ export const getStats = async (req, res) => {
         res.json({
             totalUsers,
             totalScripts,
+            publishedScripts,
+            deletedScripts,
+            draftScripts,
+            rejectedScripts,
+            soldScripts,
             totalInvestors,
             totalWriters,
             totalReaders,
             pendingApprovals,
+            pendingTrailerRequests,
+            aiUsageScripts,
+            evaluationScripts,
+            pendingInvestors,
+            pendingMembershipReviews,
+            pendingBankReviews,
+            lockedBankUsers,
+            bankReviewAlerts,
+            queries,
+            deletedAccounts,
+            deletedFilmProfessionals,
+            deletedWriters,
+            openAdminActions,
             totalTransactions,
             totalRevenue,
         });
@@ -301,7 +384,7 @@ export const getUsers = async (req, res) => {
         const { role, search, page = 1, limit = 20 } = req.query;
         const pageNumber = Math.max(Number(page) || 1, 1);
         const pageLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-        const filter = { role: { $ne: "admin" } };
+        const filter = { role: { $ne: "admin" }, isDeactivated: { $ne: true } };
         if (role) filter.role = role;
 
         const searchFilter = buildAdminUserSearchQuery(search);
@@ -412,16 +495,73 @@ const buildAdminManagedUserSummary = (user) => ({
     accountDeletionOriginalEmail: String(user?.accountDeletion?.originalEmail || ""),
 });
 
+const buildDeletedUserProfileSnapshotForAdmin = (user) => {
+    const archivedProfile = user?.accountDeletion?.archivedProfile;
+    const snapshot = archivedProfile && typeof archivedProfile === "object"
+        ? { ...archivedProfile }
+        : {};
+
+    const originalName = String(user?.accountDeletion?.originalName || "").trim();
+    const originalEmail = String(user?.accountDeletion?.originalEmail || "").trim();
+
+    snapshot._id = snapshot._id || user?._id;
+    snapshot.sid = snapshot.sid || user?.sid || "";
+    snapshot.role = snapshot.role || user?.role || "";
+    snapshot.name = snapshot.name || originalName || user?.name || "";
+    snapshot.email = snapshot.email || originalEmail || user?.email || "";
+    snapshot.phone = snapshot.phone || user?.phone || "";
+    snapshot.isFrozen = typeof snapshot.isFrozen === "boolean" ? snapshot.isFrozen : Boolean(user?.isFrozen);
+    snapshot.frozenAt = snapshot.frozenAt || user?.frozenAt;
+    snapshot.frozenReason = snapshot.frozenReason || user?.frozenReason || "";
+    snapshot.isDeactivated = true;
+    snapshot.deactivatedAt = snapshot.deactivatedAt || user?.deactivatedAt;
+    snapshot.deactivatedBy = snapshot.deactivatedBy || user?.deactivatedBy;
+    snapshot.createdAt = snapshot.createdAt || user?.createdAt;
+    snapshot.updatedAt = snapshot.updatedAt || user?.updatedAt;
+    snapshot.credits = snapshot.credits || user?.credits;
+    snapshot.writerProfile = snapshot.writerProfile || user?.writerProfile;
+    snapshot.industryProfile = snapshot.industryProfile || user?.industryProfile;
+    snapshot.preferences = snapshot.preferences || user?.preferences;
+    snapshot.address = snapshot.address || user?.address;
+    snapshot.approvalStatus = snapshot.approvalStatus || user?.approvalStatus;
+    snapshot.approvalNote = snapshot.approvalNote || user?.approvalNote;
+    snapshot.emailVerified = typeof snapshot.emailVerified === "boolean" ? snapshot.emailVerified : user?.emailVerified;
+    snapshot.favoriteScripts = snapshot.favoriteScripts || user?.favoriteScripts || [];
+    snapshot.scriptsRead = snapshot.scriptsRead || user?.scriptsRead || [];
+
+    snapshot.accountDeletion = {
+        ...(snapshot.accountDeletion || {}),
+        reason: snapshot.accountDeletion?.reason || user?.accountDeletion?.reason || "",
+        source: snapshot.accountDeletion?.source || user?.accountDeletion?.source || "user",
+        requestedAt: snapshot.accountDeletion?.requestedAt || user?.accountDeletion?.requestedAt || user?.deactivatedAt,
+        originalName: snapshot.accountDeletion?.originalName || originalName,
+        originalEmail: snapshot.accountDeletion?.originalEmail || originalEmail,
+        archivedAt: snapshot.accountDeletion?.archivedAt || user?.accountDeletion?.archivedAt,
+        archivedBy: snapshot.accountDeletion?.archivedBy || user?.accountDeletion?.archivedBy,
+    };
+
+    return snapshot;
+};
+
 export const getDeletedAccountRequests = async (req, res) => {
     try {
-        const { page = 1, limit = 20, search = "" } = req.query;
+        const { page = 1, limit = 20, search = "", role = "" } = req.query;
         const pageNumber = Math.max(Number(page) || 1, 1);
         const pageLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+        const normalizedRole = String(role || "").trim().toLowerCase();
 
         const filter = {
             role: { $ne: "admin" },
             isDeactivated: true,
         };
+
+        if (normalizedRole === "investor") {
+            filter.role = "investor";
+        } else if (normalizedRole === "writer") {
+            filter.role = { $in: ["writer", "creator"] };
+        } else if (normalizedRole === "reader") {
+            filter.role = "reader";
+        }
 
         const trimmedSearch = String(search || "").trim();
         if (trimmedSearch) {
@@ -437,7 +577,7 @@ export const getDeletedAccountRequests = async (req, res) => {
 
         const total = await User.countDocuments(filter);
         const users = await User.find(filter)
-            .select("sid name email role deactivatedAt deactivatedBy accountDeletion isFrozen frozenAt frozenReason")
+            .select("sid name email phone role deactivatedAt deactivatedBy accountDeletion isFrozen frozenAt frozenReason createdAt updatedAt credits writerProfile industryProfile preferences address approvalStatus approvalNote emailVerified favoriteScripts scriptsRead")
             .sort({ deactivatedAt: -1, updatedAt: -1 })
             .skip((pageNumber - 1) * pageLimit)
             .limit(pageLimit)
@@ -455,6 +595,7 @@ export const getDeletedAccountRequests = async (req, res) => {
             deactivatedAt: user.deactivatedAt,
             frozenReason: user.frozenReason || "",
             isFrozen: Boolean(user.isFrozen),
+            profileSnapshot: buildDeletedUserProfileSnapshotForAdmin(user),
         }));
 
         res.json({
@@ -473,6 +614,10 @@ export const freezeUserAccount = async (req, res) => {
         const { reason } = req.body || {};
         const targetUser = await User.findById(req.params.id);
         if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        if (!String(targetUser.email || "").trim()) {
+            return res.status(400).json({ message: "User email is missing. Cannot send credit notification email." });
+        }
 
         if (targetUser.role === "admin") {
             return res.status(403).json({ message: "Admin accounts cannot be frozen" });
@@ -599,11 +744,34 @@ export const grantCreditsToUser = async (req, res) => {
             message: `Admin added ${amount} credits to your account.`,
         }).catch(() => null);
 
+        let emailResult = await sendAdminCreditsGrantedEmail(targetUser.email, targetUser.name, {
+            amount,
+            reason,
+            balanceAfter,
+            adminName: req.user?.name || "Admin",
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+        });
+
+        if (!emailResult?.success) {
+            // One lightweight retry can recover from transient SMTP transport hiccups.
+            emailResult = await sendAdminCreditsGrantedEmail(targetUser.email, targetUser.name, {
+                amount,
+                reason,
+                balanceAfter,
+                adminName: req.user?.name || "Admin",
+                clientBaseUrl: resolveClientOriginFromRequest(req),
+            });
+        }
+
         res.json({
-            message: "Credits granted successfully",
+            message: emailResult?.success
+                ? "Credits granted successfully and email notification sent"
+                : "Credits granted successfully, but email notification could not be sent",
             granted: amount,
             balanceBefore,
             balanceAfter,
+            emailSent: Boolean(emailResult?.success),
+            emailError: emailResult?.success ? undefined : (emailResult?.error || "Email send failed"),
             user: buildAdminManagedUserSummary(targetUser),
         });
     } catch (error) {
@@ -635,6 +803,24 @@ export const deleteUserAccountAsAdmin = async (req, res) => {
         const now = new Date();
         const originalName = String(targetUser.name || "").trim();
         const originalEmail = String(targetUser.email || "").trim();
+        const archivedProfile = buildArchivedUserProfileSnapshot(targetUser);
+
+        archivedProfile.isDeactivated = true;
+        archivedProfile.deactivatedAt = now;
+        archivedProfile.deactivatedBy = req.user._id;
+        archivedProfile.isFrozen = true;
+        archivedProfile.frozenAt = now;
+        archivedProfile.frozenReason = "Account deleted by admin";
+        archivedProfile.frozenBy = req.user._id;
+        archivedProfile.accountDeletion = {
+            reason: reason || "Account deleted by admin",
+            requestedAt: now,
+            source: "admin",
+            originalName,
+            originalEmail,
+            archivedAt: now,
+            archivedBy: req.user._id,
+        };
 
         targetUser.accountDeletion = {
             reason: reason || "Account deleted by admin",
@@ -642,6 +828,9 @@ export const deleteUserAccountAsAdmin = async (req, res) => {
             source: "admin",
             originalName,
             originalEmail,
+            archivedAt: now,
+            archivedBy: req.user._id,
+            archivedProfile,
         };
         targetUser.isDeactivated = true;
         targetUser.deactivatedAt = now;
@@ -703,13 +892,16 @@ export const deleteUserAccountAsAdmin = async (req, res) => {
 export const getScripts = async (req, res) => {
     try {
         const { search, status, page = 1, limit = 20 } = req.query;
-        const filter = { status: { $ne: "draft" } };
-        if (status === "deleted") {
-            delete filter.status;
+        const normalizedStatus = String(status || "").trim();
+        const filter = {};
+
+        if (normalizedStatus.toLowerCase() === "deleted") {
             filter.isDeleted = true;
-        } else if (status) {
-            filter.status = status;
+        } else {
+            filter.isDeleted = { $ne: true };
+            filter.status = normalizedStatus || { $ne: "draft" };
         }
+
         if (search) {
             filter.$or = [
                 { sid: { $regex: search, $options: "i" } },
@@ -764,7 +956,11 @@ export const getAIUsageScripts = async (req, res) => {
 export const getEvaluationPurchases = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
-        const filter = { "services.evaluation": true };
+        const filter = {
+            "services.evaluation": true,
+            isDeleted: { $nin: [true, "true", 1] },
+            status: { $ne: "rejected" },
+        };
         const total = await Script.countDocuments(filter);
         const scripts = await Script.find(filter)
             .populate("creator", "name email role profileImage")

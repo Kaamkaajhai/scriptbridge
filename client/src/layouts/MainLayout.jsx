@@ -7,6 +7,7 @@ import BuyCreditsModal from "../components/BuyCreditsModal";
 import BrandLogo from "../components/BrandLogo";
 import ConfirmDialog from "../components/ConfirmDialog";
 import api from "../services/api";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
@@ -37,9 +38,10 @@ const MainLayout = ({ children }) => {
   const showCreditSystem = Boolean(user) && user?.role !== "investor" && user?.role !== "reader";
   const topBarHomePath = user?.role === "reader" ? "/reader" : "/dashboard";
   const topBarHomeLabel = user?.role === "reader" ? "Reader Home" : "Dashboard";
+  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
   const topBarProfilePath = user?.role === "reader"
     ? `/reader/profile/${user?._id || ""}`
-    : `/profile/${user?._id || ""}`;
+    : `/profile/${currentWriterUsername || user?._id || ""}`;
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -337,7 +339,8 @@ const MainLayout = ({ children }) => {
 
   const handleOpenApprovedScript = async () => {
     const notificationId = latestApprovedPurchaseNotification?._id;
-    const scriptId = latestApprovedPurchaseNotification?.script?._id;
+    const scriptRef = latestApprovedPurchaseNotification?.script || null;
+    const scriptId = scriptRef?._id;
 
     if (notificationId) {
       try {
@@ -350,8 +353,10 @@ const MainLayout = ({ children }) => {
     }
 
     dismissInvestorApprovalPopup();
-    if (scriptId) {
-      navigate(`/script/${scriptId}`);
+    if (scriptRef) {
+      navigate(getScriptCanonicalPath(scriptRef));
+    } else if (scriptId) {
+      navigate(getScriptCanonicalPath({ _id: scriptId }));
     } else {
       navigate("/purchase-requests");
     }
@@ -394,7 +399,7 @@ const MainLayout = ({ children }) => {
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
     logout();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const initials = user?.name
@@ -641,7 +646,10 @@ const MainLayout = ({ children }) => {
               placeholder="Search projects, writers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent text-white placeholder-[#6f86a7]"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="none"
+              className="app-search-input app-search-input-dark flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent text-white !text-white placeholder-[#6f86a7]"
             />
             {searchQuery && (
               <button type="button" onClick={() => setSearchQuery("")}
@@ -670,8 +678,9 @@ const MainLayout = ({ children }) => {
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>
             <button onClick={handleNotifToggle}
-              className="relative w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 text-[#9fb0c8] hover:text-white hover:bg-[#0d1a2a] hover:scale-105">
-              <svg className="w-5 h-5 max-[378px]:w-[18px] max-[378px]:h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              className="relative w-8 h-8 md:w-9 md:h-9 max-[378px]:w-[30px] max-[378px]:h-[30px] flex items-center justify-center rounded-xl transition-all duration-200 text-white hover:text-white hover:bg-[#0d1a2a] hover:scale-105"
+              style={{ color: "#ffffff" }}>
+              <svg className="w-5 h-5 max-[378px]:w-[18px] max-[378px]:h-[18px] text-white opacity-100" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
               {unreadCount > 0 && (

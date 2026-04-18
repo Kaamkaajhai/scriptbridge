@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const PLATFORM_TAX_RATE = 0.05;
 
@@ -34,6 +35,7 @@ export default function ScriptPaymentPage() {
   const [acceptCustomWriterTerms, setAcceptCustomWriterTerms] = useState(false);
   const [successInfo, setSuccessInfo] = useState(null);
   const [invoiceActionLoading, setInvoiceActionLoading] = useState(false);
+  const scriptPath = getScriptCanonicalPath(script || { _id: id });
 
   useEffect(() => {
     const fetchScript = async () => {
@@ -287,7 +289,7 @@ export default function ScriptPaymentPage() {
             <p className={t.sub}>{error || "Script not found."}</p>
             <button
               type="button"
-              onClick={() => navigate(`/script/${id}`)}
+              onClick={() => navigate(scriptPath)}
               className={`mt-5 px-4 py-2 rounded-xl text-sm font-semibold border transition ${t.btnSecondary}`}
             >
               Back to Script
@@ -303,7 +305,7 @@ export default function ScriptPaymentPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-7 sm:py-10">
         <button
           type="button"
-          onClick={() => navigate(`/script/${id}`)}
+          onClick={() => navigate(scriptPath)}
           className={`inline-flex items-center gap-2 text-sm mb-5 ${t.muted} ${isDarkMode ? "hover:text-white" : "hover:text-gray-700"}`}
         >
           <span aria-hidden="true">&#8592;</span>
@@ -465,7 +467,7 @@ export default function ScriptPaymentPage() {
 
               <button
                 type="button"
-                onClick={() => navigate(`/script/${id}`)}
+                onClick={() => navigate(scriptPath)}
                 className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition ${t.btnSecondary}`}
               >
                 Cancel
@@ -495,7 +497,7 @@ export default function ScriptPaymentPage() {
                   )}
                 <button
                   type="button"
-                  onClick={() => navigate(`/script/${id}`)}
+                  onClick={() => navigate(scriptPath)}
                   className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition ${t.btnSecondary}`}
                 >
                   View Script

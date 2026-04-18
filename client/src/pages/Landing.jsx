@@ -134,16 +134,16 @@ const ContactSection = () => {
                 onClick={() => setForm((f) => ({ ...f, reason: value }))}
                 className={`flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-left transition-all duration-200
                   ${form.reason === value
-                    ? "border-[#6366F1] bg-white text-[#111827] shadow-[0_8px_24px_rgba(79,70,229,0.12)]"
-                    : "border-[#E5E7EB] bg-white text-[#6B7280] hover:border-[#D1D5DB] hover:bg-[#F9FAFB]"
+                    ? "border-[#6366F1] bg-white text-black shadow-[0_8px_24px_rgba(79,70,229,0.12)]"
+                    : "border-[#E5E7EB] bg-white text-black hover:border-[#D1D5DB] hover:bg-[#F9FAFB]"
                   }`}
               >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                  form.reason === value ? "bg-[#6366F1] text-white" : "bg-[#F3F4F6] text-[#6B7280]"
+                  form.reason === value ? "bg-[#6366F1] text-white" : "bg-[#F3F4F6] text-black"
                 }`}>
                   <Icon className="w-4 h-4" />
                 </div>
-                <span className="font-body text-sm font-medium">{label}</span>
+                <span className="font-body text-sm font-medium text-black">{label}</span>
                 {form.reason === value && (
                   <CheckCircle className="w-4 h-4 text-[#6366F1] ml-auto shrink-0" />
                 )}
@@ -247,11 +247,12 @@ const ContactSection = () => {
                         value={form.reason}
                         onChange={handleChange}
                         required
-                        className="bg-[#F3F4F6] border-2 border-transparent rounded-xl px-4 py-3 font-body text-[#111827] text-sm focus:outline-none focus:border-[#111827] focus:bg-white transition-all appearance-none cursor-pointer"
+                        className="contact-reason-select bg-[#F3F4F6] border-2 border-transparent rounded-xl px-4 py-3 font-body text-black text-sm focus:outline-none focus:border-[#111827] focus:bg-white transition-all appearance-none cursor-pointer"
+                        style={{ color: "#000000" }}
                       >
-                        <option value="" disabled>Pick a topic…</option>
+                        <option value="" disabled style={{ color: "#000000", backgroundColor: "#ffffff" }}>Pick a topic…</option>
                         {contactReasons.map(({ value, label }) => (
-                          <option key={value} value={value}>{label}</option>
+                          <option key={value} value={value} style={{ color: "#000000", backgroundColor: "#ffffff" }}>{label}</option>
                         ))}
                       </select>
                     </div>

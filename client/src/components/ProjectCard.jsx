@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import SocialShareButton from "./SocialShareButton";
@@ -83,9 +84,9 @@ const ProjectCard = ({ project, userName }) => {
   const timelineLabel = isPublished ? "Published" : "Uploaded";
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const projectShare = {
-    url: project?.shareMeta?.url || (project?._id ? `${browserOrigin}/script/${project._id}` : ""),
-    title: project?.shareMeta?.title || `${project?.title || "Project"} | ScriptBridge`,
-    text: project?.shareMeta?.text || (project?.logline || project?.synopsis || "Check out this project on ScriptBridge."),
+    url: project?.shareMeta?.url || (project?._id ? `${browserOrigin}/share/project/${project._id}` : ""),
+    title: project?.shareMeta?.title || `${project?.title || "Project"} | Ckript`,
+    text: project?.shareMeta?.text || (project?.logline || project?.synopsis || "Check out this project on Ckript."),
   };
 
   useEffect(() => {
@@ -159,7 +160,7 @@ const ProjectCard = ({ project, userName }) => {
         .catch(() => null);
     }
 
-    navigate(`/script/${project._id}`);
+    navigate(getScriptCanonicalPath(project));
   };
 
   return (

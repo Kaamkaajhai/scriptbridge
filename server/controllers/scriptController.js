@@ -218,6 +218,64 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
 const hasUserInIdArray = (arr = [], userId) =>
   Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
 
+const safeDecodePathSegment = (value = "") => {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch (_error) {
+    return String(value || "");
+  }
+};
+
+const normalizeProjectHeadingSegment = (value = "") =>
+  safeDecodePathSegment(value)
+    .trim()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizeWriterUsernameSegment = (value = "") =>
+  safeDecodePathSegment(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]+/g, "");
+
+const resolveScriptIdByPath = async ({ projectHeading, writerUsername }) => {
+  const normalizedHeading = normalizeProjectHeadingSegment(projectHeading);
+  const normalizedWriterUsername = normalizeWriterUsernameSegment(writerUsername);
+
+  if (!normalizedHeading || !normalizedWriterUsername) {
+    return "";
+  }
+
+  const creators = await User.find({
+    $or: [
+      { "writerProfile.username": normalizedWriterUsername },
+      { username: normalizedWriterUsername },
+    ],
+  }).select("_id").lean();
+
+  if (!creators.length) {
+    return "";
+  }
+
+  const scripts = await Script.find({
+    creator: { $in: creators.map((creator) => creator._id) },
+  })
+    .select("_id title createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const matchedScript = scripts.find(
+    (scriptDoc) => normalizeProjectHeadingSegment(scriptDoc?.title) === normalizedHeading
+  );
+
+  return matchedScript?._id ? String(matchedScript._id) : "";
+};
+
 const resolveClientOriginFromRequest = (req) => {
   const originHeader = String(req.get("origin") || "").trim();
   if (originHeader) return originHeader;
@@ -1240,7 +1298,7 @@ export const getScriptById = async (req, res) => {
     await expireApprovedUnpaidRequests({ scriptId: req.params.id });
 
     const script = await Script.findById(req.params.id)
-      .populate("creator", "name profileImage role bio followers")
+      .populate("creator", "name profileImage role bio followers username writerProfile.username")
       .populate("heldBy", "name role");
 
     if (!script) return res.status(404).json({ message: "Script not found" });
@@ -1363,6 +1421,7 @@ export const getScriptById = async (req, res) => {
     // Check if user has unlocked this script
     const isUnlocked = isBuyer || hasUserInIdArray(script.unlockedBy, req.user._id) || hasUserInIdArray(script.purchasedBy, req.user._id);
     const isCreator = script.creator._id.toString() === req.user._id.toString();
+    const canViewFullScript = isUnlocked || isCreator || isAdmin;
     const userRole = req.user.role;
     const isWriter = userRole === 'writer' || userRole === 'creator';
     const canPurchase = ['investor', 'producer', 'director', 'industry', 'professional'].includes(userRole);
@@ -1371,9 +1430,8 @@ export const getScriptById = async (req, res) => {
     const Audition = (await import("../models/Audition.js")).default;
     const auditionCount = await Audition.countDocuments({ script: script._id });
 
-    // Synopsis visibility: only show full synopsis if creator or unlocked by a paying user
-    const synopsisTeaser = script.synopsis ? script.synopsis.substring(0, 120) + (script.synopsis.length > 120 ? '...' : '') : null;
-    const isSynopsisLocked = !isCreator && !isUnlocked;
+    // Keep synopsis fully visible; lock applies to full script content, not synopsis text.
+    const isSynopsisLocked = !canViewFullScript;
 
     // Check if the viewer has a pending purchase request for this script
     let myPendingRequest = null;
@@ -1484,6 +1542,8 @@ export const getScriptById = async (req, res) => {
       ...script.toObject(),
       isUnlocked,
       isCreator,
+      isAdmin,
+      canViewFullScript,
       isSynopsisLocked,
       canPurchase,
       isWriter: isWriter && !isCreator,
@@ -1492,18 +1552,150 @@ export const getScriptById = async (req, res) => {
       pendingRequestsCount,
       viewBreakdown,
       reviewBreakdown,
-      // Hide full synopsis unless unlocked or creator
-      synopsis: (isUnlocked || isCreator) ? script.synopsis : synopsisTeaser,
-      // Hide full content unless unlocked or creator
-      fullContent: (isUnlocked || isCreator) ? script.fullContent : null,
-      // Hide script text unless unlocked or creator
-      textContent: (isUnlocked || isCreator) ? script.textContent : null,
+      // Always return full synopsis. Only script body/content remains gated.
+      synopsis: script.synopsis,
+      // Hide full content unless unlocked, creator, or admin.
+      fullContent: canViewFullScript ? script.fullContent : null,
+      // Hide script text unless unlocked, creator, or admin.
+      textContent: canViewFullScript ? script.textContent : null,
       shareMeta: buildScriptShareMeta(req, script),
     };
 
     res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const getScriptByPath = async (req, res) => {
+  try {
+    const scriptId = await resolveScriptIdByPath({
+      projectHeading: req.params.projectHeading,
+      writerUsername: req.params.writerUsername,
+    });
+
+    if (!scriptId) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    req.params.id = scriptId;
+    return getScriptById(req, res);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to resolve script path" });
+  }
+};
+
+export const getPublicScriptById = async (req, res) => {
+  try {
+    const scriptId = String(req.params.id || "").trim();
+    if (!scriptId) {
+      return res.status(400).json({ message: "Invalid script id" });
+    }
+
+    const script = await Script.findById(scriptId)
+      .populate("creator", "name profileImage role bio isPrivate isDeactivated writerProfile.username")
+      .lean();
+
+    if (!script) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    const creator = script.creator || {};
+    const isCreatorPrivate = Boolean(creator.isPrivate);
+    const isCreatorDeactivated = Boolean(creator.isDeactivated);
+
+    const isPubliclyViewable =
+      script.status === "published" &&
+      !script.isDeleted &&
+      !script.isSold &&
+      !script.purchaseRequestLocked &&
+      !isCreatorDeactivated &&
+      !isCreatorPrivate;
+
+    if (!isPubliclyViewable) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    const synopsis = String(script.synopsis || "");
+    const synopsisTeaser = synopsis
+      ? `${synopsis.slice(0, 320)}${synopsis.length > 320 ? "..." : ""}`
+      : "";
+
+    const publicScript = {
+      _id: script._id,
+      sid: script.sid,
+      title: script.title,
+      companyName: script.companyName || "",
+      logline: script.logline || "",
+      description: script.description || "",
+      synopsis: synopsisTeaser,
+      genre: script.genre || "",
+      primaryGenre: script.primaryGenre || "",
+      subGenres: Array.isArray(script.subGenres) ? script.subGenres : [],
+      format: script.format || "",
+      formatOther: script.formatOther || "",
+      price: Number(script.price || 0),
+      pageCount: Number(script.pageCount || 0),
+      budget: script.budget || "",
+      views: Number(script.views || 0),
+      tags: Array.isArray(script.tags) ? script.tags.slice(0, 20) : [],
+      classification: {
+        primaryGenre: script.classification?.primaryGenre || "",
+        secondaryGenre: script.classification?.secondaryGenre || "",
+        tones: Array.isArray(script.classification?.tones) ? script.classification.tones.slice(0, 8) : [],
+        themes: Array.isArray(script.classification?.themes) ? script.classification.themes.slice(0, 8) : [],
+        settings: Array.isArray(script.classification?.settings) ? script.classification.settings.slice(0, 8) : [],
+      },
+      contentIndicators: {
+        bechdelTest: Boolean(script.contentIndicators?.bechdelTest),
+        basedOnTrueStory: Boolean(script.contentIndicators?.basedOnTrueStory),
+        adaptation: Boolean(script.contentIndicators?.adaptation),
+        adaptationSource: script.contentIndicators?.adaptationSource || "",
+      },
+      evaluation: script.scriptScore?.overall
+        ? {
+            overall: Number(script.scriptScore.overall || 0),
+            plot: Number(script.scriptScore.plot || 0),
+            characters: Number(script.scriptScore.characters || 0),
+            dialogue: Number(script.scriptScore.dialogue || 0),
+            pacing: Number(script.scriptScore.pacing || 0),
+            marketability: Number(script.scriptScore.marketability || 0),
+            feedback: script.scriptScore.feedback || "",
+          }
+        : null,
+      roles: Array.isArray(script.roles)
+        ? script.roles.slice(0, 30).map((role) => ({
+            _id: role?._id,
+            characterName: role?.characterName || "",
+            description: role?.description || "",
+            type: role?.type || "",
+            ageRange: {
+              min: Number(role?.ageRange?.min || 0) || undefined,
+              max: Number(role?.ageRange?.max || 0) || undefined,
+            },
+            gender: role?.gender || "",
+          }))
+        : [],
+      coverImage: script.coverImage || "",
+      trailerUrl: script.trailerUrl || "",
+      uploadedTrailerUrl: script.uploadedTrailerUrl || "",
+      trailerSource: script.trailerSource || "none",
+      createdAt: script.createdAt,
+      publishedAt: script.publishedAt,
+      creator: {
+        _id: creator._id,
+        name: creator.name || "",
+        role: creator.role || "",
+        profileImage: creator.profileImage || "",
+        bio: creator.bio || "",
+        username: creator.writerProfile?.username || "",
+      },
+      shareMeta: buildScriptShareMeta(req, script),
+    };
+
+    return res.json(publicScript);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to fetch shared project" });
   }
 };
 

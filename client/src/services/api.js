@@ -11,13 +11,26 @@ const buildLoginRedirectUrl = () => {
   return `/login?reason=session-expired&next=${encodeURIComponent(currentPath)}`;
 };
 
-// Auth endpoints that should never receive an Authorization header
-const AUTH_ROUTES = ["/auth/login", "/auth/join", "/auth/verify-otp", "/auth/resend-otp", "/auth/validate-address", "/auth/zip-info"];
+// Endpoints that should never receive an Authorization header
+const AUTH_HEADER_EXEMPT_ROUTES = [
+  "/auth/login",
+  "/auth/join",
+  "/auth/verify-otp",
+  "/auth/resend-otp",
+  "/auth/validate-address",
+  "/auth/zip-info",
+];
+
+// Endpoints that should not trigger forced login redirect on 401.
+const NO_REDIRECT_ROUTES = [
+  ...AUTH_HEADER_EXEMPT_ROUTES,
+  "/onboarding/check-username",
+];
 
 // Attach token & check client-side expiry before every request
 api.interceptors.request.use((config) => {
   // Skip token injection for auth endpoints to prevent stale-token 401 loops
-  const isAuthRoute = AUTH_ROUTES.some((route) => config.url?.includes(route));
+  const isAuthRoute = AUTH_HEADER_EXEMPT_ROUTES.some((route) => config.url?.includes(route));
   if (isAuthRoute) return config;
 
   const stored = localStorage.getItem("user");
@@ -47,7 +60,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const requestUrl = error.config?.url || "";
-    const isAuthRoute = AUTH_ROUTES.some((route) => requestUrl.includes(route));
+    const isAuthRoute = NO_REDIRECT_ROUTES.some((route) => requestUrl.includes(route));
 
     if (error.response?.status === 401 && !isAuthRoute) {
       localStorage.removeItem("user");

@@ -16,6 +16,9 @@ import {
 
 const normalizeString = (value) =>
   value === undefined || value === null ? "" : String(value).trim();
+const LOCALHOST_URL_REGEX = /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?[^\s]*/gi;
+const sanitizePreviousCredits = (value) =>
+  normalizeString(value).replace(LOCALHOST_URL_REGEX, "").replace(/\s{2,}/g, " ").trim();
 
 const normalizeOptionalDate = (value) => {
   if (!value) return undefined;
@@ -25,6 +28,7 @@ const normalizeOptionalDate = (value) => {
 
 const WRITER_REPRESENTATION_STATUSES = ["unrepresented", "manager", "agent", "manager_and_agent"];
 const WRITER_ROLE_SET = new Set(["writer", "creator"]);
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 const MEMBERSHIP_UPLOAD_FILE_SIZE = 10 * 1024 * 1024;
 const MEMBERSHIP_FILE_MIME_TYPES = new Set([
   "application/pdf",
@@ -73,7 +77,7 @@ const normalizeFormatArray = (formats = []) => {
 
 // @desc    Check writer username availability
 // @route   GET /api/onboarding/check-username?username=foo
-// @access  Private
+// @access  Public (optionally auth-aware)
 export const checkUsernameAvailability = async (req, res) => {
   try {
     const normalizedUsername = normalizeString(req.query?.username).toLowerCase();
@@ -85,17 +89,23 @@ export const checkUsernameAvailability = async (req, res) => {
       });
     }
 
-    if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
       return res.status(400).json({
         success: false,
         message: "Username must be 3-30 characters and contain only lowercase letters, numbers, or underscores",
       });
     }
 
-    const existingUserWithUsername = await User.exists({
-      _id: { $ne: req.user._id },
+    const usernameLookupQuery = {
       "writerProfile.username": normalizedUsername,
-    });
+    };
+
+    // When authenticated, ignore current user's own username to avoid false "taken".
+    if (req.user?._id) {
+      usernameLookupQuery._id = { $ne: req.user._id };
+    }
+
+    const existingUserWithUsername = await User.exists(usernameLookupQuery);
 
     return res.json({
       success: true,
@@ -812,6 +822,7 @@ export const verifyEmail = async (req, res) => {
 export const updateProfessionalIdentity = async (req, res) => {
   try {
     const { 
+      username,
       company, 
       jobTitle, 
       imdbUrl, 
@@ -834,13 +845,45 @@ export const updateProfessionalIdentity = async (req, res) => {
         message: "This endpoint is for industry professionals only" 
       });
     }
+
+    const normalizedUsername = normalizeString(username).toLowerCase();
+    if (!normalizedUsername) {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required",
+      });
+    }
+
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      return res.status(400).json({
+        success: false,
+        message: "Username must be 3-30 characters and contain only lowercase letters, numbers, or underscores",
+      });
+    }
+
+    const existingUserWithUsername = await User.exists({
+      _id: { $ne: user._id },
+      "writerProfile.username": normalizedUsername,
+    });
+
+    if (existingUserWithUsername) {
+      return res.status(409).json({
+        success: false,
+        message: "Username is already taken",
+      });
+    }
+
+    if (!user.writerProfile) user.writerProfile = {};
+    user.writerProfile.username = normalizedUsername;
     
     // Update industry profile
     user.industryProfile.company = company || user.industryProfile.company;
     user.industryProfile.jobTitle = jobTitle || user.industryProfile.jobTitle;
     user.industryProfile.imdbUrl = imdbUrl || user.industryProfile.imdbUrl;
     user.industryProfile.linkedInUrl = linkedInUrl || user.industryProfile.linkedInUrl;
-    user.industryProfile.previousCredits = previousCredits || user.industryProfile.previousCredits;
+    if (previousCredits !== undefined) {
+      user.industryProfile.previousCredits = sanitizePreviousCredits(previousCredits);
+    }
     
     // Update onboarding step
     if (user.industryProfile.onboardingStep < 2) {
@@ -861,6 +904,9 @@ export const updateProfessionalIdentity = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating professional identity:", error);
+    if (error?.code === 11000 && error?.keyPattern?.["writerProfile.username"]) {
+      return res.status(409).json({ success: false, message: "Username is already taken" });
+    }
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

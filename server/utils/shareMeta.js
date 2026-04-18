@@ -16,43 +16,44 @@ const resolveClientBaseUrl = (req) => {
   return "http://localhost:5173";
 };
 
-const getProfilePathByRole = (role, id) => {
+const getProfilePathByRole = (role, id, username = "") => {
   const normalizedRole = String(role || "").toLowerCase();
+  const normalizedUsername = String(username || "").trim().toLowerCase();
   const profileId = String(id || "").trim();
-  if (!profileId) return "/profile";
+  const profileKey = normalizedUsername || profileId;
+  if (!profileKey) return "/";
 
-  if (normalizedRole === "reader") {
-    return `/reader/profile/${profileId}`;
-  }
+  if (normalizedRole === "reader") return `/share/profile/${encodeURIComponent(profileKey)}`;
 
-  return `/profile/${profileId}`;
+  return `/share/profile/${encodeURIComponent(profileKey)}`;
 };
 
 export const buildUserShareMeta = (req, user = {}) => {
   const baseUrl = resolveClientBaseUrl(req);
-  const path = getProfilePathByRole(user.role, user._id);
+  const username = user?.writerProfile?.username || user?.username || "";
+  const path = getProfilePathByRole(user.role, user._id, username);
   const url = `${baseUrl}${path}`;
-  const name = user.name || "ScriptBridge User";
+  const name = user.name || "Ckript User";
   const roleLabel = String(user.role || "member").toLowerCase();
 
   return {
     url,
-    title: `${name} | ScriptBridge`,
-    text: `Check out ${name}'s ${roleLabel} profile on ScriptBridge.`,
+    title: `${name} | Ckript`,
+    text: `Check out ${name}'s ${roleLabel} profile on Ckript.`,
   };
 };
 
 export const buildScriptShareMeta = (req, script = {}) => {
   const baseUrl = resolveClientBaseUrl(req);
   const scriptId = String(script._id || "").trim();
-  const url = `${baseUrl}${scriptId ? `/script/${scriptId}` : "/"}`;
+  const url = `${baseUrl}${scriptId ? `/share/project/${scriptId}` : "/"}`;
   const title = script.title || "Project";
   const genre = script.primaryGenre || script.genre;
-  const logline = script.logline || script.synopsis || script.description || "Explore this project on ScriptBridge.";
+  const logline = script.logline || script.synopsis || script.description || "Explore this project on Ckript.";
 
   return {
     url,
-    title: `${title} | ScriptBridge`,
+    title: `${title} | Ckript`,
     text: genre ? `${title} (${genre}) - ${logline}` : `${title} - ${logline}`,
   };
 };

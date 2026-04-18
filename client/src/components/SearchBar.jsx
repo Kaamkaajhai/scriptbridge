@@ -51,7 +51,10 @@ const SearchBar = ({ className = "", variant = "hero" }) => {
             value={query}
             onChange={(e) => handleChange(e.target.value)}
             placeholder="Search scripts by title, genre, or keyword..."
-            className={`w-full pl-11 pr-4 py-3.5 border rounded-xl placeholder-gray-300 outline-none transition-all text-sm font-normal shadow-sm ${dark ? "bg-[#101e30] border-[#1d3350] text-gray-200 focus:border-[#244060] focus:ring-2 focus:ring-white/5" : "bg-white border-gray-200 text-gray-700 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"}`}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="none"
+            className={`app-search-input ${dark ? "app-search-input-dark" : ""} w-full pl-11 pr-4 py-3.5 border rounded-xl placeholder-gray-300 outline-none transition-all text-sm font-normal shadow-sm ${dark ? "bg-[#101e30] border-[#1d3350] text-gray-200 !text-white placeholder:!text-slate-400 focus:border-[#244060] focus:ring-2 focus:ring-white/5" : "bg-white border-gray-200 text-gray-700 focus:border-gray-300 focus:ring-2 focus:ring-gray-100"}`}
           />
         </div>
       </form>
