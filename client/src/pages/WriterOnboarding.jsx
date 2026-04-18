@@ -55,6 +55,10 @@ const validatePassword = (password) => {
   };
 };
 
+const INDIA_COUNTRY_NAME = "India";
+const INDIA_ZIP_REGEX = /^\d{6}$/;
+const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
+
 const WRITER_ONBOARDING_DRAFT_KEY = "sb-writer-onboarding-draft-v1";
 
 const DEFAULT_ACCOUNT_DATA = {
@@ -73,6 +77,7 @@ const DEFAULT_ADDRESS_FIELDS = {
   city: "",
   state: "",
   zipCode: "",
+  country: INDIA_COUNTRY_NAME,
 };
 
 const DEFAULT_OPEN_REP_SECTIONS = { filmTv: false, theater: false, literary: false };
@@ -280,6 +285,10 @@ const WriterOnboarding = () => {
     ...DEFAULT_ADDRESS_FIELDS,
     ...(initialDraft?.addressFields || {}),
   }));
+  const [isOutsideIndia, setIsOutsideIndia] = useState(() => {
+    const draftCountry = String(initialDraft?.addressFields?.country || INDIA_COUNTRY_NAME).trim().toLowerCase();
+    return Boolean(draftCountry) && draftCountry !== "india";
+  });
   
   // Email Verification (keeping for compatibility, but using OTP now)
   const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
@@ -386,8 +395,13 @@ const WriterOnboarding = () => {
   ]);
 
   useEffect(() => {
+    if (isOutsideIndia) {
+      setZipLookupLoading(false);
+      return;
+    }
+
     const zipCode = String(addressFields.zipCode || "").trim();
-    if (!/^\d{6}$/.test(zipCode)) {
+    if (!INDIA_ZIP_REGEX.test(zipCode)) {
       setZipLookupLoading(false);
       return;
     }
@@ -433,7 +447,7 @@ const WriterOnboarding = () => {
     return () => {
       isActive = false;
     };
-  }, [addressFields.zipCode]);
+  }, [addressFields.zipCode, isOutsideIndia]);
 
   useEffect(() => {
     const username = String(writerProfile.username || "").trim().toLowerCase();
@@ -516,14 +530,20 @@ const WriterOnboarding = () => {
     const city = addressFields.city.trim();
     const state = addressFields.state.trim();
     const zipCode = addressFields.zipCode.trim();
+    const country = isOutsideIndia ? addressFields.country.trim() : INDIA_COUNTRY_NAME;
 
-    if (!street || !city || !state || !zipCode) {
-      setAddressError("Street, city, state, and ZIP code are required");
+    if (!street || !city || !state || !zipCode || !country) {
+      setAddressError("Street, city, state, postal code, and country are required");
       return;
     }
 
-    if (!/^\d{6}$/.test(zipCode)) {
-      setAddressError("ZIP code must be exactly 6 digits");
+    if (!isOutsideIndia) {
+      if (!INDIA_ZIP_REGEX.test(zipCode)) {
+        setAddressError("ZIP code must be exactly 6 digits");
+        return;
+      }
+    } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
+      setAddressError("Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)");
       return;
     }
 
@@ -533,7 +553,9 @@ const WriterOnboarding = () => {
       return;
     }
 
-    const formattedAddress = `${street}, ${city}, ${state}, ${zipCode}`;
+    const formattedAddress = isOutsideIndia
+      ? `${street}, ${city}, ${state}, ${zipCode}, ${country}`
+      : `${street}, ${city}, ${state}, ${zipCode}`;
     const phoneRegex = /^[+]?[\d\s\-().]{7,15}$/;
     if (!phoneRegex.test(accountData.phone)) {
       setPhoneError("Please enter a valid phone number (e.g. +91 00000 00000)");
@@ -564,10 +586,12 @@ const WriterOnboarding = () => {
     
     setLoading(true);
     try {
-      // Validate ZIP, state and city consistency.
-      await api.post("/auth/validate-address", {
-        address: formattedAddress,
-      });
+      // Validate ZIP, state and city consistency for India addresses.
+      if (!isOutsideIndia) {
+        await api.post("/auth/validate-address", {
+          address: formattedAddress,
+        });
+      }
 
       // Create account using AuthContext join function
       const response = await join({
@@ -706,7 +730,10 @@ const WriterOnboarding = () => {
           city: addressFields.city,
           state: addressFields.state,
           zipCode: addressFields.zipCode,
-          formatted: `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
+          country: isOutsideIndia ? addressFields.country : INDIA_COUNTRY_NAME,
+          formatted: isOutsideIndia
+            ? `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}, ${addressFields.country}`
+            : `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
         },
       });
 
@@ -971,23 +998,71 @@ const WriterOnboarding = () => {
                 <div className="flex items-center gap-2">
                   <MapPin className="text-gray-500" size={16} />
                   <label className="text-sm font-semibold text-gray-800">Address Details</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddressFields((prev) => ({
+                        ...prev,
+                        country: isOutsideIndia ? INDIA_COUNTRY_NAME : "",
+                        zipCode: "",
+                        city: "",
+                        state: "",
+                      }));
+                      setIsOutsideIndia((prev) => !prev);
+                      setAddressError("");
+                      setZipLookupLoading(false);
+                    }}
+                    className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                      isOutsideIndia
+                        ? "border-black bg-black text-white"
+                        : "border-black bg-white text-black hover:bg-gray-100"
+                    }`}
+                  >
+                    {isOutsideIndia && (
+                      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {isOutsideIndia ? "Outside India Enabled" : "Outside India"}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {isOutsideIndia && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Country</label>
+                      <input
+                        type="text"
+                        value={addressFields.country}
+                        onChange={(e) => {
+                          setAddressFields({ ...addressFields, country: e.target.value });
+                          setAddressError("");
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                        placeholder="United Kingdom"
+                        required
+                      />
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      {isOutsideIndia ? "Postal Code" : "ZIP Code"}
+                    </label>
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={6}
+                      inputMode={isOutsideIndia ? "text" : "numeric"}
+                      maxLength={isOutsideIndia ? 12 : 6}
                       value={addressFields.zipCode}
                       onChange={(e) => {
-                        const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setAddressFields({ ...addressFields, zipCode: zipOnly });
+                        const nextPostalValue = isOutsideIndia
+                          ? e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12)
+                          : e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setAddressFields({ ...addressFields, zipCode: nextPostalValue });
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="400001"
+                      placeholder={isOutsideIndia ? "SW1A 1AA" : "400001"}
                       required
                     />
                   </div>
@@ -1002,7 +1077,7 @@ const WriterOnboarding = () => {
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="Maharashtra"
+                      placeholder={isOutsideIndia ? "State / Province" : "Maharashtra"}
                       required
                     />
                   </div>
@@ -1017,7 +1092,7 @@ const WriterOnboarding = () => {
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="Mumbai"
+                      placeholder={isOutsideIndia ? "London" : "Mumbai"}
                       required
                     />
                   </div>
@@ -1038,8 +1113,12 @@ const WriterOnboarding = () => {
                   />
                 </div>
 
-                {zipLookupLoading && (
+                {zipLookupLoading && !isOutsideIndia && (
                   <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
+                )}
+
+                {isOutsideIndia && (
+                  <p className="text-[11px] text-gray-500">Enter country and postal code exactly as used in your region.</p>
                 )}
 
                 {addressError && (
@@ -1966,10 +2045,10 @@ const WriterOnboarding = () => {
         <div className="text-center mb-4 sm:mb-3">
           <div className="flex items-center justify-center mb-1">
             <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0d1520] border border-[#1a2433] rounded-xl flex items-center justify-center shadow-lg shadow-black/25">
-              <FileText className="text-black" size={32} strokeWidth={1.5} />
+              <FileText className="text-white" size={32} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-sm sm:text-base text-gray-600 font-medium">Writer Onboarding</p>
+          <p className="text-sm sm:text-base text-white font-medium">Writer Onboarding</p>
         </div>
         
         {/* Progress Steps */}
@@ -1991,7 +2070,7 @@ const WriterOnboarding = () => {
                     {isComplete ? '✓' : step.num}
                   </div>
                   <span className={`text-[11px] font-semibold ${
-                    isComplete || isActive ? 'text-[#0a1628]' : 'text-gray-400'
+                    isComplete || isActive ? 'text-white' : 'text-slate-300'
                   }`}>
                     {step.title}
                   </span>
@@ -2018,7 +2097,7 @@ const WriterOnboarding = () => {
                   </div>
                   <div className="ml-2 hidden sm:block">
                     <div className={`text-xs font-semibold ${
-                      isComplete || isActive ? 'text-[#0a1628]' : 'text-gray-400'
+                      isComplete || isActive ? 'text-white' : 'text-slate-300'
                     }`}>
                       {step.title}
                     </div>

@@ -60,12 +60,16 @@ const validatePassword = (password) => {
 
 const PHONE_REGEX = /^[+]?[\d\s\-().]{7,15}$/;
 const CITY_STATE_REGEX = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
+const INDIA_COUNTRY_NAME = "India";
+const INDIA_ZIP_REGEX = /^\d{6}$/;
+const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
 
 const DEFAULT_ADDRESS_FIELDS = {
   street: "",
   city: "",
   state: "",
   zipCode: "",
+  country: INDIA_COUNTRY_NAME,
 };
 
 const ENABLED_SIGNUP_ROLES = new Set(["creator", "investor"]);
@@ -95,6 +99,7 @@ const Join = () => {
     startCooldownOnMount: false,
   });
   const [addressFields, setAddressFields] = useState(DEFAULT_ADDRESS_FIELDS);
+  const [isOutsideIndia, setIsOutsideIndia] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -117,8 +122,13 @@ const Join = () => {
       return;
     }
 
+    if (isOutsideIndia) {
+      setZipLookupLoading(false);
+      return;
+    }
+
     const zipCode = String(addressFields.zipCode || "").trim();
-    if (!/^\d{6}$/.test(zipCode)) {
+    if (!INDIA_ZIP_REGEX.test(zipCode)) {
       setZipLookupLoading(false);
       return;
     }
@@ -164,7 +174,7 @@ const Join = () => {
     return () => {
       isActive = false;
     };
-  }, [addressFields.zipCode, requiresContactDetails]);
+  }, [addressFields.zipCode, isOutsideIndia, requiresContactDetails]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -215,6 +225,9 @@ const Join = () => {
       const city = String(addressFields.city || "").trim();
       const state = String(addressFields.state || "").trim();
       const zipCode = String(addressFields.zipCode || "").trim();
+      const country = isOutsideIndia
+        ? String(addressFields.country || "").trim()
+        : INDIA_COUNTRY_NAME;
 
       if (!phone) {
         setPhoneError("Phone number is required");
@@ -226,13 +239,18 @@ const Join = () => {
         return;
       }
 
-      if (!street || !city || !state || !zipCode) {
-        setAddressError("Street, city, state, and ZIP code are required");
+      if (!street || !city || !state || !zipCode || !country) {
+        setAddressError("Street, city, state, postal code, and country are required");
         return;
       }
 
-      if (!/^\d{6}$/.test(zipCode)) {
-        setAddressError("ZIP code must be exactly 6 digits");
+      if (!isOutsideIndia) {
+        if (!INDIA_ZIP_REGEX.test(zipCode)) {
+          setAddressError("ZIP code must be exactly 6 digits");
+          return;
+        }
+      } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
+        setAddressError("Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)");
         return;
       }
 
@@ -247,14 +265,17 @@ const Join = () => {
         city,
         state,
         zipCode,
-        formatted: `${street}, ${city}, ${state}, ${zipCode}`,
+        country,
+        formatted: isOutsideIndia
+          ? `${street}, ${city}, ${state}, ${zipCode}, ${country}`
+          : `${street}, ${city}, ${state}, ${zipCode}`,
       };
     }
     
     setSubmitting(true);
 
     try {
-      if (requiresContactDetails) {
+      if (requiresContactDetails && !isOutsideIndia) {
         await api.post("/auth/validate-address", {
           address: signupPayload.address.formatted,
         });
@@ -414,23 +435,71 @@ const Join = () => {
                 <div className="flex items-center gap-2">
                   <MapPin size={15} className="text-[#8fa2b8]" />
                   <label className="text-[13px] font-semibold text-[#c8d4e3]">Address details</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddressFields((prev) => ({
+                        ...prev,
+                        country: isOutsideIndia ? INDIA_COUNTRY_NAME : "",
+                        zipCode: "",
+                        city: "",
+                        state: "",
+                      }));
+                      setIsOutsideIndia((prev) => !prev);
+                      setAddressError("");
+                      setZipLookupLoading(false);
+                    }}
+                    className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                      isOutsideIndia
+                        ? "border-black bg-black text-white"
+                        : "border-black bg-white text-black hover:bg-gray-100"
+                    }`}
+                  >
+                    {isOutsideIndia && (
+                      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {isOutsideIndia ? "Outside India Enabled" : "Outside India"}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {isOutsideIndia && (
+                    <div>
+                      <label className="block text-[12px] font-semibold text-[#8fa2b8] mb-1.5">Country</label>
+                      <input
+                        type="text"
+                        value={addressFields.country}
+                        onChange={(e) => {
+                          setAddressFields({ ...addressFields, country: e.target.value });
+                          setAddressError("");
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-[#0b121c] border border-[#243447] rounded-xl text-[14px] text-white placeholder-[#506074] outline-none focus:border-[#3f5d7a] focus:ring-2 focus:ring-[#3f5d7a]/20"
+                        placeholder="United Kingdom"
+                        required
+                      />
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#8fa2b8] mb-1.5">ZIP code</label>
+                    <label className="block text-[12px] font-semibold text-[#8fa2b8] mb-1.5">
+                      {isOutsideIndia ? "Postal code" : "ZIP code"}
+                    </label>
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={6}
+                      inputMode={isOutsideIndia ? "text" : "numeric"}
+                      maxLength={isOutsideIndia ? 12 : 6}
                       value={addressFields.zipCode}
                       onChange={(e) => {
-                        const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setAddressFields({ ...addressFields, zipCode: zipOnly });
+                        const nextPostalValue = isOutsideIndia
+                          ? e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12)
+                          : e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setAddressFields({ ...addressFields, zipCode: nextPostalValue });
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 bg-[#0b121c] border border-[#243447] rounded-xl text-[14px] text-white placeholder-[#506074] outline-none focus:border-[#3f5d7a] focus:ring-2 focus:ring-[#3f5d7a]/20"
-                      placeholder="400001"
+                      placeholder={isOutsideIndia ? "SW1A 1AA" : "400001"}
                       required
                     />
                   </div>
@@ -445,7 +514,7 @@ const Join = () => {
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 bg-[#0b121c] border border-[#243447] rounded-xl text-[14px] text-white placeholder-[#506074] outline-none focus:border-[#3f5d7a] focus:ring-2 focus:ring-[#3f5d7a]/20"
-                      placeholder="Maharashtra"
+                      placeholder={isOutsideIndia ? "State / Province" : "Maharashtra"}
                       required
                     />
                   </div>
@@ -460,7 +529,7 @@ const Join = () => {
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 bg-[#0b121c] border border-[#243447] rounded-xl text-[14px] text-white placeholder-[#506074] outline-none focus:border-[#3f5d7a] focus:ring-2 focus:ring-[#3f5d7a]/20"
-                      placeholder="Mumbai"
+                      placeholder={isOutsideIndia ? "London" : "Mumbai"}
                       required
                     />
                   </div>
@@ -481,8 +550,12 @@ const Join = () => {
                   />
                 </div>
 
-                {zipLookupLoading && (
+                {zipLookupLoading && !isOutsideIndia && (
                   <p className="text-[11px] text-[#8fa2b8]">Looking up ZIP code and auto-filling city/state...</p>
+                )}
+
+                {isOutsideIndia && (
+                  <p className="text-[11px] text-[#8fa2b8]">Enter country and postal code exactly as used in your region.</p>
                 )}
 
                 {addressError && (

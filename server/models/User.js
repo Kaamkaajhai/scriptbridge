@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
     city: { type: String },
     state: { type: String },
     zipCode: { type: String },
+    country: { type: String },
     formatted: { type: String },
   },
   pendingEmail: { type: String },

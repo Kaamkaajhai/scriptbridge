@@ -97,6 +97,7 @@ const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+const INDIA_COUNTRY_NAME = "India";
 const INDUSTRY_ROLE_OPTIONS = [
   { value: "producer", label: "Producer" },
   { value: "director", label: "Director" },
@@ -139,6 +140,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     addressCity: profile.address?.city || "",
     addressState: profile.address?.state || "",
     addressZipCode: profile.address?.zipCode || "",
+    addressCountry: profile.address?.country || INDIA_COUNTRY_NAME,
     addressFormatted: profile.address?.formatted || "",
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
@@ -448,7 +450,12 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
       const addressCity = formData.addressCity.trim();
       const addressState = formData.addressState.trim();
       const addressZipCode = formData.addressZipCode.trim();
-      const computedAddress = [addressStreet, addressCity, addressState, addressZipCode].filter(Boolean).join(", ");
+      const addressCountry = formData.addressCountry.trim() || INDIA_COUNTRY_NAME;
+      const computedAddressParts = [addressStreet, addressCity, addressState, addressZipCode].filter(Boolean);
+      if (addressCountry && addressCountry.toLowerCase() !== "india") {
+        computedAddressParts.push(addressCountry);
+      }
+      const computedAddress = computedAddressParts.join(", ");
 
       payload.phone = formData.phone.trim();
       payload.dateOfBirth = formData.dateOfBirth ? formData.dateOfBirth : undefined;
@@ -457,6 +464,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         city: addressCity,
         state: addressState,
         zipCode: addressZipCode,
+        country: addressCountry,
         formatted: formData.addressFormatted.trim() || computedAddress,
       };
 
@@ -883,7 +891,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className={labelClass}>City</label>
                   <input
@@ -911,6 +919,17 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     value={formData.addressZipCode}
                     onChange={(e) => setFormData({ ...formData, addressZipCode: e.target.value })}
                     className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Country</label>
+                  <input
+                    type="text"
+                    value={formData.addressCountry}
+                    onChange={(e) => setFormData({ ...formData, addressCountry: e.target.value })}
+                    className={inputClass}
+                    placeholder="India"
                   />
                 </div>
               </div>

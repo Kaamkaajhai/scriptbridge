@@ -453,6 +453,7 @@ export const updateWriterProfile = async (req, res) => {
         city: normalizeString(address?.city),
         state: normalizeString(address?.state),
         zipCode: normalizeString(address?.zipCode),
+        country: normalizeString(address?.country),
         formatted: normalizeString(address?.formatted),
       };
     }
