@@ -13,6 +13,7 @@ import SocialShareButton from "../components/SocialShareButton";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { formatCurrency } from "../utils/currency";
 import { applyLanguagePreference, getBackendLanguageValue, getProfileLanguageValue } from "../utils/languagePreference";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 /* â”€â”€ Helper components â”€â”€ */
 
@@ -1680,7 +1681,7 @@ const Profile = () => {
               {purchasedScripts.map((script, idx) => (
                 <motion.a
                   key={script._id}
-                  href={`/script/${script._id}`}
+                  href={getScriptCanonicalPath(script)}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}

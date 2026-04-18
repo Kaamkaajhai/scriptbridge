@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
@@ -9,12 +9,14 @@ import RazorpayScriptPayment from "../components/RazorpayScriptPayment";
 import SocialShareButton from "../components/SocialShareButton";
 import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const ScriptDetail = () => {
-  const { id } = useParams();
+  const { id, projectHeading, writerUsername } = useParams();
   const { user, setUser } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [script, setScript] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,7 @@ const ScriptDetail = () => {
   const viewStartRef = useRef(Date.now());
   const noticeTimerRef = useRef(null);
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const activeScriptId = script?._id || id;
 
   const scriptShare = {
     url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/share/project/${script._id}` : ""),
@@ -68,10 +71,11 @@ const ScriptDetail = () => {
   /* ── Handlers ─────────────────────────────────────────── */
 
   const handleDeleteScript = async () => {
+    if (!activeScriptId) return;
     try {
       setDeleteLoading(true);
-      await api.delete(`/scripts/${id}`);
-      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id } }));
+      await api.delete(`/scripts/${activeScriptId}`);
+      window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: activeScriptId } }));
       setShowDeleteModal(false);
       navigate(`/profile/${user._id}`);
     } catch (err) {
@@ -156,7 +160,7 @@ const ScriptDetail = () => {
     setCoverError(false);
     setTrailerError(false);
     setHasRecordedSynopsisRead(false);
-  }, [id]);
+  }, [id, projectHeading, writerUsername]);
 
   useEffect(() => {
     if (!script?._id || activeTab !== "synopsis" || hasRecordedSynopsisRead || script?.isCreator) return;
@@ -188,7 +192,7 @@ const ScriptDetail = () => {
   }, [script?._id, script?.evaluationStatus, script?.scriptScore?.overall]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!activeScriptId) return;
 
     viewStartRef.current = Date.now();
 
@@ -196,14 +200,14 @@ const ScriptDetail = () => {
       const elapsed = Date.now() - viewStartRef.current;
       if (elapsed < 2000) return;
       api
-        .post(`/scripts/${id}/interactions`, {
+        .post(`/scripts/${activeScriptId}/interactions`, {
           type: "time_spent",
           timeSpentMs: elapsed,
           source: "script_detail_page",
         })
         .catch(() => null);
     };
-  }, [id]);
+  }, [activeScriptId]);
 
   useEffect(() => {
     return () => {
@@ -214,10 +218,10 @@ const ScriptDetail = () => {
   useEffect(() => {
     const favoriteIds = user?.favoriteScripts || [];
     const hasBookmark = Array.isArray(favoriteIds)
-      ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === id)
+      ? favoriteIds.some((item) => (typeof item === "string" ? item : item?._id) === activeScriptId)
       : false;
     setIsBookmarked(hasBookmark);
-  }, [user?.favoriteScripts, id]);
+  }, [user?.favoriteScripts, activeScriptId]);
 
   useEffect(() => {
     if (script?.isCreator) {
@@ -243,12 +247,24 @@ const ScriptDetail = () => {
       if (!silent) {
         setLoading(true);
       }
-      const { data } = await api.get(`/scripts/${id}`);
+      const hasCanonicalPathParams = Boolean(projectHeading && writerUsername);
+      const endpoint = hasCanonicalPathParams
+        ? `/scripts/path/${encodeURIComponent(projectHeading)}/${encodeURIComponent(writerUsername)}`
+        : `/scripts/${id}`;
+      const { data } = await api.get(endpoint);
       setScript(data);
+
+      // Keep old /script/:id URLs backward compatible while rewriting to canonical path.
+      if (id) {
+        const canonicalPath = getScriptCanonicalPath(data || {});
+        if (canonicalPath && canonicalPath !== location.pathname) {
+          navigate(canonicalPath, { replace: true });
+        }
+      }
     } catch {
       /* demo fallback */
       setScript({
-        _id: id,
+        _id: activeScriptId || "demo-script",
         title: "The Last Detective",
         logline:
           "A retired detective is drawn back into one final case that will challenge everything he believes.",

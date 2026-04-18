@@ -414,14 +414,30 @@ const TransactionTable = ({ transactions, isDark }) => (
 
 // ─── Score Modal ───
 const ScoreModal = ({ script, isDark, onClose, onSave }) => {
-    const [scores, setScores] = useState({ content: 0, trailer: 0, title: 0, synopsis: 0, tags: 0, feedback: "", strengths: "", weaknesses: "", prospects: "" });
+    const getInitialScores = (currentScript) => ({
+        content: Number(currentScript?.platformScore?.content) || 0,
+        trailer: Number(currentScript?.platformScore?.trailer) || 0,
+        title: Number(currentScript?.platformScore?.title) || 0,
+        synopsis: Number(currentScript?.platformScore?.synopsis) || 0,
+        tags: Number(currentScript?.platformScore?.tags) || 0,
+        feedback: currentScript?.platformScore?.feedback || "",
+        strengths: currentScript?.platformScore?.strengths || "",
+        weaknesses: currentScript?.platformScore?.weaknesses || "",
+        prospects: currentScript?.platformScore?.prospects || "",
+    });
+
+    const [scores, setScores] = useState(() => getInitialScores(script));
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setScores(getInitialScores(script));
+    }, [script?._id]);
 
     const handleSave = async () => {
         setSaving(true);
-        await onSave(script._id, scores);
+        const saved = await onSave(script._id, scores);
         setSaving(false);
-        onClose();
+        if (saved) onClose();
     };
 
     const dims = [
@@ -1881,9 +1897,11 @@ const AdminDashboard = () => {
             showToast("Platform score saved successfully");
             setScoreModal(null);
             fetchData();
+            return true;
         } catch (err) {
             console.error(err);
             showToast("Failed to save score", "error");
+            return false;
         }
     };
 

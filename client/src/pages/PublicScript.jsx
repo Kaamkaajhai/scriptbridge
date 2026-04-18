@@ -4,6 +4,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { AuthContext } from "../context/AuthContext";
 import publicApi from "../services/publicApi";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const PublicScript = () => {
   const { id } = useParams();
@@ -334,7 +335,7 @@ const PublicScript = () => {
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link to={loginLink} className="px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors">Login / Sign Up</Link>
-                <Link to={`/script/${script._id}`} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${dark ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"}`}>
+                <Link to={getScriptCanonicalPath(script)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${dark ? "bg-white/10 text-white hover:bg-white/15" : "bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"}`}>
                   Open Full Page
                 </Link>
               </div>

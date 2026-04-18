@@ -118,20 +118,20 @@ const FeaturesShowcase = () => {
                   onClick={() => setActive(i)}
                   className={`group flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all duration-200 shrink-0 ${
                     isActive
-                      ? "bg-white border-[#6366F1] text-[#111827] shadow-[0_8px_24px_rgba(79,70,229,0.10)]"
-                      : "bg-white border-[#E5E7EB] text-[#6B7280] hover:border-[#D1D5DB] hover:text-[#111827]"
+                      ? "bg-white border-[#6366F1] text-black shadow-[0_8px_24px_rgba(79,70,229,0.10)]"
+                      : "bg-white border-[#E5E7EB] text-black hover:border-[#D1D5DB] hover:text-black"
                   }`}
                 >
                   <div
                     className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                       isActive
                         ? "bg-[#6366F1] text-white"
-                        : "bg-[#F3F4F6] text-[#6B7280] group-hover:bg-[#E5E7EB]"
+                        : "bg-[#F3F4F6] text-black group-hover:bg-[#E5E7EB]"
                     }`}
                   >
                     <TabIcon className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-sm font-medium whitespace-nowrap">
+                  <span className="text-sm font-medium whitespace-nowrap text-black">
                     {feat.title}
                   </span>
                 </button>

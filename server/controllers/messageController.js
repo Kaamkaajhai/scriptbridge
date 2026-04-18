@@ -1,9 +1,11 @@
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Script from "../models/Script.js";
+import Notification from "../models/Notification.js";
 import multer from "multer";
 import path from "path";
 import { uploadToCloudinary } from "../config/cloudinary.js";
+import { sendAdminMessageEmail } from "../utils/emailService.js";
 
 const detectFileType = (mimetype = "") => {
   if (mimetype.startsWith("image/")) return "image";
@@ -64,6 +66,22 @@ const buildChatId = (idA, idB) => {
   return `${sorted[0]}_${sorted[1]}`;
 };
 
+const resolveClientOriginFromRequest = (req) => {
+  const originHeader = String(req.get("origin") || "").trim();
+  if (originHeader) return originHeader;
+
+  const refererHeader = String(req.get("referer") || "").trim();
+  if (refererHeader) {
+    try {
+      return new URL(refererHeader).origin;
+    } catch (_error) {
+      // Ignore malformed referer and fall back to env-based URL resolution.
+    }
+  }
+
+  return "";
+};
+
 const hasBlockedUser = (blockedUsers = [], userId) =>
   blockedUsers?.some((id) => id?.toString() === userId?.toString());
 
@@ -74,10 +92,10 @@ export const sendMessage = async (req, res) => {
     if (!receiverId) return res.status(400).json({ message: "receiverId is required." });
     if (!text?.trim() && !fileUrl) return res.status(400).json({ message: "Message cannot be empty." });
 
-    const sender = await User.findById(req.user._id).select("_id role blockedUsers");
+    const sender = await User.findById(req.user._id).select("_id role name blockedUsers");
     if (!sender) return res.status(404).json({ message: "Sender not found." });
 
-    const receiver = await User.findById(receiverId).select("_id role name blockedUsers");
+    const receiver = await User.findById(receiverId).select("_id role name email blockedUsers");
     if (!receiver) return res.status(404).json({ message: "Recipient not found." });
 
     const blockedBySender = hasBlockedUser(sender.blockedUsers, receiver._id);
@@ -137,6 +155,30 @@ export const sendMessage = async (req, res) => {
     if (scriptId) messageData.script = scriptId;
 
     const message = await Message.create(messageData);
+
+    if (sender.role === "admin" && receiver.role !== "admin") {
+      const trimmedText = String(text || "").trim();
+      const preview = trimmedText
+        ? (trimmedText.length > 140 ? `${trimmedText.slice(0, 137)}...` : trimmedText)
+        : (fileUrl ? "Attachment sent by admin." : "You have a new message from admin.");
+
+      await Notification.create({
+        user: receiver._id,
+        type: "admin_alert",
+        from: sender._id,
+        message: `Admin sent you a message: ${preview}`,
+      }).catch(() => null);
+
+      sendAdminMessageEmail(receiver.email, receiver.name, {
+        senderName: sender.name || "Admin",
+        previewText: preview,
+        hasAttachment: Boolean(fileUrl),
+        clientBaseUrl: resolveClientOriginFromRequest(req),
+      }).catch((err) => {
+        console.error("Failed to send admin message email:", err.message);
+      });
+    }
+
     const populated = await message.populate([
       { path: "sender", select: "name profileImage role" },
       { path: "script", select: "title" },

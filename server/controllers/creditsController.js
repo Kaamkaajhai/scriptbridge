@@ -5,6 +5,7 @@ import Notification from "../models/Notification.js";
 import DiscountCode from "../models/DiscountCode.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { sendAdminCreditsGrantedEmail } from "../utils/emailService.js";
 
 // Lazy initialization of Razorpay
 let razorpayInstance = null;
@@ -526,6 +527,23 @@ export const grantBonusCredits = async (req, res) => {
     });
     
     await user.save();
+
+    await Notification.create({
+      user: user._id,
+      type: "admin_alert",
+      from: req.user?._id,
+      message: `Admin added ${parsedAmount} credits to your account.`,
+    }).catch(() => null);
+
+    sendAdminCreditsGrantedEmail(user.email, user.name, {
+      amount: parsedAmount,
+      reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Bonus credits",
+      balanceAfter: user.credits.balance,
+      adminName: req.user?.name || "Admin",
+      clientBaseUrl: String(req.get("origin") || "").trim(),
+    }).catch((err) => {
+      console.error("Failed to send admin bonus credit email:", err.message);
+    });
     
     res.json({
       message: "Bonus credits granted successfully",
