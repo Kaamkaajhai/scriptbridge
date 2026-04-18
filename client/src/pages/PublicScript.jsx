@@ -89,6 +89,7 @@ const PublicScript = () => {
   const classification = script.classification || {};
   const evaluation = script.evaluation || null;
   const roles = Array.isArray(script.roles) ? script.roles : [];
+  const creatorProfileKey = String(script?.creator?.username || "").trim().toLowerCase() || String(script?.creator?._id || "").trim();
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -140,8 +141,8 @@ const PublicScript = () => {
 
             <div className={`mt-4 text-sm ${dark ? "text-gray-300" : "text-gray-700"}`}>
               <span className="font-semibold">By </span>
-              {script.creator?._id ? (
-                <Link to={`/share/profile/${script.creator._id}`} className={`font-bold hover:underline ${dark ? "text-white" : "text-gray-900"}`}>
+              {creatorProfileKey ? (
+                <Link to={`/share/profile/${encodeURIComponent(creatorProfileKey)}`} className={`font-bold hover:underline ${dark ? "text-white" : "text-gray-900"}`}>
                   {script.creator?.name || "Creator"}
                 </Link>
               ) : (

@@ -1517,7 +1517,7 @@ export const getPublicScriptById = async (req, res) => {
     }
 
     const script = await Script.findById(scriptId)
-      .populate("creator", "name profileImage role bio isPrivate isDeactivated")
+      .populate("creator", "name profileImage role bio isPrivate isDeactivated writerProfile.username")
       .lean();
 
     if (!script) {
@@ -1612,6 +1612,7 @@ export const getPublicScriptById = async (req, res) => {
         role: creator.role || "",
         profileImage: creator.profileImage || "",
         bio: creator.bio || "",
+        username: creator.writerProfile?.username || "",
       },
       shareMeta: buildScriptShareMeta(req, script),
     };

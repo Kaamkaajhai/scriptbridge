@@ -150,7 +150,7 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white flex">
+    <div className="login-page min-h-screen bg-white flex">
 
       {/* ── Left decorative panel ── */}
       <div className="hidden lg:flex lg:w-[45%] bg-[#080e18] relative overflow-hidden flex-col items-start justify-between p-12 border-r border-[#151f2e]">
@@ -251,7 +251,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 bg-[#1e3a5f] hover:bg-[#162d4a] text-white rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full mt-2 py-3 bg-[#1e3a5f] hover:bg-[#162d4a] text-white !text-white rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

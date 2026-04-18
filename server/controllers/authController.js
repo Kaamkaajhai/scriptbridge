@@ -98,6 +98,8 @@ const buildVerificationResponse = (email) => ({
 });
 
 const CONTACT_REQUIRED_ROLES = new Set(["reader", "investor"]);
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+const USERNAME_REQUIRED_ROLES = new Set(["investor"]);
 
 const normalizeInputValue = (value = "") => String(value).trim();
 
@@ -274,7 +276,7 @@ const isValidPassword = (password) => {
 
 export const join = async (req, res) => {
   console.log('Join request received:', req.body);
-  let { name, email, password, role, phone, address } = req.body;
+  let { name, email, password, role, phone, address, username } = req.body;
   try {
     // Validate required fields
     if (!name || !email || !password) {
@@ -296,6 +298,18 @@ export const join = async (req, res) => {
     }
 
     role = normalizeInputValue(role).toLowerCase() || "creator";
+    const normalizedUsername = normalizeInputValue(username).toLowerCase();
+    const requiresUsername = USERNAME_REQUIRED_ROLES.has(role);
+
+    if (requiresUsername && !normalizedUsername) {
+      return res.status(400).json({ message: "Username is required" });
+    }
+
+    if (normalizedUsername && !USERNAME_PATTERN.test(normalizedUsername)) {
+      return res.status(400).json({
+        message: "Username must be 3-30 characters and contain only lowercase letters, numbers, or underscores",
+      });
+    }
 
     const requiresContactDetails = CONTACT_REQUIRED_ROLES.has(role);
     const normalizedPhone = normalizeInputValue(phone);
@@ -349,8 +363,34 @@ export const join = async (req, res) => {
       phone = normalizedPhone;
     }
 
+    if (normalizedUsername) {
+      const existingUsernameForAnotherEmail = await User.exists({
+        email: { $ne: email },
+        "writerProfile.username": normalizedUsername,
+      });
+
+      if (existingUsernameForAnotherEmail) {
+        return res.status(409).json({ message: "Username is already taken" });
+      }
+    }
+
     const userExists = await User.findOne({ email });
     if (userExists) {
+      if (requiresUsername && !normalizeInputValue(normalizedUsername || userExists.writerProfile?.username)) {
+        return res.status(400).json({ message: "Username is required" });
+      }
+
+      if (normalizedUsername) {
+        const usernameConflict = await User.exists({
+          _id: { $ne: userExists._id },
+          "writerProfile.username": normalizedUsername,
+        });
+
+        if (usernameConflict) {
+          return res.status(409).json({ message: "Username is already taken" });
+        }
+      }
+
       // If user exists but not verified, allow resending OTP
       if (!userExists.emailVerified) {
         const remainingCooldownSeconds = getRemainingResendCooldownSeconds(
@@ -370,6 +410,11 @@ export const join = async (req, res) => {
           userExists.phone = phone;
           userExists.address = address;
           userExists.markModified("address");
+        }
+        if (normalizedUsername) {
+          if (!userExists.writerProfile) userExists.writerProfile = {};
+          userExists.writerProfile.username = normalizedUsername;
+          userExists.markModified("writerProfile");
         }
         userExists.emailVerificationToken = hashOTP(otp);
         userExists.emailVerificationExpires = generateOTPExpiry();
@@ -408,6 +453,7 @@ export const join = async (req, res) => {
       role,
       phone: requiresContactDetails ? phone : undefined,
       address: requiresContactDetails ? address : undefined,
+      writerProfile: normalizedUsername ? { username: normalizedUsername } : undefined,
       emailVerified: skipEmailVerification, // Auto-verify if skipping email
       emailVerificationToken: skipEmailVerification ? undefined : hashOTP(otp),
       emailVerificationExpires: skipEmailVerification ? undefined : generateOTPExpiry(),
@@ -451,6 +497,9 @@ export const join = async (req, res) => {
     });
   } catch (error) {
     console.error('Join error:', error);
+    if (error?.code === 11000 && error?.keyPattern?.["writerProfile.username"]) {
+      return res.status(409).json({ message: "Username is already taken" });
+    }
     res.status(500).json({ message: error.message });
   }
 };

@@ -2,9 +2,12 @@ import { useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
+const FORCE_DEFAULT_REDIRECT_KEY = "auth:force-default-redirect";
+
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   const location = useLocation();
+  const destination = `${location.pathname}${location.search}${location.hash}`;
 
   if (loading) {
     return (
@@ -26,6 +29,11 @@ const PrivateRoute = ({ children }) => {
   }
 
   if (!user) {
+    if (typeof window !== "undefined" && sessionStorage.getItem(FORCE_DEFAULT_REDIRECT_KEY) === "1") {
+      sessionStorage.removeItem(FORCE_DEFAULT_REDIRECT_KEY);
+      return <Navigate to="/login" replace state={{ from: destination }} />;
+    }
+
     const pathname = String(location.pathname || "");
     const profileMatch = pathname.match(/^\/profile\/([^/?#]+)/i);
     if (profileMatch?.[1]) {
@@ -38,7 +46,6 @@ const PrivateRoute = ({ children }) => {
     }
   }
 
-  const destination = `${location.pathname}${location.search}${location.hash}`;
   return user ? children : <Navigate to="/login" replace state={{ from: destination }} />;
 };
 

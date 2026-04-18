@@ -1,4 +1,4 @@
-import { useState, useContext, useRef } from "react";
+import { useState, useContext, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BrandLogo from "../components/BrandLogo";
+
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 
 const IndustryOnboarding = () => {
   const { join } = useContext(AuthContext);
@@ -52,12 +54,19 @@ const IndustryOnboarding = () => {
   
   // Step 2: Professional Identity
   const [professionalData, setProfessionalData] = useState({
+    username: "",
     company: "",
     jobTitle: "",
     imdbUrl: "",
     linkedInUrl: "",
     previousCredits: ""
   });
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState({
+    state: "idle",
+    message: "Use 3-30 characters: a-z, 0-9, or _.",
+  });
+  const usernameCheckRequestRef = useRef(0);
   
   // Step 3: Mandates (What they're looking for)
   const [mandates, setMandates] = useState(getDefaultMandates);
@@ -181,13 +190,87 @@ const IndustryOnboarding = () => {
     }
   };
 
+  useEffect(() => {
+    const username = String(professionalData.username || "").trim().toLowerCase();
+
+    if (!username) {
+      setUsernameStatus({ state: "idle", message: "Use 3-30 characters: a-z, 0-9, or _." });
+      return;
+    }
+
+    if (username.length < 3) {
+      setUsernameStatus({ state: "invalid", message: "Username must be at least 3 characters." });
+      return;
+    }
+
+    if (!USERNAME_PATTERN.test(username)) {
+      setUsernameStatus({
+        state: "invalid",
+        message: "Use only lowercase letters, numbers, and underscores (max 30).",
+      });
+      return;
+    }
+
+    const requestId = Date.now();
+    usernameCheckRequestRef.current = requestId;
+    setUsernameStatus({ state: "checking", message: "Checking username availability..." });
+    let isActive = true;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/onboarding/check-username", {
+          params: { username },
+        });
+
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+
+        if (data?.available) {
+          setUsernameStatus({ state: "available", message: "Username is available." });
+        } else {
+          setUsernameStatus({ state: "unavailable", message: "Username is already taken." });
+        }
+      } catch {
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+        setUsernameStatus({ state: "error", message: "Could not verify username right now." });
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [professionalData.username]);
+
   const handleProfessionalIdentity = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setUsernameError("");
     setError("");
+
+    const normalizedUsername = String(professionalData.username || "").trim().toLowerCase();
+    if (!normalizedUsername) {
+      setUsernameError("Username is required");
+      return;
+    }
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      setUsernameError("Use 3-30 lowercase letters, numbers, or underscores");
+      return;
+    }
+    if (usernameStatus.state === "checking") {
+      setUsernameError("Please wait while we verify username availability");
+      return;
+    }
+    if (usernameStatus.state === "unavailable") {
+      setUsernameError("Username is already taken");
+      return;
+    }
+
+    setLoading(true);
     
     try {
-      const response = await api.put("/onboarding/professional-identity", professionalData);
+      const response = await api.put("/onboarding/professional-identity", {
+        ...professionalData,
+        username: normalizedUsername,
+      });
       
       if (response.data.success) {
         setCurrentStep(3);
@@ -464,6 +547,51 @@ const IndustryOnboarding = () => {
                 <h2 className="text-2xl font-extrabold text-[#0a1628] tracking-tight">Professional Verification</h2>
               </div>
               <p className="text-gray-600">Help us verify your industry credentials</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Username *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 font-medium text-sm">@</span>
+                <input
+                  type="text"
+                  value={professionalData.username}
+                  onChange={(e) => {
+                    setProfessionalData({
+                      ...professionalData,
+                      username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                    });
+                    if (usernameError) setUsernameError("");
+                  }}
+                  className={`w-full pl-7 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent ${
+                    usernameError || usernameStatus.state === "unavailable" || usernameStatus.state === "invalid"
+                      ? "border-red-400"
+                      : usernameStatus.state === "available"
+                        ? "border-emerald-400"
+                        : "border-gray-200"
+                  }`}
+                  placeholder="e.g. producer_jane"
+                  required
+                />
+              </div>
+              {!usernameError && usernameStatus.message && (
+                <p className={`mt-1.5 text-xs flex items-center gap-1 ${
+                  usernameStatus.state === "available"
+                    ? "text-emerald-600"
+                    : usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" || usernameStatus.state === "error"
+                      ? "text-red-500"
+                      : "text-gray-500"
+                }`}>
+                  <AlertCircle size={12} /> {usernameStatus.message}
+                </p>
+              )}
+              {usernameError && (
+                <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} /> {usernameError}
+                </p>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4">

@@ -417,7 +417,10 @@ const Writers = () => {
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search by name…"
-                className={`w-full pl-9 pr-3 py-2 rounded-lg border text-[13px] font-medium focus:outline-none focus:ring-2 transition-all ${tk.inputBg}`}
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="none"
+                className={`app-search-input ${dark ? "app-search-input-dark" : ""} w-full pl-9 pr-3 py-2 rounded-lg border text-[13px] font-medium focus:outline-none focus:ring-2 transition-all ${tk.inputBg}`}
               />
             </div>
 

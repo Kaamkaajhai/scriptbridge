@@ -51,7 +51,12 @@ const InvestorDashboard = () => {
   const profile = data?.industryProfile || {};
   const mandates = profile?.mandates || {};
   const firstName = user?.name?.split(" ")[0] || "Investor";
-  const profileEditPath = user?._id ? `/profile/${user._id}` : "/profile";
+  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
+  const profileEditPath = currentWriterUsername
+    ? `/profile/${currentWriterUsername}`
+    : user?._id
+      ? `/profile/${user._id}`
+      : "/profile";
   const walletBalance = wallet?.balance ?? wallet?.wallet?.balance ?? 0;
   const closedDealsCount = Math.max(
     Number(stats.convertedDeals || 0),

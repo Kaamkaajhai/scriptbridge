@@ -386,20 +386,25 @@ const ReaderProfile = () => {
     setShowConnectionsModal(true);
   };
 
-  const getProfilePath = (userId) => {
+  const getProfilePath = (userRef) => {
+    const userId = typeof userRef === "string" ? userRef : userRef?._id;
+    const username = typeof userRef === "string"
+      ? ""
+      : String(userRef?.username || "").trim().toLowerCase();
     if (!userId) return "/profile";
 
     const isCurrentReaderProfile =
       String(user?.role || "").toLowerCase() === "reader" &&
       String(user?._id || "") === String(userId);
 
-    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${userId}`;
+    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${username || userId}`;
   };
 
-  const handleConnectionClick = (userId) => {
+  const handleConnectionClick = (userRef) => {
+    const userId = typeof userRef === "string" ? userRef : userRef?._id;
     if (!userId) return;
     setShowConnectionsModal(false);
-    navigate(getProfilePath(userId));
+    navigate(getProfilePath(userRef));
   };
 
   if (loading) return (
@@ -427,9 +432,10 @@ const ReaderProfile = () => {
     ? new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
     : null;
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const fallbackShareUrl = profile?._id ? `${browserOrigin}/share/profile/${profile._id}` : "";
+  const profileShareKey = String(profile?.writerProfile?.username || "").trim().toLowerCase() || String(profile?._id || "").trim();
+  const fallbackShareUrl = profileShareKey ? `${browserOrigin}/share/profile/${encodeURIComponent(profileShareKey)}` : "";
   const readerShare = {
-    url: normalizePublicShareUrl(profile?.shareMeta?.url, fallbackShareUrl),
+    url: normalizePublicShareUrl(fallbackShareUrl, profile?.shareMeta?.url),
     title: profile?.shareMeta?.title || `${profile?.name || "Reader"} | Ckript`,
     text: profile?.shareMeta?.text || `Check out ${profile?.name || "this reader"}'s profile on Ckript.`,
   };
@@ -456,6 +462,7 @@ const ReaderProfile = () => {
         _id: connection._id,
         name: connection.name || "Unknown User",
         profileImage: connection.profileImage || "",
+        username: connection.writerProfile?.username || connection.username || "",
       };
     })
     .filter(Boolean);
@@ -742,7 +749,7 @@ const ReaderProfile = () => {
                     <button
                       key={connection._id || `${connection.name}-${index}`}
                       type="button"
-                      onClick={() => handleConnectionClick(connection._id)}
+                      onClick={() => handleConnectionClick(connection)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${dark ? "hover:bg-white/[0.06]" : "hover:bg-[#f5f9ff]"}`}
                     >
                       {connection.profileImage ? (
