@@ -84,6 +84,26 @@ const normalizeScorePayload = (payload = {}) => {
   };
 };
 
+const hasValidScorePayload = (payload = {}) => {
+  const keys = ["plot", "characters", "dialogue", "pacing", "marketability"];
+  const hasAtLeastOneNumericDimension = keys.some((key) => {
+    const value = Number(payload?.[key]);
+    return Number.isFinite(value);
+  });
+
+  const hasFeedbackText = String(payload?.feedback || "").trim().length > 0;
+  return hasAtLeastOneNumericDimension && hasFeedbackText;
+};
+
+const buildJsonRepairPrompt = (basePrompt) => `${basePrompt}
+
+CRITICAL OUTPUT RULES:
+- Return one valid JSON object only.
+- Use only double quotes.
+- Do not include markdown, code fences, comments, or trailing commas.
+- Keep feedback concise (max 4 sentences).
+- Keep arrays concise (max 3 items each).`;
+
 const scoreRequestLockMs = 10 * 60 * 1000;
 
 const runScriptScoreGeneration = async ({ scriptId, userId }) => {
@@ -157,15 +177,39 @@ Analyze deeply. Be specific. Be honest. Be professional.`;
 
   let scorePayload;
   let usedFallback = false;
+  let scoreSource = "google_ai";
   try {
     scorePayload = await generateJsonWithGoogleAI({
       prompt: scorePrompt,
       temperature: 0.4,
       maxOutputTokens: 2600,
     });
-  } catch {
-    usedFallback = true;
-    scorePayload = generateAIScriptScore(script);
+
+    if (!hasValidScorePayload(scorePayload)) {
+      throw new Error("AI response payload missing score dimensions or feedback");
+    }
+  } catch (primaryError) {
+    try {
+      scorePayload = await generateJsonWithGoogleAI({
+        prompt: buildJsonRepairPrompt(scorePrompt),
+        temperature: 0.2,
+        maxOutputTokens: 3200,
+      });
+
+      if (!hasValidScorePayload(scorePayload)) {
+        throw new Error("AI retry payload still invalid");
+      }
+    } catch (retryError) {
+      console.warn(
+        "[AI Score] Falling back to local scoring engine:",
+        primaryError?.message || "primary failed",
+        "| retry:",
+        retryError?.message || "retry failed"
+      );
+      usedFallback = true;
+      scoreSource = "fallback";
+      scorePayload = generateAIScriptScore(script);
+    }
   }
 
   const score = normalizeScorePayload(scorePayload);
@@ -183,6 +227,7 @@ Analyze deeply. Be specific. Be honest. Be professional.`;
     improvements: score.improvements,
     audienceFit: score.audienceFit,
     comparables: score.comparables,
+    source: scoreSource,
     scoredAt: new Date(),
   };
   script.services = {
