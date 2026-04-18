@@ -5,6 +5,7 @@ import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProjectCard from "../components/ProjectCard";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const resolveTrailerCandidates = (script) => {
   const aiTrailerUrl = script?.trailerUrl || "";
@@ -371,7 +372,7 @@ const TrailerModal = ({ script, onClose, getImageUrl }) => {
               <p className="text-white/40 text-xs">{script.genre} {script.contentType ? `· ${script.contentType.replace(/_/g, " ")}` : ""}</p>
             </div>
             <Link
-              to={`/script/${script._id}`}
+              to={getScriptCanonicalPath(script)}
               onClick={onClose}
               className="flex-shrink-0 px-4 py-1.5 bg-[#111111] hover:bg-[#2a5080] text-white text-xs font-bold rounded-xl transition-colors"
             >
@@ -511,7 +512,7 @@ const FeaturedCarousel = ({ scripts, dark, getImageUrl, onWatchPreview }) => {
               {/* Action buttons + creator */}
               <div className="flex items-center gap-3 flex-wrap">
                 <Link
-                  to={`/script/${script._id}`}
+                  to={getScriptCanonicalPath(script)}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#111111] rounded-xl text-sm font-bold hover:bg-white/90 transition-colors shadow-lg"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -632,7 +633,7 @@ const SponsoredCard = ({ script }) => (
 
 // Trending Card (Horizontal Scroll)
 const TrendingCard = ({ script, getImageUrl, dark }) => (
-  <Link to={`/script/${script._id}`}>
+  <Link to={getScriptCanonicalPath(script)}>
     <motion.div
       whileHover={{ scale: 1.02, y: -4 }}
       className={`group relative overflow-hidden rounded-2xl w-[360px] flex-shrink-0 border transition-all duration-400 ${
@@ -1029,7 +1030,7 @@ const FeaturedProjects = () => {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2.5">
-                        <Link to={`/script/${slide._id}`} className={`inline-flex h-9 sm:h-10 items-center gap-2 rounded-xl px-3.5 sm:px-4 text-[12px] sm:text-[14px] font-bold tracking-[0.01em] transition-all duration-200 ${useLightFallbackText ? "bg-[#12385f] text-white hover:bg-[#0e2b49]" : "bg-white text-[#0d2037] hover:bg-[#e8f1ff]"}`}>
+                        <Link to={getScriptCanonicalPath(slide)} className={`inline-flex h-9 sm:h-10 items-center gap-2 rounded-xl px-3.5 sm:px-4 text-[12px] sm:text-[14px] font-bold tracking-[0.01em] transition-all duration-200 ${useLightFallbackText ? "bg-[#12385f] text-white hover:bg-[#0e2b49]" : "bg-white text-[#0d2037] hover:bg-[#e8f1ff]"}`}>
                           View Project
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />

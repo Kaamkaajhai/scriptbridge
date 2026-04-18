@@ -5,6 +5,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import BrandLogo from "./BrandLogo";
 import ConfirmDialog from "./ConfirmDialog";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatingToggle = true, mobileToggleToken = 0 }) => {
   const { user, logout } = useContext(AuthContext);
@@ -304,7 +305,7 @@ const Sidebar = ({ purchaseRequestCount = 0, unreadMessageCount = 0, showFloatin
                   <div className="pl-3">
                     {myScripts.length > 0 ? (
                       myScripts.map((script) => (
-                        <Link key={script._id} to={`/script/${script._id}`} onClick={() => setMobileOpen(false)}
+                        <Link key={script._id} to={getScriptCanonicalPath(script)} onClick={() => setMobileOpen(false)}
                           className={`flex items-center gap-2.5 px-5 py-2 transition-colors ${isDarkMode ? "text-[#8896a7] hover:text-white" : "text-gray-500 hover:text-gray-700"}`}>
                           <div className={`w-2 h-2 rounded-full shrink-0 ${isDarkMode ? "bg-[#1c2a3a]" : "bg-gray-300"}`}></div>
                           <span className="text-[15px] font-semibold truncate">{script.title}</span>

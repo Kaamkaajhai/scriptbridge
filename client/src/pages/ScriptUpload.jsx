@@ -7,6 +7,7 @@ import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
 
 // Format options
@@ -1062,7 +1063,16 @@ const ScriptUpload = () => {
       if (editId) {
         await api.put(`/scripts/${editId}`, payload);
         await uploadMediaForScript(editId, "updated");
-        openUnderReviewModal(`/script/${editId}`);
+        openUnderReviewModal(
+          getScriptCanonicalPath({
+            _id: editId,
+            title: payload.title,
+            creator: {
+              writerProfile: { username: user?.writerProfile?.username },
+              username: user?.username,
+            },
+          })
+        );
       } else {
         const response = await api.post("/scripts/upload", payload);
         const newScriptId = response.data._id;

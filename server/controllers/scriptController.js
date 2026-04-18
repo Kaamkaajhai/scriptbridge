@@ -218,6 +218,64 @@ const getBlockedUserIdsForViewer = async (viewerId) => {
 const hasUserInIdArray = (arr = [], userId) =>
   Array.isArray(arr) && arr.some((id) => id?.toString?.() === userId?.toString?.());
 
+const safeDecodePathSegment = (value = "") => {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch (_error) {
+    return String(value || "");
+  }
+};
+
+const normalizeProjectHeadingSegment = (value = "") =>
+  safeDecodePathSegment(value)
+    .trim()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizeWriterUsernameSegment = (value = "") =>
+  safeDecodePathSegment(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]+/g, "");
+
+const resolveScriptIdByPath = async ({ projectHeading, writerUsername }) => {
+  const normalizedHeading = normalizeProjectHeadingSegment(projectHeading);
+  const normalizedWriterUsername = normalizeWriterUsernameSegment(writerUsername);
+
+  if (!normalizedHeading || !normalizedWriterUsername) {
+    return "";
+  }
+
+  const creators = await User.find({
+    $or: [
+      { "writerProfile.username": normalizedWriterUsername },
+      { username: normalizedWriterUsername },
+    ],
+  }).select("_id").lean();
+
+  if (!creators.length) {
+    return "";
+  }
+
+  const scripts = await Script.find({
+    creator: { $in: creators.map((creator) => creator._id) },
+  })
+    .select("_id title createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const matchedScript = scripts.find(
+    (scriptDoc) => normalizeProjectHeadingSegment(scriptDoc?.title) === normalizedHeading
+  );
+
+  return matchedScript?._id ? String(matchedScript._id) : "";
+};
+
 const resolveClientOriginFromRequest = (req) => {
   const originHeader = String(req.get("origin") || "").trim();
   if (originHeader) return originHeader;
@@ -1240,7 +1298,7 @@ export const getScriptById = async (req, res) => {
     await expireApprovedUnpaidRequests({ scriptId: req.params.id });
 
     const script = await Script.findById(req.params.id)
-      .populate("creator", "name profileImage role bio followers")
+      .populate("creator", "name profileImage role bio followers username writerProfile.username")
       .populate("heldBy", "name role");
 
     if (!script) return res.status(404).json({ message: "Script not found" });
@@ -1506,6 +1564,24 @@ export const getScriptById = async (req, res) => {
     res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const getScriptByPath = async (req, res) => {
+  try {
+    const scriptId = await resolveScriptIdByPath({
+      projectHeading: req.params.projectHeading,
+      writerUsername: req.params.writerUsername,
+    });
+
+    if (!scriptId) {
+      return res.status(404).json({ message: "Script not found" });
+    }
+
+    req.params.id = scriptId;
+    return getScriptById(req, res);
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to resolve script path" });
   }
 };
 

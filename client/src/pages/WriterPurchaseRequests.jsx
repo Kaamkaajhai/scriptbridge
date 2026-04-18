@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 const STATUS_FILTERS = ["all", "pending", "approved", "rejected"];
 
@@ -359,7 +360,10 @@ export default function WriterPurchaseRequests() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <Link
-                            to={`/script/${req.script?._id}`}
+                            to={getScriptCanonicalPath({
+                              ...(req.script || {}),
+                              creator: req.script?.creator || req.writer || null,
+                            })}
                             className={`text-base font-semibold transition-colors truncate block ${t.scriptTitle}`}
                           >
                             {req.script?.title || "Untitled Script"}
@@ -476,7 +480,12 @@ export default function WriterPurchaseRequests() {
                       {!isWriter && req.status === "approved" && (
                         <div className="mt-3">
                           <Link
-                            to={req.paymentStatus === "released" ? `/script/${req.script?._id}` : `/script/${req.script?._id}/pay`}
+                            to={req.paymentStatus === "released"
+                              ? getScriptCanonicalPath({
+                                ...(req.script || {}),
+                                creator: req.script?.creator || req.writer || null,
+                              })
+                              : `/script/${req.script?._id}/pay`}
                             className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${t.viewLink}`}
                           >
                             {req.paymentStatus === "released"

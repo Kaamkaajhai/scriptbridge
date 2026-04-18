@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import SocialShareButton from "./SocialShareButton";
@@ -159,7 +160,7 @@ const ProjectCard = ({ project, userName }) => {
         .catch(() => null);
     }
 
-    navigate(`/script/${project._id}`);
+    navigate(getScriptCanonicalPath(project));
   };
 
   return (

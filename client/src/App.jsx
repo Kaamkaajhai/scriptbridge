@@ -329,6 +329,16 @@ function App() {
                 }
               />
               <Route
+                path="/script/:projectHeading/:writerUsername"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <ScriptDetail />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/mandates"
                 element={
                   <PrivateRoute>

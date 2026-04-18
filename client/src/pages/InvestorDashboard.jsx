@@ -6,6 +6,7 @@ import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 /* ── Fade wrapper ────────────────────────────────────────────── */
 const Fade = ({ children, delay = 0, className = "" }) => (
@@ -411,7 +412,7 @@ const InvestorDashboard = () => {
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {data.activeHolds.map(hold => (
                       <div key={hold._id}
-                        onClick={() => hold.script?._id && navigate(`/script/${hold.script._id}`)}
+                        onClick={() => hold.script?._id && navigate(getScriptCanonicalPath(hold.script))}
                         className={`rounded-xl p-3.5 cursor-pointer transition-all border
                           ${dark ? "bg-white/[0.02] border-white/[0.04] hover:border-amber-500/30" : "bg-amber-50/40 border-amber-100 hover:border-amber-300"}`}>
                         <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -663,7 +664,7 @@ const InvestorDashboard = () => {
                               : (dark ? "bg-gray-500/10 text-gray-400" : "bg-gray-100 text-gray-500");
                       return (
                         <div key={deal._id}
-                          onClick={() => deal.script?._id && navigate(`/script/${deal.script._id}`)}
+                          onClick={() => deal.script?._id && navigate(getScriptCanonicalPath(deal.script))}
                           className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${dark ? "hover:bg-white/[0.02]" : "hover:bg-gray-50"}`}>
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dark ? "bg-white/[0.04]" : "bg-gray-50"}`}>
                             <svg className={`w-3.5 h-3.5 ${dark ? "text-gray-400" : "text-gray-500"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -767,7 +768,7 @@ const ScriptSection = ({ dark, navigate, title, sub, iconBg, iconColor, iconD, s
     </div>
     <div className="space-y-2">
       {scripts.slice(0, 5).map(script => (
-        <div key={script._id} onClick={() => navigate(`/script/${script._id}`)}
+        <div key={script._id} onClick={() => navigate(getScriptCanonicalPath(script))}
           className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${dark ? "hover:bg-white/[0.03]" : "hover:bg-gray-50"}`}>
           <div className={`w-9 h-11 rounded-lg shrink-0 overflow-hidden flex items-center justify-center
             ${dark ? "bg-white/[0.06]" : "bg-gray-100"}`}>

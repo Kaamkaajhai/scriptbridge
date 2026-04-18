@@ -16,6 +16,7 @@ import {
     sendInvestorApprovalEmail,
     sendInvestorRejectionEmail,
     sendWriterMembershipDecisionEmail,
+    sendAdminCreditsGrantedEmail,
 } from "../utils/emailService.js";
 
 const buildChatId = (idA, idB) => {
@@ -738,6 +739,16 @@ export const grantCreditsToUser = async (req, res) => {
             from: req.user._id,
             message: `Admin added ${amount} credits to your account.`,
         }).catch(() => null);
+
+        sendAdminCreditsGrantedEmail(targetUser.email, targetUser.name, {
+            amount,
+            reason,
+            balanceAfter,
+            adminName: req.user?.name || "Admin",
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+        }).catch((err) => {
+            console.error("Failed to send admin credit grant email:", err.message);
+        });
 
         res.json({
             message: "Credits granted successfully",

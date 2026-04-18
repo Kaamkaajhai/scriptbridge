@@ -787,3 +787,111 @@ export const sendAdminWorkflowAlertEmail = async ({ title, section, message, met
     return { success: false, error: error.message };
   }
 };
+
+// Send user email when admin grants credits
+export const sendAdminCreditsGrantedEmail = async (
+  email,
+  name,
+  { amount = 0, reason = "Admin credit grant", balanceAfter = 0, adminName = "Admin", clientBaseUrl = "" } = {}
+) => {
+  try {
+    validateEmailConfig();
+
+    const transporter = createTransporter();
+    await transporter.verify();
+
+    const numericAmount = Number(amount) || 0;
+    const safeReason = String(reason || "Admin credit grant").trim() || "Admin credit grant";
+    const safeBalance = Number(balanceAfter) || 0;
+    const safeAdminName = String(adminName || "Admin").trim() || "Admin";
+    const creditsUrl = buildClientUrl("/credits", clientBaseUrl);
+
+    const mailOptions = {
+      from: `"ckript" <${process.env.EMAIL_USER || "noreply@ckript.com"}>`,
+      to: email,
+      subject: "Credits added to your ckript account",
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+          <div style="max-width: 620px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <div style="background:#0f172a; color:#fff; padding:16px 20px;">
+              <h2 style="margin:0; font-size:20px;">Credits Added</h2>
+            </div>
+            <div style="padding:20px; background:#ffffff;">
+              <p style="margin:0 0 12px;">Hi ${name || "there"},</p>
+              <p style="margin:0 0 12px;">${safeAdminName} added <strong>${numericAmount} credits</strong> to your account.</p>
+              <p style="margin:0 0 8px;"><strong>Reason:</strong> ${safeReason}</p>
+              <p style="margin:0 0 16px;"><strong>Updated balance:</strong> ${safeBalance} credits</p>
+              <a href="${creditsUrl}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:600;">View Credits</a>
+              <p style="margin:16px 0 0; color:#6b7280; font-size:12px;">This is an automated email from ckript.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Hi ${name || "there"},\n\n${safeAdminName} added ${numericAmount} credits to your account.\nReason: ${safeReason}\nUpdated balance: ${safeBalance} credits\n\nView credits: ${creditsUrl}\n\n- ckript`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending admin credit grant email:", error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+// Send user email when admin sends a direct message
+export const sendAdminMessageEmail = async (
+  email,
+  name,
+  { senderName = "Admin", previewText = "", hasAttachment = false, clientBaseUrl = "" } = {}
+) => {
+  try {
+    validateEmailConfig();
+
+    const transporter = createTransporter();
+    await transporter.verify();
+
+    const safeSenderName = String(senderName || "Admin").trim() || "Admin";
+    const safePreview = String(previewText || "").trim();
+    const messagesUrl = buildClientUrl("/messages", clientBaseUrl);
+    const summary = safePreview
+      ? safePreview
+      : hasAttachment
+        ? "You have a new attachment from admin."
+        : "You have a new message from admin.";
+
+    const mailOptions = {
+      from: `"ckript" <${process.env.EMAIL_USER || "noreply@ckript.com"}>`,
+      to: email,
+      subject: "New admin message on ckript",
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+          <div style="max-width: 620px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <div style="background:#0f172a; color:#fff; padding:16px 20px;">
+              <h2 style="margin:0; font-size:20px;">New Admin Message</h2>
+            </div>
+            <div style="padding:20px; background:#ffffff;">
+              <p style="margin:0 0 12px;">Hi ${name || "there"},</p>
+              <p style="margin:0 0 12px;">${safeSenderName} sent you a new message on ckript.</p>
+              <p style="margin:0 0 16px;"><strong>Preview:</strong> ${summary}</p>
+              <a href="${messagesUrl}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:600;">Open Messages</a>
+              <p style="margin:16px 0 0; color:#6b7280; font-size:12px;">This is an automated email from ckript.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Hi ${name || "there"},\n\n${safeSenderName} sent you a new message on ckript.\nPreview: ${summary}\n\nOpen messages: ${messagesUrl}\n\n- ckript`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending admin message email:", error.message);
+    return { success: false, error: error.message };
+  }
+};

@@ -21,6 +21,7 @@ import {
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
+import { getScriptCanonicalPath } from "../utils/scriptPath";
 
 /* ────────────────────────────────────────────────────────────
    Status helpers
@@ -219,14 +220,13 @@ const buildTestSuites = (ctx) => {
     {
       key: "read_script_navigate",
       group: "read",
-      label: "\"Read Now\" navigation — router can push to /script/:id",
+      label: "\"Read Now\" navigation — router can push to canonical /script/:projectHeading/:writer_username",
       run: async () => {
         try {
           const listRes = await api.get("/scripts?limit=1");
           const list = Array.isArray(listRes.data) ? listRes.data : listRes.data?.scripts;
           if (!list?.length) return WARN("No scripts available to test navigation.");
-          const id = list[0]._id;
-          const expectedPath = `/script/${id}`;
+          const expectedPath = getScriptCanonicalPath(list[0]);
           // Validate the navigate function is available and path is correct
           if (typeof navigate !== "function")
             return FAIL("navigate() is not available — routing context broken.");
