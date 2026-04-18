@@ -240,6 +240,11 @@ const Profile = () => {
       if (!silent) setLoading(true);
 
       const { data } = await api.get(`/users/${profileId}`);
+      const canonicalUsername = String(data?.user?.writerProfile?.username || "").trim().toLowerCase();
+      const requestedProfileKey = String(id || "").trim().toLowerCase();
+      if (id && canonicalUsername && requestedProfileKey !== canonicalUsername) {
+        navigate(`/profile/${canonicalUsername}`, { replace: true });
+      }
       setProfileAccessMessage("");
       setProfile(data.user);
       setScripts((data.scripts || []).filter((s) => s.status !== "draft" && !s.isDeleted));
@@ -284,14 +289,17 @@ const Profile = () => {
       isFetchingProfileRef.current = false;
       if (!silent) setLoading(false);
     }
-  }, [id, currentUser?._id]);
+  }, [id, currentUser?._id, navigate]);
 
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
 
   useEffect(() => {
-    const isOwnView = !id || id === currentUser?._id;
+    const routeProfileKey = String(id || "").trim().toLowerCase();
+    const currentUserId = String(currentUser?._id || "").trim().toLowerCase();
+    const currentUserUsername = String(currentUser?.writerProfile?.username || "").trim().toLowerCase();
+    const isOwnView = !id || routeProfileKey === currentUserId || (currentUserUsername && routeProfileKey === currentUserUsername);
     if (!isOwnView) return undefined;
 
     const refreshBookmarks = () => {
@@ -310,7 +318,7 @@ const Profile = () => {
         clearTimeout(bookmarkRefreshTimerRef.current);
       }
     };
-  }, [id, currentUser?._id, fetchProfile]);
+  }, [id, currentUser?._id, currentUser?.writerProfile?.username, fetchProfile]);
 
   const handleDeleteScript = async (scriptId) => {
     try {
@@ -482,20 +490,25 @@ const Profile = () => {
     setShowConnectionsModal(true);
   };
 
-  const getProfilePath = (userId) => {
+  const getProfilePath = (userRef) => {
+    const userId = typeof userRef === "string" ? userRef : userRef?._id;
+    const username = typeof userRef === "string"
+      ? ""
+      : String(userRef?.username || "").trim().toLowerCase();
     if (!userId) return "/profile";
 
     const isCurrentReaderProfile =
       String(currentUser?.role || "").toLowerCase() === "reader" &&
       String(currentUser?._id || "") === String(userId);
 
-    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${userId}`;
+    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${username || userId}`;
   };
 
-  const handleConnectionClick = (userId) => {
+  const handleConnectionClick = (userRef) => {
+    const userId = typeof userRef === "string" ? userRef : userRef?._id;
     if (!userId) return;
     setShowConnectionsModal(false);
-    navigate(getProfilePath(userId));
+    navigate(getProfilePath(userRef));
   };
 
   const isOwnProfile = currentUser._id === profile?._id;
@@ -514,6 +527,7 @@ const Profile = () => {
         _id: user._id,
         name: user.name || "Unknown User",
         profileImage: user.profileImage || "",
+        username: user.writerProfile?.username || user.username || "",
       };
     })
     .filter(Boolean);
@@ -528,12 +542,13 @@ const Profile = () => {
     })
     : null;
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const defaultProfileRoute = profile?._id
-    ? `/share/profile/${profile._id}`
+  const profileShareKey = String(profile?.writerProfile?.username || "").trim().toLowerCase() || String(profile?._id || "").trim();
+  const defaultProfileRoute = profileShareKey
+    ? `/share/profile/${encodeURIComponent(profileShareKey)}`
     : "";
   const fallbackShareUrl = defaultProfileRoute ? `${browserOrigin}${defaultProfileRoute}` : "";
   const profileShare = {
-    url: normalizePublicShareUrl(profile?.shareMeta?.url, fallbackShareUrl),
+    url: normalizePublicShareUrl(fallbackShareUrl, profile?.shareMeta?.url),
     title: profile?.shareMeta?.title || `${profile?.name || "Profile"} | Ckript`,
     text: profile?.shareMeta?.text || `Check out ${profile?.name || "this creator"}'s profile on Ckript.`,
   };
@@ -2284,7 +2299,7 @@ const Profile = () => {
                     <button
                       key={user._id || `${user.name}-${index}`}
                       type="button"
-                      onClick={() => handleConnectionClick(user._id)}
+                      onClick={() => handleConnectionClick(user)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${dark ? "hover:bg-white/[0.06]" : "hover:bg-[#f5f9ff]"}`}
                     >
                       {user.profileImage ? (

@@ -16,19 +16,22 @@ const resolveClientBaseUrl = (req) => {
   return "http://localhost:5173";
 };
 
-const getProfilePathByRole = (role, id) => {
+const getProfilePathByRole = (role, id, username = "") => {
   const normalizedRole = String(role || "").toLowerCase();
+  const normalizedUsername = String(username || "").trim().toLowerCase();
   const profileId = String(id || "").trim();
-  if (!profileId) return "/";
+  const profileKey = normalizedUsername || profileId;
+  if (!profileKey) return "/";
 
-  if (normalizedRole === "reader") return `/share/profile/${profileId}`;
+  if (normalizedRole === "reader") return `/share/profile/${encodeURIComponent(profileKey)}`;
 
-  return `/share/profile/${profileId}`;
+  return `/share/profile/${encodeURIComponent(profileKey)}`;
 };
 
 export const buildUserShareMeta = (req, user = {}) => {
   const baseUrl = resolveClientBaseUrl(req);
-  const path = getProfilePathByRole(user.role, user._id);
+  const username = user?.writerProfile?.username || user?.username || "";
+  const path = getProfilePathByRole(user.role, user._id, username);
   const url = `${baseUrl}${path}`;
   const name = user.name || "Ckript User";
   const roleLabel = String(user.role || "member").toLowerCase();

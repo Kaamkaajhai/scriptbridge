@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
@@ -96,6 +96,7 @@ const normalizePreferredFormat = (value = "") => {
 const ACCOUNT_NUMBER_REGEX = /^\d{8,20}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const GENERIC_ROUTING_REGEX = /^[A-Z0-9-]{4,20}$/;
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 const INDUSTRY_ROLE_OPTIONS = [
   { value: "producer", label: "Producer" },
   { value: "director", label: "Director" },
@@ -142,6 +143,15 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     bio: profile.bio || "",
     skills: profile.skills?.join(", ") || "",
     profileImage: profile.profileImage || "",
+  });
+  const initialUsername = String(wp.username || "").trim().toLowerCase();
+  const [username, setUsername] = useState(initialUsername);
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState({
+    state: initialUsername ? "current" : "idle",
+    message: initialUsername
+      ? "This is your current username."
+      : "Use 3-30 characters: a-z, 0-9, or _.",
   });
 
   // Investor-specific state
@@ -223,6 +233,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const [error, setError] = useState("");
   const [imagePreview, setImagePreview] = useState(profile.profileImage || "");
   const fileInputRef = useRef(null);
+  const usernameCheckRequestRef = useRef(0);
 
   // Active section for mobile-friendly navigation
   const [activeSection, setActiveSection] = useState("basic");
@@ -351,6 +362,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setUsernameError("");
     setLoading(true);
 
     try {
@@ -394,6 +406,43 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
         ...formData,
         skills: skillsArray,
       };
+
+      const normalizedUsername = String(username || "").trim().toLowerCase();
+      if (!normalizedUsername && initialUsername) {
+        setUsernameError("Username cannot be empty");
+        setLoading(false);
+        return;
+      }
+
+      if (normalizedUsername && !USERNAME_PATTERN.test(normalizedUsername)) {
+        setUsernameError("Use 3-30 lowercase letters, numbers, or underscores");
+        setLoading(false);
+        return;
+      }
+
+      if (normalizedUsername !== initialUsername) {
+        if (usernameStatus.state === "checking") {
+          setUsernameError("Please wait while we verify username availability");
+          setLoading(false);
+          return;
+        }
+
+        if (usernameStatus.state === "unavailable") {
+          setUsernameError("Username is already taken");
+          setLoading(false);
+          return;
+        }
+
+        if (usernameStatus.state === "error") {
+          setUsernameError("Could not verify username right now. Please try again.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (normalizedUsername) {
+        payload.username = normalizedUsername;
+      }
 
       const addressStreet = formData.addressStreet.trim();
       const addressCity = formData.addressCity.trim();
@@ -563,6 +612,80 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
     ? "w-full px-3.5 py-2.5 bg-[#242424] border border-[#444] rounded-lg text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-blue-500 focus:bg-[#101e30] transition-colors"
     : "w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-[#1e3a5f] focus:bg-white transition-colors";
   const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`;
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const normalizedPreviewUsername = String(username || "").trim().toLowerCase();
+  const usernamePreviewUrl = normalizedPreviewUsername
+    ? `${browserOrigin}/share/profile/${encodeURIComponent(normalizedPreviewUsername)}`
+    : "";
+
+  useEffect(() => {
+    const normalizedUsername = String(username || "").trim().toLowerCase();
+
+    if (!normalizedUsername) {
+      setUsernameStatus({
+        state: "idle",
+        message: "Use 3-30 characters: a-z, 0-9, or _.",
+      });
+      return;
+    }
+
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      setUsernameStatus({
+        state: "invalid",
+        message: "Use 3-30 lowercase letters, numbers, or underscores.",
+      });
+      return;
+    }
+
+    if (normalizedUsername === initialUsername) {
+      setUsernameStatus({
+        state: "current",
+        message: "This is your current username.",
+      });
+      return;
+    }
+
+    const requestId = Date.now();
+    usernameCheckRequestRef.current = requestId;
+    setUsernameStatus({
+      state: "checking",
+      message: "Checking username availability...",
+    });
+
+    let isActive = true;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/onboarding/check-username", {
+          params: { username: normalizedUsername },
+        });
+
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+
+        if (data?.available) {
+          setUsernameStatus({
+            state: "available",
+            message: "Username is available.",
+          });
+        } else {
+          setUsernameStatus({
+            state: "unavailable",
+            message: "Username is already taken.",
+          });
+        }
+      } catch {
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+        setUsernameStatus({
+          state: "error",
+          message: "Could not verify username right now.",
+        });
+      }
+    }, 300);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [username, initialUsername]);
 
   const modalContent = (
     <div
@@ -600,7 +723,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                 type="button"
                 onClick={() => setActiveSection(s.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${activeSection === s.key
-                    ? "bg-[#0f2544] text-white shadow-lg shadow-[#0f2544]/20"
+                  ? "bg-[#0f2544] text-white !text-white shadow-lg shadow-[#0f2544]/20"
                     : dark ? "bg-white/[0.04] text-gray-400 hover:bg-white/[0.08]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
               >
@@ -684,6 +807,46 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                   className={inputClass}
                   required
                 />
+              </div>
+
+              <div>
+                <label className={labelClass}>Username</label>
+                <div className="relative">
+                  <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold ${dark ? "text-gray-500" : "text-gray-400"}`}>@</span>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => {
+                      const nextValue = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+                      setUsername(nextValue);
+                      if (usernameError) setUsernameError("");
+                    }}
+                    className={`${inputClass} pl-8 ${usernameError ? "border-red-400 focus:border-red-400" : ""}`}
+                    placeholder="your_username"
+                    maxLength={30}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </div>
+                {usernameError ? (
+                  <p className="text-[11px] text-red-500 mt-1.5">{usernameError}</p>
+                ) : (
+                  <>
+                    <p className={`text-[11px] mt-1.5 ${
+                      usernameStatus.state === "available" || usernameStatus.state === "current"
+                        ? "text-emerald-500"
+                        : usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" || usernameStatus.state === "error"
+                          ? "text-red-500"
+                          : "text-gray-500"
+                    }`}>
+                      {usernameStatus.message}
+                    </p>
+                    {usernamePreviewUrl && (
+                      <p className="text-[11px] text-gray-500 mt-1">Share link: {usernamePreviewUrl}</p>
+                    )}
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -920,7 +1083,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     type="button"
                     onClick={() => toggleGenre(genre)}
                     className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border-2 ${selectedGenres.includes(genre)
-                        ? "bg-[#0f2544] text-white border-[#0f2544]"
+                      ? "bg-[#0f2544] text-white !text-white border-[#0f2544]"
                         : dark ? "bg-[#242424] text-gray-300 border-[#444] hover:border-blue-500" : "bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]"
                       }`}
                   >
@@ -967,7 +1130,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                     type="button"
                     onClick={() => toggleTag(tag)}
                     className={`px-3 py-2 rounded-lg text-xs font-medium transition-all border ${specializedTags.includes(tag)
-                        ? "bg-[#0f2544] text-white border-[#0f2544]"
+                      ? "bg-[#0f2544] text-white !text-white border-[#0f2544]"
                         : dark ? "bg-[#101e30] text-gray-300 border-[#444] hover:border-blue-500" : "bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]"
                       }`}
                   >
@@ -979,7 +1142,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
               <p className="text-xs text-gray-500 flex items-center justify-between">
                 <span>{specializedTags.length}/5 tags selected</span>
                 {specializedTags.length > 0 && (
-                  <span className="font-medium text-[#0f2544]">{specializedTags.join(", ")}</span>
+                  <span className={`font-medium ${dark ? 'text-white/80' : 'text-[#0f2544]'}`}>{specializedTags.join(", ")}</span>
                 )}
               </p>
             </motion.div>
@@ -1202,7 +1365,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       type="button"
                       onClick={() => setInvestorGenres((prev) => prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre])}
                       className={`px-2.5 py-2 rounded-lg font-medium text-xs transition-all border ${investorGenres.includes(genre)
-                        ? dark ? "bg-[#0f2544] text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white border-[#0f2544]"
+                        ? dark ? "bg-[#0f2544] text-white !text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white !text-white border-[#0f2544]"
                         : dark ? "bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50" : "bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40"
                       }`}
                     >
@@ -1228,7 +1391,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       type="button"
                       onClick={() => setInvestorBudgets((prev) => prev.includes(tier.key) ? prev.filter(b => b !== tier.key) : [...prev, tier.key])}
                       className={`px-3 py-2.5 rounded-lg text-xs transition-all border text-left ${investorBudgets.includes(tier.key)
-                        ? dark ? "bg-[#0f2544] text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white border-[#0f2544]"
+                        ? dark ? "bg-[#0f2544] text-white !text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white !text-white border-[#0f2544]"
                         : dark ? "bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50" : "bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40"
                       }`}
                     >
@@ -1250,7 +1413,7 @@ const EditProfileModal = ({ profile, onClose, onUpdate }) => {
                       type="button"
                       onClick={() => setInvestorFormats((prev) => prev.includes(fmt.value) ? prev.filter(f => f !== fmt.value) : [...prev, fmt.value])}
                       className={`px-3 py-2.5 rounded-lg font-medium text-xs transition-all border ${investorFormats.includes(fmt.value)
-                        ? dark ? "bg-[#0f2544] text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white border-[#0f2544]"
+                        ? dark ? "bg-[#0f2544] text-white !text-white border-[#1e3a5f] shadow-md shadow-[#0f2544]/20" : "bg-[#0f2544] text-white !text-white border-[#0f2544]"
                         : dark ? "bg-white/[0.03] text-gray-400 border-[#333] hover:border-[#1e3a5f]/50" : "bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]/40"
                       }`}
                     >

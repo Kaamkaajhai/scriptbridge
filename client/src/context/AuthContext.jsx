@@ -203,7 +203,8 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const logout = () => {
+  const logout = (options = {}) => {
+    const { redirect = true } = options;
     clearLogoutTimer();
 
     if (typeof window !== "undefined") {
@@ -212,6 +213,10 @@ export const AuthProvider = ({ children }) => {
 
     setUser(null);
     localStorage.removeItem("user");
+
+    if (redirect && typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
   };
 
   return (

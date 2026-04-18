@@ -1725,7 +1725,7 @@ const WriterOnboarding = () => {
                     onClick={() => toggleGenre(genre)}
                     className={`px-4 py-3 rounded-lg font-medium text-sm transition-all border-2 ${
                       selectedGenres.includes(genre)
-                        ? 'bg-[#0f2544] text-white border-[#0f2544]'
+                        ? 'bg-[#0f2544] text-white !text-white border-[#0f2544]'
                         : 'bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]'
                     }`}
                   >
@@ -1768,7 +1768,7 @@ const WriterOnboarding = () => {
                     onClick={() => toggleNuancedTag(tag)}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
                       nuancedTags.includes(tag)
-                        ? 'bg-[#0f2544] text-white border-[#0f2544]'
+                        ? 'bg-[#0f2544] text-white !text-white border-[#0f2544]'
                         : 'bg-white text-gray-700 border-gray-200 hover:border-[#1a365d]'
                     }`}
                   >

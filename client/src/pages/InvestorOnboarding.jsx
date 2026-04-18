@@ -53,6 +53,7 @@ const validatePassword = (password) => {
 
 const PHONE_REGEX = /^[+]?[\d\s\-().]{7,15}$/;
 const CITY_STATE_REGEX = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 
 const INVESTOR_ONBOARDING_DRAFT_KEY = "sb-investor-onboarding-draft-v1";
 
@@ -72,6 +73,7 @@ const DEFAULT_ADDRESS_FIELDS = {
 };
 
 const DEFAULT_INVESTOR_PROFILE = {
+  username: "",
   subRole: "",
   subRoleOther: "",
   jobTitle: "",
@@ -235,6 +237,11 @@ const InvestorOnboarding = () => {
   const [addressError, setAddressError] = useState("");
   const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [firmNameError, setFirmNameError] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState({
+    state: "idle",
+    message: "Use 3-30 characters: a-z, 0-9, or _.",
+  });
   const [roleFocusError, setRoleFocusError] = useState("");
   const [jobTitleError, setJobTitleError] = useState("");
   const [bioError, setBioError] = useState("");
@@ -258,6 +265,7 @@ const InvestorOnboarding = () => {
     ...(initialDraft?.addressFields || {}),
   }));
   const zipLookupRequestRef = useRef(0);
+  const usernameCheckRequestRef = useRef(0);
 
   // Email Verification (keeping for compatibility, but using OTP now)
   const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
@@ -386,6 +394,57 @@ const InvestorOnboarding = () => {
     };
   }, [addressFields.zipCode]);
 
+  useEffect(() => {
+    const username = String(investorProfile.username || "").trim().toLowerCase();
+
+    if (!username) {
+      setUsernameStatus({ state: "idle", message: "Use 3-30 characters: a-z, 0-9, or _." });
+      return;
+    }
+
+    if (username.length < 3) {
+      setUsernameStatus({ state: "invalid", message: "Username must be at least 3 characters." });
+      return;
+    }
+
+    if (!USERNAME_PATTERN.test(username)) {
+      setUsernameStatus({
+        state: "invalid",
+        message: "Use only lowercase letters, numbers, and underscores (max 30).",
+      });
+      return;
+    }
+
+    const requestId = Date.now();
+    usernameCheckRequestRef.current = requestId;
+    setUsernameStatus({ state: "checking", message: "Checking username availability..." });
+    let isActive = true;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/onboarding/check-username", {
+          params: { username },
+        });
+
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+
+        if (data?.available) {
+          setUsernameStatus({ state: "available", message: "Username is available." });
+        } else {
+          setUsernameStatus({ state: "unavailable", message: "Username is already taken." });
+        }
+      } catch {
+        if (!isActive || usernameCheckRequestRef.current !== requestId) return;
+        setUsernameStatus({ state: "error", message: "Could not verify username right now." });
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [investorProfile.username]);
+
   const steps = [
     { num: 1, title: "Account" },
     { num: 2, title: "Profile" },
@@ -415,9 +474,31 @@ const InvestorOnboarding = () => {
   const handleAccountCreation = async (e) => {
     e.preventDefault();
     setError("");
+    setUsernameError("");
     setEmailError("");
     setPhoneError("");
     setAddressError("");
+
+    const normalizedUsername = String(investorProfile.username || "").trim().toLowerCase();
+    if (!normalizedUsername) {
+      setUsernameError("Username is required");
+      return;
+    }
+
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      setUsernameError("Use 3-30 lowercase letters, numbers, or underscores");
+      return;
+    }
+
+    if (usernameStatus.state === "checking") {
+      setUsernameError("Please wait while we verify username availability");
+      return;
+    }
+
+    if (usernameStatus.state === "unavailable") {
+      setUsernameError("Username is already taken");
+      return;
+    }
 
     const phone = String(accountData.phone || "").trim();
     if (!phone) {
@@ -484,6 +565,7 @@ const InvestorOnboarding = () => {
         name: accountData.name,
         email: sanitizedEmail,
         phone,
+        username: normalizedUsername,
         password: accountData.password,
         role: "investor",
         address: {
@@ -687,11 +769,33 @@ const InvestorOnboarding = () => {
   const handleInvestorProfile = async (e) => {
     e.preventDefault();
     setFirmNameError("");
+    setUsernameError("");
     setRoleFocusError("");
     setJobTitleError("");
     setBioError("");
     setSocialLinkError("");
     setError("");
+
+    const normalizedUsername = String(investorProfile.username || "").trim().toLowerCase();
+    if (!normalizedUsername) {
+      setUsernameError("Username is required");
+      return;
+    }
+
+    if (!USERNAME_PATTERN.test(normalizedUsername)) {
+      setUsernameError("Use 3-30 lowercase letters, numbers, or underscores");
+      return;
+    }
+
+    if (usernameStatus.state === "checking") {
+      setUsernameError("Please wait while we verify username availability");
+      return;
+    }
+
+    if (usernameStatus.state === "unavailable") {
+      setUsernameError("Username is already taken");
+      return;
+    }
 
     const sanitizedSubRole = normalizeIndustryRole(investorProfile.subRole);
     const sanitizedSubRoleOther = normalizeUrlInput(investorProfile.subRoleOther);
@@ -758,6 +862,7 @@ const InvestorOnboarding = () => {
     setLoading(true);
     try {
       await api.put("/users/update", {
+        username: normalizedUsername,
         subRole: sanitizedSubRole,
         subRoleOther: sanitizedSubRole === "other" ? sanitizedSubRoleOther : "",
         jobTitle: sanitizedJobTitle,
@@ -943,6 +1048,35 @@ const InvestorOnboarding = () => {
                           required
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Username</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-3 text-gray-300 font-medium text-sm">@</span>
+                        <input
+                          type="text"
+                          placeholder="e.g. investor_yash"
+                          value={investorProfile.username}
+                          onChange={(e) => {
+                            setInvestorProfile({
+                              ...investorProfile,
+                              username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                            });
+                            if (usernameError) setUsernameError("");
+                          }}
+                          className={`${inputClass} pl-8 ${usernameError || usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" ? "border-red-400 focus:border-red-400 focus:ring-red-100" : usernameStatus.state === "available" ? "border-emerald-400" : ""}`}
+                          required
+                        />
+                      </div>
+                      {!usernameError && usernameStatus.message && (
+                        <p className={`mt-1.5 text-xs flex items-center gap-1 ${usernameStatus.state === "available" ? "text-emerald-600" : usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" || usernameStatus.state === "error" ? "text-red-500" : "text-gray-500"}`}>
+                          <AlertCircle size={12} /> {usernameStatus.message}
+                        </p>
+                      )}
+                      {usernameError && (
+                        <p className="mt-1.5 text-xs font-semibold text-red-500">{usernameError}</p>
+                      )}
                     </div>
 
                     <div className="rounded-xl border border-gray-200 p-4 space-y-3">
@@ -1205,6 +1339,35 @@ const InvestorOnboarding = () => {
                   <p className="text-gray-400 text-sm font-medium mt-1">Tell writers and creators about your production focus</p>
                 </div>
                 <form onSubmit={handleInvestorProfile} className="p-8 space-y-5">
+                  <div>
+                    <label className={labelClass}>Username</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-3 text-gray-300 font-medium text-sm">@</span>
+                      <input
+                        type="text"
+                        placeholder="e.g. investor_yash"
+                        value={investorProfile.username}
+                        onChange={(e) => {
+                          setInvestorProfile({
+                            ...investorProfile,
+                            username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                          });
+                          if (usernameError) setUsernameError("");
+                        }}
+                        className={`${inputClass} pl-8 ${usernameError || usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" ? "border-red-400 focus:border-red-400 focus:ring-red-100" : usernameStatus.state === "available" ? "border-emerald-400" : ""}`}
+                        required
+                      />
+                    </div>
+                    {!usernameError && usernameStatus.message && (
+                      <p className={`mt-1.5 text-xs flex items-center gap-1 ${usernameStatus.state === "available" ? "text-emerald-600" : usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" || usernameStatus.state === "error" ? "text-red-500" : "text-gray-500"}`}>
+                        <AlertCircle size={12} /> {usernameStatus.message}
+                      </p>
+                    )}
+                    {usernameError && (
+                      <p className="mt-1.5 text-xs font-semibold text-red-500">{usernameError}</p>
+                    )}
+                  </div>
+
                   <div>
                     <label className={labelClass}>Role Focus</label>
                     <div className="relative">

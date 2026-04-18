@@ -386,7 +386,10 @@ const Search = () => {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Search by name, genre, title, skills..."
-            className={`w-full h-12 max-[580px]:h-11 max-[380px]:h-10 pl-12 max-[580px]:pl-10 max-[380px]:pl-9 pr-12 max-[580px]:pr-10 max-[380px]:pr-9 bg-transparent rounded-xl text-[14px] max-[580px]:text-[13px] max-[380px]:text-[12px] focus:outline-none ${t.searchInput}`}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="none"
+            className={`app-search-input ${dark ? "app-search-input-dark" : ""} w-full h-12 max-[580px]:h-11 max-[380px]:h-10 pl-12 max-[580px]:pl-10 max-[380px]:pl-9 pr-12 max-[580px]:pr-10 max-[380px]:pr-9 bg-transparent rounded-xl text-[14px] max-[580px]:text-[13px] max-[380px]:text-[12px] focus:outline-none ${t.searchInput}`}
           />
           {query ? (
             <button

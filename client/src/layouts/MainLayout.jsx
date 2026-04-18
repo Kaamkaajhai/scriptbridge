@@ -37,9 +37,10 @@ const MainLayout = ({ children }) => {
   const showCreditSystem = Boolean(user) && user?.role !== "investor" && user?.role !== "reader";
   const topBarHomePath = user?.role === "reader" ? "/reader" : "/dashboard";
   const topBarHomeLabel = user?.role === "reader" ? "Reader Home" : "Dashboard";
+  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
   const topBarProfilePath = user?.role === "reader"
     ? `/reader/profile/${user?._id || ""}`
-    : `/profile/${user?._id || ""}`;
+    : `/profile/${currentWriterUsername || user?._id || ""}`;
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -394,7 +395,7 @@ const MainLayout = ({ children }) => {
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
     logout();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const initials = user?.name
@@ -641,7 +642,10 @@ const MainLayout = ({ children }) => {
               placeholder="Search projects, writers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent text-white placeholder-[#6f86a7]"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="none"
+              className="app-search-input app-search-input-dark flex-1 px-2.5 md:px-3 py-2.5 text-[13px] md:text-[14px] font-medium outline-none bg-transparent text-white !text-white placeholder-[#6f86a7]"
             />
             {searchQuery && (
               <button type="button" onClick={() => setSearchQuery("")}

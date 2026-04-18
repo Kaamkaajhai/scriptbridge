@@ -17,11 +17,13 @@ import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// Public pre-checks used during onboarding before auth/session is established.
+router.get("/check-username", checkUsernameAvailability);
+
 // All routes require authentication
 router.use(protect);
 
 router.get("/status", getOnboardingStatus);
-router.get("/check-username", checkUsernameAvailability);
 router.post("/send-verification", sendEmailVerification);
 router.post("/verify-email", verifyEmail);
 
