@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useNavigate, useLocation, useParams } from "react-router-dom";
 import { lazy, Suspense, useEffect, useContext } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
@@ -109,6 +109,30 @@ function LanguagePreferenceSync() {
   }, [user?.language, pathname]);
 
   return <div id="google_translate_element" style={{ display: "none" }} aria-hidden="true" />;
+}
+
+function ReferralCodeRedirect() {
+  const { referralCode } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const normalizedCode = String(referralCode || "").trim().toUpperCase();
+
+    if (!/^[A-Z0-9]{4,40}$/.test(normalizedCode)) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    try {
+      localStorage.setItem("sb:referral-code", normalizedCode);
+    } catch {
+      // Storage can fail in restricted environments; query param still carries referral.
+    }
+
+    navigate(`/signup?ref=${encodeURIComponent(normalizedCode)}`, { replace: true });
+  }, [navigate, referralCode]);
+
+  return null;
 }
 
 function App() {
@@ -430,6 +454,7 @@ function App() {
                 path="/admin/scripts/:id"
                 element={<AdminScriptView />}
               />
+              <Route path="/:referralCode" element={<ReferralCodeRedirect />} />
             </Routes>
             </Suspense>
           </AdminLoginHandler>

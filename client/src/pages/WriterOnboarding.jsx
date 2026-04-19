@@ -1,5 +1,5 @@
 import { useState, useContext, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import OTPVerification from "../components/OTPVerification";
@@ -58,13 +58,21 @@ const validatePassword = (password) => {
 const INDIA_COUNTRY_NAME = "India";
 const INDIA_ZIP_REGEX = /^\d{6}$/;
 const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
+const REFERRAL_STORAGE_KEY = "sb:referral-code";
+const REFERRAL_MAX_LENGTH = 40;
 
 const WRITER_ONBOARDING_DRAFT_KEY = "sb-writer-onboarding-draft-v1";
+
+const normalizeReferralInput = (value = "") =>
+  String(value || "")
+    .trim()
+    .slice(0, REFERRAL_MAX_LENGTH);
 
 const DEFAULT_ACCOUNT_DATA = {
   name: "",
   dateOfBirth: "",
   email: "",
+  referralCode: "",
   password: "",
   confirmPassword: "",
   address: "",
@@ -247,6 +255,7 @@ const NATIONALITY_OPTIONS = [
 const WriterOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const initialDraftRef = useRef(loadWriterOnboardingDraft());
   const initialDraft = initialDraftRef.current;
   
@@ -318,6 +327,11 @@ const WriterOnboarding = () => {
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
   const zipLookupRequestRef = useRef(0);
   const usernameCheckRequestRef = useRef(0);
+  const referralCheckRequestRef = useRef(0);
+  const [referralStatus, setReferralStatus] = useState({
+    state: "idle",
+    message: "Optional: enter referral code or writer username.",
+  });
 
   const handleMembershipToggle = (type, checked) => {
     const verificationKey = type === "wga" ? "wga" : "swa";
@@ -395,6 +409,30 @@ const WriterOnboarding = () => {
   ]);
 
   useEffect(() => {
+    const referralFromUrl = normalizeReferralInput(
+      searchParams.get("ref") || searchParams.get("referral") || searchParams.get("referralCode")
+    );
+
+    if (referralFromUrl) {
+      setAccountData((prev) => ({ ...prev, referralCode: referralFromUrl }));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(REFERRAL_STORAGE_KEY, referralFromUrl);
+      }
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const storedReferral = normalizeReferralInput(localStorage.getItem(REFERRAL_STORAGE_KEY));
+      if (storedReferral) {
+        setAccountData((prev) => {
+          if (normalizeReferralInput(prev.referralCode) === storedReferral) return prev;
+          return { ...prev, referralCode: storedReferral };
+        });
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (isOutsideIndia) {
       setZipLookupLoading(false);
       return;
@@ -415,6 +453,13 @@ const WriterOnboarding = () => {
       try {
         const { data } = await api.get(`/auth/zip-info/${zipCode}`);
         if (!isActive || zipLookupRequestRef.current !== requestId) return;
+
+        if (data?.valid === false) {
+          if (data?.message) {
+            setAddressError(data.message);
+          }
+          return;
+        }
 
         const resolvedCity = String(data?.city || "").trim();
         const resolvedState = String(data?.state || "").trim();
@@ -500,6 +545,67 @@ const WriterOnboarding = () => {
     };
   }, [writerProfile.username]);
 
+  useEffect(() => {
+    const referralInput = normalizeReferralInput(accountData.referralCode);
+
+    if (!referralInput) {
+      setReferralStatus({
+        state: "idle",
+        message: "Optional: enter referral code or writer username.",
+      });
+      return;
+    }
+
+    if (referralInput.length < 3) {
+      setReferralStatus({
+        state: "invalid",
+        message: "Use at least 3 characters.",
+      });
+      return;
+    }
+
+    const requestId = Date.now();
+    referralCheckRequestRef.current = requestId;
+    setReferralStatus({ state: "checking", message: "Checking referral..." });
+    let isActive = true;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/auth/validate-referral/${encodeURIComponent(referralInput)}`);
+        if (!isActive || referralCheckRequestRef.current !== requestId) return;
+
+        const referrerName = String(data?.referrer?.name || "").trim();
+        const referrerUsername = String(data?.referrer?.username || "").trim();
+        const resolvedLabel = referrerName || (referrerUsername ? `@${referrerUsername}` : "Valid referrer");
+
+        setReferralStatus({
+          state: "valid",
+          message: `Referral applied: ${resolvedLabel}`,
+        });
+      } catch (err) {
+        if (!isActive || referralCheckRequestRef.current !== requestId) return;
+
+        if (err?.response?.status === 404) {
+          setReferralStatus({
+            state: "invalid",
+            message: "Referral code or username not found.",
+          });
+          return;
+        }
+
+        setReferralStatus({
+          state: "warning",
+          message: "Unable to validate referral right now. It will be checked at signup.",
+        });
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [accountData.referralCode]);
+
   const steps = [
     { num: 1, title: "Account" },
     { num: 2, title: "Profile" },
@@ -583,6 +689,12 @@ const WriterOnboarding = () => {
       setError("Passwords do not match");
       return;
     }
+
+    const normalizedReferralCode = normalizeReferralInput(accountData.referralCode);
+    if (normalizedReferralCode && referralStatus.state === "invalid") {
+      setError("Referral code or username not found");
+      return;
+    }
     
     setLoading(true);
     try {
@@ -594,12 +706,23 @@ const WriterOnboarding = () => {
       }
 
       // Create account using AuthContext join function
-      const response = await join({
+      const joinPayload = {
         name: accountData.name,
         email: sanitizedEmail,
         password: accountData.password,
-        role: "creator"
-      });
+        role: "creator",
+        referralCode: normalizedReferralCode,
+      };
+
+      if (normalizedReferralCode) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(REFERRAL_STORAGE_KEY, normalizedReferralCode);
+        }
+      } else if (typeof window !== "undefined") {
+        localStorage.removeItem(REFERRAL_STORAGE_KEY);
+      }
+
+      const response = await join(joinPayload);
       
       // Check if OTP verification is required
       if (response?.requiresVerification) {
@@ -992,6 +1115,36 @@ const WriterOnboarding = () => {
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Referral code (optional)
+                </label>
+                <input
+                  type="text"
+                  value={accountData.referralCode}
+                  onChange={(e) => {
+                    const nextReferral = e.target.value.slice(0, REFERRAL_MAX_LENGTH);
+                    setAccountData({ ...accountData, referralCode: nextReferral });
+                    setError("");
+                  }}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                  placeholder="Enter referral code"
+                />
+                {accountData.referralCode ? (
+                  <p className={`mt-1.5 text-xs flex items-center gap-1 ${
+                    referralStatus.state === "valid"
+                      ? "text-emerald-600"
+                      : referralStatus.state === "invalid"
+                        ? "text-red-500"
+                        : referralStatus.state === "warning"
+                          ? "text-amber-600"
+                          : "text-gray-500"
+                  }`}>
+                    <AlertCircle size={12} /> {referralStatus.message}
+                  </p>
+                ) : null}
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-white/80 p-4 space-y-3">
@@ -1766,9 +1919,9 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={20} className="!text-black" />
                 Back
               </button>
               <button
@@ -1876,9 +2029,9 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={20} className="!text-black" />
                 Back
               </button>
               <button
@@ -2000,9 +2153,9 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
-                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={20} className="!text-black" />
                 Back
               </button>
               <button

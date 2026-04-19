@@ -227,6 +227,10 @@ const Profile = () => {
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteAccountReason, setDeleteAccountReason] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [referralSummary, setReferralSummary] = useState(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState("");
+  const [referralCopyFeedback, setReferralCopyFeedback] = useState("");
   const [profileAccessMessage, setProfileAccessMessage] = useState("");
   const isFetchingProfileRef = useRef(false);
   const bookmarkRefreshTimerRef = useRef(null);
@@ -486,6 +490,33 @@ const Profile = () => {
     }
   };
 
+  const copyToClipboard = async (value) => {
+    if (!value) return false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch {
+      // Fallback below.
+    }
+
+    try {
+      const temp = document.createElement("textarea");
+      temp.value = value;
+      temp.setAttribute("readonly", "true");
+      temp.style.position = "absolute";
+      temp.style.left = "-9999px";
+      document.body.appendChild(temp);
+      temp.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(temp);
+      return copied;
+    } catch {
+      return false;
+    }
+  };
+
   const openConnectionsModal = (type) => {
     setConnectionsType(type);
     setShowConnectionsModal(true);
@@ -543,6 +574,11 @@ const Profile = () => {
     })
     : null;
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const referralCode = String(referralSummary?.referralCode || profile?.referralCode || currentUser?.referralCode || "").trim();
+  const fallbackReferralLink = referralCode
+    ? `${browserOrigin}/${encodeURIComponent(referralCode)}`
+    : "";
+  const referralShareLink = String(referralSummary?.referralLink || "").trim() || fallbackReferralLink;
   const profileShareKey = String(profile?.writerProfile?.username || "").trim().toLowerCase() || String(profile?._id || "").trim();
   const defaultProfileRoute = profileShareKey
     ? `/share/profile/${encodeURIComponent(profileShareKey)}`
@@ -559,6 +595,48 @@ const Profile = () => {
     if (url.startsWith("http") || url.startsWith("data:")) return url;
     return `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}${url}`;
   };
+
+  const formatNumber = (value) => new Intl.NumberFormat("en-IN").format(Number(value) || 0);
+
+  const handleCopyReferralLink = async () => {
+    if (!referralShareLink) return;
+    const copied = await copyToClipboard(referralShareLink);
+    setReferralCopyFeedback(copied ? "Referral link copied" : "Copy failed. Please copy manually.");
+    setTimeout(() => setReferralCopyFeedback(""), 2200);
+  };
+
+  useEffect(() => {
+    if (activeTab !== "settings" || !isOwnProfile || !isWriterUser) {
+      setReferralSummary(null);
+      setReferralError("");
+      setReferralCopyFeedback("");
+      return;
+    }
+
+    let isActive = true;
+
+    const loadReferralSummary = async () => {
+      try {
+        setReferralLoading(true);
+        setReferralError("");
+        const { data } = await api.get("/auth/referral-summary");
+        if (!isActive) return;
+        setReferralSummary(data || null);
+      } catch {
+        if (!isActive) return;
+        setReferralSummary(null);
+        setReferralError("Unable to load referral details right now.");
+      } finally {
+        if (isActive) setReferralLoading(false);
+      }
+    };
+
+    loadReferralSummary();
+
+    return () => {
+      isActive = false;
+    };
+  }, [activeTab, isOwnProfile, isWriterUser]);
 
   /* â”€â”€ Loading â”€â”€ */
   if (loading) {
@@ -714,18 +792,18 @@ const Profile = () => {
           <div className="px-5 sm:px-8 pt-2 sm:pt-3 pb-7 relative z-20">
             <div className={`rounded-3xl p-5 sm:p-6 ${dark ? "bg-[#0b1320]/95" : "bg-white/95"}`}>
               {!isOwnProfile && (
-                <div className="hidden max-[430px]:flex items-center max-[430px]:justify-between gap-1 mb-3.5 max-[430px]:w-full">
+                <div className="hidden max-[470px]:flex items-center max-[470px]:justify-between gap-1 mb-3.5 max-[470px]:w-full">
                   <button
                     onClick={handleFollow}
                     disabled={isBlockedByCurrent || blockedByProfile}
-                    className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border max-[430px]:flex-1 max-[430px]:px-2 max-[430px]:text-[11px] disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
+                    className={`px-4 sm:px-5 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border max-[470px]:flex-1 max-[470px]:px-2 max-[470px]:text-[11px] disabled:opacity-55 disabled:cursor-not-allowed ${isFollowing ? t.followActive : t.followIdle}`}
                   >
                     {blockedByProfile ? "Blocked You" : isBlockedByCurrent ? "Blocked" : isFollowing ? "Following" : "Follow"}
                   </button>
                   <button
                     onClick={handleToggleBlock}
                     disabled={blockingAction || blockedByProfile}
-                    className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border max-[430px]:flex-1 max-[430px]:px-2 max-[430px]:text-[11px] disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                    className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border max-[470px]:flex-1 max-[470px]:px-2 max-[470px]:text-[11px] disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
                   >
                     {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
                   </button>
@@ -733,8 +811,8 @@ const Profile = () => {
               )}
 
               <div className="flex flex-col md:flex-row md:items-start gap-4 sm:gap-5">
-                <div className="flex items-start gap-3 flex-1 min-w-0 max-[430px]:flex-col max-[430px]:items-center">
-                  <div className="shrink-0 flex flex-col items-start gap-2 max-[430px]:items-center">
+                <div className="flex items-start gap-3 flex-1 min-w-0 max-[470px]:flex-col max-[470px]:items-center">
+                  <div className="shrink-0 flex flex-col items-start gap-2 max-[470px]:items-center">
                     {profile.profileImage ? (
                       <img
                         src={resolveImage(profile.profileImage)}
@@ -749,7 +827,7 @@ const Profile = () => {
                       </div>
                     )}
 
-                      <div className="flex flex-col items-start gap-2 mt-2 max-[430px]:items-center">
+                      <div className="flex flex-col items-start gap-2 mt-2 max-[470px]:items-center">
                         <SocialShareButton
                           share={profileShare}
                           buttonLabel="Share"
@@ -777,8 +855,8 @@ const Profile = () => {
                       </div>
                   </div>
 
-                  <div className="min-w-0 flex-1 max-[430px]:w-full max-[430px]:text-center">
-                    <div className="flex items-center gap-2 flex-wrap max-[430px]:justify-center">
+                  <div className="min-w-0 flex-1 max-[470px]:w-full max-[470px]:text-center">
+                    <div className="flex items-center gap-2 flex-wrap max-[470px]:justify-center">
                       <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${t.h1}`}>{profile.name}</h1>
                       <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.12em] border ${t.roleBg}`}>
                         {profile.role}
@@ -793,7 +871,7 @@ const Profile = () => {
                         <button
                           onClick={handleToggleBlock}
                           disabled={blockingAction || blockedByProfile}
-                          className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border sm:ml-auto max-[430px]:hidden disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
+                          className={`px-3 sm:px-4 py-1.5 rounded-xl text-[12px] sm:text-[13px] font-bold transition-all border sm:ml-auto max-[470px]:hidden disabled:opacity-55 disabled:cursor-not-allowed ${isBlockedByCurrent ? t.unblockBtn : t.blockBtn}`}
                         >
                           {blockingAction ? "Updating..." : isBlockedByCurrent ? "Unblock" : "Block"}
                         </button>
@@ -801,24 +879,24 @@ const Profile = () => {
                     </div>
 
                     {profile.writerProfile?.representationStatus && profile.writerProfile.representationStatus !== "unrepresented" && (
-                      <p className={`text-[13px] mt-1.5 capitalize max-[430px]:text-center ${dark ? "text-white/50" : "text-gray-600"}`}>
+                      <p className={`text-[13px] mt-1.5 capitalize max-[470px]:text-center ${dark ? "text-white/50" : "text-gray-600"}`}>
                         {profile.writerProfile.representationStatus.replace(/_/g, " & ")}
                         {profile.writerProfile?.agencyName ? ` at ${profile.writerProfile.agencyName}` : ""}
                       </p>
                     )}
 
                     {isOwnProfile && (
-                      <p className={`text-[12px] font-medium mt-1.5 max-[430px]:text-center ${t.email}`}>{profile.email}</p>
+                      <p className={`text-[12px] font-medium mt-1.5 max-[470px]:text-center ${t.email}`}>{profile.email}</p>
                     )}
 
                     {profile.bio && (
-                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-4 max-[430px]:text-center ${t.body}`}>
+                      <p className={`text-[14px] leading-relaxed mt-3 line-clamp-4 max-[470px]:text-center ${t.body}`}>
                         {profile.bio}
                       </p>
                     )}
 
                     <div className="w-full mt-3.5">
-                      <div className="grid grid-cols-3 gap-1.5 w-full max-[430px]:gap-1">
+                      <div className="grid grid-cols-3 gap-1.5 w-full max-[470px]:gap-1">
                         {[
                           { label: "Projects", value: scripts.length },
                           { label: "Followers", value: profile.followers.length, connectionType: "followers" },
@@ -829,10 +907,10 @@ const Profile = () => {
                             type="button"
                             disabled={!item.connectionType}
                             onClick={item.connectionType ? () => openConnectionsModal(item.connectionType) : undefined}
-                            className={`rounded-xl px-2.5 py-2 text-left transition-colors disabled:opacity-100 ${item.connectionType ? dark ? "hover:bg-white/[0.08]" : "hover:bg-[#f0f6ff]" : "cursor-default"}`}
+                            className={`rounded-xl px-2.5 py-2 text-left max-[470px]:text-center overflow-hidden transition-colors disabled:opacity-100 ${item.connectionType ? dark ? "hover:bg-white/[0.08]" : "hover:bg-[#f0f6ff]" : "cursor-default"}`}
                           >
                             <p className={`text-lg font-black tabular-nums leading-none ${dark ? "text-white" : "text-gray-900"}`}>{item.value}</p>
-                            <p className={`text-[10px] font-bold uppercase tracking-[0.12em] mt-0.5 ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
+                            <p className={`block w-full text-[10px] max-[470px]:text-[9px] font-bold uppercase tracking-[0.12em] max-[470px]:tracking-[0.08em] mt-0.5 max-[470px]:truncate ${dark ? "text-white/35" : "text-gray-500"}`}>{item.label}</p>
                           </button>
                         ))}
                       </div>
@@ -1893,6 +1971,57 @@ const Profile = () => {
               </div>
             </div>
           </SectionCard>
+
+          {isWriterUser && (
+            <SectionCard
+              dark={dark}
+              title="Referral"
+              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25l1.72 3.486 3.848.559-2.784 2.714.657 3.832L12 17.034l-3.441 1.807.657-3.832-2.784-2.714 3.848-.559L12 8.25z" /></svg>}
+            >
+              <div className="space-y-3">
+                <p className={`text-[12px] ${dark ? "text-white/45" : "text-gray-500"}`}>
+                  Share your referral link. If a writer signs up with your link or referral and verifies their account, both writers get 15 credits.
+                </p>
+
+                <div>
+                  <p className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                    Referral Code
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <div className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-black tracking-wider ${dark ? "bg-white/[0.06] text-white" : "bg-gray-100 text-gray-900"}`}>
+                      {referralCode || "--"}
+                    </div>
+                    <div className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold ${dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>
+                      Bonus: {formatNumber(referralSummary?.totalBonusCredits || 0)} credits
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyReferralLink}
+                      disabled={!referralShareLink || referralLoading}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 ${dark ? "bg-white/[0.08] text-white hover:bg-white/[0.14]" : "bg-gray-100 text-gray-800 hover:bg-gray-200"}`}
+                    >
+                      Copy Link
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 ${dark ? "text-white/30" : "text-gray-400"}`}>
+                    Referral Link
+                  </p>
+                  <div className={`rounded-xl border px-3 py-2.5 text-xs break-all ${dark ? "border-white/[0.08] bg-white/[0.02] text-white/75" : "border-gray-200 bg-gray-50 text-gray-700"}`}>
+                    {referralLoading ? "Loading referral link..." : referralShareLink || "Referral link unavailable"}
+                  </div>
+                  {referralError && <p className="mt-1.5 text-xs text-red-500">{referralError}</p>}
+                  {referralCopyFeedback && (
+                    <p className={`mt-1.5 text-xs ${dark ? "text-emerald-300" : "text-emerald-600"}`}>
+                      {referralCopyFeedback}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
+          )}
 
           {/* Notification Preferences */}
           <SectionCard dark={dark} title="Notification Preferences" icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>}>

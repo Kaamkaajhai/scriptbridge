@@ -374,6 +374,13 @@ const InvestorOnboarding = () => {
         const { data } = await api.get(`/auth/zip-info/${zipCode}`);
         if (!isActive || zipLookupRequestRef.current !== requestId) return;
 
+        if (data?.valid === false) {
+          if (data?.message) {
+            setAddressError(data.message);
+          }
+          return;
+        }
+
         const resolvedCity = String(data?.city || "").trim();
         const resolvedState = String(data?.state || "").trim();
 
@@ -1787,7 +1794,7 @@ const InvestorOnboarding = () => {
 
                   <div className="flex gap-3 pt-1">
                     <button type="button" onClick={() => setCurrentStep(1)}
-                      className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
+                      className="h-11 px-5 rounded-xl border border-gray-200 text-black font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 hover:text-black transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
                     <button type="submit" disabled={loading || creditUploadInProgress}
@@ -1839,7 +1846,7 @@ const InvestorOnboarding = () => {
 
                   <div className="flex gap-3">
                     <button type="button" onClick={() => setCurrentStep(2)}
-                      className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
+                      className="h-11 px-5 rounded-xl border border-gray-200 text-black font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 hover:text-black transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
                     <button type="submit" disabled={loading}
@@ -1929,7 +1936,7 @@ const InvestorOnboarding = () => {
 
                   <div className="flex gap-3">
                     <button type="button" onClick={() => setCurrentStep(3)}
-                      className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
+                      className="h-11 px-5 rounded-xl border border-gray-200 text-black font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 hover:text-black transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
                     <button

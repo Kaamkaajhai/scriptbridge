@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -17,12 +17,15 @@ import {
   Star,
   Lock,
   RefreshCw,
+  Copy,
 } from "lucide-react";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
+import { AuthContext } from "../context/AuthContext";
 
 const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   const { isDarkMode: dark } = useDarkMode();
+  const { user } = useContext(AuthContext);
   const [packages, setPackages] = useState([]);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [customPricing, setCustomPricing] = useState({
@@ -43,8 +46,14 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
   const [discountApplied, setDiscountApplied] = useState(null);
   const [discountLoading, setDiscountLoading] = useState(false);
   const [discountError, setDiscountError] = useState("");
+  const [referralSummary, setReferralSummary] = useState(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState("");
+  const [referralCopyFeedback, setReferralCopyFeedback] = useState("");
   
   const modalRef = useRef(null);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const isWriterUser = ["creator", "writer"].includes(normalizedRole) || Boolean(user?.writerProfile);
 
   // Load Razorpay SDK
   useEffect(() => {
@@ -81,8 +90,33 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
       setDiscountCode("");
       setDiscountApplied(null);
       setDiscountError("");
+      setReferralCopyFeedback("");
     }
   }, [isOpen]);
+
+  const fetchReferralSummary = useCallback(async () => {
+    if (!isOpen || !isWriterUser) {
+      setReferralSummary(null);
+      setReferralError("");
+      return;
+    }
+
+    try {
+      setReferralLoading(true);
+      setReferralError("");
+      const { data } = await api.get("/auth/referral-summary");
+      setReferralSummary(data || null);
+    } catch {
+      setReferralSummary(null);
+      setReferralError("Unable to load referral details right now.");
+    } finally {
+      setReferralLoading(false);
+    }
+  }, [isOpen, isWriterUser]);
+
+  useEffect(() => {
+    fetchReferralSummary();
+  }, [fetchReferralSummary]);
 
   // ESC to close
   useEffect(() => {
@@ -317,6 +351,49 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
     return dark ? "text-blue-400" : "text-blue-600";
   };
 
+  const formatNumber = (n) => new Intl.NumberFormat("en-IN").format(n || 0);
+
+  const referralCode = String(referralSummary?.referralCode || user?.referralCode || "").trim();
+  const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const fallbackReferralLink = referralCode
+    ? `${fallbackOrigin}/${encodeURIComponent(referralCode)}`
+    : "";
+  const referralShareLink = String(referralSummary?.referralLink || "").trim() || fallbackReferralLink;
+
+  const copyToClipboard = async (value) => {
+    if (!value) return false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch {
+      // Fallback below.
+    }
+
+    try {
+      const temp = document.createElement("textarea");
+      temp.value = value;
+      temp.setAttribute("readonly", "true");
+      temp.style.position = "absolute";
+      temp.style.left = "-9999px";
+      document.body.appendChild(temp);
+      temp.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(temp);
+      return copied;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleCopyReferralLink = async () => {
+    if (!referralShareLink) return;
+    const copied = await copyToClipboard(referralShareLink);
+    setReferralCopyFeedback(copied ? "Referral link copied" : "Copy failed. Please copy manually.");
+    setTimeout(() => setReferralCopyFeedback(""), 2200);
+  };
+
   if (!isOpen) return null;
 
   const parsedCustomCredits = Number(customCredits);
@@ -498,6 +575,63 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {isWriterUser && (
+                  <div
+                    className={`mb-4 rounded-2xl border p-4 ${
+                      dark
+                        ? "border-[#1a2e48] bg-[#0d1b2e]"
+                        : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className={`text-xs mt-1 ${dark ? "text-white/55" : "text-gray-500"}`}>
+                          Share your referral link. If a writer signs up with your link or referral and verifies their account, both writers get 15 credits.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${dark ? "text-gray-600" : "text-gray-400"}`}>
+                        Referral Code
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        <div className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-black tracking-wider ${dark ? "bg-white/[0.06] text-white" : "bg-gray-100 text-gray-900"}`}>
+                          {referralCode || "--"}
+                        </div>
+                        <div className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold ${dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>
+                          Bonus: {formatNumber(referralSummary?.totalBonusCredits || 0)} credits
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyReferralLink}
+                          disabled={!referralShareLink}
+                          className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 ${dark ? "bg-white/[0.08] text-white hover:bg-white/[0.14]" : "bg-gray-100 text-gray-800 hover:bg-gray-200"}`}
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          Copy Link
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${dark ? "text-gray-600" : "text-gray-400"}`}>
+                        Referral Link
+                      </p>
+                      <div className={`rounded-lg border px-3 py-2 text-xs break-all ${dark ? "border-[#1a2e48] bg-white/[0.02] text-gray-300" : "border-gray-100 bg-gray-50 text-gray-700"}`}>
+                        {referralLoading ? "Loading referral link..." : referralShareLink || "Referral link unavailable"}
+                      </div>
+
+                      {referralError && <p className="mt-1.5 text-xs text-red-500">{referralError}</p>}
+                      {referralCopyFeedback && (
+                        <p className={`mt-1.5 text-xs ${dark ? "text-emerald-300" : "text-emerald-600"}`}>
+                          {referralCopyFeedback}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Package Grid */}
                 <div className={`grid grid-cols-1 sm:grid-cols-2 ${packageGridCols} gap-3`}>
@@ -755,7 +889,6 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
                   {[
                     { icon: Shield, text: "Secure Payment" },
-                    { icon: Lock, text: "256-bit Encryption" },
                     { icon: RefreshCw, text: "Instant Credits" },
                   ].map(({ icon: TrustIcon, text }) => (
                     <div
@@ -773,103 +906,19 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* ─── Footer ─────────────────────────────── */}
-          <div
-            className={`px-3 sm:px-6 py-3 sm:py-4 border-t flex items-center justify-between max-[450px]:flex-col max-[450px]:items-stretch gap-3 shrink-0 ${
-              dark
-                ? "border-white/[0.06] bg-white/[0.02]"
-                : "border-gray-100 bg-gray-50/50"
-            }`}
-          >
-            <div className="max-[450px]:w-full">
-              {(selectedPackage || useCustomCredits) && (
-                <div className="flex items-center gap-2 max-[450px]:justify-between max-[450px]:flex-wrap">
-                  <div className="flex flex-col">
-                    <span
-                      className={`text-sm max-[340px]:text-[13px] ${
-                        dark ? "text-white/40" : "text-gray-500"
-                      }`}
-                    >
-                      Total:
-                    </span>
-                    {discountApplied && (
-                      <span className={`text-xs line-through ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                        ₹{discountApplied.originalPrice.toLocaleString("en-IN")}
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={`text-lg max-[340px]:text-base font-black tabular-nums ${
-                      dark ? "text-white" : "text-gray-900"
-                    }`}
-                  >
-                    ₹
-                    {(discountApplied
-                      ? discountApplied.finalPrice
-                      : (useCustomCredits ? customTotal : selectedPackage?.price || 0)
-                    ).toLocaleString("en-IN")}
-                  </span>
-                  <span
-                    className={`text-xs max-[340px]:text-[10px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap ${
-                      dark
-                        ? "bg-blue-500/10 text-blue-400"
-                        : "bg-blue-50 text-blue-600"
-                    }`}
-                  >
-                    {useCustomCredits
-                      ? `${parsedCustomCredits || 0} credits`
-                      : `${
-                          (selectedPackage?.credits || 0) +
-                          (selectedPackage?.bonusCredits || 0)
-                        } credits`}
-                  </span>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex gap-2 max-[450px]:w-full">
-              <button
-                onClick={onClose}
-                disabled={purchasing}
-                className={`px-5 max-[340px]:px-3 py-2.5 rounded-xl text-sm max-[340px]:text-[13px] font-semibold transition-all max-[450px]:flex-1 ${
-                  dark
-                    ? "bg-white/[0.05] text-white/60 hover:bg-white/[0.10]"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                } disabled:opacity-40`}
-              >
-                Cancel
-              </button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handlePurchase}
-                disabled={
-                  purchasing ||
-                  (!selectedPackage && !useCustomCredits) ||
-                  (useCustomCredits &&
-                    (!Number.isInteger(parsedCustomCredits) ||
-                      parsedCustomCredits < customMin ||
-                      parsedCustomCredits > customMax))
-                }
-                className="px-6 max-[340px]:px-3 py-2.5 rounded-xl text-sm max-[340px]:text-[13px] font-bold flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm whitespace-nowrap max-[450px]:flex-1"
-              >
-                {purchasing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    Pay Now
-                    <ArrowRight className="w-4 h-4 max-[340px]:hidden" />
-                  </>
-                )}
-              </motion.button>
-            </div>
-          </div>
-
           {/* Discount Code Input Area */}
-          <div className={`px-4 sm:px-6 py-3 border-t shrink-0 ${dark ? "border-white/[0.06] bg-black/20" : "border-gray-100 bg-white"}`}>
+          <div className={`px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 ${dark ? "border-white/[0.06] bg-black/20" : "border-gray-100 bg-white"}`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className={`text-[11px] font-bold uppercase tracking-widest ${dark ? "text-white/45" : "text-gray-500"}`}>
+                Discount Code
+              </p>
+              {discountApplied?.discountAmount ? (
+                <span className={`text-xs font-bold ${dark ? "text-emerald-300" : "text-emerald-600"}`}>
+                  Saved ₹{discountApplied.discountAmount.toLocaleString("en-IN")}
+                </span>
+              ) : null}
+            </div>
+
             {!discountApplied ? (
               <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full">
                 <input
@@ -881,7 +930,7 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                     setDiscountCode(e.target.value.toUpperCase());
                     setDiscountError("");
                   }}
-                  className={`flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold uppercase outline-none transition-all border ${
+                  className={`flex-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold outline-none transition-all border ${
                     dark 
                       ? "bg-[#0b1628] border-white/[0.1] text-white focus:border-blue-500/50" 
                       : "bg-gray-50 border-gray-200 text-gray-900 focus:border-blue-400"
@@ -942,6 +991,101 @@ const BuyCreditsModal = ({ isOpen, onClose, onSuccess }) => {
                 </motion.p>
               )}
             </AnimatePresence>
+          </div>
+
+          {/* ─── Footer ─────────────────────────────── */}
+          <div
+            className={`px-3 sm:px-6 py-3 sm:py-4 border-t flex items-center justify-between max-[450px]:flex-col max-[450px]:items-stretch gap-3 shrink-0 ${
+              dark
+                ? "border-white/[0.06] bg-white/[0.02]"
+                : "border-gray-100 bg-gray-50/50"
+            }`}
+          >
+            <div className="max-[450px]:w-full">
+              {(selectedPackage || useCustomCredits) && (
+                <div className="flex items-center gap-2 max-[450px]:justify-between max-[450px]:flex-wrap">
+                  <div className="flex flex-col">
+                    <span
+                      className={`text-sm max-[340px]:text-[13px] ${
+                        dark ? "text-white/40" : "text-gray-500"
+                      }`}
+                    >
+                      Total:
+                    </span>
+                    {discountApplied && (
+                      <span className={`text-xs line-through ${dark ? "text-gray-500" : "text-gray-400"}`}>
+                        ₹{discountApplied.originalPrice.toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-lg max-[340px]:text-base font-black tabular-nums ${
+                      dark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    ₹
+                    {(discountApplied
+                      ? discountApplied.finalPrice
+                      : (useCustomCredits ? customTotal : selectedPackage?.price || 0)
+                    ).toLocaleString("en-IN")}
+                  </span>
+                  <span
+                    className={`text-xs max-[340px]:text-[10px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap ${
+                      dark
+                        ? "bg-blue-500/10 text-blue-400"
+                        : "bg-blue-50 text-blue-600"
+                    }`}
+                  >
+                    {useCustomCredits
+                      ? `${parsedCustomCredits || 0} credits`
+                      : `${
+                          (selectedPackage?.credits || 0) +
+                          (selectedPackage?.bonusCredits || 0)
+                        } credits`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 max-[450px]:w-full">
+              <button
+                onClick={onClose}
+                disabled={purchasing}
+                className={`px-5 max-[340px]:px-3 py-2.5 rounded-xl text-sm max-[340px]:text-[13px] font-semibold transition-all max-[450px]:flex-1 ${
+                  dark
+                    ? "bg-white/[0.05] text-white/60 hover:bg-white/[0.10]"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                } disabled:opacity-40`}
+              >
+                Cancel
+              </button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handlePurchase}
+                disabled={
+                  purchasing ||
+                  (!selectedPackage && !useCustomCredits) ||
+                  (useCustomCredits &&
+                    (!Number.isInteger(parsedCustomCredits) ||
+                      parsedCustomCredits < customMin ||
+                      parsedCustomCredits > customMax))
+                }
+                className="px-6 max-[340px]:px-3 py-2.5 rounded-xl text-sm max-[340px]:text-[13px] font-bold flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm whitespace-nowrap max-[450px]:flex-1"
+              >
+                {purchasing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    Pay Now
+                    <ArrowRight className="w-4 h-4 max-[340px]:hidden" />
+                  </>
+                )}
+              </motion.button>
+            </div>
           </div>
         </motion.div>
       </motion.div>

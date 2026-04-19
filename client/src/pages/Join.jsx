@@ -74,6 +74,13 @@ const DEFAULT_ADDRESS_FIELDS = {
 
 const ENABLED_SIGNUP_ROLES = new Set(["creator", "investor"]);
 const DEFAULT_SIGNUP_ROLE = "creator";
+const REFERRAL_STORAGE_KEY = "sb:referral-code";
+const REFERRAL_MAX_LENGTH = 40;
+
+const normalizeReferralInput = (value = "") =>
+  String(value || "")
+    .trim()
+    .slice(0, REFERRAL_MAX_LENGTH);
 
 const Join = () => {
   const { join, setUser } = useContext(AuthContext);
@@ -100,6 +107,7 @@ const Join = () => {
   });
   const [addressFields, setAddressFields] = useState(DEFAULT_ADDRESS_FIELDS);
   const [isOutsideIndia, setIsOutsideIndia] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -115,6 +123,27 @@ const Join = () => {
       navigate("/signup", { replace: true });
     }
   }, [navigate, requestedRole]);
+
+  useEffect(() => {
+    const referralFromUrl = normalizeReferralInput(
+      searchParams.get("ref") || searchParams.get("referral") || searchParams.get("referralCode")
+    );
+
+    if (referralFromUrl) {
+      setReferralCode(referralFromUrl);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(REFERRAL_STORAGE_KEY, referralFromUrl);
+      }
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const stored = normalizeReferralInput(localStorage.getItem(REFERRAL_STORAGE_KEY));
+      if (stored) {
+        setReferralCode(stored);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!requiresContactDetails) {
@@ -142,6 +171,13 @@ const Join = () => {
       try {
         const { data } = await api.get(`/auth/zip-info/${zipCode}`);
         if (!isActive || zipLookupRequestRef.current !== requestId) return;
+
+        if (data?.valid === false) {
+          if (data?.message) {
+            setAddressError(data.message);
+          }
+          return;
+        }
 
         const resolvedCity = String(data?.city || "").trim();
         const resolvedState = String(data?.state || "").trim();
@@ -217,7 +253,21 @@ const Join = () => {
       ...formData,
       name: trimmedName,
       email: sanitizedEmail,
+      referralCode: normalizeReferralInput(referralCode),
     };
+
+    const normalizedReferralCode = signupPayload.referralCode;
+    if (typeof window !== "undefined") {
+      if (normalizedReferralCode) {
+        localStorage.setItem(REFERRAL_STORAGE_KEY, normalizedReferralCode);
+      } else {
+        localStorage.removeItem(REFERRAL_STORAGE_KEY);
+      }
+    }
+
+    if (!normalizedReferralCode) {
+      delete signupPayload.referralCode;
+    }
 
     if (requiresContactDetails) {
       const phone = String(formData.phone || "").trim();
@@ -429,6 +479,19 @@ const Join = () => {
                   {emailError}
                 </p>
               )}
+            </div>
+            <div>
+              <label className="block text-[13px] font-semibold text-[#8fa2b8] mb-2">Referral code (optional)</label>
+              <input
+                type="text"
+                placeholder="Enter referral code or writer username"
+                className="w-full px-4 py-3 bg-[#0b121c] border border-[#243447] rounded-xl text-[15px] text-white placeholder-[#506074] outline-none focus:border-[#3f5d7a] focus:ring-2 focus:ring-[#3f5d7a]/20 transition-all duration-200"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.slice(0, REFERRAL_MAX_LENGTH))}
+              />
+              <p className="mt-1.5 text-[11px] text-[#8fa2b8]">
+                You and your referrer both get 15 credits after successful signup verification.
+              </p>
             </div>
             {requiresContactDetails && (
               <div className="reader-address-card rounded-xl border border-[#243447] bg-[#0a111b] p-4 space-y-3">
