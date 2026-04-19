@@ -81,6 +81,8 @@ const DEFAULT_INVESTOR_PROFILE = {
   subRole: "",
   subRoleOther: "",
   jobTitle: "",
+  gender: "",
+  nationality: "",
   company: "",
   investmentRange: "",
   previousCredits: "",
@@ -109,6 +111,35 @@ const INDUSTRY_ROLE_OPTIONS = [
 ];
 
 const INDUSTRY_ROLE_VALUE_SET = new Set(INDUSTRY_ROLE_OPTIONS.map((option) => option.value));
+const INVESTOR_GENDER_OPTIONS = [
+  "Male",
+  "Female",
+  "Trans",
+  "Prefer not to say",
+  "Other",
+];
+const INVESTOR_NATIONALITY_OPTIONS = [
+  "Indian",
+  "American",
+  "British",
+  "Canadian",
+  "Australian",
+  "German",
+  "French",
+  "Italian",
+  "Spanish",
+  "Japanese",
+  "South Korean",
+  "Chinese",
+  "Singaporean",
+  "Emirati",
+  "Saudi Arabian",
+  "Pakistani",
+  "Bangladeshi",
+  "Nepalese",
+  "Sri Lankan",
+  "Other",
+];
 const NOTABLE_CREDIT_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -248,6 +279,7 @@ const InvestorOnboarding = () => {
   });
   const [roleFocusError, setRoleFocusError] = useState("");
   const [jobTitleError, setJobTitleError] = useState("");
+  const [identityError, setIdentityError] = useState("");
   const [bioError, setBioError] = useState("");
   const [socialLinkError, setSocialLinkError] = useState("");
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
@@ -805,6 +837,7 @@ const InvestorOnboarding = () => {
     setUsernameError("");
     setRoleFocusError("");
     setJobTitleError("");
+    setIdentityError("");
     setBioError("");
     setSocialLinkError("");
     setError("");
@@ -850,6 +883,13 @@ const InvestorOnboarding = () => {
     const sanitizedJobTitle = normalizeUrlInput(investorProfile.jobTitle);
     if (!sanitizedJobTitle) {
       setJobTitleError("Job title is required");
+      return;
+    }
+
+    const sanitizedGender = normalizeUrlInput(investorProfile.gender);
+    const sanitizedNationality = normalizeUrlInput(investorProfile.nationality);
+    if (!sanitizedGender || !sanitizedNationality) {
+      setIdentityError("Gender and nationality are required");
       return;
     }
 
@@ -911,6 +951,10 @@ const InvestorOnboarding = () => {
           facebook: urlFields.facebookUrl,
           youtube: urlFields.youtubeUrl,
           website: urlFields.websiteUrl,
+        },
+        demographics: {
+          gender: sanitizedGender,
+          nationality: sanitizedNationality,
         },
         investmentRange: investorProfile.investmentRange,
       });
@@ -1550,6 +1594,55 @@ const InvestorOnboarding = () => {
                       <p className="mt-1.5 text-xs font-semibold text-red-500">{firmNameError}</p>
                     )}
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelClass}>Gender</label>
+                      <div className="relative">
+                        <User size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <select
+                          value={investorProfile.gender}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, gender: e.target.value });
+                            if (identityError) setIdentityError("");
+                          }}
+                          className={`${inputClass} pl-10 pr-10 appearance-none ${identityError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                          required
+                        >
+                          <option value="">Select gender</option>
+                          {INVESTOR_GENDER_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3.5 top-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Nationality</label>
+                      <div className="relative">
+                        <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <select
+                          value={investorProfile.nationality}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, nationality: e.target.value });
+                            if (identityError) setIdentityError("");
+                          }}
+                          className={`${inputClass} pl-10 pr-10 appearance-none ${identityError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                          required
+                        >
+                          <option value="">Select nationality</option>
+                          {INVESTOR_NATIONALITY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3.5 top-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+                  {identityError && (
+                    <p className="-mt-1 text-xs font-semibold text-red-500">{identityError}</p>
+                  )}
 
                   <div>
                     <label className={labelClass}>Typical Project Budget Range</label>

@@ -981,7 +981,7 @@ export const updateUserProfile = async (req, res) => {
       privacyPolicyAccepted,
       privacyPolicyVersion,
       // investor profile fields
-      subRole, subRoleOther, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
+      subRole, subRoleOther, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks, demographics,
       // bank details
       bankDetails,
       // notification preferences
@@ -1079,7 +1079,7 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
+    if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined || demographics !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
 
       const resultingBio = normalizeString(bio !== undefined ? bio : user.bio) || "";
@@ -1122,6 +1122,15 @@ export const updateUserProfile = async (req, res) => {
         user.industryProfile.socialLinks.website = normalizeString(socialLinks?.website);
         user.industryProfile.socialLinks.youtube = normalizeString(socialLinks?.youtube);
         user.industryProfile.socialLinks.facebook = normalizeString(socialLinks?.facebook);
+      }
+      if (demographics !== undefined) {
+        if (!user.industryProfile.demographics) user.industryProfile.demographics = {};
+        if (demographics?.gender !== undefined) {
+          user.industryProfile.demographics.gender = normalizeString(demographics.gender);
+        }
+        if (demographics?.nationality !== undefined) {
+          user.industryProfile.demographics.nationality = normalizeString(demographics.nationality);
+        }
       }
       if (previousCredits !== undefined) user.industryProfile.previousCredits = sanitizePreviousCredits(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);
