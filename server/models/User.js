@@ -198,6 +198,10 @@ const userSchema = new mongoose.Schema({
       youtube: { type: String },
       facebook: { type: String },
     },
+    demographics: {
+      gender: { type: String },
+      nationality: { type: String },
+    },
     otherUrl: { type: String },
     previousCredits: { type: String },
     notableCreditAttachments: [{

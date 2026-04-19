@@ -4126,7 +4126,13 @@ const AdminDashboard = () => {
 
     const UserDetailsModal = ({ user, onClose }) => {
         const [openingAttachmentKey, setOpeningAttachmentKey] = useState("");
+        const normalizedRole = String(user?.role || "").toLowerCase();
+        const isWriterRole = ["writer", "creator"].includes(normalizedRole);
+        const isInvestorRole = ["investor", "producer", "director", "industry", "professional"].includes(normalizedRole);
+        const isReaderRole = normalizedRole === "reader";
         const writerLinks = user?.writerProfile?.links || {};
+        const investorSocialLinks = user?.industryProfile?.socialLinks || {};
+        const investorDemographics = user?.industryProfile?.demographics || {};
         const membershipVerification = user?.writerProfile?.membershipVerification || {};
         const wgaVerification = membershipVerification?.wga || {};
         const swaVerification = membershipVerification?.swa || {};
@@ -4194,11 +4200,12 @@ const AdminDashboard = () => {
             { label: "Frozen Reason", value: user?.frozenReason },
             { label: "Date of Birth", value: user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "" },
             { label: "Address", value: addressLine || user?.address?.formatted },
+            { label: "Bio", value: user?.bio },
             { label: "Approval Status", value: user?.approvalStatus },
             { label: "Approval Note", value: user?.approvalNote },
             { label: "Email Verified", value: user?.emailVerified === true ? "Yes" : user?.emailVerified === false ? "No" : "" },
             { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleString() : "" },
-        ].filter((row) => row.value);
+        ];
 
         const writerRows = [
             { label: "Legal Name", value: user?.writerProfile?.legalName },
@@ -4223,21 +4230,31 @@ const AdminDashboard = () => {
             { label: "IMDb", value: writerLinks?.imdb },
             { label: "Facebook", value: writerLinks?.facebook },
             { label: "Accomplishments", value: Array.isArray(user?.writerProfile?.accomplishments) ? user.writerProfile.accomplishments.join(", ") : "" },
-        ].filter((row) => row.value);
+        ];
 
         const investorRows = [
             { label: "Sub Role", value: formatIndustrySubRole(user?.industryProfile?.subRole, user?.industryProfile?.subRoleOther) },
             { label: "Company", value: user?.industryProfile?.company },
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
+            { label: "Gender", value: investorDemographics?.gender },
+            { label: "Nationality", value: investorDemographics?.nationality },
             { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
             { label: "Investment Range", value: user?.industryProfile?.investmentRange },
             { label: "Previous Credits", value: sanitizePreviousCreditsDisplay(user?.industryProfile?.previousCredits) },
+            { label: "LinkedIn", value: user?.industryProfile?.linkedInUrl },
+            { label: "IMDb", value: user?.industryProfile?.imdbUrl },
+            { label: "Portfolio / Other URL", value: user?.industryProfile?.otherUrl },
+            { label: "Instagram", value: investorSocialLinks?.instagram },
+            { label: "Twitter", value: investorSocialLinks?.twitter },
+            { label: "Facebook", value: investorSocialLinks?.facebook },
+            { label: "YouTube", value: investorSocialLinks?.youtube },
+            { label: "Website", value: investorSocialLinks?.website },
             { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
             { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
             { label: "Mandates Exclude Genres", value: Array.isArray(mandates?.excludeGenres) ? mandates.excludeGenres.join(", ") : "" },
             { label: "Mandates Hooks", value: Array.isArray(mandates?.specificHooks) ? mandates.specificHooks.join(", ") : "" },
             { label: "Mandates Budget", value: Array.isArray(mandates?.budgetTiers) ? mandates.budgetTiers.join(", ") : "" },
-        ].filter((row) => row.value);
+        ];
 
         const budgetRange = user?.preferences?.budgetRange;
         const readerRows = [
@@ -4258,7 +4275,13 @@ const AdminDashboard = () => {
                 label: "Scripts Read",
                 value: Array.isArray(user?.scriptsRead) ? String(user.scriptsRead.length) : "",
             },
-        ].filter((row) => row.value);
+        ];
+
+        const displayRowValue = (value) => {
+            if (value === 0 || value === false) return String(value);
+            const text = String(value ?? "").trim();
+            return text || "-";
+        };
 
         const sectionClass = `rounded-xl border p-4 ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`;
 
@@ -4328,20 +4351,20 @@ const AdminDashboard = () => {
                                 {detailRows.map((row) => (
                                     <div key={row.label}>
                                         <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                        <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                        <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {writerRows.length > 0 && (
+                        {isWriterRole && (
                             <div className={sectionClass}>
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Writer Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {writerRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -4417,28 +4440,28 @@ const AdminDashboard = () => {
                             </div>
                         )}
 
-                        {readerRows.length > 0 && (
+                        {isReaderRole && (
                             <div className={sectionClass}>
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Reader Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {readerRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {investorRows.length > 0 && (
+                        {isInvestorRole && (
                             <div className={sectionClass}>
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Investor / Industry Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {investorRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                         </div>
                                     ))}
                                 </div>
