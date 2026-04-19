@@ -73,12 +73,16 @@ const normalizeLanguagePreference = (value) => {
 
 const normalizeProfileLookupKey = (value) => String(value || "").trim();
 const isLikelyObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || "").trim());
+const isLikelyUserSid = (value) => /^[a-z]{3}-[a-z0-9]{8}$/i.test(String(value || "").trim());
 
 const buildUserProfileLookupQuery = (profileKey) => {
   const normalized = normalizeProfileLookupKey(profileKey);
   if (!normalized) return null;
   if (isLikelyObjectId(normalized)) {
     return { _id: normalized };
+  }
+  if (isLikelyUserSid(normalized)) {
+    return { sid: normalized.toUpperCase() };
   }
   return { "writerProfile.username": normalized.toLowerCase() };
 };
