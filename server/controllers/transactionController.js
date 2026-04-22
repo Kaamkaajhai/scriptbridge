@@ -392,7 +392,7 @@ export const getTransactionStats = async (req, res) => {
     const projectSalesEarnings = creatorScripts.reduce((sum, script) => {
       const unlockCount = Array.isArray(script.unlockedBy) ? script.unlockedBy.length : 0;
       const salePrice = Number(script.price || 0);
-      const creatorPayout = salePrice * 0.9;
+      const creatorPayout = salePrice;
       return sum + unlockCount * creatorPayout;
     }, 0);
 

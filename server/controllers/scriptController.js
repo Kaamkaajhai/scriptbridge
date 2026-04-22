@@ -1887,6 +1887,9 @@ export const approveScriptPurchase = async (req, res) => {
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
+    const payableAmount = amountToRelease > 0
+      ? getScriptPurchasePricing(amountToRelease).totalAmount
+      : 0;
     const paymentMethod = purchaseRequest.paymentMethod || "wallet";
     const hasEscrowHold = amountToRelease > 0 && purchaseRequest.paymentStatus === "escrow_held";
 
@@ -1911,7 +1914,7 @@ export const approveScriptPurchase = async (req, res) => {
         type: "purchase_approved",
         from: req.user._id,
         script: script._id,
-        message: `${writer.name} approved your request for "${script.title}". Please pay ₹${amountToRelease.toLocaleString("en-IN")} within ${APPROVED_UNPAID_EXPIRY_HOURS} hours to unlock full script access.`,
+        message: `${writer.name} approved your request for "${script.title}". Please pay ₹${payableAmount.toLocaleString("en-IN")} (includes 5% platform commission) within ${APPROVED_UNPAID_EXPIRY_HOURS} hours to unlock full script access.`,
       });
 
       sendPurchaseApprovedEmail(
@@ -1922,7 +1925,7 @@ export const approveScriptPurchase = async (req, res) => {
         script._id.toString(),
         {
           requiresPayment: true,
-          amount: amountToRelease,
+          amount: payableAmount,
           paymentDueAt,
           clientBaseUrl: resolveClientOriginFromRequest(req),
         }
@@ -2311,8 +2314,9 @@ export const holdScript = async (req, res) => {
     }
 
     const fee = script.holdFee || 200;
-    const platformCut = fee * 0.10; // 10% platform fee
-    const creatorPayout = fee - platformCut;
+    const pricing = getScriptPurchasePricing(fee);
+    const platformCut = pricing.platformTaxAmount;
+    const creatorPayout = pricing.baseAmount;
     const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
     // Create option record
@@ -2346,7 +2350,9 @@ export const holdScript = async (req, res) => {
       message: "Script held successfully",
       option,
       holdDetails: {
-        fee,
+        fee: pricing.baseAmount,
+        buyerCommission: platformCut,
+        totalPayable: pricing.totalAmount,
         platformCut,
         creatorPayout,
         expiresAt: endDate,
@@ -3807,9 +3813,9 @@ export const verifyScriptPurchase = async (req, res) => {
               amountValue: pricing.baseAmount,
             },
             {
-              item: `Platform Tax (${pricing.platformTaxPercent}%)`,
+              item: `Platform Commission (${pricing.platformTaxPercent}%)`,
               type: "Tax",
-              detail: "Platform tax charged on script purchase.",
+              detail: "Buyer-side commission charged on script purchase.",
               amountLabel: `INR ${pricing.platformTaxAmount.toFixed(2)}`,
               amountValue: pricing.platformTaxAmount,
             },
@@ -3963,10 +3969,11 @@ export const createScriptHoldOrder = async (req, res) => {
     }
 
     const holdFee = script.holdFee || 200;
+    const holdPricing = getScriptPurchasePricing(holdFee);
 
     // Create Razorpay order
     const options = {
-      amount: Math.round(holdFee * 100), // Amount in paise (INR) or cents
+      amount: Math.round(holdPricing.totalAmount * 100), // Amount in paise (INR)
       currency: "INR",
       receipt: `script_hold_${Date.now()}`,
       notes: {
@@ -3974,7 +3981,10 @@ export const createScriptHoldOrder = async (req, res) => {
         scriptId: scriptId,
         scriptTitle: script.title,
         creatorId: script.creator._id.toString(),
-        holdFee: holdFee,
+        holdFee: holdPricing.baseAmount,
+        buyerCommissionPercent: String(holdPricing.platformTaxPercent),
+        buyerCommissionAmount: holdPricing.platformTaxAmount.toFixed(2),
+        totalAmount: holdPricing.totalAmount.toFixed(2),
         type: "script_hold"
       }
     };
@@ -3990,9 +4000,10 @@ export const createScriptHoldOrder = async (req, res) => {
       scriptDetails: {
         id: script._id,
         title: script.title,
-        holdFee: holdFee,
+        holdFee: holdPricing.baseAmount,
         creator: script.creator.name
-      }
+      },
+      pricing: holdPricing,
     });
   } catch (error) {
     console.error("Razorpay hold order creation error:", error);
@@ -4060,8 +4071,9 @@ export const verifyScriptHold = async (req, res) => {
 
     const user = await User.findById(req.user._id);
     const fee = script.holdFee || 200;
-    const platformCut = fee * 0.10; // 10% platform fee
-    const creatorPayout = fee - platformCut;
+    const pricing = getScriptPurchasePricing(fee);
+    const platformCut = pricing.platformTaxAmount;
+    const creatorPayout = pricing.baseAmount;
     const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
     // Create option record
@@ -4090,7 +4102,7 @@ export const verifyScriptHold = async (req, res) => {
     await Transaction.create({
       user: req.user._id,
       type: "payment",
-      amount: -fee,
+      amount: -pricing.totalAmount,
       currency: "INR",
       status: "completed",
       description: `Placed hold on script: "${script.title}" (30 days)`,
@@ -4101,8 +4113,9 @@ export const verifyScriptHold = async (req, res) => {
         razorpay_order_id,
         razorpay_payment_id,
         holdEndDate: endDate,
-        platformCut,
-        creatorPayout
+        buyerCommissionAmount: platformCut,
+        creatorPayout,
+        totalPaid: pricing.totalAmount,
       }
     });
 
@@ -4128,8 +4141,8 @@ export const verifyScriptHold = async (req, res) => {
       relatedScript: script._id,
       metadata: {
         holderId: req.user._id.toString(),
-        platformCut,
-        originalAmount: fee,
+        buyerCommissionAmount: platformCut,
+        originalAmount: pricing.baseAmount,
         holdEndDate: endDate
       }
     });
@@ -4140,7 +4153,7 @@ export const verifyScriptHold = async (req, res) => {
       type: "hold",
       from: req.user._id,
       script: script._id,
-      message: `${user.name} has placed a hold on "${script.title}" for ₹${fee} (30 days). You earn ₹${creatorPayout.toFixed(2)}!`,
+      message: `${user.name} has placed a hold on "${script.title}" for ₹${pricing.totalAmount.toFixed(2)} (includes 5% platform commission, 30 days). You earn ₹${creatorPayout.toFixed(2)}.`,
     });
 
     console.log("Script hold completed:", { scriptId, holderId: req.user._id, fee });
@@ -4150,14 +4163,16 @@ export const verifyScriptHold = async (req, res) => {
       message: "Hold placed successfully!",
       option,
       holdDetails: {
-        fee,
+        fee: pricing.baseAmount,
+        buyerCommission: platformCut,
+        totalPaid: pricing.totalAmount,
         platformCut,
         creatorPayout,
         expiresAt: endDate,
       },
       transaction: {
         reference,
-        amount: fee
+        amount: pricing.totalAmount,
       }
     });
   } catch (error) {

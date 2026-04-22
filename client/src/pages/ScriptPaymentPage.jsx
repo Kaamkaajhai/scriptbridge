@@ -6,7 +6,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
 
-const PLATFORM_TAX_RATE = 0.05;
+const BUYER_COMMISSION_RATE = 0.05;
 
 const roundAmount = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -17,6 +17,36 @@ const formatInr = (value) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+
+const loadRazorpaySdk = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Browser environment unavailable"));
+      return;
+    }
+
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const existingScript = document.querySelector('script[data-razorpay-sdk="true"]');
+    if (existingScript) {
+      const handleLoad = () => resolve(true);
+      const handleError = () => reject(new Error("Failed to load Razorpay SDK"));
+      existingScript.addEventListener("load", handleLoad, { once: true });
+      existingScript.addEventListener("error", handleError, { once: true });
+      return;
+    }
+
+    const sdkScript = document.createElement("script");
+    sdkScript.src = "https://checkout.razorpay.com/v1/checkout.js";
+    sdkScript.async = true;
+    sdkScript.setAttribute("data-razorpay-sdk", "true");
+    sdkScript.onload = () => resolve(true);
+    sdkScript.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
+    document.body.appendChild(sdkScript);
+  });
 
 export default function ScriptPaymentPage() {
   const { id } = useParams();
@@ -53,33 +83,6 @@ export default function ScriptPaymentPage() {
     fetchScript();
   }, [id]);
 
-  useEffect(() => {
-    if (totalPayable <= 0) {
-      setRazorpayReady(true);
-      return undefined;
-    }
-
-    setRazorpayReady(Boolean(window.Razorpay));
-
-    if (window.Razorpay) return undefined;
-
-    const sdkScript = document.createElement("script");
-    sdkScript.src = "https://checkout.razorpay.com/v1/checkout.js";
-    sdkScript.async = true;
-    sdkScript.onload = () => setRazorpayReady(true);
-    sdkScript.onerror = () => {
-      setRazorpayReady(false);
-      setPaymentError("Payment gateway failed to load. Please disable blockers and retry.");
-    };
-    document.body.appendChild(sdkScript);
-
-    return () => {
-      if (sdkScript.parentNode) {
-        sdkScript.parentNode.removeChild(sdkScript);
-      }
-    };
-  }, [totalPayable]);
-
   const request = script?.myPendingRequest;
   const approvedForPayment = Boolean(
     request &&
@@ -87,14 +90,44 @@ export default function ScriptPaymentPage() {
       request.paymentStatus !== "released"
   );
   const baseAmount = roundAmount(Number(request?.amount || script?.price || 0));
-  const platformTaxAmount = roundAmount(baseAmount * PLATFORM_TAX_RATE);
-  const totalPayable = roundAmount(baseAmount + platformTaxAmount);
+  const buyerCommissionAmount = roundAmount(baseAmount * BUYER_COMMISSION_RATE);
+  const totalPayable = roundAmount(baseAmount + buyerCommissionAmount);
   const requiresRazorpayPayment = totalPayable > 0;
   const isAlreadyPurchased = Boolean(script?.isUnlocked || request?.paymentStatus === "released");
   const customWriterTerms = String(script?.legal?.customInvestorTerms || "").trim();
   const hasCustomWriterTerms = customWriterTerms.length > 0;
   const investorRoles = ["investor", "producer", "director", "industry", "professional"];
   const isInvestor = investorRoles.includes(user?.role);
+
+  useEffect(() => {
+    if (!requiresRazorpayPayment) {
+      setRazorpayReady(true);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const prepareSdk = async () => {
+      setRazorpayReady(Boolean(window.Razorpay));
+      try {
+        await loadRazorpaySdk();
+        if (!cancelled) {
+          setRazorpayReady(true);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setRazorpayReady(false);
+          setPaymentError("Payment gateway failed to load. Please disable blockers and retry.");
+        }
+      }
+    };
+
+    prepareSdk();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requiresRazorpayPayment]);
 
   const handleInvoicePdfAction = async (invoice, action = "open") => {
     if (!invoice?._id) {
@@ -157,8 +190,13 @@ export default function ScriptPaymentPage() {
     }
 
     if (requiresRazorpayPayment && (!window.Razorpay || !razorpayReady)) {
-      setPaymentError("Payment SDK is blocked or not ready. Please retry after enabling checkout.razorpay.com.");
-      return;
+      try {
+        await loadRazorpaySdk();
+        setRazorpayReady(true);
+      } catch (_error) {
+        setPaymentError("Payment SDK is blocked or not ready. Please retry after enabling checkout.razorpay.com.");
+        return;
+      }
     }
 
     try {
@@ -366,15 +404,15 @@ export default function ScriptPaymentPage() {
                   <span className={`font-semibold ${t.title}`}>{formatInr(baseAmount)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span>Platform Tax (5%)</span>
-                  <span className={`font-semibold ${t.title}`}>{formatInr(platformTaxAmount)}</span>
+                  <span>Platform Commission (5%)</span>
+                  <span className={`font-semibold ${t.title}`}>{formatInr(buyerCommissionAmount)}</span>
                 </div>
                 <div className={`flex items-center justify-between gap-3 pt-2 border-t ${t.row}`}>
                   <span className={`font-bold ${t.title}`}>Total Payable</span>
                   <span className={`text-lg font-extrabold ${t.title}`}>{formatInr(totalPayable)}</span>
                 </div>
                 <p className={`text-xs pt-1 ${t.muted}`}>
-                  Writer payout is based on script access fee. Platform tax is charged separately.
+                  Writer receives the full script access fee. Platform commission is charged separately at checkout.
                 </p>
               </div>
             </div>

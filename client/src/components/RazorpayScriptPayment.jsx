@@ -3,6 +3,38 @@ import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
 
+const BUYER_COMMISSION_RATE = 0.05;
+
+const loadRazorpaySdk = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Browser environment unavailable"));
+      return;
+    }
+
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const existingScript = document.querySelector('script[data-razorpay-sdk="true"]');
+    if (existingScript) {
+      const handleLoad = () => resolve(true);
+      const handleError = () => reject(new Error("Failed to load Razorpay SDK"));
+      existingScript.addEventListener("load", handleLoad, { once: true });
+      existingScript.addEventListener("error", handleError, { once: true });
+      return;
+    }
+
+    const sdkScript = document.createElement("script");
+    sdkScript.src = "https://checkout.razorpay.com/v1/checkout.js";
+    sdkScript.async = true;
+    sdkScript.setAttribute("data-razorpay-sdk", "true");
+    sdkScript.onload = () => resolve(true);
+    sdkScript.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
+    document.body.appendChild(sdkScript);
+  });
+
 const RazorpayScriptPayment = ({
   isOpen,
   onClose,
@@ -20,26 +52,29 @@ const RazorpayScriptPayment = ({
       return;
     }
 
+    let cancelled = false;
     setRazorpayReady(Boolean(window.Razorpay));
 
-    if (window.Razorpay) return undefined;
-
-    const sdkScript = document.createElement("script");
-    sdkScript.src = "https://checkout.razorpay.com/v1/checkout.js";
-    sdkScript.async = true;
-    sdkScript.onload = () => setRazorpayReady(true);
-    sdkScript.onerror = () => {
-      setRazorpayReady(false);
-      setError(
-        "Payment SDK failed to load. Disable ad blocker/privacy extension for checkout.razorpay.com and try again."
-      );
+    const prepareSdk = async () => {
+      try {
+        await loadRazorpaySdk();
+        if (!cancelled) {
+          setRazorpayReady(true);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setRazorpayReady(false);
+          setError(
+            "Payment SDK failed to load. Disable ad blocker/privacy extension for checkout.razorpay.com and try again."
+          );
+        }
+      }
     };
-    document.body.appendChild(sdkScript);
+
+    prepareSdk();
 
     return () => {
-      if (sdkScript.parentNode) {
-        sdkScript.parentNode.removeChild(sdkScript);
-      }
+      cancelled = true;
     };
   }, [isOpen]);
 
@@ -49,11 +84,16 @@ const RazorpayScriptPayment = ({
       setError("");
 
       if (!window.Razorpay || !razorpayReady) {
-        setError(
-          "Payment SDK is blocked or not ready. Disable blocker for checkout.razorpay.com, then retry."
-        );
-        setLoading(false);
-        return;
+        try {
+          await loadRazorpaySdk();
+          setRazorpayReady(true);
+        } catch (_error) {
+          setError(
+            "Payment SDK is blocked or not ready. Disable blocker for checkout.razorpay.com, then retry."
+          );
+          setLoading(false);
+          return;
+        }
       }
 
       const orderEndpoint =
@@ -128,7 +168,9 @@ const RazorpayScriptPayment = ({
 
   if (!isOpen) return null;
 
-  const amount = type === "purchase" ? script.price : script.holdFee || 200;
+  const baseAmount = Number(type === "purchase" ? script.price : script.holdFee || 200);
+  const buyerCommissionAmount = Math.round(baseAmount * BUYER_COMMISSION_RATE * 100) / 100;
+  const totalPayable = Math.round((baseAmount + buyerCommissionAmount) * 100) / 100;
   const title = type === "purchase" ? "Pay & Unlock Script" : "Place Hold";
   const description = type === "purchase"
     ? "Writer has approved your request. Complete payment to unlock full script access"
@@ -201,12 +243,17 @@ const RazorpayScriptPayment = ({
             <div className={`rounded-xl p-4 ${t.infoRow}`}>
               <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${t.muted}`}>Amount</p>
               <div className="flex items-baseline gap-2">
-                <span className={`text-3xl font-extrabold ${t.title}`}>₹{amount}</span>
+                <span className={`text-3xl font-extrabold ${t.title}`}>₹{totalPayable}</span>
                 <span className={`text-sm ${t.muted}`}>INR</span>
               </div>
+              {baseAmount > 0 && (
+                <p className={`text-xs mt-2 ${t.muted}`}>
+                  Base amount: ₹{baseAmount.toFixed(2)} • Platform commission ({Math.round(BUYER_COMMISSION_RATE * 100)}%): ₹{buyerCommissionAmount.toFixed(2)}
+                </p>
+              )}
               {type === "hold" && (
                 <p className={`text-xs mt-2 ${t.muted}`}>
-                  Valid for 30 days • 90% goes to creator
+                  Valid for 30 days • Creator receives full base hold amount
                 </p>
               )}
               {type === "purchase" && (
@@ -266,7 +313,7 @@ const RazorpayScriptPayment = ({
                     <span>Processing...</span>
                   </div>
                 ) : (
-                  `Pay ₹${amount}`
+                  `Pay ₹${totalPayable}`
                 )}
               </button>
             </div>
