@@ -123,6 +123,8 @@ const AdminScriptView = () => {
   };
 
   const rawContent = typeof script?.textContent === "string" ? script.textContent : "";
+  const writerCustomTerms = String(script?.legal?.customInvestorTerms || "").trim();
+  const hasWriterCustomTerms = writerCustomTerms.length > 0;
   const plainScriptText = useMemo(() => getPlainTextFromScriptContent(rawContent), [rawContent]);
   const scriptPages = useMemo(() => {
     const normalized = plainScriptText.replace(/\r\n/g, "\n").trim();
@@ -327,6 +329,41 @@ const AdminScriptView = () => {
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">
             {script?.synopsis || "No synopsis provided."}
           </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Writer Terms & Conditions</p>
+            <p className="text-xs text-white/60">Terms accepted by the writer during script upload.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Terms Accepted</p>
+              <p className="text-xs text-white/85">{script?.legal?.agreedToTerms ? "Yes" : "No"}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Terms Version</p>
+              <p className="text-xs text-white/85 break-all">{script?.legal?.termsVersion || "-"}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Accepted At</p>
+              <p className="text-xs text-white/85">{formatDateTime(script?.legal?.timestamp)}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Custom Terms Updated</p>
+              <p className="text-xs text-white/85">{formatDateTime(script?.legal?.customInvestorTermsUpdatedAt)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45 mb-2">Custom Terms For Film Industry Professionals</p>
+            {hasWriterCustomTerms ? (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{writerCustomTerms}</p>
+            ) : (
+              <p className="text-sm text-white/60">Writer did not add custom terms.</p>
+            )}
+          </div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7">

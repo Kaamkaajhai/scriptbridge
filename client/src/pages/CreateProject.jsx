@@ -710,12 +710,13 @@ const CreateProject = () => {
   const [creditsBalance, setCreditsBalance] = useState(0);
 
   // Step 4: Script pricing
-  const PLATFORM_FEE = 0.05; // 5%
+  const BUYER_COMMISSION_RATE = 0.05; // 5%
   const [isPremium, setIsPremium] = useState(false);
   const [scriptPrice, setScriptPrice] = useState(10);
   const effectivePrice = isPremium ? Number(scriptPrice) || 0 : 0;
-  const platformFeeAmount = Math.round(effectivePrice * PLATFORM_FEE * 100) / 100;
-  const writerEarns = Math.round((effectivePrice - platformFeeAmount) * 100) / 100;
+  const buyerCommissionAmount = Math.round(effectivePrice * BUYER_COMMISSION_RATE * 100) / 100;
+  const buyerTotalPayable = Math.round((effectivePrice + buyerCommissionAmount) * 100) / 100;
+  const writerPayout = Math.round(effectivePrice * 100) / 100;
   const FORMAT_PRICE_GUIDE = {
     feature: { label: "Feature Film", min: 15, max: 50, suggest: 25 },
     tv_1hour: { label: "TV 1-Hour", min: 10, max: 30, suggest: 15 },
@@ -1224,16 +1225,16 @@ const CreateProject = () => {
       : null;
   const publishSummaryRows = [
     {
-      item: "Script Access",
+      item: "Script Access Fee",
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
       type: "Revenue Setting",
       amount: isPremium ? formatCurrency(effectivePrice) : "Free",
     },
     {
-      item: `Platform Fee (${Math.round(PLATFORM_FEE * 100)}%)`,
-      detail: isPremium ? "Charged by platform per premium purchase" : "No platform fee on free access",
-      type: "Platform Fee",
-      amount: isPremium ? formatCurrency(platformFeeAmount) : formatCurrency(0),
+      item: `Platform Commission (${Math.round(BUYER_COMMISSION_RATE * 100)}%)`,
+      detail: isPremium ? "Added on top of the script access fee at checkout" : "No commission on free access",
+      type: "Platform Commission",
+      amount: isPremium ? formatCurrency(buyerCommissionAmount) : formatCurrency(0),
     },
     {
       item: "Optional Services",
@@ -1242,10 +1243,16 @@ const CreateProject = () => {
       amount: `${totalServiceCost} cr`,
     },
     {
+      item: "Film Industry Professional Pays at Checkout",
+      detail: isPremium ? "Script fee + platform commission" : "Not applicable for free access",
+      type: "Checkout Total",
+      amount: isPremium ? formatCurrency(buyerTotalPayable) : formatCurrency(0),
+    },
+    {
       item: "Projected Writer Payout",
-      detail: isPremium ? "Estimated per premium purchase" : "No payout on free access",
+      detail: isPremium ? "Writer receives full script access fee" : "No payout on free access",
       type: "Future Earnings",
-      amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
+      amount: isPremium ? formatCurrency(writerPayout) : formatCurrency(0),
     },
   ];
 
@@ -2572,7 +2579,7 @@ const CreateProject = () => {
                               <div className="relative w-full sm:w-40">
                                 <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>₹</span>
                                 <input
-                                  type="number" min="1" max="500" step="1"
+                                  type="number" min="1" step="1"
                                   value={scriptPrice}
                                   onChange={(e) => {
                                     const normalized = String(e.target.value || "").replace(/^0+(?=\d)/, "");
@@ -2582,7 +2589,7 @@ const CreateProject = () => {
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
                               </div>
-                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
+                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter any amount (minimum ₹1).</p>
                             </div>
                           </div>
                         </div>
@@ -2735,32 +2742,43 @@ const CreateProject = () => {
                 <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate submission details, then submit your project for admin review.</p>
               </div>
 
-              <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
-                <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+              <div className={`rounded-3xl border overflow-hidden ${dark ? "border-[#223a58] bg-gradient-to-b from-[#0a1320] to-[#08111b] shadow-[0_12px_28px_rgba(2,6,23,0.35)]" : "border-gray-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.06)]"}`}>
+                <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b ${dark ? "border-[#1b2e46]" : "border-gray-200"}`}>
+                  <div>
+                    <p className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${dark ? "text-gray-400" : "text-gray-500"}`}>Invoice Preview</p>
+                    <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>Calculated from your current pricing and services.</p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold border ${dark ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-300" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}>Auto-updating</span>
+                </div>
+
+                <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_110px] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#091525] text-gray-500 border-b border-[#1b2e46]" : "bg-gray-50 text-gray-500 border-b border-gray-200"}`}>
                   <span>Summary Item</span>
                   <span>Type</span>
                   <span className="text-right">Amount</span>
                 </div>
+
                 <div>
-                  {publishSummaryRows.map((row) => (
-                    <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                  {publishSummaryRows.map((row, index) => (
+                    <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_110px] px-4 py-3.5 items-start gap-2 text-[12px] ${dark ? `${index % 2 === 0 ? "bg-white/[0.01]" : "bg-[#0b1625]"} border-b border-[#15273d] last:border-b-0` : `${index % 2 === 0 ? "bg-white" : "bg-gray-50/70"} border-b border-gray-100 last:border-b-0`}`}>
                       <div>
-                        <p className={`font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
-                        <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
+                        <p className={`font-semibold ${dark ? "text-gray-100" : "text-gray-800"}`}>{row.item}</p>
+                        <p className={`text-[11px] mt-0.5 leading-relaxed ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
                       </div>
                       <div className="pt-0.5 max-[520px]:pt-0">
-                        <span className={`inline-flex whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
-                          ? dark ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                        <span className={`inline-flex items-center whitespace-nowrap text-[10px] font-semibold px-2.5 py-1 rounded-full border ${row.type === "Credit Charge"
+                          ? dark ? "border-blue-400/30 bg-blue-500/12 text-blue-300" : "border-blue-200 bg-blue-100 text-blue-700"
                           : row.type === "Revenue Setting"
-                            ? dark ? "bg-indigo-500/14 text-indigo-300" : "bg-indigo-100 text-indigo-700"
-                          : row.type === "Platform Fee"
-                            ? dark ? "bg-amber-500/12 text-amber-300" : "bg-amber-100 text-amber-700"
+                            ? dark ? "border-indigo-400/30 bg-indigo-500/14 text-indigo-300" : "border-indigo-200 bg-indigo-100 text-indigo-700"
+                          : row.type === "Platform Commission"
+                            ? dark ? "border-amber-400/30 bg-amber-500/12 text-amber-300" : "border-amber-200 bg-amber-100 text-amber-700"
+                          : row.type === "Checkout Total"
+                            ? dark ? "border-cyan-400/30 bg-cyan-500/12 text-cyan-300" : "border-cyan-200 bg-cyan-100 text-cyan-700"
                           : row.type === "Future Earnings"
-                            ? dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
-                            : dark ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
+                            ? dark ? "border-emerald-400/30 bg-emerald-500/12 text-emerald-300" : "border-emerald-200 bg-emerald-100 text-emerald-700"
+                            : dark ? "border-white/[0.16] bg-white/[0.08] text-gray-300" : "border-gray-300 bg-gray-100 text-gray-700"
                           }`}>{row.type}</span>
                       </div>
-                      <p className={`text-left min-[521px]:text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
+                      <p className={`text-left min-[521px]:text-right font-extrabold tabular-nums tracking-tight pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
                     </div>
                   ))}
                 </div>
@@ -2778,9 +2796,9 @@ const CreateProject = () => {
                   <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>After this publish action</p>
                 </div>
                 <div className={`rounded-xl px-4 py-4 ${dark ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `₹${writerEarns}` : "₹0"}</p>
-                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Writer / Premium Sale</p>
+                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `₹${writerPayout}` : "₹0"}</p>
+                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Writer gets full script fee per paid purchase</p>
                 </div>
               </div>
 

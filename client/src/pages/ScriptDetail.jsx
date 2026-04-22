@@ -11,6 +11,12 @@ import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
 
+const BUYER_COMMISSION_RATE = 0.05;
+const getBuyerCheckoutTotal = (baseAmount) => {
+  const base = Number(baseAmount || 0);
+  return Math.round((base + base * BUYER_COMMISSION_RATE) * 100) / 100;
+};
+
 const ScriptDetail = () => {
   const { id, projectHeading, writerUsername } = useParams();
   const { user, setUser } = useContext(AuthContext);
@@ -56,6 +62,8 @@ const ScriptDetail = () => {
   const noticeTimerRef = useRef(null);
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const activeScriptId = script?._id || id;
+  const pendingRequestBaseAmount = Number(script?.myPendingRequest?.amount || script?.price || 0);
+  const pendingRequestCheckoutTotal = getBuyerCheckoutTotal(pendingRequestBaseAmount);
 
   const scriptShare = {
     url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/share/project/${script._id}` : ""),
@@ -1275,13 +1283,13 @@ const ScriptDetail = () => {
                               onClick={() => navigate(`/script/${script._id}/pay`)}
                               className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                             >
-                              {Number(script.myPendingRequest?.amount || script.price || 0) > 0
-                                ? `Pay & Get Full Script — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
+                              {pendingRequestBaseAmount > 0
+                                ? `Pay & Get Full Script — ₹${pendingRequestCheckoutTotal.toLocaleString("en-IN")}`
                                 : "Confirm Free Access"}
                             </button>
                             <p className="text-[11px] text-amber-700/90 text-center">
-                              {Number(script.myPendingRequest?.amount || script.price || 0) > 0
-                                ? "Payment window: 72 hours after approval."
+                              {pendingRequestBaseAmount > 0
+                                ? "Includes 5% platform commission • Payment window: 72 hours after approval."
                                 : "Approval granted. Confirm Free Access to unlock full script."}
                             </p>
                           </div>
@@ -1305,7 +1313,7 @@ const ScriptDetail = () => {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {script.price > 0 ? `Send Purchase Request — ₹${script.price}` : "Request Access"}
+                            {script.price > 0 ? `Send Purchase Request — ₹${script.price} (+5% at payment)` : "Request Access"}
                           </div>
                         </button>
                       )
@@ -2174,13 +2182,13 @@ const ScriptDetail = () => {
                                       onClick={() => navigate(`/script/${script._id}/pay`)}
                                       className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                     >
-                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
-                                        ? `Pay Now — ₹${Number(script.myPendingRequest?.amount || script.price || 0).toLocaleString("en-IN")}`
+                                      {pendingRequestBaseAmount > 0
+                                        ? `Pay Now — ₹${pendingRequestCheckoutTotal.toLocaleString("en-IN")}`
                                         : "Confirm Free Access"}
                                     </button>
                                     <p className={`text-xs ${t.muted}`}>
-                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
-                                        ? "Payment window: 72 hours after approval."
+                                      {pendingRequestBaseAmount > 0
+                                        ? "Includes 5% platform commission • Payment window: 72 hours after approval."
                                         : "Approval granted. Confirm Free Access to unlock instantly."}
                                     </p>
                                   </div>
@@ -2200,7 +2208,7 @@ const ScriptDetail = () => {
                                   onClick={() => setShowRequestModal(true)}
                                   className={`px-6 py-2.5 rounded-xl text-sm font-bold transition ${t.btnPrim}`}
                                 >
-                                  {script.price > 0 ? `Send Purchase Request — ₹${script.price}` : "Request Access"}
+                                  {script.price > 0 ? `Send Purchase Request — ₹${script.price} (+5% at payment)` : "Request Access"}
                                 </button>
                               )}
                             </div>
@@ -2311,13 +2319,13 @@ const ScriptDetail = () => {
               You are requesting to purchase{" "}
               <span className={`font-semibold ${t.sub}`}>"{script.title}"</span>.
               {script.price > 0
-                ? ` If the writer approves, you will then be asked to pay ₹${script.price} to unlock full access.`
+                ? ` If the writer approves, checkout will be ₹${getBuyerCheckoutTotal(script.price).toLocaleString("en-IN")} (script fee ₹${Number(script.price || 0).toLocaleString("en-IN")} + 5% platform commission).`
                 : " The writer will be notified and can approve your access."}
             </p>
             <div className={`rounded-xl border px-4 py-3 mb-4 text-center ${t.inset}`}>
               <p className={`text-xs ${t.muted}`}>Amount</p>
-              <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${script.price}` : "Free"}</p>
-              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Request first • Pay after writer approval • Access unlocks immediately after successful payment.</p>}
+              <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${getBuyerCheckoutTotal(script.price).toLocaleString("en-IN")}` : "Free"}</p>
+              {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Includes 5% platform commission • Request first • Pay after writer approval • Access unlocks immediately after successful payment.</p>}
             </div>
             <button
               onClick={handleRequestPurchase}

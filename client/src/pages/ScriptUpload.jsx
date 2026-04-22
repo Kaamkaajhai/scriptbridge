@@ -304,14 +304,15 @@ const ScriptUpload = () => {
 
   // Script pricing
   const PRICE_PRESETS = [5, 10, 15, 25, 50];
-  const PLATFORM_FEE = 0.05;
+  const BUYER_COMMISSION_RATE = 0.05;
   const [isPremium, setIsPremium] = useState(false);
   const [scriptPrice, setScriptPrice] = useState(10);
   const [customPriceInput, setCustomPriceInput] = useState("");
   const [useCustomPrice, setUseCustomPrice] = useState(false);
   const effectivePrice = isPremium ? (useCustomPrice ? Number(customPriceInput) || 0 : scriptPrice) : 0;
-  const platformFeeAmount = Math.round(effectivePrice * PLATFORM_FEE * 100) / 100;
-  const writerEarns = Math.round((effectivePrice - platformFeeAmount) * 100) / 100;
+  const buyerCommissionAmount = Math.round(effectivePrice * BUYER_COMMISSION_RATE * 100) / 100;
+  const buyerTotalPayable = Math.round((effectivePrice + buyerCommissionAmount) * 100) / 100;
+  const writerPayout = Math.round(effectivePrice * 100) / 100;
   const FORMAT_PRICE_GUIDE = {
     feature:      { label: "Feature Film",  min: 15, max: 50, suggest: 25 },
     tv_1hour:     { label: "TV 1-Hour",     min: 10, max: 30, suggest: 15 },
@@ -1132,16 +1133,16 @@ const ScriptUpload = () => {
   const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
   const publishInvoiceRows = [
     {
-      item: "Script Access",
+      item: "Script Access Fee",
       type: "Revenue Setting",
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
       amount: isPremium ? formatCurrency(effectivePrice) : "Free",
     },
     {
-      item: `Platform Fee (${Math.round(PLATFORM_FEE * 100)}%)`,
-      type: "Platform Fee",
-      detail: isPremium ? "Charged by platform per premium purchase" : "No platform fee on free access",
-      amount: isPremium ? formatCurrency(platformFeeAmount) : formatCurrency(0),
+      item: `Platform Commission (${Math.round(BUYER_COMMISSION_RATE * 100)}%)`,
+      type: "Platform Commission",
+      detail: isPremium ? "Added on top of the script access fee at checkout" : "No commission on free access",
+      amount: isPremium ? formatCurrency(buyerCommissionAmount) : formatCurrency(0),
     },
     {
       item: "Optional Services",
@@ -1150,10 +1151,16 @@ const ScriptUpload = () => {
       amount: `${totalServiceCost} cr`,
     },
     {
+      item: "Film Industry Professional Pays at Checkout",
+      type: "Checkout Total",
+      detail: isPremium ? "Script fee + platform commission" : "Not applicable for free access",
+      amount: isPremium ? formatCurrency(buyerTotalPayable) : formatCurrency(0),
+    },
+    {
       item: "Projected Writer Payout",
       type: "Future Earnings",
-      detail: isPremium ? "Estimated per premium purchase" : "No payout on free access",
-      amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
+      detail: isPremium ? "Writer receives full script access fee" : "No payout on free access",
+      amount: isPremium ? formatCurrency(writerPayout) : formatCurrency(0),
     },
   ];
 
@@ -1926,7 +1933,6 @@ const ScriptUpload = () => {
                                   <input
                                     type="number"
                                     min="1"
-                                    max="500"
                                     step="1"
                                     value={scriptPrice}
                                     onChange={(e) => {
@@ -1939,7 +1945,7 @@ const ScriptUpload = () => {
                                     className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${isDarkMode ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                   />
                                 </div>
-                                <p className={`text-[12px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
+                                <p className={`text-[12px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Enter any amount (minimum ₹1).</p>
                               </div>
                             </div>
                           </div>
@@ -2178,32 +2184,43 @@ const ScriptUpload = () => {
                     <p className={`text-sm font-bold mt-1 ${creditsBalance < totalServiceCost ? "text-red-400" : isDarkMode ? "text-emerald-300" : "text-emerald-700"}`}>{creditsBalance} credits</p>
                   </div>
 
-                  <div className={`rounded-2xl border overflow-hidden ${isDarkMode ? "border-[#1d3350]" : "border-gray-200"}`}>
-                    <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+                  <div className={`rounded-3xl border overflow-hidden ${isDarkMode ? "border-[#223a58] bg-gradient-to-b from-[#0a1320] to-[#08111b] shadow-[0_12px_28px_rgba(2,6,23,0.35)]" : "border-gray-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.06)]"}`}>
+                    <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b ${isDarkMode ? "border-[#1b2e46]" : "border-gray-200"}`}>
+                      <div>
+                        <p className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>Invoice Preview</p>
+                        <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Calculated from your current pricing and services.</p>
+                      </div>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold border ${isDarkMode ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-300" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}>Auto-updating</span>
+                    </div>
+
+                    <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_110px] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "bg-[#091525] text-gray-500 border-b border-[#1b2e46]" : "bg-gray-50 text-gray-500 border-b border-gray-200"}`}>
                       <span>Invoice Item</span>
                       <span>Type</span>
                       <span className="text-right">Amount</span>
                     </div>
+
                     <div>
-                      {publishInvoiceRows.map((row) => (
-                        <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${isDarkMode ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                      {publishInvoiceRows.map((row, index) => (
+                        <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_110px] px-4 py-3.5 items-start gap-2 text-[12px] ${isDarkMode ? `${index % 2 === 0 ? "bg-white/[0.01]" : "bg-[#0b1625]"} border-b border-[#15273d] last:border-b-0` : `${index % 2 === 0 ? "bg-white" : "bg-gray-50/70"} border-b border-gray-100 last:border-b-0`}`}>
                           <div>
-                            <p className={`font-semibold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
-                            <p className={`text-[11px] mt-0.5 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
+                            <p className={`font-semibold ${isDarkMode ? "text-gray-100" : "text-gray-800"}`}>{row.item}</p>
+                            <p className={`text-[11px] mt-0.5 leading-relaxed ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
                           </div>
                           <div className="pt-0.5 max-[520px]:pt-0">
-                            <span className={`inline-flex whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
-                              ? isDarkMode ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                            <span className={`inline-flex items-center whitespace-nowrap text-[10px] font-semibold px-2.5 py-1 rounded-full border ${row.type === "Credit Charge"
+                              ? isDarkMode ? "border-blue-400/30 bg-blue-500/12 text-blue-300" : "border-blue-200 bg-blue-100 text-blue-700"
                               : row.type === "Revenue Setting"
-                                ? isDarkMode ? "bg-indigo-500/14 text-indigo-300" : "bg-indigo-100 text-indigo-700"
-                              : row.type === "Platform Fee"
-                                ? isDarkMode ? "bg-amber-500/12 text-amber-300" : "bg-amber-100 text-amber-700"
+                                ? isDarkMode ? "border-indigo-400/30 bg-indigo-500/14 text-indigo-300" : "border-indigo-200 bg-indigo-100 text-indigo-700"
+                              : row.type === "Platform Commission"
+                                ? isDarkMode ? "border-amber-400/30 bg-amber-500/12 text-amber-300" : "border-amber-200 bg-amber-100 text-amber-700"
+                              : row.type === "Checkout Total"
+                                ? isDarkMode ? "border-cyan-400/30 bg-cyan-500/12 text-cyan-300" : "border-cyan-200 bg-cyan-100 text-cyan-700"
                               : row.type === "Future Earnings"
-                                ? isDarkMode ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
-                                : isDarkMode ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
+                                ? isDarkMode ? "border-emerald-400/30 bg-emerald-500/12 text-emerald-300" : "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                : isDarkMode ? "border-white/[0.16] bg-white/[0.08] text-gray-300" : "border-gray-300 bg-gray-100 text-gray-700"
                               }`}>{row.type}</span>
                           </div>
-                          <p className={`text-left min-[521px]:text-right font-bold pt-0.5 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
+                          <p className={`text-left min-[521px]:text-right font-extrabold tabular-nums tracking-tight pt-0.5 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
                         </div>
                       ))}
                     </div>
@@ -2221,9 +2238,9 @@ const ScriptUpload = () => {
                       <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>After this publish action</p>
                     </div>
                     <div className={`rounded-xl px-4 py-4 ${isDarkMode ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
-                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                      <p className={`text-xl font-black mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{isPremium ? formatCurrency(writerEarns) : formatCurrency(0)}</p>
-                      <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDarkMode ? "text-purple-300" : "text-purple-700"}`}>Writer / Premium Sale</p>
+                      <p className={`text-xl font-black mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{isPremium ? formatCurrency(writerPayout) : formatCurrency(0)}</p>
+                      <p className={`text-[11px] mt-1 ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Writer gets full script fee per paid purchase</p>
                     </div>
                   </div>
 
