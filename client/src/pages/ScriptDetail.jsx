@@ -64,6 +64,9 @@ const ScriptDetail = () => {
   const activeScriptId = script?._id || id;
   const pendingRequestBaseAmount = Number(script?.myPendingRequest?.amount || script?.price || 0);
   const pendingRequestCheckoutTotal = getBuyerCheckoutTotal(pendingRequestBaseAmount);
+  const writerCustomConditions = String(script?.legal?.customInvestorTerms || "").trim();
+  const hasWriterCustomConditions = writerCustomConditions.length > 0;
+  const canViewWriterCustomConditions = Boolean(!script?.isCreator && script?.canPurchase);
 
   const scriptShare = {
     url: script?.shareMeta?.url || (script?._id ? `${browserOrigin}/share/project/${script._id}` : ""),
@@ -1319,6 +1322,23 @@ const ScriptDetail = () => {
                       )
                     )}
 
+                    {canViewWriterCustomConditions && (
+                      <div className={`w-full px-3 py-3 rounded-xl border ${t.inset}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.16em] mb-1.5 ${t.label}`}>
+                          Writer Custom Conditions
+                        </p>
+                        {hasWriterCustomConditions ? (
+                          <p className={`text-[12px] leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto sidebar-scroll pr-1 ${t.sub}`}>
+                            {writerCustomConditions}
+                          </p>
+                        ) : (
+                          <p className={`text-[12px] ${t.muted}`}>
+                            Writer has not added custom conditions for film industry professionals.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Already Purchased Badge + Message Writer CTA */}
                     {!isOwner && script.isUnlocked && (
                       <>
@@ -2327,6 +2347,22 @@ const ScriptDetail = () => {
               <p className={`text-2xl font-bold mt-1 ${t.title}`}>{script.price > 0 ? `₹${getBuyerCheckoutTotal(script.price).toLocaleString("en-IN")}` : "Free"}</p>
               {script.price > 0 && <p className={`text-xs ${t.muted} mt-0.5`}>Includes 5% platform commission • Request first • Pay after writer approval • Access unlocks immediately after successful payment.</p>}
             </div>
+            {canViewWriterCustomConditions && (
+              <div className={`rounded-xl border px-4 py-3 mb-4 ${t.inset}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.16em] mb-1.5 ${t.label}`}>
+                  Writer Custom Conditions
+                </p>
+                {hasWriterCustomConditions ? (
+                  <p className={`text-xs leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto sidebar-scroll pr-1 ${t.sub}`}>
+                    {writerCustomConditions}
+                  </p>
+                ) : (
+                  <p className={`text-xs ${t.muted}`}>
+                    Writer has not added custom conditions for film industry professionals.
+                  </p>
+                )}
+              </div>
+            )}
             <button
               onClick={handleRequestPurchase}
               disabled={requestLoading}
