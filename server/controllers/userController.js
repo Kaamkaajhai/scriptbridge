@@ -73,12 +73,16 @@ const normalizeLanguagePreference = (value) => {
 
 const normalizeProfileLookupKey = (value) => String(value || "").trim();
 const isLikelyObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || "").trim());
+const isLikelyUserSid = (value) => /^[a-z]{3}-[a-z0-9]{8}$/i.test(String(value || "").trim());
 
 const buildUserProfileLookupQuery = (profileKey) => {
   const normalized = normalizeProfileLookupKey(profileKey);
   if (!normalized) return null;
   if (isLikelyObjectId(normalized)) {
     return { _id: normalized };
+  }
+  if (isLikelyUserSid(normalized)) {
+    return { sid: normalized.toUpperCase() };
   }
   return { "writerProfile.username": normalized.toLowerCase() };
 };
@@ -126,13 +130,19 @@ const normalizeAddressPayload = (value) => {
   const city = normalizeString(value.city) || "";
   const state = normalizeString(value.state) || "";
   const zipCode = normalizeString(value.zipCode) || "";
-  const computedFormatted = [street, city, state, zipCode].filter(Boolean).join(", ");
+  const country = normalizeString(value.country) || "";
+  const computedFormattedParts = [street, city, state, zipCode].filter(Boolean);
+  if (country && country.toLowerCase() !== "india") {
+    computedFormattedParts.push(country);
+  }
+  const computedFormatted = computedFormattedParts.join(", ");
 
   return {
     street,
     city,
     state,
     zipCode,
+    country,
     formatted: normalizeString(value.formatted) || computedFormatted,
   };
 };
@@ -971,7 +981,7 @@ export const updateUserProfile = async (req, res) => {
       privacyPolicyAccepted,
       privacyPolicyVersion,
       // investor profile fields
-      subRole, subRoleOther, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks,
+      subRole, subRoleOther, company, jobTitle, imdbUrl, linkedInUrl, otherUrl, previousCredits, investmentRange, socialLinks, demographics,
       // bank details
       bankDetails,
       // notification preferences
@@ -1069,7 +1079,7 @@ export const updateUserProfile = async (req, res) => {
     }
 
     // Investor profile fields
-    if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined) {
+    if (subRole !== undefined || subRoleOther !== undefined || company !== undefined || jobTitle !== undefined || imdbUrl !== undefined || linkedInUrl !== undefined || otherUrl !== undefined || previousCredits !== undefined || investmentRange !== undefined || socialLinks !== undefined || demographics !== undefined) {
       if (!user.industryProfile) user.industryProfile = {};
 
       const resultingBio = normalizeString(bio !== undefined ? bio : user.bio) || "";
@@ -1112,6 +1122,15 @@ export const updateUserProfile = async (req, res) => {
         user.industryProfile.socialLinks.website = normalizeString(socialLinks?.website);
         user.industryProfile.socialLinks.youtube = normalizeString(socialLinks?.youtube);
         user.industryProfile.socialLinks.facebook = normalizeString(socialLinks?.facebook);
+      }
+      if (demographics !== undefined) {
+        if (!user.industryProfile.demographics) user.industryProfile.demographics = {};
+        if (demographics?.gender !== undefined) {
+          user.industryProfile.demographics.gender = normalizeString(demographics.gender);
+        }
+        if (demographics?.nationality !== undefined) {
+          user.industryProfile.demographics.nationality = normalizeString(demographics.nationality);
+        }
       }
       if (previousCredits !== undefined) user.industryProfile.previousCredits = sanitizePreviousCredits(previousCredits);
       if (investmentRange !== undefined) user.industryProfile.investmentRange = normalizeString(investmentRange);

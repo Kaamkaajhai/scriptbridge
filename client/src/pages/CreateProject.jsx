@@ -90,6 +90,7 @@ const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 const MAX_THUMBNAIL_SOURCE_SIZE = 25 * 1024 * 1024;
 const MAX_TRAILER_SIZE = 250 * 1024 * 1024;
 const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
+const MAX_RIGHTS_CUSTOM_CONDITIONS_LENGTH = 5000;
 
 const createImage = (url) => new Promise((resolve, reject) => {
   const image = new Image();
@@ -171,6 +172,156 @@ const FORMAT_PAGE_RANGES = {
   other: { min: 1, max: 250, typical: "Varies", label: "Other", wordsPerPage: 250 },
 };
 const LEGAL_AGREEMENT = SCRIPT_UPLOAD_TERMS_TEXT;
+
+const RIGHTS_TYPE_OPTIONS = [
+  { value: "full_rights_sale", label: "Full Rights Sale (Ownership Transfer)" },
+  { value: "exclusive_license", label: "Exclusive License" },
+  { value: "custom_negotiation_required", label: "Custom Negotiation Required" },
+];
+
+const MODIFICATION_RIGHTS_OPTIONS = [
+  { value: "buyer_can_modify_freely", label: "Buyer can modify freely" },
+  { value: "buyer_must_consult_writer", label: "Buyer must consult writer" },
+  { value: "writer_retains_creative_approval_rights", label: "Writer retains creative approval rights" },
+];
+
+const PAYMENT_STRUCTURE_OPTIONS = [
+  { value: "one_time_upfront_payment", label: "One-time upfront payment" },
+  { value: "lower_upfront_plus_royalty_percent", label: "Lower upfront + royalty %" },
+  { value: "revenue_sharing_model", label: "Revenue sharing model" },
+  { value: "custom_deal", label: "Custom deal" },
+];
+
+const NEGOTIATION_MODE_OPTIONS = [
+  { value: "fixed_terms_non_negotiable", label: "Fixed terms (non-negotiable)" },
+  { value: "open_to_discussion_after_purchase", label: "Open to discussion after purchase" },
+  { value: "ckript_not_involved", label: "Ckript not involved" },
+];
+
+const RIGHTS_LABEL_MAP = Object.fromEntries(RIGHTS_TYPE_OPTIONS.map((option) => [option.value, option.label]));
+const MODIFICATION_LABEL_MAP = Object.fromEntries(MODIFICATION_RIGHTS_OPTIONS.map((option) => [option.value, option.label]));
+const PAYMENT_LABEL_MAP = Object.fromEntries(PAYMENT_STRUCTURE_OPTIONS.map((option) => [option.value, option.label]));
+const NEGOTIATION_LABEL_MAP = Object.fromEntries(NEGOTIATION_MODE_OPTIONS.map((option) => [option.value, option.label]));
+const LICENSE_DURATION_PRESET_MONTHS = [12, 18, 24];
+const MIN_LICENSE_DURATION_MONTHS = 1;
+const MAX_LICENSE_DURATION_MONTHS = 120;
+
+const createDefaultRightsLicensing = () => ({
+  rightsType: "exclusive_license",
+  exclusivity: true,
+  modificationRights: "buyer_must_consult_writer",
+  paymentStructure: "one_time_upfront_payment",
+  royaltySettings: {
+    percentage: 0,
+    durationType: "none",
+    durationYears: 0,
+  },
+  timeBound: {
+    licenseDurationMonths: 12,
+    autoRevertToWriter: true,
+  },
+  negotiationMode: "fixed_terms_non_negotiable",
+  customConditions: "",
+  legalAcknowledgement: {
+    ownershipConfirmed: false,
+    platformTermsAccepted: false,
+    exclusivityUnderstood: false,
+  },
+});
+
+const normalizeRightsLicensingState = (incoming = {}) => {
+  const defaults = createDefaultRightsLicensing();
+  const normalizedRightsType = RIGHTS_LABEL_MAP[incoming?.rightsType] ? incoming.rightsType : defaults.rightsType;
+  const normalizedPaymentStructure = PAYMENT_LABEL_MAP[incoming?.paymentStructure]
+    ? incoming.paymentStructure
+    : defaults.paymentStructure;
+  const requestedDurationRaw = Number(incoming?.timeBound?.licenseDurationMonths ?? defaults.timeBound.licenseDurationMonths);
+  const requestedDuration = Number.isFinite(requestedDurationRaw)
+    ? Math.max(0, Math.min(MAX_LICENSE_DURATION_MONTHS, Math.round(requestedDurationRaw)))
+    : defaults.timeBound.licenseDurationMonths;
+
+  return {
+    rightsType: normalizedRightsType,
+    exclusivity: true,
+    modificationRights: MODIFICATION_LABEL_MAP[incoming?.modificationRights]
+      ? incoming.modificationRights
+      : defaults.modificationRights,
+    paymentStructure: normalizedPaymentStructure,
+    royaltySettings: {
+      percentage: Number.isFinite(Number(incoming?.royaltySettings?.percentage))
+        ? Math.max(0, Math.min(100, Number(incoming.royaltySettings.percentage)))
+        : defaults.royaltySettings.percentage,
+      durationType: ["none", "years", "project_lifetime"].includes(incoming?.royaltySettings?.durationType)
+        ? incoming.royaltySettings.durationType
+        : defaults.royaltySettings.durationType,
+      durationYears: Number.isFinite(Number(incoming?.royaltySettings?.durationYears))
+        ? Math.max(0, Math.min(99, Math.round(Number(incoming.royaltySettings.durationYears))))
+        : defaults.royaltySettings.durationYears,
+    },
+    timeBound: {
+      licenseDurationMonths: requestedDuration,
+      autoRevertToWriter: incoming?.timeBound?.autoRevertToWriter !== undefined
+        ? Boolean(incoming.timeBound.autoRevertToWriter)
+        : defaults.timeBound.autoRevertToWriter,
+    },
+    negotiationMode: NEGOTIATION_LABEL_MAP[incoming?.negotiationMode]
+      ? incoming.negotiationMode
+      : defaults.negotiationMode,
+    customConditions: String(incoming?.customConditions || "").slice(0, MAX_RIGHTS_CUSTOM_CONDITIONS_LENGTH),
+    legalAcknowledgement: {
+      ownershipConfirmed: Boolean(incoming?.legalAcknowledgement?.ownershipConfirmed),
+      platformTermsAccepted: Boolean(incoming?.legalAcknowledgement?.platformTermsAccepted),
+      exclusivityUnderstood: Boolean(incoming?.legalAcknowledgement?.exclusivityUnderstood),
+    },
+  };
+};
+
+const getRightsValidationMessage = (rightsLicensing) => {
+  if (!RIGHTS_LABEL_MAP[rightsLicensing?.rightsType]) {
+    return "Rights type is required.";
+  }
+
+  if (!MODIFICATION_LABEL_MAP[rightsLicensing?.modificationRights]) {
+    return "Modification rights selection is required.";
+  }
+
+  if (!PAYMENT_LABEL_MAP[rightsLicensing?.paymentStructure]) {
+    return "Payment structure selection is required.";
+  }
+
+  if (!NEGOTIATION_LABEL_MAP[rightsLicensing?.negotiationMode]) {
+    return "Negotiation mode selection is required.";
+  }
+
+  if (rightsLicensing?.rightsType === "exclusive_license") {
+    const durationMonths = Number(rightsLicensing?.timeBound?.licenseDurationMonths);
+    if (!Number.isInteger(durationMonths) || durationMonths < MIN_LICENSE_DURATION_MONTHS || durationMonths > MAX_LICENSE_DURATION_MONTHS) {
+      return `Exclusive license requires duration between ${MIN_LICENSE_DURATION_MONTHS} and ${MAX_LICENSE_DURATION_MONTHS} months.`;
+    }
+  }
+
+  const royaltyBased = ["lower_upfront_plus_royalty_percent", "revenue_sharing_model"].includes(rightsLicensing?.paymentStructure);
+  if (royaltyBased) {
+    const pct = Number(rightsLicensing?.royaltySettings?.percentage || 0);
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+      return "Royalty percentage must be between 0 and 100 for royalty-based structures.";
+    }
+  }
+
+  if (!rightsLicensing?.legalAcknowledgement?.ownershipConfirmed) {
+    return "You must confirm script ownership rights.";
+  }
+
+  if (!rightsLicensing?.legalAcknowledgement?.platformTermsAccepted) {
+    return "You must confirm platform legal acknowledgement.";
+  }
+
+  if (!rightsLicensing?.legalAcknowledgement?.exclusivityUnderstood) {
+    return "You must acknowledge exclusivity enforcement.";
+  }
+
+  return "";
+};
 
 const TEXT_COLORS = [
   { label: "Default", value: null },
@@ -707,21 +858,47 @@ const CreateProject = () => {
   // Step 4: Services & Legal
   const [services, setServices] = useState({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
   const [legal, setLegal] = useState({ agreedToTerms: false, customInvestorTerms: "" });
+  const [rightsLicensing, setRightsLicensing] = useState(() => createDefaultRightsLicensing());
   const [creditsBalance, setCreditsBalance] = useState(0);
 
   // Step 4: Script pricing
-  const PLATFORM_FEE = 0.05; // 5%
+  const BUYER_COMMISSION_RATE = 0.05; // 5%
   const [isPremium, setIsPremium] = useState(false);
   const [scriptPrice, setScriptPrice] = useState(10);
   const effectivePrice = isPremium ? Number(scriptPrice) || 0 : 0;
-  const platformFeeAmount = Math.round(effectivePrice * PLATFORM_FEE * 100) / 100;
-  const writerEarns = Math.round((effectivePrice - platformFeeAmount) * 100) / 100;
+  const buyerCommissionAmount = Math.round(effectivePrice * BUYER_COMMISSION_RATE * 100) / 100;
+  const buyerTotalPayable = Math.round((effectivePrice + buyerCommissionAmount) * 100) / 100;
+  const writerPayout = Math.round(effectivePrice * 100) / 100;
   const FORMAT_PRICE_GUIDE = {
     feature: { label: "Feature Film", min: 15, max: 50, suggest: 25 },
     tv_1hour: { label: "TV 1-Hour", min: 10, max: 30, suggest: 15 },
     tv_halfhour: { label: "TV Half-Hour", min: 5, max: 20, suggest: 10 },
     short: { label: "Short Film", min: 5, max: 15, suggest: 5 },
   };
+
+  const buildRightsPayload = useCallback(() => {
+    const normalized = normalizeRightsLicensingState(rightsLicensing || {});
+    const royaltyBased = ["lower_upfront_plus_royalty_percent", "revenue_sharing_model"].includes(normalized.paymentStructure);
+
+    return {
+      ...normalized,
+      legalAcknowledgement: {
+        ...normalized.legalAcknowledgement,
+        platformTermsAccepted: Boolean(legal.agreedToTerms) && Boolean(normalized.legalAcknowledgement.platformTermsAccepted),
+      },
+      royaltySettings: royaltyBased
+        ? normalized.royaltySettings
+        : { percentage: 0, durationType: "none", durationYears: 0 },
+      timeBound: {
+        ...normalized.timeBound,
+        licenseDurationMonths: normalized.rightsType === "exclusive_license"
+          ? normalized.timeBound.licenseDurationMonths
+          : 0,
+      },
+      termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+  }, [legal.agreedToTerms, rightsLicensing]);
 
   // TipTap Editor
   const editor = useEditor({
@@ -786,6 +963,7 @@ const CreateProject = () => {
         agreedToTerms: Boolean(data?.legal?.agreedToTerms),
         customInvestorTerms: data?.legal?.customInvestorTerms || "",
       }));
+      setRightsLicensing(normalizeRightsLicensingState(data?.rightsLicensing || {}));
       lastDraftSignatureRef.current = `${(data.title || "Untitled Draft").trim()}::${String(data.textContent || "").length}:${String(data.textContent || "").slice(0, 120)}:${String(data.textContent || "").slice(-120)}`;
       setSaved(true);
       setShowDrafts(false);
@@ -804,9 +982,10 @@ const CreateProject = () => {
         termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
         customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
       },
+      rightsLicensing: buildRightsPayload(),
       ...(scriptId ? { scriptId } : {}),
     };
-  }, [editor, formData.companyName, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
+  }, [buildRightsPayload, editor, formData.companyName, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
 
   const getDraftSignature = useCallback((payload) => {
     if (!payload) return "";
@@ -916,6 +1095,7 @@ const CreateProject = () => {
     setClassification({ tones: [], themes: [], settings: [] });
     setServices({ hosting: true, evaluation: false, aiTrailer: false, spotlight: false });
     setLegal({ agreedToTerms: false, customInvestorTerms: "" });
+    setRightsLicensing(createDefaultRightsLicensing());
     setIsPremium(false);
     setScriptPrice(10);
     setThumbnailFile(null);
@@ -1077,6 +1257,30 @@ const CreateProject = () => {
     return safe || "script";
   };
 
+  const downloadSubmissionSummaryPdf = async (targetScriptId, currentTitle) => {
+    if (!targetScriptId) return;
+
+    try {
+      const response = await api.get(`/scripts/${targetScriptId}/submission-summary-pdf?download=1`, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const fileBase = sanitizePdfFileName(currentTitle || "script").replace(/\s+/g, "_");
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${fileBase}_submission_summary.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0);
+    } catch {
+      // Non-blocking: publishing should still succeed if the browser download fails.
+    }
+  };
+
   const handleDownloadMainContentPdf = () => {
     if (!editor) return;
 
@@ -1224,16 +1428,16 @@ const CreateProject = () => {
       : null;
   const publishSummaryRows = [
     {
-      item: "Script Access",
+      item: "Script Access Fee",
       detail: isPremium ? "Premium reader purchase model" : "Public free access model",
       type: "Revenue Setting",
       amount: isPremium ? formatCurrency(effectivePrice) : "Free",
     },
     {
-      item: `Platform Fee (${Math.round(PLATFORM_FEE * 100)}%)`,
-      detail: isPremium ? "Charged by platform per premium purchase" : "No platform fee on free access",
-      type: "Platform Fee",
-      amount: isPremium ? formatCurrency(platformFeeAmount) : formatCurrency(0),
+      item: `Platform Commission (${Math.round(BUYER_COMMISSION_RATE * 100)}%)`,
+      detail: isPremium ? "Added on top of the script access fee at checkout" : "No commission on free access",
+      type: "Platform Commission",
+      amount: isPremium ? formatCurrency(buyerCommissionAmount) : formatCurrency(0),
     },
     {
       item: "Optional Services",
@@ -1242,10 +1446,16 @@ const CreateProject = () => {
       amount: `${totalServiceCost} cr`,
     },
     {
+      item: "Film Industry Professional Pays at Checkout",
+      detail: isPremium ? "Script fee + platform commission" : "Not applicable for free access",
+      type: "Checkout Total",
+      amount: isPremium ? formatCurrency(buyerTotalPayable) : formatCurrency(0),
+    },
+    {
       item: "Projected Writer Payout",
-      detail: isPremium ? "Estimated per premium purchase" : "No payout on free access",
+      detail: isPremium ? "Writer receives full script access fee" : "No payout on free access",
       type: "Future Earnings",
-      amount: isPremium ? formatCurrency(writerEarns) : formatCurrency(0),
+      amount: isPremium ? formatCurrency(writerPayout) : formatCurrency(0),
     },
   ];
 
@@ -1291,7 +1501,20 @@ const CreateProject = () => {
       return true;
     }
     if (s === 3) return true;
+    if (s === 4) {
+      const rightsError = getRightsValidationMessage(buildRightsPayload());
+      if (rightsError) {
+        setError(rightsError);
+        return false;
+      }
+      return true;
+    }
     if (s === 5) {
+      const rightsError = getRightsValidationMessage(buildRightsPayload());
+      if (rightsError) {
+        setError(rightsError);
+        return false;
+      }
       if (!legal.agreedToTerms) { setError("You must agree to the terms."); return false; }
       if (String(legal.customInvestorTerms || "").trim().length > MAX_CUSTOM_INVESTOR_TERMS_LENGTH) {
         setError(`Custom investor terms cannot exceed ${MAX_CUSTOM_INVESTOR_TERMS_LENGTH} characters.`);
@@ -1393,12 +1616,14 @@ const CreateProject = () => {
           termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
           customInvestorTerms: String(legal.customInvestorTerms || "").trim(),
         },
+        rightsLicensing: buildRightsPayload(),
         premium: isPremium && effectivePrice > 0,
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
         ...(scriptId ? { scriptId } : {}),
       };
       const { data } = await api.post("/scripts/upload", payload);
       await uploadSelectedProjectMedia(data?._id);
+      await downloadSubmissionSummaryPdf(data?._id, title);
 
       clearLocalWorkingDraft();
       openUnderReviewModal("/dashboard");
@@ -2572,7 +2797,7 @@ const CreateProject = () => {
                               <div className="relative w-full sm:w-40">
                                 <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold ${dark ? "text-gray-400" : "text-gray-500"}`}>₹</span>
                                 <input
-                                  type="number" min="1" max="500" step="1"
+                                  type="number" min="1" step="1"
                                   value={scriptPrice}
                                   onChange={(e) => {
                                     const normalized = String(e.target.value || "").replace(/^0+(?=\d)/, "");
@@ -2582,7 +2807,7 @@ const CreateProject = () => {
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
                               </div>
-                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter a value from ₹1 to ₹500.</p>
+                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter any amount (minimum ₹1).</p>
                             </div>
                           </div>
                         </div>
@@ -2678,6 +2903,231 @@ const CreateProject = () => {
                   <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
                     <div className="flex items-center gap-2.5 mb-4">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
+                        <svg className={`w-4 h-4 ${dark ? "text-rose-300" : "text-rose-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m5.25-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </div>
+                      <div>
+                        <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Rights & Licensing Preferences</h3>
+                        <p className={`text-[11px] ${dark ? "text-gray-500" : "text-gray-400"}`}>These terms are included in buyer consent and legal agreement PDFs.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Rights Type</label>
+                        <select
+                          value={rightsLicensing.rightsType}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({ ...prev, rightsType: e.target.value }))}
+                          className={inputCls}
+                        >
+                          {RIGHTS_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Modification Rights</label>
+                        <select
+                          value={rightsLicensing.modificationRights}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({ ...prev, modificationRights: e.target.value }))}
+                          className={inputCls}
+                        >
+                          {MODIFICATION_RIGHTS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Payment Structure</label>
+                        <select
+                          value={rightsLicensing.paymentStructure}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({ ...prev, paymentStructure: e.target.value }))}
+                          className={inputCls}
+                        >
+                          {PAYMENT_STRUCTURE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Negotiation Mode</label>
+                        <select
+                          value={rightsLicensing.negotiationMode}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({ ...prev, negotiationMode: e.target.value }))}
+                          className={inputCls}
+                        >
+                          {NEGOTIATION_MODE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {rightsLicensing.rightsType === "exclusive_license" && (
+                        <div>
+                          <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>License Duration</label>
+                          {(() => {
+                            const currentDuration = Number(rightsLicensing?.timeBound?.licenseDurationMonths || 12);
+                            const isCustomDuration = !LICENSE_DURATION_PRESET_MONTHS.includes(currentDuration);
+                            const customDurationFallback = isCustomDuration && currentDuration > 0 ? currentDuration : 30;
+
+                            return (
+                              <>
+                                <select
+                                  value={isCustomDuration ? "custom" : String(currentDuration)}
+                                  onChange={(e) => {
+                                    const selected = e.target.value;
+                                    setRightsLicensing((prev) => normalizeRightsLicensingState({
+                                      ...prev,
+                                      timeBound: {
+                                        ...prev.timeBound,
+                                        licenseDurationMonths: selected === "custom" ? customDurationFallback : Number(selected),
+                                      },
+                                    }));
+                                  }}
+                                  className={inputCls}
+                                >
+                                  <option value="12">12 months</option>
+                                  <option value="18">18 months</option>
+                                  <option value="24">24 months</option>
+                                  <option value="custom">Custom duration...</option>
+                                </select>
+
+                                {isCustomDuration && (
+                                  <div className="mt-2">
+                                    <label className={`block text-[11px] font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Custom Duration (months)</label>
+                                    <input
+                                      type="number"
+                                      min={MIN_LICENSE_DURATION_MONTHS}
+                                      max={MAX_LICENSE_DURATION_MONTHS}
+                                      step="1"
+                                      value={currentDuration}
+                                      onChange={(e) => {
+                                        const nextRaw = Number(e.target.value);
+                                        const nextDuration = Number.isFinite(nextRaw)
+                                          ? Math.max(MIN_LICENSE_DURATION_MONTHS, Math.min(MAX_LICENSE_DURATION_MONTHS, Math.round(nextRaw)))
+                                          : MIN_LICENSE_DURATION_MONTHS;
+
+                                        setRightsLicensing((prev) => normalizeRightsLicensingState({
+                                          ...prev,
+                                          timeBound: {
+                                            ...prev.timeBound,
+                                            licenseDurationMonths: nextDuration,
+                                          },
+                                        }));
+                                      }}
+                                      className={inputCls}
+                                    />
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {["lower_upfront_plus_royalty_percent", "revenue_sharing_model"].includes(rightsLicensing.paymentStructure) && (
+                        <div>
+                          <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Royalty Percentage</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={rightsLicensing?.royaltySettings?.percentage ?? 0}
+                            onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({
+                              ...prev,
+                              royaltySettings: {
+                                ...prev.royaltySettings,
+                                percentage: Number(e.target.value || 0),
+                              },
+                            }))}
+                            className={inputCls}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4">
+                      <label className={`block text-xs font-semibold mb-1 ${dark ? "text-gray-300" : "text-gray-700"}`}>Custom Conditions (Optional)</label>
+                      <textarea
+                        rows={4}
+                        value={rightsLicensing.customConditions}
+                        onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({
+                          ...prev,
+                          customConditions: e.target.value,
+                        }))}
+                        className={`${inputCls} resize-y`}
+                        placeholder="Add contract-sensitive terms buyers must accept."
+                      />
+                      <p className={`text-[11px] mt-1 text-right ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                        {String(rightsLicensing.customConditions || "").length}/{MAX_RIGHTS_CUSTOM_CONDITIONS_LENGTH}
+                      </p>
+                    </div>
+
+                    <div className={`mt-4 rounded-xl border px-3 py-3 ${dark ? "border-[#1b2e46] bg-[#07101c]" : "border-gray-200 bg-white"}`}>
+                      <p className={`text-[11px] font-bold uppercase tracking-[0.14em] ${dark ? "text-gray-500" : "text-gray-400"}`}>Rights Summary Preview</p>
+                      <p className={`text-sm font-semibold mt-1 ${dark ? "text-gray-100" : "text-gray-900"}`}>{RIGHTS_LABEL_MAP[rightsLicensing.rightsType]}</p>
+                      <p className={`text-[12px] mt-1 ${dark ? "text-gray-400" : "text-gray-600"}`}>{MODIFICATION_LABEL_MAP[rightsLicensing.modificationRights]}</p>
+                      <p className={`text-[12px] ${dark ? "text-gray-400" : "text-gray-600"}`}>{PAYMENT_LABEL_MAP[rightsLicensing.paymentStructure]}</p>
+                      <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700">
+                        EXCLUSIVE RIGHTS: no multi-buyer sales once agreement is settled.
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-2.5">
+                      <label className={`flex items-start gap-2.5 text-sm ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(rightsLicensing?.legalAcknowledgement?.ownershipConfirmed)}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({
+                            ...prev,
+                            legalAcknowledgement: {
+                              ...prev.legalAcknowledgement,
+                              ownershipConfirmed: e.target.checked,
+                            },
+                          }))}
+                          className="mt-0.5"
+                        />
+                        <span>I confirm I own or control all rights required for this listing.</span>
+                      </label>
+                      <label className={`flex items-start gap-2.5 text-sm ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(rightsLicensing?.legalAcknowledgement?.platformTermsAccepted)}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({
+                            ...prev,
+                            legalAcknowledgement: {
+                              ...prev.legalAcknowledgement,
+                              platformTermsAccepted: e.target.checked,
+                            },
+                          }))}
+                          className="mt-0.5"
+                        />
+                        <span>I acknowledge these rights terms under platform legal policy.</span>
+                      </label>
+                      <label className={`flex items-start gap-2.5 text-sm ${dark ? "text-gray-300" : "text-gray-600"}`}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(rightsLicensing?.legalAcknowledgement?.exclusivityUnderstood)}
+                          onChange={(e) => setRightsLicensing((prev) => normalizeRightsLicensingState({
+                            ...prev,
+                            legalAcknowledgement: {
+                              ...prev.legalAcknowledgement,
+                              exclusivityUnderstood: e.target.checked,
+                            },
+                          }))}
+                          className="mt-0.5"
+                        />
+                        <span>I understand exclusivity enforcement for settled transactions.</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${dark ? "bg-white/[0.05]" : "bg-[#1e3a5f]/[0.07]"}`}>
                         <svg className={`w-4 h-4 ${dark ? "text-purple-300" : "text-purple-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h3.75A2.625 2.625 0 0116.5 4.875v1.5H7.5v-1.5A2.625 2.625 0 0110.125 2.25zM7.5 9h9m-9 0v8.625A2.625 2.625 0 0010.125 20.25h3.75A2.625 2.625 0 0016.5 17.625V9m-9 0h9" /></svg>
                       </div>
                       <div>
@@ -2735,32 +3185,43 @@ const CreateProject = () => {
                 <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>Validate submission details, then submit your project for admin review.</p>
               </div>
 
-              <div className={`rounded-2xl border overflow-hidden ${dark ? "border-[#1d3350]" : "border-gray-200"}`}>
-                <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#08111b] text-gray-500 border-b border-[#1d3350]" : "bg-gray-100 text-gray-500 border-b border-gray-200"}`}>
+              <div className={`rounded-3xl border overflow-hidden ${dark ? "border-[#223a58] bg-gradient-to-b from-[#0a1320] to-[#08111b] shadow-[0_12px_28px_rgba(2,6,23,0.35)]" : "border-gray-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.06)]"}`}>
+                <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b ${dark ? "border-[#1b2e46]" : "border-gray-200"}`}>
+                  <div>
+                    <p className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${dark ? "text-gray-400" : "text-gray-500"}`}>Invoice Preview</p>
+                    <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>Calculated from your current pricing and services.</p>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold border ${dark ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-300" : "border-cyan-200 bg-cyan-50 text-cyan-700"}`}>Auto-updating</span>
+                </div>
+
+                <div className={`max-[520px]:hidden grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_110px] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "bg-[#091525] text-gray-500 border-b border-[#1b2e46]" : "bg-gray-50 text-gray-500 border-b border-gray-200"}`}>
                   <span>Summary Item</span>
                   <span>Type</span>
                   <span className="text-right">Amount</span>
                 </div>
+
                 <div>
-                  {publishSummaryRows.map((row) => (
-                    <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_90px] px-4 py-3 items-start gap-2 text-[12px] ${dark ? "border-b border-[#15273d] last:border-b-0" : "border-b border-gray-100 last:border-b-0"}`}>
+                  {publishSummaryRows.map((row, index) => (
+                    <div key={row.item} className={`grid grid-cols-1 min-[521px]:grid-cols-[minmax(0,1.1fr)_minmax(0,0.7fr)_110px] px-4 py-3.5 items-start gap-2 text-[12px] ${dark ? `${index % 2 === 0 ? "bg-white/[0.01]" : "bg-[#0b1625]"} border-b border-[#15273d] last:border-b-0` : `${index % 2 === 0 ? "bg-white" : "bg-gray-50/70"} border-b border-gray-100 last:border-b-0`}`}>
                       <div>
-                        <p className={`font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>{row.item}</p>
-                        <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
+                        <p className={`font-semibold ${dark ? "text-gray-100" : "text-gray-800"}`}>{row.item}</p>
+                        <p className={`text-[11px] mt-0.5 leading-relaxed ${dark ? "text-gray-500" : "text-gray-500"}`}>{row.detail}</p>
                       </div>
                       <div className="pt-0.5 max-[520px]:pt-0">
-                        <span className={`inline-flex whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full ${row.type === "Credit Charge"
-                          ? dark ? "bg-blue-500/12 text-blue-300" : "bg-blue-100 text-blue-700"
+                        <span className={`inline-flex items-center whitespace-nowrap text-[10px] font-semibold px-2.5 py-1 rounded-full border ${row.type === "Credit Charge"
+                          ? dark ? "border-blue-400/30 bg-blue-500/12 text-blue-300" : "border-blue-200 bg-blue-100 text-blue-700"
                           : row.type === "Revenue Setting"
-                            ? dark ? "bg-indigo-500/14 text-indigo-300" : "bg-indigo-100 text-indigo-700"
-                          : row.type === "Platform Fee"
-                            ? dark ? "bg-amber-500/12 text-amber-300" : "bg-amber-100 text-amber-700"
+                            ? dark ? "border-indigo-400/30 bg-indigo-500/14 text-indigo-300" : "border-indigo-200 bg-indigo-100 text-indigo-700"
+                          : row.type === "Platform Commission"
+                            ? dark ? "border-amber-400/30 bg-amber-500/12 text-amber-300" : "border-amber-200 bg-amber-100 text-amber-700"
+                          : row.type === "Checkout Total"
+                            ? dark ? "border-cyan-400/30 bg-cyan-500/12 text-cyan-300" : "border-cyan-200 bg-cyan-100 text-cyan-700"
                           : row.type === "Future Earnings"
-                            ? dark ? "bg-emerald-500/12 text-emerald-300" : "bg-emerald-100 text-emerald-700"
-                            : dark ? "bg-white/[0.08] text-gray-300" : "bg-gray-200 text-gray-700"
+                            ? dark ? "border-emerald-400/30 bg-emerald-500/12 text-emerald-300" : "border-emerald-200 bg-emerald-100 text-emerald-700"
+                            : dark ? "border-white/[0.16] bg-white/[0.08] text-gray-300" : "border-gray-300 bg-gray-100 text-gray-700"
                           }`}>{row.type}</span>
                       </div>
-                      <p className={`text-left min-[521px]:text-right font-bold pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
+                      <p className={`text-left min-[521px]:text-right font-extrabold tabular-nums tracking-tight pt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>{row.amount}</p>
                     </div>
                   ))}
                 </div>
@@ -2778,35 +3239,13 @@ const CreateProject = () => {
                   <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>After this publish action</p>
                 </div>
                 <div className={`rounded-xl px-4 py-4 ${dark ? "bg-purple-500/10 border border-purple-500/15" : "bg-purple-50 border border-purple-100"}`}>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Net / Premium Sale</p>
-                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `₹${writerEarns}` : "₹0"}</p>
-                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Estimated payout per paid purchase</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? "text-purple-300" : "text-purple-700"}`}>Writer / Premium Sale</p>
+                  <p className={`text-xl font-black mt-1 ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? `₹${writerPayout}` : "₹0"}</p>
+                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>Writer gets full script fee per paid purchase</p>
                 </div>
               </div>
 
               <div className={`rounded-xl px-4 py-4 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-gray-50 border border-gray-200"}`}>
-                <div className="mb-3">
-                  <p className={`text-[12px] font-semibold ${dark ? "text-gray-200" : "text-gray-800"}`}>
-                    Writer Custom Terms For Investors (Optional)
-                  </p>
-                  <p className={`text-[11px] mt-0.5 ${dark ? "text-gray-500" : "text-gray-500"}`}>
-                    Investors must accept these custom terms before they can pay for your script.
-                  </p>
-                  <textarea
-                    value={legal.customInvestorTerms}
-                    onChange={(e) => setLegal((prev) => ({
-                      ...prev,
-                      customInvestorTerms: e.target.value.slice(0, MAX_CUSTOM_INVESTOR_TERMS_LENGTH),
-                    }))}
-                    rows={6}
-                    placeholder="Example: Payment grants reading access only. Rights transfer requires a separate signed agreement."
-                    className={`mt-3 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors resize-y ${dark ? "bg-[#050b14] border-[#182840] text-gray-200 placeholder:text-gray-600 focus:border-[#2a4a6e]" : "bg-white border-gray-200 text-gray-800 placeholder:text-gray-400 focus:border-gray-400"}`}
-                  />
-                  <p className={`text-[11px] mt-2 text-right ${dark ? "text-gray-500" : "text-gray-500"}`}>
-                    {String(legal.customInvestorTerms || "").length}/{MAX_CUSTOM_INVESTOR_TERMS_LENGTH}
-                  </p>
-                </div>
-
                 <div className="flex items-start gap-2.5">
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${legal.agreedToTerms ? dark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700" : dark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"}`}>
                     {legal.agreedToTerms ? (

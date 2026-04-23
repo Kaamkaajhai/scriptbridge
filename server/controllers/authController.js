@@ -86,6 +86,12 @@ const sanitizeEmail = (email) => {
   return email.trim().toLowerCase();
 };
 
+const normalizeOptionalDate = (value) => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
 const normalizeOtpInput = (otp) => String(otp || "").trim();
 
 const isValidOtpInput = (otp) => /^\d{6}$/.test(otp);
@@ -100,8 +106,230 @@ const buildVerificationResponse = (email) => ({
 const CONTACT_REQUIRED_ROLES = new Set(["reader", "investor"]);
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 const USERNAME_REQUIRED_ROLES = new Set(["investor"]);
+const INDIA_COUNTRY_NAME = "India";
+const INDIA_ZIP_REGEX = /^\d{6}$/;
+const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
+const REFERRAL_BONUS_CREDITS = 15;
+const REFERRAL_INPUT_MAX_LENGTH = 40;
+const DEFAULT_CLIENT_ORIGIN = "https://ckript.com";
 
 const normalizeInputValue = (value = "") => String(value).trim();
+const normalizeCountryName = (value = "") => normalizeInputValue(value);
+const isIndiaCountry = (value = "") => normalizeCountryName(value).toLowerCase() === "india";
+const normalizeReferralInput = (value = "") => normalizeInputValue(value).slice(0, REFERRAL_INPUT_MAX_LENGTH);
+const normalizeReferralCode = (value = "") => normalizeReferralInput(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+const normalizeReferralUsername = (value = "") =>
+  normalizeReferralInput(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+
+const buildReferralLink = (referralCode = "") => {
+  const base = String(process.env.CLIENT_URL || process.env.FRONTEND_URL || DEFAULT_CLIENT_ORIGIN)
+    .trim()
+    .replace(/\/$/, "");
+  const safeCode = encodeURIComponent(String(referralCode || "").trim());
+  return `${base}/${safeCode}`;
+};
+
+const buildReferralTransactionReference = () =>
+  `REF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+const buildReferralCreditTransaction = ({ amount, description, reference }) => ({
+  type: "bonus",
+  amount,
+  description,
+  reference,
+  createdAt: new Date(),
+});
+
+const findReferrerByInput = async (rawReferralInput = "") => {
+  const normalizedRaw = normalizeReferralInput(rawReferralInput);
+  if (!normalizedRaw) return null;
+
+  const referralCodeCandidate = normalizeReferralCode(normalizedRaw);
+  if (referralCodeCandidate.length >= 4) {
+    const matchedByCode = await User.findOne({ referralCode: referralCodeCandidate }).select(
+      "_id name email role referralCode writerProfile.username"
+    );
+    if (matchedByCode) {
+      return matchedByCode;
+    }
+  }
+
+  const usernameCandidate = normalizeReferralUsername(normalizedRaw);
+  if (usernameCandidate.length >= 3) {
+    const matchedByUsername = await User.findOne({ "writerProfile.username": usernameCandidate }).select(
+      "_id name email role referralCode writerProfile.username"
+    );
+    if (matchedByUsername) {
+      return matchedByUsername;
+    }
+  }
+
+  return null;
+};
+
+const hasReferralBeenUsedByEmail = async (rawEmail = "", options = {}) => {
+  const email = sanitizeEmail(rawEmail);
+  if (!email) return false;
+
+  const filter = {
+    $and: [
+      {
+        $or: [
+          { email },
+          { "accountDeletion.originalEmail": email },
+        ],
+      },
+      {
+        $or: [
+          { referredBy: { $exists: true, $ne: null } },
+          { hasReceivedReferralBonus: true },
+          { referralBonusAwardedAt: { $exists: true, $ne: null } },
+        ],
+      },
+    ],
+  };
+
+  if (options.excludeUserId) {
+    filter._id = { $ne: options.excludeUserId };
+  }
+
+  const existing = await User.exists(filter);
+  return Boolean(existing);
+};
+
+const awardReferralBonusForUser = async (userId) => {
+  if (!userId) return { awarded: false };
+
+  const referredUser = await User.findById(userId).select(
+    "name referredBy hasReceivedReferralBonus referralBonusAwardedAt referralCode"
+  );
+
+  if (!referredUser || !referredUser.referredBy || referredUser.hasReceivedReferralBonus) {
+    return { awarded: false };
+  }
+
+  if (String(referredUser.referredBy) === String(referredUser._id)) {
+    await User.updateOne(
+      { _id: referredUser._id, hasReceivedReferralBonus: false },
+      {
+        $set: {
+          hasReceivedReferralBonus: true,
+          referralBonusAwardedAt: new Date(),
+        },
+      }
+    );
+    return { awarded: false, reason: "self_referral_blocked" };
+  }
+
+  const referrer = await User.findById(referredUser.referredBy).select(
+    "_id name email referralCode writerProfile.username"
+  );
+
+  if (!referrer) {
+    return { awarded: false, reason: "referrer_not_found" };
+  }
+
+  if (String(referrer._id) === String(referredUser._id)) {
+    return { awarded: false, reason: "self_referral_blocked" };
+  }
+
+  const reference = buildReferralTransactionReference();
+  const now = new Date();
+
+  const referredCreditUpdate = await User.updateOne(
+    {
+      _id: referredUser._id,
+      referredBy: referrer._id,
+      hasReceivedReferralBonus: false,
+    },
+    {
+      $set: {
+        hasReceivedReferralBonus: true,
+        referralBonusAwardedAt: now,
+      },
+      $inc: {
+        "credits.balance": REFERRAL_BONUS_CREDITS,
+        "credits.totalPurchased": REFERRAL_BONUS_CREDITS,
+      },
+      $push: {
+        "credits.transactions": buildReferralCreditTransaction({
+          amount: REFERRAL_BONUS_CREDITS,
+          description: `Referral bonus for joining via ${referrer.referralCode || "referral link"}`,
+          reference,
+        }),
+      },
+    }
+  );
+
+  if (!referredCreditUpdate.modifiedCount) {
+    return { awarded: false, reason: "already_awarded" };
+  }
+
+  try {
+    await User.updateOne(
+      { _id: referrer._id },
+      {
+        $inc: {
+          "credits.balance": REFERRAL_BONUS_CREDITS,
+          "credits.totalPurchased": REFERRAL_BONUS_CREDITS,
+          "referralStats.successfulReferrals": 1,
+          "referralStats.totalBonusCredits": REFERRAL_BONUS_CREDITS,
+        },
+        $push: {
+          "credits.transactions": buildReferralCreditTransaction({
+            amount: REFERRAL_BONUS_CREDITS,
+            description: `Referral bonus: ${referredUser.name || "A user"} joined successfully`,
+            reference,
+          }),
+        },
+      }
+    );
+  } catch (referrerCreditError) {
+    // Best-effort rollback if referrer credit update fails after awarding referee credits.
+    await User.updateOne(
+      {
+        _id: referredUser._id,
+        "credits.transactions.reference": reference,
+      },
+      {
+        $set: {
+          hasReceivedReferralBonus: false,
+          referralBonusAwardedAt: null,
+        },
+        $inc: {
+          "credits.balance": -REFERRAL_BONUS_CREDITS,
+          "credits.totalPurchased": -REFERRAL_BONUS_CREDITS,
+        },
+        $pull: {
+          "credits.transactions": { reference },
+        },
+      }
+    );
+
+    throw referrerCreditError;
+  }
+
+  return {
+    awarded: true,
+    reference,
+    bonusCredits: REFERRAL_BONUS_CREDITS,
+    referrerName: referrer.name || "",
+    referrerCode: referrer.referralCode || "",
+  };
+};
+
+const buildFormattedAddress = ({ street = "", city = "", state = "", zipCode = "", country = "" } = {}) => {
+  const normalizedCountry = normalizeCountryName(country);
+  const parts = [street, city, state, zipCode];
+
+  if (normalizedCountry && !isIndiaCountry(normalizedCountry)) {
+    parts.push(normalizedCountry);
+  }
+
+  return parts.filter(Boolean).join(", ");
+};
 
 const normalizeAddressPayload = (addressPayload) => {
   if (!addressPayload || typeof addressPayload !== "object") return null;
@@ -110,6 +338,8 @@ const normalizeAddressPayload = (addressPayload) => {
   const city = normalizeInputValue(addressPayload.city);
   const state = normalizeInputValue(addressPayload.state);
   const zipCode = normalizeInputValue(addressPayload.zipCode);
+  const countryInput = normalizeCountryName(addressPayload.country);
+  const country = countryInput || INDIA_COUNTRY_NAME;
   const formattedInput = normalizeInputValue(addressPayload.formatted);
 
   return {
@@ -117,7 +347,8 @@ const normalizeAddressPayload = (addressPayload) => {
     city,
     state,
     zipCode,
-    formatted: formattedInput || `${street}, ${city}, ${state}, ${zipCode}`,
+    country,
+    formatted: formattedInput || buildFormattedAddress({ street, city, state, zipCode, country }),
   };
 };
 
@@ -137,25 +368,31 @@ const parseAddressForValidation = (address = "") => {
 
   if (parts.length < 3) return null;
 
-  const zipSource = parts[parts.length - 1] || "";
-  const zipMatch = zipSource.match(/(\d{6})/);
+  let zipIndex = parts.length - 1;
+  let zipMatch = (parts[zipIndex] || "").match(/(\d{6})/);
+
+  if (!zipMatch && parts.length >= 2) {
+    zipIndex = parts.length - 2;
+    zipMatch = (parts[zipIndex] || "").match(/(\d{6})/);
+  }
+
   if (!zipMatch) return null;
 
   const zipCode = zipMatch[1];
-  const state = parts[parts.length - 2] || "";
-  const city = parts[parts.length - 3] || "";
+  const state = parts[zipIndex - 1] || "";
+  const city = parts[zipIndex - 2] || "";
 
   if (!state || !city) return null;
 
   return { city, state, zipCode };
 };
 
-const fetchPostalOfficesByZip = async (zipCode) => {
+const fetchJsonWithTimeout = async (url, timeoutMs = 8000) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`https://api.postalpincode.in/pincode/${zipCode}`, {
+    const response = await fetch(url, {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
@@ -166,10 +403,42 @@ const fetchPostalOfficesByZip = async (zipCode) => {
       throw new Error(`Postal API request failed with status ${response.status}`);
     }
 
-    const data = await response.json();
-    return Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+    return response.json();
   } finally {
     clearTimeout(timeoutId);
+  }
+};
+
+const fetchPostalOfficesFromIndiaPost = async (zipCode) => {
+  const data = await fetchJsonWithTimeout(`https://api.postalpincode.in/pincode/${zipCode}`);
+  return Array.isArray(data) && data[0]?.PostOffice ? data[0].PostOffice : [];
+};
+
+const fetchPostalOfficesFromZippopotam = async (zipCode) => {
+  const data = await fetchJsonWithTimeout(`https://api.zippopotam.us/IN/${zipCode}`);
+  const places = Array.isArray(data?.places) ? data.places : [];
+
+  return places.map((place) => ({
+    Name: place["place name"] || "",
+    District: place["place name"] || "",
+    Block: place["place name"] || "",
+    Division: "",
+    State: place.state || "",
+  }));
+};
+
+const fetchPostalOfficesByZip = async (zipCode) => {
+  try {
+    const offices = await fetchPostalOfficesFromIndiaPost(zipCode);
+    if (offices.length) return offices;
+  } catch (primaryError) {
+    console.warn("Primary ZIP provider unavailable:", primaryError.message || primaryError);
+  }
+
+  try {
+    return await fetchPostalOfficesFromZippopotam(zipCode);
+  } catch (fallbackError) {
+    throw new Error(fallbackError?.message || "All ZIP lookup providers failed");
   }
 };
 
@@ -276,7 +545,7 @@ const isValidPassword = (password) => {
 
 export const join = async (req, res) => {
   console.log('Join request received:', req.body);
-  let { name, email, password, role, phone, address, username } = req.body;
+  let { name, email, password, role, phone, address, username, referralCode, dateOfBirth } = req.body;
   try {
     // Validate required fields
     if (!name || !email || !password) {
@@ -299,6 +568,7 @@ export const join = async (req, res) => {
 
     role = normalizeInputValue(role).toLowerCase() || "creator";
     const normalizedUsername = normalizeInputValue(username).toLowerCase();
+    const normalizedReferralInput = normalizeReferralInput(referralCode);
     const requiresUsername = USERNAME_REQUIRED_ROLES.has(role);
 
     if (requiresUsername && !normalizedUsername) {
@@ -311,11 +581,42 @@ export const join = async (req, res) => {
       });
     }
 
+    let referrerUser = null;
+    if (normalizedReferralInput) {
+      const referralAlreadyUsedForEmail = await hasReferralBeenUsedByEmail(email);
+      if (referralAlreadyUsedForEmail) {
+        return res.status(400).json({
+          message: "Referral already used for this email.",
+        });
+      }
+
+      referrerUser = await findReferrerByInput(normalizedReferralInput);
+
+      if (!referrerUser) {
+        return res.status(400).json({
+          message: "Invalid referral code or username",
+        });
+      }
+
+      if (sanitizeEmail(referrerUser.email) === email) {
+        return res.status(400).json({
+          message: "You cannot use your own referral code",
+        });
+      }
+    }
+
     const requiresContactDetails = CONTACT_REQUIRED_ROLES.has(role);
     const normalizedPhone = normalizeInputValue(phone);
     const normalizedAddress = normalizeAddressPayload(address);
+    const hasContactPayload = Boolean(normalizedPhone || normalizedAddress || dateOfBirth);
+    const shouldValidateAndPersistContactDetails = requiresContactDetails || hasContactPayload;
+    const normalizedDateOfBirth = normalizeOptionalDate(dateOfBirth);
 
-    if (requiresContactDetails) {
+    if (dateOfBirth !== undefined && dateOfBirth !== null && dateOfBirth !== "" && !normalizedDateOfBirth) {
+      return res.status(400).json({ message: "Please provide a valid date of birth" });
+    }
+
+    if (shouldValidateAndPersistContactDetails) {
       if (!normalizedPhone) {
         return res.status(400).json({ message: "Phone number is required" });
       }
@@ -328,14 +629,18 @@ export const join = async (req, res) => {
         return res.status(400).json({ message: "Address details are required" });
       }
 
-      const { street, city, state, zipCode, formatted } = normalizedAddress;
+      const { street, city, state, zipCode, country, formatted } = normalizedAddress;
 
-      if (!street || !city || !state || !zipCode) {
-        return res.status(400).json({ message: "Street, city, state, and ZIP code are required" });
+      if (!street || !city || !state || !zipCode || !country) {
+        return res.status(400).json({ message: "Street, city, state, postal code, and country are required" });
       }
 
-      if (!/^\d{6}$/.test(zipCode)) {
-        return res.status(400).json({ message: "ZIP code must be exactly 6 digits" });
+      if (isIndiaCountry(country)) {
+        if (!INDIA_ZIP_REGEX.test(zipCode)) {
+          return res.status(400).json({ message: "ZIP code must be exactly 6 digits" });
+        }
+      } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
+        return res.status(400).json({ message: "Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)" });
       }
 
       const cityStatePattern = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
@@ -343,14 +648,11 @@ export const join = async (req, res) => {
         return res.status(400).json({ message: "Enter a valid city and state name" });
       }
 
-      const parsedAddress = parseAddressForValidation(formatted);
-      if (!parsedAddress) {
-        return res.status(400).json({ message: "Enter address as: Street, City, State, ZIP (6-digit)." });
-      }
-
-      const validationResult = await validateAddressWithPostalData(parsedAddress);
-      if (!validationResult.valid) {
-        return res.status(validationResult.statusCode || 400).json({ message: validationResult.message });
+      if (isIndiaCountry(country)) {
+        const validationResult = await validateAddressWithPostalData({ city, state, zipCode });
+        if (!validationResult.valid) {
+          return res.status(validationResult.statusCode || 400).json({ message: validationResult.message });
+        }
       }
 
       address = {
@@ -358,7 +660,8 @@ export const join = async (req, res) => {
         city,
         state,
         zipCode,
-        formatted,
+        country,
+        formatted: formatted || buildFormattedAddress({ street, city, state, zipCode, country }),
       };
       phone = normalizedPhone;
     }
@@ -376,6 +679,10 @@ export const join = async (req, res) => {
 
     const userExists = await User.findOne({ email });
     if (userExists) {
+      if (referrerUser && String(referrerUser._id) === String(userExists._id)) {
+        return res.status(400).json({ message: "You cannot use your own referral code" });
+      }
+
       if (requiresUsername && !normalizeInputValue(normalizedUsername || userExists.writerProfile?.username)) {
         return res.status(400).json({ message: "Username is required" });
       }
@@ -416,6 +723,9 @@ export const join = async (req, res) => {
           userExists.writerProfile.username = normalizedUsername;
           userExists.markModified("writerProfile");
         }
+        if (referrerUser && !userExists.referredBy) {
+          userExists.referredBy = referrerUser._id;
+        }
         userExists.emailVerificationToken = hashOTP(otp);
         userExists.emailVerificationExpires = generateOTPExpiry();
         userExists.emailVerificationResendAvailableAt = generateOTPResendAvailableAt();
@@ -436,7 +746,7 @@ export const join = async (req, res) => {
           ...buildVerificationResponse(email),
         });
       }
-      return res.status(400).json({ message: "User already exists and is verified. Please login." });
+      return res.status(400).json({ message: "Email is already used. Please login." });
     }
 
     // Generate OTP
@@ -451,8 +761,10 @@ export const join = async (req, res) => {
       email, 
       password, 
       role,
-      phone: requiresContactDetails ? phone : undefined,
-      address: requiresContactDetails ? address : undefined,
+      referredBy: referrerUser?._id,
+      phone: shouldValidateAndPersistContactDetails ? phone : undefined,
+      address: shouldValidateAndPersistContactDetails ? address : undefined,
+      dateOfBirth: normalizedDateOfBirth,
       writerProfile: normalizedUsername ? { username: normalizedUsername } : undefined,
       emailVerified: skipEmailVerification, // Auto-verify if skipping email
       emailVerificationToken: skipEmailVerification ? undefined : hashOTP(otp),
@@ -462,15 +774,20 @@ export const join = async (req, res) => {
     
     // If skipping email verification, return token directly
     if (skipEmailVerification) {
+      const referralBonusResult = await awardReferralBonusForUser(user._id);
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
       const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
       return res.status(201).json({
         _id: user._id,
+        sid: user.sid,
         name: user.name,
         email: user.email,
         role: user.role,
+        referralCode: user.referralCode,
         language: normalizeLanguagePreference(user.language),
         timezone: user.timezone || DEFAULT_TIMEZONE,
+        referralBonusAwarded: referralBonusResult.awarded,
+        referralBonusCredits: referralBonusResult.awarded ? REFERRAL_BONUS_CREDITS : 0,
         token,
         expiresAt,
         message: "Account created successfully (email verification skipped in dev mode)"
@@ -581,6 +898,7 @@ export const login = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        referralCode: user.referralCode,
         language: normalizeLanguagePreference(user.language),
         timezone: user.timezone || DEFAULT_TIMEZONE,
         approvalStatus: user.approvalStatus,
@@ -706,6 +1024,8 @@ export const verifyOTP = async (req, res) => {
     // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
 
+    const referralBonusResult = await awardReferralBonusForUser(user._id);
+
     // Investors cannot sign in from login until approved, but they should
     // still receive a session here to complete onboarding steps.
     if (user.role === "investor") {
@@ -719,11 +1039,14 @@ export const verifyOTP = async (req, res) => {
         sid: user.sid,
         name: user.name,
         phone: user.phone,
+        referralCode: user.referralCode,
         language: normalizeLanguagePreference(user.language),
         timezone: user.timezone || DEFAULT_TIMEZONE,
         approvalStatus: user.approvalStatus,
         approvalNote: user.approvalNote,
         profileCompletion: getProfileCompletion(user),
+        referralBonusAwarded: referralBonusResult.awarded,
+        referralBonusCredits: referralBonusResult.awarded ? REFERRAL_BONUS_CREDITS : 0,
         token,
         expiresAt,
       });
@@ -740,9 +1063,12 @@ export const verifyOTP = async (req, res) => {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      referralCode: user.referralCode,
       language: normalizeLanguagePreference(user.language),
       timezone: user.timezone || DEFAULT_TIMEZONE,
       profileCompletion: getProfileCompletion(user),
+      referralBonusAwarded: referralBonusResult.awarded,
+      referralBonusCredits: referralBonusResult.awarded ? REFERRAL_BONUS_CREDITS : 0,
       token,
       expiresAt,
     });
@@ -819,10 +1145,137 @@ export const resendOTP = async (req, res) => {
   }
 };
 
-export const lookupZipInfo = async (req, res) => {
+// Validate referral code/username without applying it
+export const validateReferral = async (req, res) => {
   try {
-    const zipCode = String(req.params?.zipCode || "").trim();
+    const rawInput = String(req.params?.referralInput || req.query?.ref || "").trim();
+    const normalized = normalizeReferralInput(rawInput);
 
+    if (!normalized) {
+      return res.status(400).json({ valid: false, message: "Referral code is required" });
+    }
+
+    const referrer = await findReferrerByInput(normalized);
+    if (!referrer) {
+      return res.status(404).json({ valid: false, message: "Referral code or username not found" });
+    }
+
+    return res.json({
+      valid: true,
+      referrer: {
+        name: referrer.name,
+        role: referrer.role,
+        username: referrer?.writerProfile?.username || "",
+        referralCode: referrer.referralCode,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ valid: false, message: error.message || "Unable to validate referral" });
+  }
+};
+
+// Apply referral code for a logged-in user (if not already applied)
+export const applyReferralCode = async (req, res) => {
+  try {
+    const inputCode = normalizeReferralInput(req.body?.referralCode);
+    if (!inputCode) {
+      return res.status(400).json({ message: "Referral code is required" });
+    }
+
+    const currentUser = await User.findById(req.user._id).select(
+      "_id email name referralCode referredBy emailVerified hasReceivedReferralBonus"
+    );
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (currentUser.referredBy) {
+      return res.status(400).json({ message: "Referral already applied to this account" });
+    }
+
+    const referralAlreadyUsedForEmail = await hasReferralBeenUsedByEmail(currentUser.email, {
+      excludeUserId: currentUser._id,
+    });
+    if (referralAlreadyUsedForEmail) {
+      return res.status(400).json({ message: "Referral already used for this email." });
+    }
+
+    const referrer = await findReferrerByInput(inputCode);
+    if (!referrer) {
+      return res.status(404).json({ message: "Referral code or username not found" });
+    }
+
+    if (String(referrer._id) === String(currentUser._id)) {
+      return res.status(400).json({ message: "You cannot apply your own referral code" });
+    }
+
+    currentUser.referredBy = referrer._id;
+    await currentUser.save();
+
+    let referralBonusResult = { awarded: false };
+    if (currentUser.emailVerified && !currentUser.hasReceivedReferralBonus) {
+      referralBonusResult = await awardReferralBonusForUser(currentUser._id);
+    }
+
+    return res.json({
+      message: "Referral applied successfully",
+      referralApplied: true,
+      referrer: {
+        name: referrer.name,
+        role: referrer.role,
+        username: referrer?.writerProfile?.username || "",
+        referralCode: referrer.referralCode,
+      },
+      referralBonusAwarded: referralBonusResult.awarded,
+      referralBonusCredits: referralBonusResult.awarded ? REFERRAL_BONUS_CREDITS : 0,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Unable to apply referral" });
+  }
+};
+
+// Logged-in user's referral summary for dashboard widgets
+export const getReferralSummary = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select(
+      "_id sid referralCode referralStats writerProfile.username"
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.referralCode) {
+      await user.save();
+    }
+
+    const [totalReferrals, successfulReferrals] = await Promise.all([
+      User.countDocuments({ referredBy: user._id }),
+      User.countDocuments({ referredBy: user._id, hasReceivedReferralBonus: true }),
+    ]);
+
+    const referralLink = buildReferralLink(user.referralCode);
+
+    return res.json({
+      referralCode: user.referralCode,
+      referralLink,
+      referralProfileLink: referralLink,
+      bonusPerReferral: REFERRAL_BONUS_CREDITS,
+      totalReferrals,
+      successfulReferrals,
+      totalBonusCredits:
+        Number(user?.referralStats?.totalBonusCredits) ||
+        successfulReferrals * REFERRAL_BONUS_CREDITS,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Unable to fetch referral summary" });
+  }
+};
+
+export const lookupZipInfo = async (req, res) => {
+  const zipCode = String(req.params?.zipCode || "").trim();
+
+  try {
     if (!/^\d{6}$/.test(zipCode)) {
       return res.status(400).json({
         valid: false,
@@ -849,16 +1302,28 @@ export const lookupZipInfo = async (req, res) => {
     });
   } catch (error) {
     console.error("ZIP lookup error:", error);
-    return res.status(503).json({
+    return res.status(200).json({
       valid: false,
-      message: "ZIP lookup service is temporarily unavailable. Please try again.",
+      zipCode,
+      city: "",
+      state: "",
+      message: "Unable to auto-fill city/state right now. Please enter them manually.",
     });
   }
 };
 
 export const validateSignupAddress = async (req, res) => {
   try {
-    const { address } = req.body;
+    const { address, country = INDIA_COUNTRY_NAME } = req.body;
+
+    if (!isIndiaCountry(country)) {
+      return res.json({
+        valid: true,
+        skipped: true,
+        message: "International address format accepted.",
+      });
+    }
+
     const parsed = parseAddressForValidation(address);
 
     if (!parsed) {
@@ -909,6 +1374,7 @@ export const getMe = async (req, res) => {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      referralCode: user.referralCode,
       language: normalizeLanguagePreference(user.language),
       timezone: user.timezone || DEFAULT_TIMEZONE,
       approvalStatus: user.approvalStatus,

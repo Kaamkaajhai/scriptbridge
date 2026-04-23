@@ -2680,7 +2680,13 @@ const AdminDashboard = () => {
                         <h2 className={`text-xl font-extrabold mb-5 ${isDark ? "text-white" : "text-gray-900"}`}>Investor Purchases<span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span></h2>
                         <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={false}
                             actions={(s) => (
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <a
+                                        href={`/admin/scripts/${s._id}`}
+                                        className="text-xs font-bold text-blue-500 hover:text-blue-400 px-2.5 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
+                                    >
+                                        View
+                                    </a>
                                     {s.unlockedBy?.map((u) => (
                                         <span key={u._id || u} className={`text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-700"}`}>
                                             {u.name || "Investor"}
@@ -4126,7 +4132,13 @@ const AdminDashboard = () => {
 
     const UserDetailsModal = ({ user, onClose }) => {
         const [openingAttachmentKey, setOpeningAttachmentKey] = useState("");
+        const normalizedRole = String(user?.role || "").toLowerCase();
+        const isWriterRole = ["writer", "creator"].includes(normalizedRole);
+        const isInvestorRole = ["investor", "producer", "director", "industry", "professional"].includes(normalizedRole);
+        const isReaderRole = normalizedRole === "reader";
         const writerLinks = user?.writerProfile?.links || {};
+        const investorSocialLinks = user?.industryProfile?.socialLinks || {};
+        const investorDemographics = user?.industryProfile?.demographics || {};
         const membershipVerification = user?.writerProfile?.membershipVerification || {};
         const wgaVerification = membershipVerification?.wga || {};
         const swaVerification = membershipVerification?.swa || {};
@@ -4194,11 +4206,12 @@ const AdminDashboard = () => {
             { label: "Frozen Reason", value: user?.frozenReason },
             { label: "Date of Birth", value: user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "" },
             { label: "Address", value: addressLine || user?.address?.formatted },
+            { label: "Bio", value: user?.bio },
             { label: "Approval Status", value: user?.approvalStatus },
             { label: "Approval Note", value: user?.approvalNote },
             { label: "Email Verified", value: user?.emailVerified === true ? "Yes" : user?.emailVerified === false ? "No" : "" },
             { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleString() : "" },
-        ].filter((row) => row.value);
+        ];
 
         const writerRows = [
             { label: "Legal Name", value: user?.writerProfile?.legalName },
@@ -4223,21 +4236,31 @@ const AdminDashboard = () => {
             { label: "IMDb", value: writerLinks?.imdb },
             { label: "Facebook", value: writerLinks?.facebook },
             { label: "Accomplishments", value: Array.isArray(user?.writerProfile?.accomplishments) ? user.writerProfile.accomplishments.join(", ") : "" },
-        ].filter((row) => row.value);
+        ];
 
         const investorRows = [
             { label: "Sub Role", value: formatIndustrySubRole(user?.industryProfile?.subRole, user?.industryProfile?.subRoleOther) },
             { label: "Company", value: user?.industryProfile?.company },
             { label: "Job Title", value: user?.industryProfile?.jobTitle },
+            { label: "Gender", value: investorDemographics?.gender },
+            { label: "Nationality", value: investorDemographics?.nationality },
             { label: "Verified", value: user?.industryProfile?.isVerified === true ? "Yes" : user?.industryProfile?.isVerified === false ? "No" : "" },
             { label: "Investment Range", value: user?.industryProfile?.investmentRange },
             { label: "Previous Credits", value: sanitizePreviousCreditsDisplay(user?.industryProfile?.previousCredits) },
+            { label: "LinkedIn", value: user?.industryProfile?.linkedInUrl },
+            { label: "IMDb", value: user?.industryProfile?.imdbUrl },
+            { label: "Portfolio / Other URL", value: user?.industryProfile?.otherUrl },
+            { label: "Instagram", value: investorSocialLinks?.instagram },
+            { label: "Twitter", value: investorSocialLinks?.twitter },
+            { label: "Facebook", value: investorSocialLinks?.facebook },
+            { label: "YouTube", value: investorSocialLinks?.youtube },
+            { label: "Website", value: investorSocialLinks?.website },
             { label: "Mandates Formats", value: Array.isArray(mandates?.formats) ? mandates.formats.join(", ") : "" },
             { label: "Mandates Genres", value: Array.isArray(mandates?.genres) ? mandates.genres.join(", ") : "" },
             { label: "Mandates Exclude Genres", value: Array.isArray(mandates?.excludeGenres) ? mandates.excludeGenres.join(", ") : "" },
             { label: "Mandates Hooks", value: Array.isArray(mandates?.specificHooks) ? mandates.specificHooks.join(", ") : "" },
             { label: "Mandates Budget", value: Array.isArray(mandates?.budgetTiers) ? mandates.budgetTiers.join(", ") : "" },
-        ].filter((row) => row.value);
+        ];
 
         const budgetRange = user?.preferences?.budgetRange;
         const readerRows = [
@@ -4258,7 +4281,13 @@ const AdminDashboard = () => {
                 label: "Scripts Read",
                 value: Array.isArray(user?.scriptsRead) ? String(user.scriptsRead.length) : "",
             },
-        ].filter((row) => row.value);
+        ];
+
+        const displayRowValue = (value) => {
+            if (value === 0 || value === false) return String(value);
+            const text = String(value ?? "").trim();
+            return text || "-";
+        };
 
         const sectionClass = `rounded-xl border p-4 ${isDark ? "border-[#1a3050] bg-[#0b1426]" : "border-gray-200 bg-gray-50"}`;
 
@@ -4328,20 +4357,20 @@ const AdminDashboard = () => {
                                 {detailRows.map((row) => (
                                     <div key={row.label}>
                                         <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                        <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                        <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {writerRows.length > 0 && (
+                        {isWriterRole && (
                             <div className={sectionClass}>
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Writer Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {writerRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -4417,28 +4446,28 @@ const AdminDashboard = () => {
                             </div>
                         )}
 
-                        {readerRows.length > 0 && (
+                        {isReaderRole && (
                             <div className={sectionClass}>
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Reader Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {readerRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {investorRows.length > 0 && (
+                        {isInvestorRole && (
                             <div className={sectionClass}>
                                 <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Investor / Industry Profile</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {investorRows.map((row) => (
                                         <div key={row.label}>
                                             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-500"}`}>{row.label}</p>
-                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{String(row.value)}</p>
+                                            <p className={`text-sm mt-0.5 break-words ${isDark ? "text-gray-200" : "text-gray-800"}`}>{displayRowValue(row.value)}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -4523,6 +4552,13 @@ const AdminDashboard = () => {
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-600 px-2">Navigation</p>
                     </div>
                     <nav className="flex-1 px-2 pb-4 space-y-0.5">
+                        <a
+                            href="/admin/agreements"
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-semibold text-gray-400 hover:bg-[#132744] hover:text-gray-200 transition-all"
+                        >
+                            <Icon d="M9 12.75L11.25 15 15 9.75m-6-7.5A2.25 2.25 0 0111.25 3h1.5A2.25 2.25 0 0115 5.25v1.5A2.25 2.25 0 0113.5 9h-3A2.25 2.25 0 019 6.75v-1.5zM4.5 10.5h15m-15 4.5h15m-15 4.5h9" className="w-4 h-4" />
+                            <span className="flex-1 text-left">Agreements</span>
+                        </a>
                         {TABS.map((tab) => (
                             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-semibold transition-all ${activeTab === tab.key
@@ -4544,6 +4580,12 @@ const AdminDashboard = () => {
                 {/* Mobile tab bar */}
                 <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[#1a3050] bg-[#0b1628]/95 backdrop-blur-md">
                     <div className="flex overflow-x-auto gap-1 p-1.5">
+                        <a
+                            href="/admin/agreements"
+                            className="whitespace-nowrap px-3 py-2 rounded-lg text-xs font-bold text-gray-500"
+                        >
+                            Agreements
+                        </a>
                         {TABS.map((tab) => (
                             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                                 className={`whitespace-nowrap px-3 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab.key

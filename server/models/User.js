@@ -10,8 +10,21 @@ const createSid = (prefix) => {
   return `${prefix}-${token}`;
 };
 
+const createReferralCode = () => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let token = "";
+  for (let i = 0; i < 8; i += 1) {
+    token += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return token;
+};
+
 const userSchema = new mongoose.Schema({
   sid: { type: String, unique: true, sparse: true, index: true },
+  referralCode: { type: String, unique: true, sparse: true, index: true, uppercase: true, trim: true },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  hasReceivedReferralBonus: { type: Boolean, default: false },
+  referralBonusAwardedAt: { type: Date },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   phone: { type: String },
@@ -21,6 +34,7 @@ const userSchema = new mongoose.Schema({
     city: { type: String },
     state: { type: String },
     zipCode: { type: String },
+    country: { type: String },
     formatted: { type: String },
   },
   pendingEmail: { type: String },
@@ -183,6 +197,10 @@ const userSchema = new mongoose.Schema({
       website: { type: String },
       youtube: { type: String },
       facebook: { type: String },
+    },
+    demographics: {
+      gender: { type: String },
+      nationality: { type: String },
     },
     otherUrl: { type: String },
     previousCredits: { type: String },
@@ -347,6 +365,10 @@ const userSchema = new mongoose.Schema({
       createdAt: { type: Date, default: Date.now }
     }]
   },
+  referralStats: {
+    successfulReferrals: { type: Number, default: 0 },
+    totalBonusCredits: { type: Number, default: 0 },
+  },
   // Stripe Connected Account (for payouts)
   stripeAccountId: { type: String },
   stripeCustomerId: { type: String },
@@ -388,18 +410,35 @@ userSchema.index(
 );
 
 userSchema.pre("validate", async function () {
-  if (this.sid) return;
+  if (!this.sid) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const candidate = createSid("USR");
+      const exists = await this.constructor.exists({ sid: candidate });
+      if (!exists) {
+        this.sid = candidate;
+        break;
+      }
+    }
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const candidate = createSid("USR");
-    const exists = await this.constructor.exists({ sid: candidate });
-    if (!exists) {
-      this.sid = candidate;
-      return;
+    if (!this.sid) {
+      throw new Error("Unable to generate unique user SID");
     }
   }
 
-  throw new Error("Unable to generate unique user SID");
+  if (!this.referralCode) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const candidate = createReferralCode();
+      const exists = await this.constructor.exists({ referralCode: candidate });
+      if (!exists) {
+        this.referralCode = candidate;
+        break;
+      }
+    }
+
+    if (!this.referralCode) {
+      throw new Error("Unable to generate unique referral code");
+    }
+  }
 });
 
 userSchema.pre("save", async function () {

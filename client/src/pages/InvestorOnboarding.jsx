@@ -53,6 +53,9 @@ const validatePassword = (password) => {
 
 const PHONE_REGEX = /^[+]?[\d\s\-().]{7,15}$/;
 const CITY_STATE_REGEX = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
+const INDIA_COUNTRY_NAME = "India";
+const INDIA_ZIP_REGEX = /^\d{6}$/;
+const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 
 const INVESTOR_ONBOARDING_DRAFT_KEY = "sb-investor-onboarding-draft-v1";
@@ -70,6 +73,7 @@ const DEFAULT_ADDRESS_FIELDS = {
   city: "",
   state: "",
   zipCode: "",
+  country: INDIA_COUNTRY_NAME,
 };
 
 const DEFAULT_INVESTOR_PROFILE = {
@@ -77,6 +81,8 @@ const DEFAULT_INVESTOR_PROFILE = {
   subRole: "",
   subRoleOther: "",
   jobTitle: "",
+  gender: "",
+  nationality: "",
   company: "",
   investmentRange: "",
   previousCredits: "",
@@ -105,6 +111,35 @@ const INDUSTRY_ROLE_OPTIONS = [
 ];
 
 const INDUSTRY_ROLE_VALUE_SET = new Set(INDUSTRY_ROLE_OPTIONS.map((option) => option.value));
+const INVESTOR_GENDER_OPTIONS = [
+  "Male",
+  "Female",
+  "Trans",
+  "Prefer not to say",
+  "Other",
+];
+const INVESTOR_NATIONALITY_OPTIONS = [
+  "Indian",
+  "American",
+  "British",
+  "Canadian",
+  "Australian",
+  "German",
+  "French",
+  "Italian",
+  "Spanish",
+  "Japanese",
+  "South Korean",
+  "Chinese",
+  "Singaporean",
+  "Emirati",
+  "Saudi Arabian",
+  "Pakistani",
+  "Bangladeshi",
+  "Nepalese",
+  "Sri Lankan",
+  "Other",
+];
 const NOTABLE_CREDIT_ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -244,6 +279,7 @@ const InvestorOnboarding = () => {
   });
   const [roleFocusError, setRoleFocusError] = useState("");
   const [jobTitleError, setJobTitleError] = useState("");
+  const [identityError, setIdentityError] = useState("");
   const [bioError, setBioError] = useState("");
   const [socialLinkError, setSocialLinkError] = useState("");
   const [showPasswordReqs, setShowPasswordReqs] = useState(false);
@@ -264,6 +300,10 @@ const InvestorOnboarding = () => {
     ...DEFAULT_ADDRESS_FIELDS,
     ...(initialDraft?.addressFields || {}),
   }));
+  const [isOutsideIndia, setIsOutsideIndia] = useState(() => {
+    const draftCountry = String(initialDraft?.addressFields?.country || INDIA_COUNTRY_NAME).trim().toLowerCase();
+    return Boolean(draftCountry) && draftCountry !== "india";
+  });
   const zipLookupRequestRef = useRef(0);
   const usernameCheckRequestRef = useRef(0);
 
@@ -345,8 +385,13 @@ const InvestorOnboarding = () => {
   ]);
 
   useEffect(() => {
+    if (isOutsideIndia) {
+      setZipLookupLoading(false);
+      return;
+    }
+
     const zipCode = String(addressFields.zipCode || "").trim();
-    if (!/^\d{6}$/.test(zipCode)) {
+    if (!INDIA_ZIP_REGEX.test(zipCode)) {
       setZipLookupLoading(false);
       return;
     }
@@ -360,6 +405,13 @@ const InvestorOnboarding = () => {
       try {
         const { data } = await api.get(`/auth/zip-info/${zipCode}`);
         if (!isActive || zipLookupRequestRef.current !== requestId) return;
+
+        if (data?.valid === false) {
+          if (data?.message) {
+            setAddressError(data.message);
+          }
+          return;
+        }
 
         const resolvedCity = String(data?.city || "").trim();
         const resolvedState = String(data?.state || "").trim();
@@ -392,7 +444,7 @@ const InvestorOnboarding = () => {
     return () => {
       isActive = false;
     };
-  }, [addressFields.zipCode]);
+  }, [addressFields.zipCode, isOutsideIndia]);
 
   useEffect(() => {
     const username = String(investorProfile.username || "").trim().toLowerCase();
@@ -515,14 +567,22 @@ const InvestorOnboarding = () => {
     const city = String(addressFields.city || "").trim();
     const state = String(addressFields.state || "").trim();
     const zipCode = String(addressFields.zipCode || "").trim();
+    const country = isOutsideIndia
+      ? String(addressFields.country || "").trim()
+      : INDIA_COUNTRY_NAME;
 
-    if (!street || !city || !state || !zipCode) {
-      setAddressError("Street, city, state, and ZIP code are required");
+    if (!street || !city || !state || !zipCode || !country) {
+      setAddressError("Street, city, state, postal code, and country are required");
       return;
     }
 
-    if (!/^\d{6}$/.test(zipCode)) {
-      setAddressError("ZIP code must be exactly 6 digits");
+    if (!isOutsideIndia) {
+      if (!INDIA_ZIP_REGEX.test(zipCode)) {
+        setAddressError("ZIP code must be exactly 6 digits");
+        return;
+      }
+    } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
+      setAddressError("Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)");
       return;
     }
 
@@ -531,7 +591,9 @@ const InvestorOnboarding = () => {
       return;
     }
 
-    const formattedAddress = `${street}, ${city}, ${state}, ${zipCode}`;
+    const formattedAddress = isOutsideIndia
+      ? `${street}, ${city}, ${state}, ${zipCode}, ${country}`
+      : `${street}, ${city}, ${state}, ${zipCode}`;
 
     // Trim and sanitize email
     const sanitizedEmail = accountData.email.trim().toLowerCase();
@@ -557,9 +619,11 @@ const InvestorOnboarding = () => {
 
     setLoading(true);
     try {
-      await api.post("/auth/validate-address", {
-        address: formattedAddress,
-      });
+      if (!isOutsideIndia) {
+        await api.post("/auth/validate-address", {
+          address: formattedAddress,
+        });
+      }
 
       const response = await join({
         name: accountData.name,
@@ -573,6 +637,7 @@ const InvestorOnboarding = () => {
           city,
           state,
           zipCode,
+          country,
           formatted: formattedAddress,
         },
       });
@@ -772,6 +837,7 @@ const InvestorOnboarding = () => {
     setUsernameError("");
     setRoleFocusError("");
     setJobTitleError("");
+    setIdentityError("");
     setBioError("");
     setSocialLinkError("");
     setError("");
@@ -817,6 +883,13 @@ const InvestorOnboarding = () => {
     const sanitizedJobTitle = normalizeUrlInput(investorProfile.jobTitle);
     if (!sanitizedJobTitle) {
       setJobTitleError("Job title is required");
+      return;
+    }
+
+    const sanitizedGender = normalizeUrlInput(investorProfile.gender);
+    const sanitizedNationality = normalizeUrlInput(investorProfile.nationality);
+    if (!sanitizedGender || !sanitizedNationality) {
+      setIdentityError("Gender and nationality are required");
       return;
     }
 
@@ -878,6 +951,10 @@ const InvestorOnboarding = () => {
           facebook: urlFields.facebookUrl,
           youtube: urlFields.youtubeUrl,
           website: urlFields.websiteUrl,
+        },
+        demographics: {
+          gender: sanitizedGender,
+          nationality: sanitizedNationality,
         },
         investmentRange: investorProfile.investmentRange,
       });
@@ -1083,23 +1160,71 @@ const InvestorOnboarding = () => {
                       <div className="flex items-center gap-2">
                         <MapPin size={15} className="text-gray-400" />
                         <label className="text-sm font-semibold text-gray-700">Address Details</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddressFields((prev) => ({
+                              ...prev,
+                              country: isOutsideIndia ? INDIA_COUNTRY_NAME : "",
+                              zipCode: "",
+                              city: "",
+                              state: "",
+                            }));
+                            setIsOutsideIndia((prev) => !prev);
+                            setAddressError("");
+                            setZipLookupLoading(false);
+                          }}
+                          className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                            isOutsideIndia
+                              ? "border-black bg-black text-white"
+                              : "border-black bg-white text-black hover:bg-gray-100"
+                          }`}
+                        >
+                          {isOutsideIndia && (
+                            <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          {isOutsideIndia ? "Outside India Enabled" : "Outside India"}
+                        </button>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {isOutsideIndia && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1.5">Country</label>
+                            <input
+                              type="text"
+                              value={addressFields.country}
+                              onChange={(e) => {
+                                setAddressFields({ ...addressFields, country: e.target.value });
+                                setAddressError("");
+                              }}
+                              className={inputClass}
+                              placeholder="United Kingdom"
+                              required
+                            />
+                          </div>
+                        )}
+
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                            {isOutsideIndia ? "Postal Code" : "ZIP Code"}
+                          </label>
                           <input
                             type="text"
-                            inputMode="numeric"
-                            maxLength={6}
+                            inputMode={isOutsideIndia ? "text" : "numeric"}
+                            maxLength={isOutsideIndia ? 12 : 6}
                             value={addressFields.zipCode}
                             onChange={(e) => {
-                              const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
-                              setAddressFields({ ...addressFields, zipCode: zipOnly });
+                              const nextPostalValue = isOutsideIndia
+                                ? e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12)
+                                : e.target.value.replace(/\D/g, "").slice(0, 6);
+                              setAddressFields({ ...addressFields, zipCode: nextPostalValue });
                               setAddressError("");
                             }}
                             className={inputClass}
-                            placeholder="400001"
+                            placeholder={isOutsideIndia ? "SW1A 1AA" : "400001"}
                             required
                           />
                         </div>
@@ -1114,7 +1239,7 @@ const InvestorOnboarding = () => {
                               setAddressError("");
                             }}
                             className={inputClass}
-                            placeholder="Maharashtra"
+                            placeholder={isOutsideIndia ? "State / Province" : "Maharashtra"}
                             required
                           />
                         </div>
@@ -1129,7 +1254,7 @@ const InvestorOnboarding = () => {
                               setAddressError("");
                             }}
                             className={inputClass}
-                            placeholder="Mumbai"
+                            placeholder={isOutsideIndia ? "London" : "Mumbai"}
                             required
                           />
                         </div>
@@ -1150,8 +1275,12 @@ const InvestorOnboarding = () => {
                         />
                       </div>
 
-                      {zipLookupLoading && (
+                      {zipLookupLoading && !isOutsideIndia && (
                         <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
+                      )}
+
+                      {isOutsideIndia && (
+                        <p className="text-[11px] text-gray-500">Enter country and postal code exactly as used in your region.</p>
                       )}
 
                       {addressError && (
@@ -1466,6 +1595,55 @@ const InvestorOnboarding = () => {
                     )}
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelClass}>Gender</label>
+                      <div className="relative">
+                        <User size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <select
+                          value={investorProfile.gender}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, gender: e.target.value });
+                            if (identityError) setIdentityError("");
+                          }}
+                          className={`${inputClass} pl-10 pr-10 appearance-none ${identityError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                          required
+                        >
+                          <option value="">Select gender</option>
+                          {INVESTOR_GENDER_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3.5 top-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Nationality</label>
+                      <div className="relative">
+                        <Globe size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
+                        <select
+                          value={investorProfile.nationality}
+                          onChange={(e) => {
+                            setInvestorProfile({ ...investorProfile, nationality: e.target.value });
+                            if (identityError) setIdentityError("");
+                          }}
+                          className={`${inputClass} pl-10 pr-10 appearance-none ${identityError ? "border-red-400 focus:border-red-400 focus:ring-red-100" : ""}`}
+                          required
+                        >
+                          <option value="">Select nationality</option>
+                          {INVESTOR_NATIONALITY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3.5 top-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+                  {identityError && (
+                    <p className="-mt-1 text-xs font-semibold text-red-500">{identityError}</p>
+                  )}
+
                   <div>
                     <label className={labelClass}>Typical Project Budget Range</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1709,7 +1887,7 @@ const InvestorOnboarding = () => {
 
                   <div className="flex gap-3 pt-1">
                     <button type="button" onClick={() => setCurrentStep(1)}
-                      className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
+                      className="h-11 px-5 rounded-xl border border-gray-200 text-black font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 hover:text-black transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
                     <button type="submit" disabled={loading || creditUploadInProgress}
@@ -1761,7 +1939,7 @@ const InvestorOnboarding = () => {
 
                   <div className="flex gap-3">
                     <button type="button" onClick={() => setCurrentStep(2)}
-                      className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
+                      className="h-11 px-5 rounded-xl border border-gray-200 text-black font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 hover:text-black transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
                     <button type="submit" disabled={loading}
@@ -1851,7 +2029,7 @@ const InvestorOnboarding = () => {
 
                   <div className="flex gap-3">
                     <button type="button" onClick={() => setCurrentStep(3)}
-                      className="h-11 px-5 rounded-xl border border-gray-200 text-gray-500 font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 transition-all">
+                      className="h-11 px-5 rounded-xl border border-gray-200 text-black font-bold text-sm flex items-center gap-1.5 hover:border-gray-300 hover:text-black transition-all">
                       <ArrowLeft size={15} /> Back
                     </button>
                     <button

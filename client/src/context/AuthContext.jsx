@@ -8,6 +8,13 @@ export const AuthContext = createContext();
 
 const API_URL = getApiBaseUrl();
 const FORCE_DEFAULT_REDIRECT_KEY = "auth:force-default-redirect";
+const REFERRAL_STORAGE_KEY = "sb:referral-code";
+const REFERRAL_MAX_LENGTH = 40;
+
+const normalizeReferralInput = (value) =>
+  String(value || "")
+    .trim()
+    .slice(0, REFERRAL_MAX_LENGTH);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -88,6 +95,20 @@ export const AuthProvider = ({ children }) => {
         source: "auth-context",
       },
     });
+  }, []);
+
+  // Capture referral code from URL once and persist it for signup flows.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search || "");
+    const referralFromUrl = normalizeReferralInput(
+      params.get("ref") || params.get("referral") || params.get("referralCode")
+    );
+
+    if (referralFromUrl) {
+      localStorage.setItem(REFERRAL_STORAGE_KEY, referralFromUrl);
+    }
   }, []);
 
   // On mount, restore session from localStorage and validate token
@@ -188,7 +209,31 @@ export const AuthProvider = ({ children }) => {
   };
 
   const join = async (formData) => {
-    const { data } = await axios.post(`${API_URL}/auth/join`, formData);
+    const hasExplicitReferralField = Object.prototype.hasOwnProperty.call(formData || {}, "referralCode");
+    const explicitReferral = normalizeReferralInput(formData?.referralCode);
+    const storedReferral =
+      typeof window !== "undefined"
+        ? normalizeReferralInput(localStorage.getItem(REFERRAL_STORAGE_KEY))
+        : "";
+
+    const effectiveReferral = hasExplicitReferralField ? explicitReferral : storedReferral;
+    const signupPayload = { ...formData };
+
+    if (typeof window !== "undefined" && hasExplicitReferralField) {
+      if (explicitReferral) {
+        localStorage.setItem(REFERRAL_STORAGE_KEY, explicitReferral);
+      } else {
+        localStorage.removeItem(REFERRAL_STORAGE_KEY);
+      }
+    }
+
+    if (effectiveReferral) {
+      signupPayload.referralCode = effectiveReferral;
+    } else if (hasExplicitReferralField) {
+      delete signupPayload.referralCode;
+    }
+
+    const { data } = await axios.post(`${API_URL}/auth/join`, signupPayload);
     
     // If OTP verification is required, don't set user yet
     if (data.requiresVerification) {

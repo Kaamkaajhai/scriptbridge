@@ -1,5 +1,5 @@
 import { useState, useContext, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import OTPVerification from "../components/OTPVerification";
@@ -55,12 +55,24 @@ const validatePassword = (password) => {
   };
 };
 
+const INDIA_COUNTRY_NAME = "India";
+const INDIA_ZIP_REGEX = /^\d{6}$/;
+const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
+const REFERRAL_STORAGE_KEY = "sb:referral-code";
+const REFERRAL_MAX_LENGTH = 40;
+
 const WRITER_ONBOARDING_DRAFT_KEY = "sb-writer-onboarding-draft-v1";
+
+const normalizeReferralInput = (value = "") =>
+  String(value || "")
+    .trim()
+    .slice(0, REFERRAL_MAX_LENGTH);
 
 const DEFAULT_ACCOUNT_DATA = {
   name: "",
   dateOfBirth: "",
   email: "",
+  referralCode: "",
   password: "",
   confirmPassword: "",
   address: "",
@@ -73,6 +85,7 @@ const DEFAULT_ADDRESS_FIELDS = {
   city: "",
   state: "",
   zipCode: "",
+  country: INDIA_COUNTRY_NAME,
 };
 
 const DEFAULT_OPEN_REP_SECTIONS = { filmTv: false, theater: false, literary: false };
@@ -242,6 +255,7 @@ const NATIONALITY_OPTIONS = [
 const WriterOnboarding = () => {
   const { join, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const initialDraftRef = useRef(loadWriterOnboardingDraft());
   const initialDraft = initialDraftRef.current;
   
@@ -280,6 +294,10 @@ const WriterOnboarding = () => {
     ...DEFAULT_ADDRESS_FIELDS,
     ...(initialDraft?.addressFields || {}),
   }));
+  const [isOutsideIndia, setIsOutsideIndia] = useState(() => {
+    const draftCountry = String(initialDraft?.addressFields?.country || INDIA_COUNTRY_NAME).trim().toLowerCase();
+    return Boolean(draftCountry) && draftCountry !== "india";
+  });
   
   // Email Verification (keeping for compatibility, but using OTP now)
   const [verificationCode, setVerificationCode] = useState(initialDraft?.verificationCode || "");
@@ -309,6 +327,11 @@ const WriterOnboarding = () => {
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
   const zipLookupRequestRef = useRef(0);
   const usernameCheckRequestRef = useRef(0);
+  const referralCheckRequestRef = useRef(0);
+  const [referralStatus, setReferralStatus] = useState({
+    state: "idle",
+    message: "Optional: enter referral code or writer username.",
+  });
 
   const handleMembershipToggle = (type, checked) => {
     const verificationKey = type === "wga" ? "wga" : "swa";
@@ -386,8 +409,37 @@ const WriterOnboarding = () => {
   ]);
 
   useEffect(() => {
+    const referralFromUrl = normalizeReferralInput(
+      searchParams.get("ref") || searchParams.get("referral") || searchParams.get("referralCode")
+    );
+
+    if (referralFromUrl) {
+      setAccountData((prev) => ({ ...prev, referralCode: referralFromUrl }));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(REFERRAL_STORAGE_KEY, referralFromUrl);
+      }
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const storedReferral = normalizeReferralInput(localStorage.getItem(REFERRAL_STORAGE_KEY));
+      if (storedReferral) {
+        setAccountData((prev) => {
+          if (normalizeReferralInput(prev.referralCode) === storedReferral) return prev;
+          return { ...prev, referralCode: storedReferral };
+        });
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (isOutsideIndia) {
+      setZipLookupLoading(false);
+      return;
+    }
+
     const zipCode = String(addressFields.zipCode || "").trim();
-    if (!/^\d{6}$/.test(zipCode)) {
+    if (!INDIA_ZIP_REGEX.test(zipCode)) {
       setZipLookupLoading(false);
       return;
     }
@@ -401,6 +453,13 @@ const WriterOnboarding = () => {
       try {
         const { data } = await api.get(`/auth/zip-info/${zipCode}`);
         if (!isActive || zipLookupRequestRef.current !== requestId) return;
+
+        if (data?.valid === false) {
+          if (data?.message) {
+            setAddressError(data.message);
+          }
+          return;
+        }
 
         const resolvedCity = String(data?.city || "").trim();
         const resolvedState = String(data?.state || "").trim();
@@ -433,7 +492,7 @@ const WriterOnboarding = () => {
     return () => {
       isActive = false;
     };
-  }, [addressFields.zipCode]);
+  }, [addressFields.zipCode, isOutsideIndia]);
 
   useEffect(() => {
     const username = String(writerProfile.username || "").trim().toLowerCase();
@@ -486,6 +545,67 @@ const WriterOnboarding = () => {
     };
   }, [writerProfile.username]);
 
+  useEffect(() => {
+    const referralInput = normalizeReferralInput(accountData.referralCode);
+
+    if (!referralInput) {
+      setReferralStatus({
+        state: "idle",
+        message: "Optional: enter referral code or writer username.",
+      });
+      return;
+    }
+
+    if (referralInput.length < 3) {
+      setReferralStatus({
+        state: "invalid",
+        message: "Use at least 3 characters.",
+      });
+      return;
+    }
+
+    const requestId = Date.now();
+    referralCheckRequestRef.current = requestId;
+    setReferralStatus({ state: "checking", message: "Checking referral..." });
+    let isActive = true;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/auth/validate-referral/${encodeURIComponent(referralInput)}`);
+        if (!isActive || referralCheckRequestRef.current !== requestId) return;
+
+        const referrerName = String(data?.referrer?.name || "").trim();
+        const referrerUsername = String(data?.referrer?.username || "").trim();
+        const resolvedLabel = referrerName || (referrerUsername ? `@${referrerUsername}` : "Valid referrer");
+
+        setReferralStatus({
+          state: "valid",
+          message: `Referral applied: ${resolvedLabel}`,
+        });
+      } catch (err) {
+        if (!isActive || referralCheckRequestRef.current !== requestId) return;
+
+        if (err?.response?.status === 404) {
+          setReferralStatus({
+            state: "invalid",
+            message: "Referral code or username not found.",
+          });
+          return;
+        }
+
+        setReferralStatus({
+          state: "warning",
+          message: "Unable to validate referral right now. It will be checked at signup.",
+        });
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [accountData.referralCode]);
+
   const steps = [
     { num: 1, title: "Account" },
     { num: 2, title: "Profile" },
@@ -516,14 +636,20 @@ const WriterOnboarding = () => {
     const city = addressFields.city.trim();
     const state = addressFields.state.trim();
     const zipCode = addressFields.zipCode.trim();
+    const country = isOutsideIndia ? addressFields.country.trim() : INDIA_COUNTRY_NAME;
 
-    if (!street || !city || !state || !zipCode) {
-      setAddressError("Street, city, state, and ZIP code are required");
+    if (!street || !city || !state || !zipCode || !country) {
+      setAddressError("Street, city, state, postal code, and country are required");
       return;
     }
 
-    if (!/^\d{6}$/.test(zipCode)) {
-      setAddressError("ZIP code must be exactly 6 digits");
+    if (!isOutsideIndia) {
+      if (!INDIA_ZIP_REGEX.test(zipCode)) {
+        setAddressError("ZIP code must be exactly 6 digits");
+        return;
+      }
+    } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
+      setAddressError("Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)");
       return;
     }
 
@@ -533,7 +659,9 @@ const WriterOnboarding = () => {
       return;
     }
 
-    const formattedAddress = `${street}, ${city}, ${state}, ${zipCode}`;
+    const formattedAddress = isOutsideIndia
+      ? `${street}, ${city}, ${state}, ${zipCode}, ${country}`
+      : `${street}, ${city}, ${state}, ${zipCode}`;
     const phoneRegex = /^[+]?[\d\s\-().]{7,15}$/;
     if (!phoneRegex.test(accountData.phone)) {
       setPhoneError("Please enter a valid phone number (e.g. +91 00000 00000)");
@@ -561,21 +689,50 @@ const WriterOnboarding = () => {
       setError("Passwords do not match");
       return;
     }
+
+    const normalizedReferralCode = normalizeReferralInput(accountData.referralCode);
+    if (normalizedReferralCode && referralStatus.state === "invalid") {
+      setError("Referral code or username not found");
+      return;
+    }
     
     setLoading(true);
     try {
-      // Validate ZIP, state and city consistency.
-      await api.post("/auth/validate-address", {
-        address: formattedAddress,
-      });
+      // Validate ZIP, state and city consistency for India addresses.
+      if (!isOutsideIndia) {
+        await api.post("/auth/validate-address", {
+          address: formattedAddress,
+        });
+      }
 
       // Create account using AuthContext join function
-      const response = await join({
+      const joinPayload = {
         name: accountData.name,
         email: sanitizedEmail,
         password: accountData.password,
-        role: "creator"
-      });
+        role: "creator",
+        dateOfBirth: accountData.dateOfBirth,
+        phone: accountData.phone,
+        address: {
+          street,
+          city,
+          state,
+          zipCode,
+          country,
+          formatted: formattedAddress,
+        },
+        referralCode: normalizedReferralCode,
+      };
+
+      if (normalizedReferralCode) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(REFERRAL_STORAGE_KEY, normalizedReferralCode);
+        }
+      } else if (typeof window !== "undefined") {
+        localStorage.removeItem(REFERRAL_STORAGE_KEY);
+      }
+
+      const response = await join(joinPayload);
       
       // Check if OTP verification is required
       if (response?.requiresVerification) {
@@ -706,7 +863,10 @@ const WriterOnboarding = () => {
           city: addressFields.city,
           state: addressFields.state,
           zipCode: addressFields.zipCode,
-          formatted: `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
+          country: isOutsideIndia ? addressFields.country : INDIA_COUNTRY_NAME,
+          formatted: isOutsideIndia
+            ? `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}, ${addressFields.country}`
+            : `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
         },
       });
 
@@ -967,27 +1127,105 @@ const WriterOnboarding = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Referral code (optional)
+                </label>
+                <input
+                  type="text"
+                  value={accountData.referralCode}
+                  onChange={(e) => {
+                    const nextReferral = e.target.value.slice(0, REFERRAL_MAX_LENGTH);
+                    setAccountData({ ...accountData, referralCode: nextReferral });
+                    setError("");
+                  }}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                  placeholder="Enter referral code"
+                />
+                {accountData.referralCode ? (
+                  <p className={`mt-1.5 text-xs flex items-center gap-1 ${
+                    referralStatus.state === "valid"
+                      ? "text-emerald-600"
+                      : referralStatus.state === "invalid"
+                        ? "text-red-500"
+                        : referralStatus.state === "warning"
+                          ? "text-amber-600"
+                          : "text-gray-500"
+                  }`}>
+                    <AlertCircle size={12} /> {referralStatus.message}
+                  </p>
+                ) : null}
+              </div>
+
               <div className="rounded-xl border border-gray-200 bg-white/80 p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <MapPin className="text-gray-500" size={16} />
                   <label className="text-sm font-semibold text-gray-800">Address Details</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddressFields((prev) => ({
+                        ...prev,
+                        country: isOutsideIndia ? INDIA_COUNTRY_NAME : "",
+                        zipCode: "",
+                        city: "",
+                        state: "",
+                      }));
+                      setIsOutsideIndia((prev) => !prev);
+                      setAddressError("");
+                      setZipLookupLoading(false);
+                    }}
+                    className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                      isOutsideIndia
+                        ? "border-black bg-black text-white"
+                        : "border-black bg-white text-black hover:bg-gray-100"
+                    }`}
+                  >
+                    {isOutsideIndia && (
+                      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {isOutsideIndia ? "Outside India Enabled" : "Outside India"}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {isOutsideIndia && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Country</label>
+                      <input
+                        type="text"
+                        value={addressFields.country}
+                        onChange={(e) => {
+                          setAddressFields({ ...addressFields, country: e.target.value });
+                          setAddressError("");
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
+                        placeholder="United Kingdom"
+                        required
+                      />
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">ZIP Code</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      {isOutsideIndia ? "Postal Code" : "ZIP Code"}
+                    </label>
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={6}
+                      inputMode={isOutsideIndia ? "text" : "numeric"}
+                      maxLength={isOutsideIndia ? 12 : 6}
                       value={addressFields.zipCode}
                       onChange={(e) => {
-                        const zipOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setAddressFields({ ...addressFields, zipCode: zipOnly });
+                        const nextPostalValue = isOutsideIndia
+                          ? e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12)
+                          : e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setAddressFields({ ...addressFields, zipCode: nextPostalValue });
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="400001"
+                      placeholder={isOutsideIndia ? "SW1A 1AA" : "400001"}
                       required
                     />
                   </div>
@@ -1002,7 +1240,7 @@ const WriterOnboarding = () => {
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="Maharashtra"
+                      placeholder={isOutsideIndia ? "State / Province" : "Maharashtra"}
                       required
                     />
                   </div>
@@ -1017,7 +1255,7 @@ const WriterOnboarding = () => {
                         setAddressError("");
                       }}
                       className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder="Mumbai"
+                      placeholder={isOutsideIndia ? "London" : "Mumbai"}
                       required
                     />
                   </div>
@@ -1038,8 +1276,12 @@ const WriterOnboarding = () => {
                   />
                 </div>
 
-                {zipLookupLoading && (
+                {zipLookupLoading && !isOutsideIndia && (
                   <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
+                )}
+
+                {isOutsideIndia && (
+                  <p className="text-[11px] text-gray-500">Enter country and postal code exactly as used in your region.</p>
                 )}
 
                 {addressError && (
@@ -1687,9 +1929,9 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={20} className="!text-black" />
                 Back
               </button>
               <button
@@ -1797,9 +2039,9 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={20} className="!text-black" />
                 Back
               </button>
               <button
@@ -1921,9 +2163,9 @@ const WriterOnboarding = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
-                className="px-6 py-2.5 border border-slate-300 bg-white text-slate-800 rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={20} className="!text-black" />
                 Back
               </button>
               <button
@@ -1966,10 +2208,10 @@ const WriterOnboarding = () => {
         <div className="text-center mb-4 sm:mb-3">
           <div className="flex items-center justify-center mb-1">
             <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#0d1520] border border-[#1a2433] rounded-xl flex items-center justify-center shadow-lg shadow-black/25">
-              <FileText className="text-black" size={32} strokeWidth={1.5} />
+              <FileText className="text-white" size={32} strokeWidth={1.5} />
             </div>
           </div>
-          <p className="text-sm sm:text-base text-gray-600 font-medium">Writer Onboarding</p>
+          <p className="text-sm sm:text-base text-white font-medium">Writer Onboarding</p>
         </div>
         
         {/* Progress Steps */}
@@ -1991,7 +2233,7 @@ const WriterOnboarding = () => {
                     {isComplete ? '✓' : step.num}
                   </div>
                   <span className={`text-[11px] font-semibold ${
-                    isComplete || isActive ? 'text-[#0a1628]' : 'text-gray-400'
+                    isComplete || isActive ? 'text-white' : 'text-slate-300'
                   }`}>
                     {step.title}
                   </span>
@@ -2018,7 +2260,7 @@ const WriterOnboarding = () => {
                   </div>
                   <div className="ml-2 hidden sm:block">
                     <div className={`text-xs font-semibold ${
-                      isComplete || isActive ? 'text-[#0a1628]' : 'text-gray-400'
+                      isComplete || isActive ? 'text-white' : 'text-slate-300'
                     }`}>
                       {step.title}
                     </div>
