@@ -256,6 +256,7 @@ const scriptSchema = new mongoose.Schema({
     improvements: [{ type: String }],
     audienceFit: { type: String },
     comparables: { type: String },
+    source: { type: String, enum: ["google_ai", "fallback"], default: "fallback" },
     scoredAt: { type: Date },
   },
   // Platform Score (Admin-given scores)
