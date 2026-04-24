@@ -318,7 +318,7 @@ const UserTable = ({ users, isDark, onLoginAs, onViewUser, onFreezeUser, onUnfre
 };
 
 // ─── Script Table ───
-const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }) => (
+const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true, showApprovalType = false }) => (
     <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1d35] border-[#1a3050]" : "bg-white border-gray-200/60 shadow-sm"}`}>
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -327,6 +327,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Title</th>
                         {showCreator && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Creator</th>}
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Genre</th>
+                        {showApprovalType && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Approval Type</th>}
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Status</th>
                         {showScore && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Score</th>}
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Date</th>
@@ -348,13 +349,33 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                                 </td>
                             )}
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.genre || s.primaryGenre || "—"}</td>
+                            {showApprovalType && (
+                                <td className="px-5 py-3.5">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.approvalRequestType === "edit_submission"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-slate-100 text-slate-700"
+                                        }`}>
+                                        {s.approvalRequestType === "edit_submission" ? "Edit Approval" : "New Submission"}
+                                    </span>
+                                </td>
+                            )}
                             <td className="px-5 py-3.5">
+                                {(() => {
+                                    const isEditApproval = s.status === "pending_approval" && s.approvalRequestType === "edit_submission";
+                                    const statusLabel = s.isDeleted
+                                        ? "deleted"
+                                        : isEditApproval
+                                            ? "edit approval"
+                                            : (s.status?.replace("_", " ") || "draft");
+                                    return (
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.isDeleted ? "bg-red-100 text-red-700" :
                                     s.status === "published" ? "bg-emerald-100 text-emerald-700" :
                                         s.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
                                             s.status === "rejected" ? "bg-red-100 text-red-700" :
                                                 "bg-gray-100 text-gray-600"
-                                    }`}>{s.isDeleted ? "deleted" : (s.status?.replace("_", " ") || "draft")}</span>
+                                    }`}>{statusLabel}</span>
+                                    );
+                                })()}
                             </td>
                             {showScore && (
                                 <td className={`px-5 py-3.5 text-sm font-bold ${isDark ? "text-blue-400" : "text-blue-600"}`}>
@@ -366,7 +387,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true }
                         </tr>
                     ))}
                     {scripts.length === 0 && (
-                        <tr><td colSpan={7} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No scripts found</td></tr>
+                        <tr><td colSpan={(showCreator ? 1 : 0) + (showApprovalType ? 1 : 0) + (showScore ? 1 : 0) + (actions ? 1 : 0) + 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No scripts found</td></tr>
                     )}
                 </tbody>
             </table>
@@ -1297,7 +1318,12 @@ const AdminDashboard = () => {
 
             const sectionFromScripts = (title, list) => ({
                 title: `${title} (${list.length})`,
-                lines: list.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                lines: list.map((s, idx) => {
+                    const approvalLabel = s.status === "pending_approval" && s.approvalRequestType === "edit_submission"
+                        ? "edit approval"
+                        : (s.status || "-");
+                    return `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${approvalLabel} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`;
+                }),
             });
 
             writePdfSections({
@@ -2817,7 +2843,7 @@ const AdminDashboard = () => {
                                 <span className={`ml-2 text-sm font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}>({hasSearch ? filteredScripts.length : total})</span>
                             </h2>
                         </div>
-                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={false}
+                        <ScriptTable scripts={filteredScripts} isDark={isDark} showScore={false} showApprovalType={true}
                             actions={(s) => (
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => handleApprove(s._id)} className="text-xs font-bold text-emerald-500 hover:text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500/10 transition-colors">✓ Approve</button>

@@ -908,10 +908,22 @@ const ScriptDetail = () => {
   const spotlightActive = Boolean(spotlightEndsAt && spotlightEndsAt >= new Date());
   const spotlightPendingApproval = Boolean(script?.promotion?.pendingSpotlightActivation && script?.status !== "published");
   const spotlightPaidAtUpload = Number(script?.billing?.spotlightCreditsChargedAtUpload || 0) > 0;
+  const shouldEditInTextEditor = script?.projectSource === "editor" || (!script?.fileUrl && Boolean(script?.textContent));
+  const isEditApprovalPending = script?.status === "pending_approval" && script?.approvalRequestType === "edit_submission";
   const spotlightIncludesAiTrailer = Boolean(
     spotlightActive || spotlightPendingApproval || spotlightPaidAtUpload || script?.services?.spotlight
   );
-  const hasEvaluationService = Boolean(script?.services?.evaluation);
+  const hasAiTrailerService = Boolean(
+    spotlightIncludesAiTrailer
+    || script?.services?.aiTrailer
+    || Number(script?.billing?.aiTrailerCreditsChargedAtUpload || 0) > 0
+    || Number(script?.billing?.aiTrailerCreditsCharged || 0) > 0
+  );
+  const hasEvaluationService = Boolean(
+    script?.services?.evaluation
+    || Number(script?.billing?.evaluationCreditsChargedAtUpload || 0) > 0
+    || Number(script?.billing?.evaluationCreditsCharged || 0) > 0
+  );
   const evaluationRequestedAtMs = script?.evaluationRequestedAt
     ? new Date(script.evaluationRequestedAt).getTime()
     : 0;
@@ -1300,6 +1312,24 @@ const ScriptDetail = () => {
                       </button>
                     )}
 
+                    {isOwner && script?._id && !isEditApprovalPending && (
+                      <button
+                        onClick={() => navigate(shouldEditInTextEditor ? `/create-project/${script._id}` : `/upload?edit=${script._id}`)}
+                        className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${t.btnSec}`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487a2.5 2.5 0 113.536 3.536L7.5 20.922 3 21l.078-4.5L16.862 4.487z" />
+                        </svg>
+                        Edit Script
+                      </button>
+                    )}
+
+                    {isOwner && isEditApprovalPending && (
+                      <div className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold border text-center ${t.inset}`}>
+                        Edit approval pending with admin. Editing is locked until review is complete.
+                      </div>
+                    )}
+
                     {isOwner && !isSoldScript && script?.status === "published" && !spotlightActive && !spotlightPendingApproval && !spotlightPaidAtUpload && (
                       <button
                         onClick={handleActivateSpotlight}
@@ -1445,7 +1475,7 @@ const ScriptDetail = () => {
                       </div>
                     )}
 
-                    {isOwner && !hasTrailer && !["requested", "generating"].includes(script.trailerStatus) && (
+                    {isOwner && !["requested", "generating"].includes(script.trailerStatus) && (
                       <button
                         onClick={handleGenerateTrailer}
                         disabled={trailerLoading}
@@ -1454,7 +1484,7 @@ const ScriptDetail = () => {
                         <Film size={14} />
                         {trailerLoading
                           ? "Submitting request..."
-                          : spotlightIncludesAiTrailer
+                          : hasAiTrailerService
                           ? "Generate Included AI Trailer"
                           : "Generate AI Trailer - 120 credits"}
                       </button>

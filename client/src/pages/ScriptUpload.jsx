@@ -374,6 +374,17 @@ const formatDuration = (seconds) => {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 };
 
+const isHttpUrl = (value = "") => /^https?:\/\//i.test(String(value || ""));
+
+const getFileNameFromUrl = (url = "") => {
+  try {
+    const last = String(url || "").split("?")[0].split("/").pop() || "script.pdf";
+    return decodeURIComponent(last) || "script.pdf";
+  } catch {
+    return "script.pdf";
+  }
+};
+
 const ScriptUpload = () => {
   const { user } = useContext(AuthContext);
   const { isDarkMode } = useDarkMode();
@@ -386,8 +397,10 @@ const ScriptUpload = () => {
   const [scriptId, setScriptId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editApprovalLocked, setEditApprovalLocked] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [existingUploadedFile, setExistingUploadedFile] = useState(null);
   const [textContent, setTextContent] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [agreementScrolled, setAgreementScrolled] = useState(true);
@@ -442,6 +455,11 @@ const ScriptUpload = () => {
     aiTrailer: false,
     spotlight: false,
   });
+  const [purchasedServiceCredits, setPurchasedServiceCredits] = useState({
+    evaluation: false,
+    aiTrailer: false,
+    spotlight: false,
+  });
 
   // Legal data
   const [legal, setLegal] = useState({
@@ -462,6 +480,7 @@ const ScriptUpload = () => {
   const [customPriceInput, setCustomPriceInput] = useState("");
   const [useCustomPrice, setUseCustomPrice] = useState(false);
   const effectivePrice = isPremium ? (useCustomPrice ? Number(customPriceInput) || 0 : scriptPrice) : 0;
+  const isEditingExistingScriptFlow = Boolean(editId);
   const buyerCommissionAmount = Math.round(effectivePrice * BUYER_COMMISSION_RATE * 100) / 100;
   const buyerTotalPayable = Math.round((effectivePrice + buyerCommissionAmount) * 100) / 100;
   const writerPayout = Math.round(effectivePrice * 100) / 100;
@@ -530,7 +549,34 @@ const ScriptUpload = () => {
     const load = async () => {
       try {
         const { data } = await api.get(`/scripts/${editId}`);
+        const isEditApprovalPending = data?.status === "pending_approval" && data?.approvalRequestType === "edit_submission";
+        const purchasedFromHistory = {
+          evaluation: Boolean(
+            Number(data?.billing?.evaluationCreditsChargedAtUpload || 0) > 0
+            || Number(data?.billing?.evaluationCreditsCharged || 0) > 0
+            || data?.services?.evaluation
+          ),
+          aiTrailer: Boolean(
+            Number(data?.billing?.aiTrailerCreditsChargedAtUpload || 0) > 0
+            || Number(data?.billing?.aiTrailerCreditsCharged || 0) > 0
+            || data?.services?.aiTrailer
+          ),
+          spotlight: Boolean(
+            Number(data?.billing?.spotlightCreditsChargedAtUpload || 0) > 0
+            || data?.services?.spotlight
+          ),
+        };
+        setEditApprovalLocked(Boolean(isEditApprovalPending));
+        setPurchasedServiceCredits(purchasedFromHistory);
+        if (isEditApprovalPending) {
+          setError("This script edit is already in admin review. You can edit again after approval or rejection.");
+        }
         setTextContent(data.textContent || "");
+        setExistingUploadedFile(data.fileUrl ? {
+          name: getFileNameFromUrl(data.fileUrl),
+          size: null,
+          url: data.fileUrl,
+        } : null);
         setFormData({
           title: data.title || "",
           logline: data.logline || "",
@@ -560,10 +606,13 @@ const ScriptUpload = () => {
         }
         setServices({
           hosting: data.services?.hosting ?? true,
-          evaluation: data.services?.evaluation ?? false,
-          aiTrailer: data.services?.aiTrailer ?? false,
-          spotlight: data.services?.spotlight ?? false,
+          evaluation: purchasedFromHistory.evaluation || data.services?.evaluation || false,
+          aiTrailer: purchasedFromHistory.aiTrailer || data.services?.aiTrailer || false,
+          spotlight: purchasedFromHistory.spotlight || data.services?.spotlight || false,
         });
+        if (purchasedFromHistory.aiTrailer || data.services?.aiTrailer) {
+          setTrailerOption("ai");
+        }
         setLegal({
           agreedToTerms: Boolean(data?.legal?.agreedToTerms),
           customInvestorTerms: data?.legal?.customInvestorTerms || "",
@@ -613,6 +662,7 @@ const ScriptUpload = () => {
         }));
         setRightsLicensing(normalizeRightsLicensingState(data?.rightsLicensing || {}));
         setFromDraft(true);
+        setPurchasedServiceCredits({ evaluation: false, aiTrailer: false, spotlight: false });
       } catch {
         // Draft not found, proceed normally
       }
@@ -750,12 +800,16 @@ const ScriptUpload = () => {
       setUploadedFile({
         name: file.name,
         size: file.size,
-        url: URL.createObjectURL(file),
+        url: data.fileUrl || "",
       });
 
       // Populate the editor with extracted text
       if (data.text) {
         setTextContent(data.text);
+      }
+
+      if (!data.fileUrl) {
+        setError("Text extracted, but PDF upload link could not be created. Submit will update script content only.");
       }
     } catch (err) {
       clearInterval(interval);
@@ -963,11 +1017,17 @@ const ScriptUpload = () => {
 
   // Calculate total price
   const calculateTotal = () => {
+    const getServiceCharge = (serviceKey, enabled) => {
+      if (!enabled) return 0;
+      if (isEditingExistingScriptFlow && purchasedServiceCredits?.[serviceKey]) return 0;
+      return SERVICE_PRICES[serviceKey] || 0;
+    };
+
     let total = 0;
     if (services.hosting) total += SERVICE_PRICES.hosting;
-    if (services.evaluation) total += SERVICE_PRICES.evaluation;
-    if (trailerOption === "ai") total += SERVICE_PRICES.aiTrailer; // Use trailerOption instead
-    if (services.spotlight) total += SERVICE_PRICES.spotlight;
+    total += getServiceCharge("evaluation", services.evaluation);
+    total += getServiceCharge("aiTrailer", trailerOption === "ai");
+    total += getServiceCharge("spotlight", services.spotlight);
     return total;
   };
 
@@ -1181,13 +1241,22 @@ const ScriptUpload = () => {
     e.preventDefault();
     setError("");
 
+    if (editId && editApprovalLocked) {
+      setError("This script edit is already in admin review. You can edit again after approval or rejection.");
+      return;
+    }
+
     if (!validateStep(5)) return;
 
-    // Check credits before submitting
-    const creditsNeeded = calculateTotal();
-    if (creditsNeeded > creditsBalance) {
-      setError(`Insufficient credits. You need ${creditsNeeded} credits but have ${creditsBalance}. Please purchase more credits.`);
-      return;
+    const isEditingExistingScript = Boolean(editId);
+
+    // Edits should not re-charge previously purchased add-ons.
+    if (!isEditingExistingScript) {
+      const creditsNeeded = calculateTotal();
+      if (creditsNeeded > creditsBalance) {
+        setError(`Insufficient credits. You need ${creditsNeeded} credits but have ${creditsBalance}. Please purchase more credits.`);
+        return;
+      }
     }
 
     console.log("Starting script submission...");
@@ -1231,8 +1300,10 @@ const ScriptUpload = () => {
           themes: classification.themes,
           settings: classification.settings,
         },
-        // Only send scriptUrl if a real file was uploaded; skip to preserve existing fileUrl on edits
-        ...(uploadedFile?.url ? { scriptUrl: uploadedFile.url } : {}),
+        // Send script URL only when we have a remote file URL.
+        ...(isHttpUrl(uploadedFile?.url)
+          ? { scriptUrl: uploadedFile.url }
+          : (isHttpUrl(existingUploadedFile?.url) ? { scriptUrl: existingUploadedFile.url } : {})),
         services: {
           hosting: services.hosting,
           evaluation: services.evaluation,
@@ -1844,6 +1915,26 @@ const ScriptUpload = () => {
                       </p>
                     )}
 
+                    {editId && existingUploadedFile && !uploadedFile && (
+                      <div className={`rounded-xl p-3 mb-4 ${isDarkMode ? "border border-blue-500/20 bg-blue-500/10" : "border border-blue-200 bg-blue-50"}`}>
+                        <div className="flex flex-col items-start gap-2.5 min-[416px]:flex-row min-[416px]:items-center min-[416px]:gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDarkMode ? "bg-black/20" : "bg-white"}`}>
+                            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75h6A2.25 2.25 0 0115.75 6v1.5h1.5A2.25 2.25 0 0119.5 9.75v8.25a2.25 2.25 0 01-2.25 2.25h-10.5A2.25 2.25 0 014.5 18V6A2.25 2.25 0 016.75 3.75z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0 w-full">
+                            <p className={`text-sm font-bold break-all ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>
+                              Current uploaded PDF: {existingUploadedFile.name}
+                            </p>
+                            <p className={`text-xs ${isDarkMode ? "text-blue-400/80" : "text-blue-700/80"}`}>
+                              Upload a new PDF below to replace this file.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* PDF Uploader */}
                     {!uploadedFile ? (
                       <div
@@ -1912,6 +2003,24 @@ const ScriptUpload = () => {
                         </div>
                         <p className={`text-xs mt-1 text-center font-medium animate-pulse ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
                           Processing file... {uploadProgress}%
+                        </p>
+                      </div>
+                    )}
+
+                    {(editId || fromDraft || textContent.trim()) && (
+                      <div className="mt-5 space-y-2">
+                        <label className={`block text-sm ${labelCls} font-medium`}>
+                          Script Content
+                        </label>
+                        <textarea
+                          value={textContent}
+                          onChange={(e) => setTextContent(e.target.value)}
+                          rows={8}
+                          placeholder="Paste or edit your script content here."
+                          className={`w-full rounded-xl border px-3 py-2 text-sm leading-6 outline-none transition ${isDarkMode ? "bg-[#0f1e30] border-white/[0.08] text-gray-200 placeholder:text-gray-500 focus:border-white/30" : "bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-[#1e3a5f]/40"}`}
+                        />
+                        <p className={`text-xs ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
+                          This content is used when publishing updates. Uploading a new PDF will auto-fill this field.
                         </p>
                       </div>
                     )}
@@ -2200,25 +2309,28 @@ const ScriptUpload = () => {
                             key: "spotlight",
                             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.75.75 0 011.04 0l1.838 1.783a.75.75 0 00.384.2l2.53.36a.75.75 0 01.607.51l.806 2.435a.75.75 0 00.286.37l2.108 1.498a.75.75 0 010 1.227l-2.108 1.498a.75.75 0 00-.286.37l-.806 2.435a.75.75 0 01-.607.51l-2.53.36a.75.75 0 00-.384.2l-1.838 1.783a.75.75 0 01-1.04 0l-1.838-1.783a.75.75 0 00-.384-.2l-2.53-.36a.75.75 0 01-.607-.51l-.806-2.435a.75.75 0 00-.286-.37L2.92 11.882a.75.75 0 010-1.227L5.028 9.157a.75.75 0 00.286-.37l.806-2.435a.75.75 0 01.607-.51l2.53-.36a.75.75 0 00.384-.2L11.48 3.5z" /></svg>,
                             name: "Activate Spotlight",
-                            price: `${SERVICE_PRICES.spotlight} credits`,
+                            price: isEditingExistingScriptFlow && purchasedServiceCredits.spotlight ? "Already bought" : `${SERVICE_PRICES.spotlight} credits`,
                             desc: "Verified badge, evaluation + trailer service, and featured top placement",
+                            locked: isEditingExistingScriptFlow && purchasedServiceCredits.spotlight,
                             enabled: services.spotlight,
                           },
                           {
                             key: "aiTrailer",
                             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>,
                             name: "AI Concept Trailer",
-                            price: `${SERVICE_PRICES.aiTrailer} credits`,
+                            price: isEditingExistingScriptFlow && purchasedServiceCredits.aiTrailer ? "Already bought" : `${SERVICE_PRICES.aiTrailer} credits`,
                             desc: "60-second cinematic teaser",
                             badge: "BETA",
+                            locked: isEditingExistingScriptFlow && purchasedServiceCredits.aiTrailer,
                             enabled: trailerOption === "ai",
                           },
                           {
                             key: "evaluation",
                             icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>,
                             name: "Professional Evaluation",
-                            price: `${SERVICE_PRICES.evaluation} credits`,
+                            price: isEditingExistingScriptFlow && purchasedServiceCredits.evaluation ? "Already bought" : `${SERVICE_PRICES.evaluation} credits`,
                             desc: "Reader scorecard with strengths and weaknesses",
+                            locked: isEditingExistingScriptFlow && purchasedServiceCredits.evaluation,
                             enabled: services.evaluation,
                           },
                         ].map((service) => (
@@ -2227,7 +2339,11 @@ const ScriptUpload = () => {
                             type="button"
                             onClick={() => {
                               if (service.locked) {
-                                setError("Hosting is required for your script to be searchable.");
+                                if (service.key === "hosting") {
+                                  setError("Hosting is required for your script to be searchable.");
+                                } else {
+                                  setError("");
+                                }
                                 return;
                               }
 
@@ -2266,7 +2382,7 @@ const ScriptUpload = () => {
                                     <div className="flex flex-wrap items-center gap-1.5 min-[416px]:gap-2">
                                       <h4 className={`text-[13px] min-[416px]:text-sm font-bold leading-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
                                       {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
-                                      {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDarkMode ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                                      {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDarkMode ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>{service.key === "hosting" ? "Included" : "Already Bought"}</span>}
                                       {service.key === "aiTrailer" && trailerOption === "upload" && trailerFile && (
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDarkMode ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Replaces uploaded trailer</span>
                                       )}
@@ -2277,6 +2393,9 @@ const ScriptUpload = () => {
                                     {!service.locked && (
                                       <p className={`text-[11px] mt-1 ${service.enabled ? isDarkMode ? "text-emerald-300" : "text-emerald-700" : isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{service.enabled ? "Selected" : "Optional"}</p>
                                     )}
+                                    {service.locked && service.key !== "hosting" && (
+                                      <p className={`text-[11px] mt-1 ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>No extra charge</p>
+                                    )}
                                   </div>
                                 </div>
                                 <p className={`text-[12px] mt-1.5 leading-relaxed ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>{service.desc}</p>
@@ -2284,6 +2403,9 @@ const ScriptUpload = () => {
                                   <p className={`text-[13px] font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>{service.price}</p>
                                   {!service.locked && (
                                     <p className={`text-[11px] ${service.enabled ? isDarkMode ? "text-emerald-300" : "text-emerald-700" : isDarkMode ? "text-gray-500" : "text-gray-500"}`}>{service.enabled ? "Selected" : "Optional"}</p>
+                                  )}
+                                  {service.locked && service.key !== "hosting" && (
+                                    <p className={`text-[11px] ${isDarkMode ? "text-blue-300" : "text-blue-700"}`}>No extra charge</p>
                                   )}
                                 </div>
                               </div>
@@ -2577,13 +2699,13 @@ const ScriptUpload = () => {
                       <p className={`text-xs mt-2 ${isDarkMode ? "text-neutral-500" : "text-gray-500"}`}>
                         {services.hosting && <span>Hosting (FREE)</span>}
                         {services.evaluation && (
-                          <span>{services.hosting ? " + " : ""}{SERVICE_PRICES.evaluation} credits evaluation</span>
+                          <span>{services.hosting ? " + " : ""}{isEditingExistingScriptFlow && purchasedServiceCredits.evaluation ? "Evaluation (already bought)" : `${SERVICE_PRICES.evaluation} credits evaluation`}</span>
                         )}
                         {services.spotlight && (
-                          <span>{services.hosting || services.evaluation ? " + " : ""}{SERVICE_PRICES.spotlight} credits spotlight</span>
+                          <span>{services.hosting || services.evaluation ? " + " : ""}{isEditingExistingScriptFlow && purchasedServiceCredits.spotlight ? "Spotlight (already bought)" : `${SERVICE_PRICES.spotlight} credits spotlight`}</span>
                         )}
                         {trailerOption === "ai" && (
-                          <span>{services.hosting || services.evaluation || services.spotlight ? " + " : ""}{SERVICE_PRICES.aiTrailer} credits AI trailer</span>
+                          <span>{services.hosting || services.evaluation || services.spotlight ? " + " : ""}{isEditingExistingScriptFlow && purchasedServiceCredits.aiTrailer ? "AI trailer (already bought)" : `${SERVICE_PRICES.aiTrailer} credits AI trailer`}</span>
                         )}
                         {trailerOption === "upload" && trailerFile && (
                           <span>{services.hosting || services.evaluation || services.spotlight ? " + " : ""}Trailer upload (FREE)</span>

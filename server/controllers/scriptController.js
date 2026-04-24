@@ -1000,7 +1000,20 @@ export const extractPdfText = async (req, res) => {
     // Standardize newlines
     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-    res.json({ text, numItems: data.numpages });
+    let uploadedPdfUrl = "";
+    try {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, {
+        folder: "scriptbridge/scripts",
+        resource_type: "raw",
+        format: "pdf",
+        public_id: `script-${req.user?._id || "user"}-${Date.now()}`,
+      });
+      uploadedPdfUrl = uploadResult?.secure_url || "";
+    } catch (uploadError) {
+      console.error("PDF upload to Cloudinary failed:", uploadError?.message || uploadError);
+    }
+
+    res.json({ text, numItems: data.numpages, fileUrl: uploadedPdfUrl });
   } catch (error) {
     console.error("PDF Extraction Error:", error);
     res.status(500).json({ message: "Failed to extract text from PDF", error: error.message });
@@ -1025,6 +1038,15 @@ export const saveDraft = async (req, res) => {
       if (script.isDeleted) {
         return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
       }
+
+      if (script.status !== "draft") {
+        if (script.status === "pending_approval" && script.approvalRequestType === "edit_submission") {
+          return res.status(409).json({ message: "Your edited project is already under admin review. You can edit again after approval or rejection." });
+        }
+        return res.status(409).json({ message: "Only draft projects can be autosaved as drafts." });
+      }
+
+      script.projectSource = "editor";
 
       script.title = title || script.title;
       script.textContent = textContent !== undefined ? textContent : script.textContent;
@@ -1133,6 +1155,7 @@ export const saveDraft = async (req, res) => {
       title: title || "Untitled Draft",
       textContent: textContent || "",
       status: "draft",
+      projectSource: "editor",
       ...safeOtherData,
       contentType: getContentTypeFromFormat(safeOtherData.format, safeOtherData.contentType),
     });
@@ -1242,6 +1265,9 @@ export const updateScript = async (req, res) => {
     if (script.isDeleted) {
       return res.status(410).json({ message: "This project was deleted by creator and can no longer be edited." });
     }
+    if (script.status === "pending_approval" && script.approvalRequestType === "edit_submission") {
+      return res.status(409).json({ message: "Your edited project is already under admin review. You can edit again after approval or rejection." });
+    }
 
     const {
       title, logline, format, pageCount, classification,
@@ -1278,7 +1304,7 @@ export const updateScript = async (req, res) => {
       return res.status(400).json({ message: "Please specify the format when selecting Other." });
     }
 
-    if (title) script.title = title;
+    if (title !== undefined) script.title = title;
     if (logline !== undefined) script.logline = logline;
     if (format) {
       script.format = format;
@@ -1293,19 +1319,26 @@ export const updateScript = async (req, res) => {
     if (formatOther !== undefined) {
       script.formatOther = String(formatOther || "").trim();
     }
-    if (pageCount) script.pageCount = Number(pageCount);
+    if (pageCount !== undefined) script.pageCount = Number(pageCount);
     if (textContent !== undefined) script.textContent = textContent;
     if (description !== undefined) script.description = description;
     if (synopsis !== undefined) script.synopsis = synopsis;
     const realUrl = scriptUrl || fileUrl;
     if (realUrl && !realUrl.includes("placeholder-url.com")) script.fileUrl = realUrl;
-    if (coverImage) script.coverImage = coverImage;
+    if (coverImage !== undefined) script.coverImage = coverImage;
     if (premium !== undefined) script.premium = premium;
     if (price !== undefined) script.price = Number(price);
-    if (roles) script.roles = roles;
-    if (tags) script.tags = tags;
-    if (budget) script.budget = budget;
-    if (holdFee) script.holdFee = holdFee;
+    if (roles !== undefined) {
+      const nextRoles = Array.isArray(roles) ? roles : [];
+      const ageRangeError = getInvalidRoleAgeRangeMessage(nextRoles);
+      if (ageRangeError) {
+        return res.status(400).json({ message: ageRangeError });
+      }
+      script.roles = nextRoles;
+    }
+    if (tags !== undefined) script.tags = Array.isArray(tags) ? tags : [];
+    if (budget !== undefined) script.budget = budget;
+    if (holdFee !== undefined) script.holdFee = holdFee;
 
     if (classification) {
       const g = classification.primaryGenre || script.classification?.primaryGenre;
@@ -1358,7 +1391,41 @@ export const updateScript = async (req, res) => {
     script.markModified("rightsLicensing");
 
     const wasPendingApproval = script.status === "pending_approval";
+    const hasEvaluationEntitlement = Boolean(
+      script.services?.evaluation
+      || Number(script.billing?.evaluationCreditsChargedAtUpload || 0) > 0
+      || Number(script.billing?.evaluationCreditsCharged || 0) > 0
+    );
+    const hasAiTrailerEntitlement = Boolean(
+      script.services?.aiTrailer
+      || script.services?.spotlight
+      || Number(script.billing?.aiTrailerCreditsChargedAtUpload || 0) > 0
+      || Number(script.billing?.aiTrailerCreditsCharged || 0) > 0
+      || Number(script.billing?.spotlightCreditsChargedAtUpload || 0) > 0
+    );
+
+    if (hasEvaluationEntitlement) {
+      script.evaluationStatus = "none";
+      script.evaluationRequestedAt = undefined;
+      script.scriptScore = undefined;
+    }
+
+    if (hasAiTrailerEntitlement) {
+      script.trailerStatus = "none";
+      if (script.trailerWriterFeedback) {
+        script.trailerWriterFeedback = {
+          ...(script.trailerWriterFeedback || {}),
+          status: "pending",
+          note: "",
+          updatedAt: new Date(),
+        };
+      }
+    }
+
     script.status = "pending_approval";
+    script.adminApproved = false;
+    script.approvalRequestType = "edit_submission";
+    script.rejectionReason = undefined;
     await script.save();
     try {
       await attachSubmissionSummaryPdfToScript({ script, creator: req.user });
@@ -1375,15 +1442,16 @@ export const updateScript = async (req, res) => {
       if (!wasPendingApproval) {
         tasks.push(
           notifyAdminWorkflowEvent({
-            title: "Writer Project Submitted For Approval",
+            title: "Writer Project Edit Submitted For Approval",
             section: "approvals",
             actorId: req.user._id,
             scriptId: script._id,
-            message: `Project "${script.title}" was submitted for admin approval by ${req.user.name || "a writer"}.`,
+            message: `Project "${script.title}" edit was submitted for admin approval by ${req.user.name || "a writer"}.`,
             metadata: {
               scriptId: script._id,
               writerId: req.user._id,
               writerEmail: req.user.email || "",
+              approvalRequestType: "edit_submission",
               source: "update-script",
             },
           })
@@ -1565,6 +1633,8 @@ export const uploadScript = async (req, res) => {
       creditsBalanceAfter = creator.credits?.balance || 0;
     }
 
+    const inferredProjectSource = (scriptUrl || fileUrl) ? "uploaded" : "editor";
+
     // Build the script document
     const scriptData = {
       creator: req.user._id,
@@ -1644,6 +1714,10 @@ export const uploadScript = async (req, res) => {
       // AI Trailer status initialization
       trailerStatus: services?.aiTrailer ? "generating" : "none",
 
+      projectSource: inferredProjectSource,
+
+      approvalRequestType: "new_submission",
+
       status: "pending_approval" // Requires admin approval before publishing
     };
 
@@ -1667,6 +1741,8 @@ export const uploadScript = async (req, res) => {
       if (existingDraft.status !== "draft") {
         return res.status(409).json({ message: "This project is already submitted." });
       }
+
+      scriptData.projectSource = existingDraft.projectSource || inferredProjectSource;
 
       existingDraft.set(scriptData);
       script = await existingDraft.save();

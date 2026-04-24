@@ -598,6 +598,13 @@ const CreateProject = () => {
   const [saved, setSaved] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [scriptId, setScriptId] = useState(draftId || null);
+  const [loadedScriptStatus, setLoadedScriptStatus] = useState("draft");
+  const [editApprovalLocked, setEditApprovalLocked] = useState(false);
+  const [purchasedServiceCredits, setPurchasedServiceCredits] = useState({
+    evaluation: false,
+    aiTrailer: false,
+    spotlight: false,
+  });
   const [drafts, setDrafts] = useState([]);
   const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -934,7 +941,30 @@ const CreateProject = () => {
   const loadDraft = useCallback(async (id) => {
     try {
       const { data } = await api.get(`/scripts/${id}`);
+      const isEditApprovalPending = data?.status === "pending_approval" && data?.approvalRequestType === "edit_submission";
+      const purchasedFromHistory = {
+        evaluation: Boolean(
+          Number(data?.billing?.evaluationCreditsChargedAtUpload || 0) > 0
+          || Number(data?.billing?.evaluationCreditsCharged || 0) > 0
+          || data?.services?.evaluation
+        ),
+        aiTrailer: Boolean(
+          Number(data?.billing?.aiTrailerCreditsChargedAtUpload || 0) > 0
+          || Number(data?.billing?.aiTrailerCreditsCharged || 0) > 0
+          || data?.services?.aiTrailer
+        ),
+        spotlight: Boolean(
+          Number(data?.billing?.spotlightCreditsChargedAtUpload || 0) > 0
+          || data?.services?.spotlight
+        ),
+      };
       setTitle(data.title || ""); setScriptId(data._id);
+      setLoadedScriptStatus(data.status || "draft");
+      setEditApprovalLocked(Boolean(isEditApprovalPending));
+      setPurchasedServiceCredits(purchasedFromHistory);
+      if (isEditApprovalPending) {
+        setError("This script edit is already in admin review. You can edit again after approval or rejection.");
+      }
       if (editor && data.textContent) editor.commands.setContent(data.textContent);
       if (data.format) setFormData(f => ({ ...f, format: data.format }));
       if (data.formatOther !== undefined) setFormData(f => ({ ...f, formatOther: data.formatOther || "" }));
@@ -958,6 +988,12 @@ const CreateProject = () => {
         })));
       }
       if (data.classification) setClassification({ tones: data.classification.tones || [], themes: data.classification.themes || [], settings: data.classification.settings || [] });
+      setServices({
+        hosting: data.services?.hosting ?? true,
+        evaluation: purchasedFromHistory.evaluation || data.services?.evaluation || false,
+        aiTrailer: purchasedFromHistory.aiTrailer || data.services?.aiTrailer || false,
+        spotlight: purchasedFromHistory.spotlight || data.services?.spotlight || false,
+      });
       setLegal((prev) => ({
         ...prev,
         agreedToTerms: Boolean(data?.legal?.agreedToTerms),
@@ -1000,6 +1036,8 @@ const CreateProject = () => {
   }, []);
 
   const queueKeepaliveDraftSave = useCallback((reason = "close") => {
+    if (scriptId && loadedScriptStatus !== "draft") return false;
+
     const payload = buildDraftPayload();
     if (!hasMeaningfulDraft(payload)) return false;
 
@@ -1029,12 +1067,18 @@ const CreateProject = () => {
 
     lastDraftSignatureRef.current = signature;
     return true;
-  }, [buildDraftPayload, getDraftSignature, hasMeaningfulDraft]);
+  }, [buildDraftPayload, getDraftSignature, hasMeaningfulDraft, loadedScriptStatus, scriptId]);
 
   // Save draft
   const handleSave = useCallback(async (auto = false) => {
     if (!editor) return;
     if (auto && autoSaveInFlightRef.current) return;
+    if (scriptId && loadedScriptStatus !== "draft") {
+      if (editApprovalLocked && !auto) {
+        setError("This script edit is already in admin review. You can edit again after approval or rejection.");
+      }
+      return;
+    }
 
     const payload = buildDraftPayload();
     if (!hasMeaningfulDraft(payload)) return;
@@ -1054,6 +1098,7 @@ const CreateProject = () => {
     try {
       const { data } = await api.post("/scripts/draft", payload);
       setScriptId(data._id);
+      setLoadedScriptStatus("draft");
       setSaved(true);
       setLastSaved(new Date());
       lastDraftSignatureRef.current = signature;
@@ -1067,7 +1112,7 @@ const CreateProject = () => {
         setSaving(false);
       }
     }
-  }, [buildDraftPayload, editor, fetchDrafts, getDraftSignature, hasMeaningfulDraft]);
+  }, [buildDraftPayload, editApprovalLocked, editor, fetchDrafts, getDraftSignature, hasMeaningfulDraft, loadedScriptStatus, scriptId]);
 
   const clearLocalWorkingDraft = useCallback(() => {
     try {
@@ -1085,6 +1130,9 @@ const CreateProject = () => {
 
     setStep(1);
     setScriptId(null);
+    setLoadedScriptStatus("draft");
+    setEditApprovalLocked(false);
+    setPurchasedServiceCredits({ evaluation: false, aiTrailer: false, spotlight: false });
     setTitle("");
     setSaved(false);
     setLastSaved(null);
@@ -1142,6 +1190,7 @@ const CreateProject = () => {
 
       if (typeof data.scriptId === "string" && data.scriptId.trim()) {
         setScriptId(data.scriptId);
+        setLoadedScriptStatus("draft");
       }
     } catch {
       // Ignore invalid/stale local snapshots.
@@ -1245,7 +1294,7 @@ const CreateProject = () => {
   const handleDeleteDraft = async (id) => {
     try {
       await api.delete(`/scripts/${id}`); setDrafts(p => p.filter(d => d._id !== id));
-      if (scriptId === id) { setScriptId(null); setTitle(""); editor?.commands.clearContent(); }
+      if (scriptId === id) { setScriptId(null); setLoadedScriptStatus("draft"); setEditApprovalLocked(false); setPurchasedServiceCredits({ evaluation: false, aiTrailer: false, spotlight: false }); setTitle(""); editor?.commands.clearContent(); }
     } catch { }
   };
 
@@ -1394,18 +1443,25 @@ const CreateProject = () => {
       const arr = prev[cat]; return { ...prev, [cat]: arr.includes(val) ? arr.filter(v => v !== val) : arr.length < 3 ? [...arr, val] : arr };
     });
   };
+  const isEditingExistingScriptFlow = Boolean(scriptId && loadedScriptStatus !== "draft");
+  const getServiceCharge = (serviceKey, enabled) => {
+    if (!enabled) return 0;
+    if (isEditingExistingScriptFlow && purchasedServiceCredits?.[serviceKey]) return 0;
+    return SERVICE_PRICES[serviceKey] || 0;
+  };
   const calculateTotal = () =>
-    (services.evaluation ? SERVICE_PRICES.evaluation : 0)
-    + (services.aiTrailer ? SERVICE_PRICES.aiTrailer : 0)
-    + (services.spotlight ? SERVICE_PRICES.spotlight : 0);
+    getServiceCharge("evaluation", services.evaluation)
+    + getServiceCharge("aiTrailer", services.aiTrailer)
+    + getServiceCharge("spotlight", services.spotlight);
   const totalServiceCost = calculateTotal();
   const selectedPublishServices = [
     { key: "hosting", name: "Hosting & Discovery", price: 0, enabled: true, desc: "Listed in the marketplace for discovery" },
-    { key: "spotlight", name: "Activate Spotlight", price: SERVICE_PRICES.spotlight, enabled: services.spotlight, desc: "Priority visibility boost in marketplace placements" },
-    { key: "aiTrailer", name: "AI Concept Trailer", price: SERVICE_PRICES.aiTrailer, enabled: services.aiTrailer, desc: "60-second cinematic concept trailer" },
-    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader" },
+    { key: "spotlight", name: "Activate Spotlight", price: SERVICE_PRICES.spotlight, enabled: services.spotlight, desc: "Priority visibility boost in marketplace placements", alreadyBought: isEditingExistingScriptFlow && purchasedServiceCredits.spotlight, charge: getServiceCharge("spotlight", services.spotlight) },
+    { key: "aiTrailer", name: "AI Concept Trailer", price: SERVICE_PRICES.aiTrailer, enabled: services.aiTrailer, desc: "60-second cinematic concept trailer", alreadyBought: isEditingExistingScriptFlow && purchasedServiceCredits.aiTrailer, charge: getServiceCharge("aiTrailer", services.aiTrailer) },
+    { key: "evaluation", name: "Professional Evaluation", price: SERVICE_PRICES.evaluation, enabled: services.evaluation, desc: "Scorecard and editorial coverage from a vetted reader", alreadyBought: isEditingExistingScriptFlow && purchasedServiceCredits.evaluation, charge: getServiceCharge("evaluation", services.evaluation) },
   ];
-  const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.price > 0);
+  const paidPublishServices = selectedPublishServices.filter((item) => item.enabled && item.charge > 0);
+  const alreadyBoughtSelectedCount = selectedPublishServices.filter((item) => item.enabled && item.alreadyBought).length;
   const creditsAfterPublish = creditsBalance - totalServiceCost;
   const trailerWorkflowHint = services.aiTrailer
     ? trailerFile
@@ -1441,7 +1497,9 @@ const CreateProject = () => {
     },
     {
       item: "Optional Services",
-      detail: paidPublishServices.length > 0 ? `${paidPublishServices.length} paid add-on${paidPublishServices.length === 1 ? "" : "s"} selected` : "No paid add-ons selected",
+      detail: paidPublishServices.length > 0
+        ? `${paidPublishServices.length} payable add-on${paidPublishServices.length === 1 ? "" : "s"} selected${alreadyBoughtSelectedCount > 0 ? `, ${alreadyBoughtSelectedCount} already bought` : ""}`
+        : (alreadyBoughtSelectedCount > 0 ? `${alreadyBoughtSelectedCount} already-bought service${alreadyBoughtSelectedCount === 1 ? "" : "s"} selected` : "No paid add-ons selected"),
       type: "Credit Charge",
       amount: `${totalServiceCost} cr`,
     },
@@ -1578,11 +1636,19 @@ const CreateProject = () => {
 
   // Publish
   const handlePublish = async () => {
+    if (editApprovalLocked) {
+      setError("This script edit is already in admin review. You can edit again after approval or rejection.");
+      return;
+    }
+
     if (!validateStep(5)) return;
     const ageRangeError = getInvalidRoleAgeRangeMessage();
     if (ageRangeError) { setError(ageRangeError); return; }
-    const creditsNeeded = calculateTotal();
-    if (creditsNeeded > creditsBalance) { setError(`Insufficient credits. Need ${creditsNeeded} but have ${creditsBalance}.`); return; }
+    const isEditingExistingScript = Boolean(scriptId && loadedScriptStatus !== "draft");
+    if (!isEditingExistingScript) {
+      const creditsNeeded = calculateTotal();
+      if (creditsNeeded > creditsBalance) { setError(`Insufficient credits. Need ${creditsNeeded} but have ${creditsBalance}.`); return; }
+    }
     setLoading(true); setError("");
     try {
       const tagsArr = tagsInput.split(",").map(t => t.trim()).filter(Boolean);
@@ -1621,9 +1687,17 @@ const CreateProject = () => {
         price: isPremium && effectivePrice > 0 ? effectivePrice : 0,
         ...(scriptId ? { scriptId } : {}),
       };
-      const { data } = await api.post("/scripts/upload", payload);
-      await uploadSelectedProjectMedia(data?._id);
-      await downloadSubmissionSummaryPdf(data?._id, title);
+      let targetScriptId = scriptId;
+
+      if (scriptId && loadedScriptStatus !== "draft") {
+        await api.put(`/scripts/${scriptId}`, payload);
+      } else {
+        const { data } = await api.post("/scripts/upload", payload);
+        targetScriptId = data?._id;
+      }
+
+      await uploadSelectedProjectMedia(targetScriptId);
+      await downloadSubmissionSummaryPdf(targetScriptId, title);
 
       clearLocalWorkingDraft();
       openUnderReviewModal("/dashboard");
@@ -1861,7 +1935,7 @@ const CreateProject = () => {
             <div className={`${cardCls} p-4`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className={`text-sm font-bold ${dark ? "text-gray-200" : "text-gray-800"}`}>My Drafts</h3>
-                <button onClick={() => { setScriptId(null); setTitle(""); editor?.commands.clearContent(); clearLocalWorkingDraft(); setShowDrafts(false); setStep(1); }}
+                <button onClick={() => { setScriptId(null); setLoadedScriptStatus("draft"); setEditApprovalLocked(false); setPurchasedServiceCredits({ evaluation: false, aiTrailer: false, spotlight: false }); setTitle(""); editor?.commands.clearContent(); clearLocalWorkingDraft(); setShowDrafts(false); setStep(1); }}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${dark ? "text-gray-400 hover:bg-white/[0.06]" : "text-gray-500 hover:bg-gray-100"}`}>+ New Draft</button>
               </div>
               {loadingDrafts ? <div className="flex gap-3">{[1, 2, 3].map(i => <div key={i} className={`h-16 flex-1 rounded-xl animate-pulse ${dark ? "bg-[#182840]" : "bg-gray-100"}`} />)}</div>
@@ -2829,9 +2903,9 @@ const CreateProject = () => {
                     <div className="space-y-2.5 min-[416px]:space-y-3">
                       {[
                         { key: "hosting", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3" /></svg>, name: "Hosting & Discovery", price: "FREE", desc: "Marketplace listing and public discovery", locked: true },
-                        { key: "spotlight", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.75.75 0 011.04 0l1.838 1.783a.75.75 0 00.384.2l2.53.36a.75.75 0 01.607.51l.806 2.435a.75.75 0 00.286.37l2.108 1.498a.75.75 0 010 1.227l-2.108 1.498a.75.75 0 00-.286.37l-.806 2.435a.75.75 0 01-.607.51l-2.53.36a.75.75 0 00-.384.2l-1.838 1.783a.75.75 0 01-1.04 0l-1.838-1.783a.75.75 0 00-.384-.2l-2.53-.36a.75.75 0 01-.607-.51l-.806-2.435a.75.75 0 00-.286-.37L2.92 11.882a.75.75 0 010-1.227L5.028 9.157a.75.75 0 00.286-.37l.806-2.435a.75.75 0 01.607-.51l2.53-.36a.75.75 0 00.384-.2L11.48 3.5z" /></svg>, name: "Activate Spotlight", price: `${SERVICE_PRICES.spotlight} credits`, desc: "Verified badge, evaluation + trailer service, and featured top placement" },
-                        { key: "aiTrailer", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>, name: "AI Concept Trailer", price: `${SERVICE_PRICES.aiTrailer} credits`, desc: "60-second cinematic teaser", badge: "BETA" },
-                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses" },
+                        { key: "spotlight", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.75.75 0 011.04 0l1.838 1.783a.75.75 0 00.384.2l2.53.36a.75.75 0 01.607.51l.806 2.435a.75.75 0 00.286.37l2.108 1.498a.75.75 0 010 1.227l-2.108 1.498a.75.75 0 00-.286.37l-.806 2.435a.75.75 0 01-.607.51l-2.53.36a.75.75 0 00-.384.2l-1.838 1.783a.75.75 0 01-1.04 0l-1.838-1.783a.75.75 0 00-.384-.2l-2.53-.36a.75.75 0 01-.607-.51l-.806-2.435a.75.75 0 00-.286-.37L2.92 11.882a.75.75 0 010-1.227L5.028 9.157a.75.75 0 00.286-.37l.806-2.435a.75.75 0 01.607-.51l2.53-.36a.75.75 0 00.384-.2L11.48 3.5z" /></svg>, name: "Activate Spotlight", price: isEditingExistingScriptFlow && purchasedServiceCredits.spotlight ? "Already bought" : `${SERVICE_PRICES.spotlight} credits`, desc: "Verified badge, evaluation + trailer service, and featured top placement", locked: isEditingExistingScriptFlow && purchasedServiceCredits.spotlight },
+                        { key: "aiTrailer", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>, name: "AI Concept Trailer", price: isEditingExistingScriptFlow && purchasedServiceCredits.aiTrailer ? "Already bought" : `${SERVICE_PRICES.aiTrailer} credits`, desc: "60-second cinematic teaser", badge: "BETA", locked: isEditingExistingScriptFlow && purchasedServiceCredits.aiTrailer },
+                        { key: "evaluation", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08" /></svg>, name: "Professional Evaluation", price: isEditingExistingScriptFlow && purchasedServiceCredits.evaluation ? "Already bought" : `${SERVICE_PRICES.evaluation} credits`, desc: "Reader scorecard with strengths and weaknesses", locked: isEditingExistingScriptFlow && purchasedServiceCredits.evaluation },
                       ].map((service) => (
                         <button
                           key={service.key}
@@ -2854,13 +2928,16 @@ const CreateProject = () => {
                                   <div className="flex flex-wrap items-center gap-1.5 min-[416px]:gap-2">
                                     <h4 className={`text-[13px] min-[416px]:text-sm font-bold leading-tight ${dark ? "text-white" : "text-gray-900"}`}>{service.name}</h4>
                                     {service.badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">{service.badge}</span>}
-                                    {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>Included</span>}
+                                    {service.locked && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${dark ? "bg-blue-500/15 text-blue-300" : "bg-blue-100 text-blue-700"}`}>{service.key === "hosting" ? "Included" : "Already Bought"}</span>}
                                   </div>
                                 </div>
                                 <div className="hidden min-[416px]:block text-right shrink-0">
                                   <p className={`text-sm font-bold ${dark ? "text-white" : "text-gray-900"}`}>{service.price}</p>
                                   {!service.locked && (
                                     <p className={`text-[11px] mt-1 ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
+                                  )}
+                                  {service.locked && service.key !== "hosting" && (
+                                    <p className={`text-[11px] mt-1 ${dark ? "text-blue-300" : "text-blue-700"}`}>No extra charge</p>
                                   )}
                                 </div>
                               </div>
@@ -2870,6 +2947,9 @@ const CreateProject = () => {
                                 {!service.locked && (
                                   <p className={`text-[11px] ${services[service.key] ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-gray-500" : "text-gray-500"}`}>{services[service.key] ? "Selected" : "Optional"}</p>
                                 )}
+                                  {service.locked && service.key !== "hosting" && (
+                                    <p className={`text-[11px] ${dark ? "text-blue-300" : "text-blue-700"}`}>No extra charge</p>
+                                  )}
                               </div>
                             </div>
                           </div>

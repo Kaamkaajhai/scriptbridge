@@ -28,11 +28,13 @@ const scriptSchema = new mongoose.Schema({
   fullContent: { type: String }, // Locked full content
   textContent: { type: String }, // Extracted text from PDF or raw input from editor
   fileUrl: { type: String }, // Made optional since users can write text directly
+  projectSource: { type: String, enum: ["uploaded", "editor"], default: "uploaded" },
   pageCount: { type: Number }, // Auto-calculated on upload
   coverImage: { type: String },
   genre: { type: String },
   contentType: { type: String, enum: ["movie", "tv_series", "anime", "documentary", "short_film", "web_series", "book", "startup", "songs", "standup_comedy", "dialogues", "poet"], default: "movie" },
   status: { type: String, enum: ["draft", "published", "pending_approval", "rejected"], default: "draft" },
+  approvalRequestType: { type: String, enum: ["new_submission", "edit_submission"], default: "new_submission" },
   adminApproved: { type: Boolean, default: false },
   publishedAt: { type: Date },
 
