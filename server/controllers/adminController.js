@@ -1169,8 +1169,19 @@ export const getPendingScripts = async (req, res) => {
             .populate("creator", "name email role profileImage")
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
-            .limit(Number(limit));
-        res.json({ scripts, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+            .limit(Number(limit))
+            .lean();
+
+        const normalizedScripts = scripts.map((script) => {
+            const inferredApprovalRequestType = script.approvalRequestType
+                || (script.publishedAt ? "edit_submission" : "new_submission");
+
+            return {
+                ...script,
+                approvalRequestType: inferredApprovalRequestType,
+            };
+        });
+        res.json({ scripts: normalizedScripts, total, page: Number(page), totalPages: Math.ceil(total / limit) });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
