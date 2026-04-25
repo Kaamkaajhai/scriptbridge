@@ -85,11 +85,6 @@ router.get("/", authMiddleware, async (req, res) => {
         status: "published",
         isSold: { $ne: true },
         isDeleted: { $ne: true },
-        $or: [
-          { purchaseRequestLocked: { $ne: true } },
-          { purchaseRequestLockedBy: req.user._id },
-          { creator: req.user._id },
-        ],
       };
       if (q && q.trim()) {
         scriptQuery.$and = [{

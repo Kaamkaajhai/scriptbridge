@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import api from "../services/api";
 import ProjectCard from "../components/ProjectCard";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 /* ── Filter Constants ───────────────────────────────── */
 const GENRES = [
@@ -665,7 +666,7 @@ const Search = () => {
                       transition={{ delay: i * 0.03, duration: 0.3, ease }}
                     >
                       <Link
-                        to={`/profile/${user._id}`}
+                        to={getProfileCanonicalPath(user)}
                         className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 transition-all duration-200 group ${t.personCard}`}
                       >
                         {/* Avatar */}

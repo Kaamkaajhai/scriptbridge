@@ -9,6 +9,7 @@ import ProjectCard from "../components/ProjectCard";
 import ReviewCard from "../components/ReviewCard";
 import SocialShareButton from "../components/SocialShareButton";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const normalizePublicShareUrl = (rawUrl = "", fallbackUrl = "") => {
   const candidate = String(rawUrl || fallbackUrl || "").trim();
@@ -387,17 +388,10 @@ const ReaderProfile = () => {
   };
 
   const getProfilePath = (userRef) => {
-    const userId = typeof userRef === "string" ? userRef : userRef?._id;
-    const username = typeof userRef === "string"
-      ? ""
-      : String(userRef?.username || "").trim().toLowerCase();
-    if (!userId) return "/profile";
-
-    const isCurrentReaderProfile =
-      String(user?.role || "").toLowerCase() === "reader" &&
-      String(user?._id || "") === String(userId);
-
-    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${username || userId}`;
+    return getProfileCanonicalPath(userRef, {
+      viewerId: user?._id,
+      viewerRole: user?.role,
+    });
   };
 
   const handleConnectionClick = (userRef) => {

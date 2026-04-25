@@ -56,7 +56,6 @@ const PUBLIC_SCRIPT_FILTER = {
   status: "published",
   isSold: { $ne: true },
   transactionStatus: { $ne: "sold_licensed" },
-  purchaseRequestLocked: { $ne: true },
   isDeleted: { $ne: true },
 };
 
@@ -530,6 +529,10 @@ const createAgreementForSettledPurchase = async ({
 
 const expireActiveExclusiveLicenses = async ({ scriptId } = {}) => {
   const now = new Date();
+  if (scriptId && !mongoose.isValidObjectId(scriptId)) {
+    return;
+  }
+
   const query = {
     status: "active",
     expires_at: { $lte: now },
@@ -2036,10 +2039,19 @@ export const getPurchaseRequestAcceptancePdf = async (req, res) => {
 
 export const getScriptById = async (req, res) => {
   try {
-    await expireApprovedUnpaidRequests({ scriptId: req.params.id });
-    await expireActiveExclusiveLicenses({ scriptId: req.params.id });
+    const scriptId = String(req.params.id || "").trim();
+    if (!mongoose.isValidObjectId(scriptId)) {
+      return res.status(404).json({ message: "Script not found" });
+    }
 
-    const script = await Script.findById(req.params.id)
+    // Script detail payload is personalized (e.g. myPendingRequest), so avoid serving cached variants across users.
+    res.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
+    res.set("Pragma", "no-cache");
+
+    await expireApprovedUnpaidRequests({ scriptId });
+    await expireActiveExclusiveLicenses({ scriptId });
+
+    const script = await Script.findById(scriptId)
       .populate("creator", "name profileImage role bio followers username writerProfile.username")
       .populate("heldBy", "name role");
 
@@ -2075,33 +2087,6 @@ export const getScriptById = async (req, res) => {
     // Block access to sold scripts — only allow creator, buyer, and admins
     if (script.isSold && !isOwner && !isBuyer && !isAdmin) {
       return res.status(403).json({ message: "This script has been purchased and is no longer publicly available" });
-    }
-
-    // Block access while an investor purchase request is pending.
-    // Allow creator, admin, current buyer, or the investor who owns the pending request.
-    if (script.purchaseRequestLocked) {
-      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-      const isLockOwner = lockOwnerId && lockOwnerId === req.user._id.toString();
-      let hasMyPendingRequest = false;
-      const nowForLockCheck = new Date();
-      const activeApprovedClause = getApprovedUnpaidActiveClause(nowForLockCheck);
-
-      if (!isLockOwner && !isOwner && !isAdmin && !isBuyer) {
-        hasMyPendingRequest = Boolean(
-          await ScriptPurchaseRequest.findOne({
-            script: script._id,
-            investor: req.user._id,
-            $or: [
-              { status: "pending" },
-              activeApprovedClause,
-            ],
-          }).select("_id").lean()
-        );
-      }
-
-      if (!isOwner && !isAdmin && !isBuyer && !isLockOwner && !hasMyPendingRequest) {
-        return res.status(403).json({ message: "This script is temporarily unavailable while a purchase request is under review." });
-      }
     }
 
     // Track valid views: count only unique viewers (same user should not increase views again).
@@ -2187,7 +2172,14 @@ export const getScriptById = async (req, res) => {
           { status: "pending" },
           activeApprovedClause,
         ],
-      }).sort({ createdAt: -1 }).lean();
+      })
+        .select("_id script investor writer status amount paymentStatus paymentDueAt note createdAt updatedAt")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      if (myPendingRequest && String(myPendingRequest.investor || "") !== String(req.user._id || "")) {
+        myPendingRequest = null;
+      }
     }
 
     // For creators, count how many pending purchase requests exist for this script
@@ -2330,8 +2322,8 @@ export const getScriptByPath = async (req, res) => {
 export const getPublicScriptById = async (req, res) => {
   try {
     const scriptId = String(req.params.id || "").trim();
-    if (!scriptId) {
-      return res.status(400).json({ message: "Invalid script id" });
+    if (!scriptId || !mongoose.isValidObjectId(scriptId)) {
+      return res.status(404).json({ message: "Script not found" });
     }
 
     await expireActiveExclusiveLicenses({ scriptId });
@@ -2352,7 +2344,6 @@ export const getPublicScriptById = async (req, res) => {
       script.status === "published" &&
       !script.isDeleted &&
       !script.isSold &&
-      !script.purchaseRequestLocked &&
       !isCreatorDeactivated &&
       !isCreatorPrivate;
 
@@ -2510,13 +2501,6 @@ export const requestScriptPurchase = async (req, res) => {
     const now = new Date();
     const activeApprovedClause = getApprovedUnpaidActiveClause(now);
 
-    if (script.purchaseRequestLocked) {
-      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-      if (!lockOwnerId || lockOwnerId !== req.user._id.toString()) {
-        return res.status(409).json({ message: "This script is currently unavailable because a purchase request is already in progress." });
-      }
-    }
-
     // Prevent duplicate active request flows for same investor/script.
     const existing = await ScriptPurchaseRequest.findOne({
       script: scriptId,
@@ -2528,10 +2512,6 @@ export const requestScriptPurchase = async (req, res) => {
     }).sort({ createdAt: -1 });
 
     if (existing) {
-      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-      if (!script.purchaseRequestLocked || lockOwnerId !== req.user._id.toString()) {
-        await markScriptAsLocked(script, req.user._id);
-      }
       if (existing.status === "approved" && existing.paymentStatus !== "released" && Number(existing.amount || 0) > 0) {
         return res.status(400).json({ message: "Your request is already approved. Complete payment to unlock full script access." });
       }
@@ -2552,8 +2532,6 @@ export const requestScriptPurchase = async (req, res) => {
       paymentStatus: "pending",
       note: sanitizedNote,
     });
-
-    await markScriptAsLocked(script, req.user._id);
 
     const requesterType = getPurchaseRequesterLabel(investor);
 
@@ -2607,9 +2585,38 @@ export const approveScriptPurchase = async (req, res) => {
     }
 
     const script = purchaseRequest.script;
+    await expireApprovedUnpaidRequests({ scriptId: script?._id });
+
     if (script.isDeleted) {
       return res.status(410).json({ message: "This project was deleted by creator and cannot be approved for new purchase." });
     }
+    if (script.isSold || script.transactionStatus === "sold_licensed") {
+      return res.status(409).json({ message: "This script has already been sold to another professional." });
+    }
+
+    const alreadyApprovedRequest = await ScriptPurchaseRequest.findOne({
+      script: script._id,
+      _id: { $ne: purchaseRequest._id },
+      status: "approved",
+      paymentStatus: { $ne: "released" },
+    }).select("_id investor paymentStatus paymentDueAt updatedAt createdAt").lean();
+
+    if (alreadyApprovedRequest) {
+      const nowForWait = new Date();
+      const approvedAt = alreadyApprovedRequest?.updatedAt || alreadyApprovedRequest?.createdAt || nowForWait;
+      const waitUntil = alreadyApprovedRequest?.paymentDueAt
+        ? new Date(alreadyApprovedRequest.paymentDueAt)
+        : getApprovedPaymentDueAt(approvedAt);
+      const hoursRemaining = Math.max(0, Math.ceil((new Date(waitUntil).getTime() - nowForWait.getTime()) / (60 * 60 * 1000)));
+
+      return res.status(409).json({
+        code: "APPROVAL_LOCK_ACTIVE",
+        waitUntil,
+        hoursRemaining,
+        message: "You have already approved another film industry professional for this script. You may approve a different professional only after 3 days if the previously approved professional does not complete the payment.",
+      });
+    }
+
     const investor = purchaseRequest.investor;
     const writer = await User.findById(req.user._id);
     const amountToRelease = Number(purchaseRequest.frozenAmount || purchaseRequest.amount || 0);
@@ -2629,8 +2636,6 @@ export const approveScriptPurchase = async (req, res) => {
       purchaseRequest.paymentDueAt = paymentDueAt;
       purchaseRequest.settledAt = undefined;
       await purchaseRequest.save();
-
-      await markScriptAsLocked(script, investor._id);
 
       await Notification.create({
         user: investor._id,
@@ -2802,6 +2807,60 @@ export const approveScriptPurchase = async (req, res) => {
         clientBaseUrl: resolveClientOriginFromRequest(req),
       }
     ).catch((err) => console.error("[Purchase] Failed to send approval email:", err.message));
+
+    const pendingSiblingRequests = await ScriptPurchaseRequest.find({
+      script: script._id,
+      _id: { $ne: purchaseRequest._id },
+      status: "pending",
+    })
+      .populate("investor", "_id name email")
+      .select("_id investor")
+      .lean();
+
+    if (pendingSiblingRequests.length > 0) {
+      const siblingRequestIds = pendingSiblingRequests.map((row) => row._id);
+      const autoRejectNote = `Request closed automatically: writer approved another professional for \"${script.title}\".`;
+
+      await ScriptPurchaseRequest.updateMany(
+        { _id: { $in: siblingRequestIds } },
+        {
+          $set: {
+            status: "rejected",
+            settledAt: new Date(),
+            note: autoRejectNote,
+          },
+        }
+      );
+
+      const rejectionNotifications = pendingSiblingRequests
+        .filter((row) => row?.investor?._id)
+        .map((row) => ({
+          user: row.investor._id,
+          type: "purchase_rejected",
+          from: req.user._id,
+          script: script._id,
+          message: `${writer.name} approved another professional for \"${script.title}\". Your request was closed.`,
+        }));
+
+      if (rejectionNotifications.length > 0) {
+        await Notification.insertMany(rejectionNotifications);
+      }
+
+      pendingSiblingRequests.forEach((row) => {
+        if (!row?.investor?.email) return;
+        sendPurchaseRejectedEmail(
+          row.investor.email,
+          row.investor.name || "Professional",
+          writer.name,
+          script.title,
+          autoRejectNote,
+          {
+            refundAmount: 0,
+            clientBaseUrl: resolveClientOriginFromRequest(req),
+          }
+        ).catch((err) => console.error("[Purchase] Failed to send sibling rejection email:", err.message));
+      });
+    }
 
     res.json({
       message: "Purchase request approved. Investor now has full script access and funds were transferred to the writer.",
@@ -3792,15 +3851,6 @@ export const createScriptPurchaseOrder = async (req, res) => {
 
     if (script.isSold || script.transactionStatus === "sold_licensed") {
       return res.status(409).json({ message: "This script is no longer available for payment." });
-    }
-
-    if (script.purchaseRequestLocked) {
-      const lockOwnerId = script.purchaseRequestLockedBy?.toString?.() || "";
-      if (lockOwnerId && lockOwnerId !== req.user._id.toString()) {
-        return res.status(409).json({
-          message: "This script is currently locked in another transaction.",
-        });
-      }
     }
 
     const now = new Date();

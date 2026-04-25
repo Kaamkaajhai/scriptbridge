@@ -8,6 +8,7 @@ import BrandLogo from "../components/BrandLogo";
 import ConfirmDialog from "../components/ConfirmDialog";
 import api from "../services/api";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const MainLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
@@ -38,10 +39,10 @@ const MainLayout = ({ children }) => {
   const showCreditSystem = Boolean(user) && user?.role !== "investor" && user?.role !== "reader";
   const topBarHomePath = user?.role === "reader" ? "/reader" : "/dashboard";
   const topBarHomeLabel = user?.role === "reader" ? "Reader Home" : "Dashboard";
-  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
-  const topBarProfilePath = user?.role === "reader"
-    ? `/reader/profile/${user?._id || ""}`
-    : `/profile/${currentWriterUsername || user?._id || ""}`;
+  const topBarProfilePath = getProfileCanonicalPath(user, {
+    viewerId: user?._id,
+    viewerRole: user?.role,
+  });
 
   useEffect(() => {
     const handleClick = (e) => {
