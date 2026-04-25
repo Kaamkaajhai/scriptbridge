@@ -8,6 +8,7 @@ import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import InvestorDashboard from "./InvestorDashboard";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const Dashboard = () => {
   const { user, setUser } = useContext(AuthContext);
@@ -123,12 +124,10 @@ const CreatorDashboard = ({ user, dark }) => {
     { label: "Avg Score", value: stats.avgScore ?? "N/A" },
 
   ] : [];
-  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
-  const profileEditPath = currentWriterUsername
-    ? `/profile/${currentWriterUsername}`
-    : user?._id
-      ? `/profile/${user._id}`
-      : "/profile";
+  const profileEditPath = getProfileCanonicalPath(user, {
+    viewerId: user?._id,
+    viewerRole: user?.role,
+  });
 
   return (
     <div className="bg-white min-h-full relative max-[640px]:-mx-4 max-[640px]:-mt-4">

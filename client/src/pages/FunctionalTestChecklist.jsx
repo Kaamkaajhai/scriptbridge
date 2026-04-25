@@ -149,7 +149,7 @@ const buildTestSuites = (ctx) => {
     {
       key: "nav_profile_route",
       group: "navigation",
-      label: "Profile route /profile/:id resolves for current user",
+      label: "Profile route /:username resolves for current user",
       run: async () => {
         if (!user?._id) return WARN("No authenticated user.");
         try {
@@ -220,7 +220,7 @@ const buildTestSuites = (ctx) => {
     {
       key: "read_script_navigate",
       group: "read",
-      label: "\"Read Now\" navigation — router can push to canonical /script/:projectHeading/:writer_username",
+      label: "\"Read Now\" navigation — router can push to canonical /:projectHeading/:writer_username",
       run: async () => {
         try {
           const listRes = await api.get("/scripts?limit=1");

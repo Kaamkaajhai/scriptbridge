@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useDarkMode } from "../context/DarkModeContext";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const PostCard = ({ post }) => {
   const [liked, setLiked] = useState(false);
@@ -17,7 +18,7 @@ const PostCard = ({ post }) => {
     >
       {/* Post Header */}
       <div className="flex items-center justify-between p-4">
-        <Link to={`/profile/${post.user._id}`} className="flex items-center gap-3 hover:opacity-80 transition">
+        <Link to={getProfileCanonicalPath(post.user)} className="flex items-center gap-3 hover:opacity-80 transition">
           <img 
             src={post.user.profileImage || "https://placehold.co/40x40/e2e8f0/64748b?text=U"} 
             alt={post.user.name} 

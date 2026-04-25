@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext, useRef, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "../services/api";
 import { sendPitch } from "../services/scriptPitchService";
@@ -14,6 +14,7 @@ import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { formatCurrency } from "../utils/currency";
 import { applyLanguagePreference, getBackendLanguageValue, getProfileLanguageValue } from "../utils/languagePreference";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 /* â”€â”€ Helper components â”€â”€ */
 
@@ -184,6 +185,7 @@ const Profile = () => {
   const isWriter = (role) => role === "creator" || role === "writer";
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user: currentUser, setUser, logout } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
 
@@ -245,10 +247,12 @@ const Profile = () => {
       if (!silent) setLoading(true);
 
       const { data } = await api.get(`/users/${profileId}`);
-      const canonicalUsername = String(data?.user?.writerProfile?.username || "").trim().toLowerCase();
-      const requestedProfileKey = String(id || "").trim().toLowerCase();
-      if (id && canonicalUsername && requestedProfileKey !== canonicalUsername) {
-        navigate(`/profile/${canonicalUsername}`, { replace: true });
+      const canonicalProfilePath = getProfileCanonicalPath(data?.user, {
+        viewerId: currentUser?._id,
+        viewerRole: currentUser?.role,
+      });
+      if (canonicalProfilePath && canonicalProfilePath !== location.pathname) {
+        navigate(canonicalProfilePath, { replace: true });
       }
       setProfileAccessMessage("");
       setProfile(data.user);
@@ -294,7 +298,7 @@ const Profile = () => {
       isFetchingProfileRef.current = false;
       if (!silent) setLoading(false);
     }
-  }, [id, currentUser?._id, navigate]);
+  }, [id, currentUser?._id, currentUser?.role, location.pathname, navigate]);
 
   useEffect(() => {
     fetchProfile();
@@ -523,17 +527,10 @@ const Profile = () => {
   };
 
   const getProfilePath = (userRef) => {
-    const userId = typeof userRef === "string" ? userRef : userRef?._id;
-    const username = typeof userRef === "string"
-      ? ""
-      : String(userRef?.username || "").trim().toLowerCase();
-    if (!userId) return "/profile";
-
-    const isCurrentReaderProfile =
-      String(currentUser?.role || "").toLowerCase() === "reader" &&
-      String(currentUser?._id || "") === String(userId);
-
-    return isCurrentReaderProfile ? `/reader/profile/${userId}` : `/profile/${username || userId}`;
+    return getProfileCanonicalPath(userRef, {
+      viewerId: currentUser?._id,
+      viewerRole: currentUser?.role,
+    });
   };
 
   const handleConnectionClick = (userRef) => {

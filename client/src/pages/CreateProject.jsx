@@ -195,7 +195,6 @@ const PAYMENT_STRUCTURE_OPTIONS = [
 const NEGOTIATION_MODE_OPTIONS = [
   { value: "fixed_terms_non_negotiable", label: "Fixed terms (non-negotiable)" },
   { value: "open_to_discussion_after_purchase", label: "Open to discussion after purchase" },
-  { value: "ckript_not_involved", label: "Ckript not involved" },
 ];
 
 const RIGHTS_LABEL_MAP = Object.fromEntries(RIGHTS_TYPE_OPTIONS.map((option) => [option.value, option.label]));
@@ -207,7 +206,7 @@ const MIN_LICENSE_DURATION_MONTHS = 1;
 const MAX_LICENSE_DURATION_MONTHS = 120;
 
 const createDefaultRightsLicensing = () => ({
-  rightsType: "exclusive_license",
+  rightsType: "full_rights_sale",
   exclusivity: true,
   modificationRights: "buyer_must_consult_writer",
   paymentStructure: "one_time_upfront_payment",
@@ -2812,10 +2811,10 @@ const CreateProject = () => {
                     <div className="flex flex-col gap-3 min-[460px]:flex-row min-[460px]:items-start min-[460px]:justify-between">
                       <div>
                         <h3 className={`text-[15px] min-[420px]:text-base font-bold mt-0.5 ${dark ? "text-white" : "text-gray-900"}`}>Access & Monetization</h3>
-                        <p className={`text-[11px] min-[420px]:text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Pick either free public access or paid premium access.</p>
+                        <p className={`text-[11px] min-[420px]:text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Choose Free Access for public reading, or switch to Premium Access to unlock pricing and rights-based selling.</p>
                       </div>
                       <div className={`w-full min-[460px]:w-auto px-3 py-2 rounded-xl text-left min-[460px]:text-right ${dark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
-                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-gray-500" : "text-gray-400"}`}>Current Plan</p>
+                        <p className={`text-[10px] font-semibold uppercase tracking-wide ${dark ? "text-gray-500" : "text-gray-400"}`}>Selected Access</p>
                         <p className={`text-sm font-bold mt-1 ${isPremium ? dark ? "text-emerald-300" : "text-emerald-700" : dark ? "text-blue-300" : "text-blue-700"}`}>{isPremium ? "Premium Access" : "Free Public Access"}</p>
                       </div>
                     </div>
@@ -2832,7 +2831,7 @@ const CreateProject = () => {
                           </div>
                           <div>
                             <p className="text-[15px] min-[420px]:text-sm font-bold">Free Access</p>
-                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Best for reach and discovery</p>
+                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${!isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Fully readable for all users</p>
                           </div>
                         </div>
                       </button>
@@ -2848,10 +2847,18 @@ const CreateProject = () => {
                           </div>
                           <div>
                             <p className="text-[15px] min-[420px]:text-sm font-bold">Premium Access</p>
-                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Monetize full-script reading</p>
+                            <p className={`text-[10px] min-[420px]:text-[11px] leading-snug ${isPremium ? "text-white/80" : dark ? "text-gray-500" : "text-gray-500"}`}>Turn on pricing and rights setup</p>
                           </div>
                         </div>
                       </button>
+                    </div>
+
+                    <div className={`rounded-xl px-4 py-3 flex items-start gap-3 ${isPremium ? dark ? "bg-emerald-500/8 border border-emerald-500/20" : "bg-emerald-50 border border-emerald-100" : dark ? "bg-amber-500/8 border border-amber-400/20" : "bg-amber-50 border border-amber-100"}`}>
+                      <svg className={`w-4 h-4 mt-0.5 shrink-0 ${isPremium ? dark ? "text-emerald-300" : "text-emerald-600" : dark ? "text-amber-300" : "text-amber-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                      <div>
+                        <p className={`text-sm font-semibold ${dark ? "text-white" : "text-gray-900"}`}>{isPremium ? "Premium is active" : "Want to sell this script?"}</p>
+                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>{isPremium ? "Set your asking price below, then review the rights terms before publishing." : "Switch to Premium Access to add a paid price and define the rights you want to offer buyers."}</p>
+                      </div>
                     </div>
 
                     {!isPremium ? (
@@ -2859,7 +2866,7 @@ const CreateProject = () => {
                         <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? "text-blue-300" : "text-blue-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
                         <div>
                           <p className={`text-sm font-semibold ${dark ? "text-white" : "text-gray-900"}`}>Public discovery mode</p>
-                          <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Your script is fully readable to all users.</p>
+                          <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Your full script is readable to all users. No paid access or buyer-rights pricing is applied in this mode.</p>
                         </div>
                       </div>
                     ) : (
@@ -2881,12 +2888,20 @@ const CreateProject = () => {
                                   className={`w-full pl-7 pr-3 py-2.5 rounded-xl text-sm font-bold border-2 outline-none transition-all ${dark ? "bg-white/[0.04] border-emerald-500/50 text-white focus:border-emerald-500" : "bg-white border-emerald-300 text-gray-900 focus:border-emerald-500"}`}
                                 />
                               </div>
-                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Enter any amount (minimum ₹1).</p>
+                              <p className={`text-[12px] ${dark ? "text-gray-500" : "text-gray-500"}`}>Set your asking price here. Buyers can review your rights terms below before moving ahead.</p>
                             </div>
                           </div>
                         </div>
                       </div>
                     )}
+
+                    <div className={`rounded-xl px-4 py-3 flex items-start gap-3 ${dark ? "bg-white/[0.03] border border-white/[0.06]" : "bg-white border border-gray-200"}`}>
+                      <svg className={`w-4 h-4 mt-0.5 shrink-0 ${dark ? "text-rose-300" : "text-rose-600"}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm9-3.758a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <div>
+                        <p className={`text-sm font-semibold ${dark ? "text-white" : "text-gray-900"}`}>Important for writers</p>
+                        <p className={`text-[12px] mt-1 leading-relaxed ${dark ? "text-gray-400" : "text-gray-600"}`}>Film industry professionals usually do not buy scripts just to read them. They may be evaluating rights for films, web series, TV serials, remakes, or adaptations, so set your price and rights terms on that basis.</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className={`rounded-2xl border p-4 min-[420px]:p-5 sm:p-6 ${dark ? "border-[#1d3350] bg-[#080f1a]" : "border-gray-200 bg-gray-50/60"}`}>

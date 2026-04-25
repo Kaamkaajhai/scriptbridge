@@ -20,6 +20,36 @@ const NEGOTIATION_LABELS = {
   open_to_discussion_after_purchase: "Open to discussion after purchase",
   ckript_not_involved: "Ckript not involved",
 };
+const FORMAT_LABELS = {
+  feature: "Feature",
+  feature_film: "Feature Film",
+  tv_1hour: "TV 1-Hour",
+  tv_pilot_1hour: "TV Pilot 1-Hour",
+  tv_halfhour: "TV Half-Hour",
+  tv_pilot_halfhour: "TV Pilot Half-Hour",
+  play: "Play",
+  short: "Short",
+  short_film: "Short Film",
+  web_series: "Web Series",
+  limited_series: "Limited Series",
+  documentary: "Documentary",
+  drama_school: "Drama School",
+  anime: "Anime",
+  movie: "Movie",
+  tv_serial: "TV Serial",
+  cartoon: "Cartoon",
+  songs: "Songs",
+  standup_comedy: "Standup Comedy",
+  dialogues: "Dialogues",
+  poet: "Poet",
+  other: "Other",
+};
+const SERVICE_LABELS = {
+  hosting: "Hosting & Discovery",
+  spotlight: "Activate Spotlight",
+  aiTrailer: "AI Concept Trailer",
+  evaluation: "Professional Evaluation",
+};
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -148,6 +178,70 @@ const AdminScriptView = () => {
   const rawContent = typeof script?.textContent === "string" ? script.textContent : "";
   const writerCustomTerms = String(script?.legal?.customInvestorTerms || "").trim();
   const hasWriterCustomTerms = writerCustomTerms.length > 0;
+  const formatLabel = script?.format === "other"
+    ? (String(script?.formatOther || "").trim() || "Other")
+    : (FORMAT_LABELS[script?.format] || script?.format || "-");
+  const headingValue = String(script?.title || "").trim() || "Untitled";
+  const writerName = String(script?.creator?.name || "").trim() || "Unknown";
+  const companyName = String(script?.companyName || "").trim();
+  const primaryGenre = script?.primaryGenre || script?.classification?.primaryGenre || script?.genre || "-";
+  const tags = Array.isArray(script?.tags) ? script.tags.filter(Boolean) : [];
+  const tones = Array.isArray(script?.classification?.tones) ? script.classification.tones.filter(Boolean) : [];
+  const themes = Array.isArray(script?.classification?.themes) ? script.classification.themes.filter(Boolean) : [];
+  const settings = Array.isArray(script?.classification?.settings) ? script.classification.settings.filter(Boolean) : [];
+  const roles = Array.isArray(script?.roles) ? script.roles.filter((role) => role?.characterName || role?.type || role?.description) : [];
+  const coverImageUrl = resolveMediaUrl(script?.coverImage || "");
+  const trailerThumbnailUrl = resolveMediaUrl(script?.trailerThumbnail || "");
+  const trailerVideoUrl = resolveMediaUrl(script?.uploadedTrailerUrl || script?.trailerUrl || "");
+  const accessMode = script?.premium && Number(script?.price || 0) > 0 ? "Premium Access" : "Free Public Access";
+  const optionalServices = [
+    {
+      key: "hosting",
+      label: SERVICE_LABELS.hosting,
+      enabled: script?.services?.hosting ?? true,
+      detail: "Marketplace listing and public discovery",
+    },
+    {
+      key: "spotlight",
+      label: SERVICE_LABELS.spotlight,
+      enabled: Boolean(script?.services?.spotlight),
+      detail: "Priority visibility and spotlight placement",
+    },
+    {
+      key: "aiTrailer",
+      label: SERVICE_LABELS.aiTrailer,
+      enabled: Boolean(script?.services?.aiTrailer),
+      detail: script?.trailerStatus ? `Trailer status: ${script.trailerStatus}` : "AI trailer service",
+    },
+    {
+      key: "evaluation",
+      label: SERVICE_LABELS.evaluation,
+      enabled: Boolean(script?.services?.evaluation),
+      detail: script?.evaluationStatus ? `Evaluation status: ${script.evaluationStatus}` : "Reader scorecard service",
+    },
+  ];
+  const rightsSummaryItems = [
+    { label: "Rights Type", value: RIGHTS_TYPE_LABELS[script?.rightsLicensing?.rightsType] || "-" },
+    { label: "Exclusivity", value: script?.rightsLicensing?.exclusivity ? "Exclusive" : "Non-exclusive" },
+    {
+      label: "License Duration",
+      value: script?.rightsLicensing?.timeBound?.licenseDurationMonths
+        ? `${script.rightsLicensing.timeBound.licenseDurationMonths} months`
+        : "-",
+    },
+    { label: "Modification Rights", value: MODIFICATION_LABELS[script?.rightsLicensing?.modificationRights] || "-" },
+    { label: "Payment Structure", value: PAYMENT_LABELS[script?.rightsLicensing?.paymentStructure] || "-" },
+    { label: "Royalty %", value: `${script?.rightsLicensing?.royaltySettings?.percentage || 0}%` },
+    {
+      label: "Royalty Duration",
+      value: script?.rightsLicensing?.royaltySettings?.durationType === "years"
+        ? `${script?.rightsLicensing?.royaltySettings?.durationYears} years`
+        : script?.rightsLicensing?.royaltySettings?.durationType === "project_lifetime"
+          ? "Project lifetime"
+          : "-",
+    },
+    { label: "Negotiation Mode", value: NEGOTIATION_LABELS[script?.rightsLicensing?.negotiationMode] || "-" },
+  ];
   const plainScriptText = useMemo(() => getPlainTextFromScriptContent(rawContent), [rawContent]);
   const scriptPages = useMemo(() => {
     const normalized = plainScriptText.replace(/\r\n/g, "\n").trim();
@@ -348,53 +442,6 @@ const AdminScriptView = () => {
   return (
     <div className="min-h-screen bg-[#050b16] text-white px-4 py-6 sm:py-8">
       <div className="max-w-6xl mx-auto space-y-5">
-                {/* Rights & Licensing Section */}
-                <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Writer Rights & Licensing</p>
-                    <p className="text-xs text-white/60">Rights and licensing preferences set by the writer during script upload.</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Rights Type</p>
-                      <p className="text-xs text-white/85">{RIGHTS_TYPE_LABELS[script?.rightsLicensing?.rightsType] || "-"}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Exclusivity</p>
-                      <p className="text-xs text-white/85">{script?.rightsLicensing?.exclusivity ? "Exclusive" : "Non-exclusive"}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">License Duration (months)</p>
-                      <p className="text-xs text-white/85">{script?.rightsLicensing?.timeBound?.licenseDurationMonths || "-"}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Modification Rights</p>
-                      <p className="text-xs text-white/85">{MODIFICATION_LABELS[script?.rightsLicensing?.modificationRights] || "-"}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Payment Structure</p>
-                      <p className="text-xs text-white/85">{PAYMENT_LABELS[script?.rightsLicensing?.paymentStructure] || "-"}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Royalty %</p>
-                      <p className="text-xs text-white/85">{script?.rightsLicensing?.royaltySettings?.percentage || 0}%</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Royalty Duration</p>
-                      <p className="text-xs text-white/85">{script?.rightsLicensing?.royaltySettings?.durationType === "years" ? `${script?.rightsLicensing?.royaltySettings?.durationYears} years` : (script?.rightsLicensing?.royaltySettings?.durationType === "project_lifetime" ? "Project lifetime" : "-")}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Negotiation Mode</p>
-                      <p className="text-xs text-white/85">{NEGOTIATION_LABELS[script?.rightsLicensing?.negotiationMode] || "-"}</p>
-                    </div>
-                  </div>
-                  {script?.rightsLicensing?.customConditions && (
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 mt-2">
-                      <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45 mb-2">Custom Conditions</p>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{script.rightsLicensing.customConditions}</p>
-                    </div>
-                  )}
-                </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
@@ -450,12 +497,16 @@ const AdminScriptView = () => {
           <div className="p-5 sm:p-7 space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight break-words">{script?.title || "Untitled"}</h1>
-                <p className="text-sm text-white/65 mt-1">Writer: {script?.creator?.name || "Unknown"}</p>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight break-words">{headingValue}</h1>
+                <p className="text-sm text-white/65 mt-1">
+                  Writer: {writerName}
+                  {companyName ? ` | Company: ${companyName}` : ""}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs font-semibold">
                 <span className="px-2.5 py-1 rounded-lg border border-white/15 bg-white/5">{script?.status || "-"}</span>
-                <span className="px-2.5 py-1 rounded-lg border border-white/15 bg-white/5">{script?.format || "-"}</span>
+                <span className="px-2.5 py-1 rounded-lg border border-white/15 bg-white/5">{formatLabel}</span>
+                <span className="px-2.5 py-1 rounded-lg border border-white/15 bg-white/5">{accessMode}</span>
                 <span className="px-2.5 py-1 rounded-lg border border-white/15 bg-white/5">{formatCurrency(script?.price || 0)} INR</span>
                 {script?.isDeleted && (
                   <span className="px-2.5 py-1 rounded-lg border border-red-400/35 bg-red-500/20 text-red-100">Deleted</span>
@@ -463,26 +514,27 @@ const AdminScriptView = () => {
               </div>
             </div>
 
-            {script?.logline && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-2">Logline</p>
-                <p className="text-sm text-white/85 italic">{script.logline}</p>
-              </div>
-            )}
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-2">Logline</p>
+              <p className="text-sm text-white/85 italic">{script?.logline || "No logline provided."}</p>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Project ID</p>
-                <p className="text-xs text-white/80 break-all">{script?.sid || script?._id || "-"}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Created</p>
-                <p className="text-xs text-white/80">{formatDateTime(script?.createdAt)}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
-                <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Published</p>
-                <p className="text-xs text-white/80">{formatDateTime(script?.publishedAt)}</p>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {[
+                { label: "Writer Name", value: writerName },
+                { label: "Company Name", value: companyName || "-" },
+                { label: "Heading", value: headingValue },
+                { label: "Format", value: formatLabel },
+                { label: "Estimated Pages", value: script?.pageCount ? `${script.pageCount} pages` : "-" },
+                { label: "Primary Genre", value: primaryGenre },
+                { label: "Project ID", value: script?.sid || script?._id || "-" },
+                { label: "Created", value: formatDateTime(script?.createdAt) },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+                  <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">{item.label}</p>
+                  <p className="text-xs text-white/80 break-words">{item.value}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -492,6 +544,213 @@ const AdminScriptView = () => {
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">
             {script?.synopsis || "No synopsis provided."}
           </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Submission Details</p>
+            <p className="text-xs text-white/60">Core story metadata submitted by the writer for admin review.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45 mb-2">Tags</p>
+              {tags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span key={tag} className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] text-xs text-white/85">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-white/60">No tags added.</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45 mb-2">Published</p>
+              <p className="text-sm text-white/90">{formatDateTime(script?.publishedAt)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Tones, Themes, Settings</p>
+            <p className="text-xs text-white/60">Deep classification selected by the writer.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {[
+              { label: "Tones", values: tones },
+              { label: "Themes", values: themes },
+              { label: "Settings", values: settings },
+            ].map((group) => (
+              <div key={group.label} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45 mb-2">{group.label}</p>
+                {group.values.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {group.values.map((value) => (
+                      <span key={value} className="px-2.5 py-1 rounded-full border border-white/10 bg-white/[0.04] text-xs text-white/85">
+                        {value}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/60">No {group.label.toLowerCase()} selected.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Role Studio</p>
+            <p className="text-xs text-white/60">Casting or character notes added by the writer.</p>
+          </div>
+
+          {roles.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {roles.map((role, index) => (
+                <div key={role?._id || `${role.characterName || "role"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white/90">{role.characterName || `Role ${index + 1}`}</p>
+                      <p className="text-xs text-white/55 mt-1">{role.type || "Type not specified"}</p>
+                    </div>
+                    <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.04] text-[11px] text-white/70">
+                      {role.gender || "Any"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-white/45 uppercase tracking-[0.14em] font-bold mb-1">Age Range</p>
+                      <p className="text-white/85">
+                        {role?.ageRange?.min != null || role?.ageRange?.max != null
+                          ? `${role?.ageRange?.min ?? "-"} - ${role?.ageRange?.max ?? "-"}`
+                          : "-"}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-white/45 uppercase tracking-[0.14em] font-bold mb-1 text-[11px]">Description</p>
+                    <p className="text-sm text-white/85 whitespace-pre-wrap">{role.description || "No role description provided."}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-white/60">No role studio details were added.</p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Visual Assets</p>
+            <p className="text-xs text-white/60">Cover image, trailer thumbnail, and trailer media submitted with the project.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45">Cover Image</p>
+              {coverImageUrl ? (
+                <img src={coverImageUrl} alt="Cover" className="w-full h-48 object-cover rounded-lg border border-white/10" />
+              ) : (
+                <p className="text-sm text-white/60">No cover image uploaded.</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45">Trailer Thumbnail</p>
+              {trailerThumbnailUrl ? (
+                <img src={trailerThumbnailUrl} alt="Trailer thumbnail" className="w-full h-48 object-cover rounded-lg border border-white/10" />
+              ) : (
+                <p className="text-sm text-white/60">No trailer thumbnail available.</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45">Trailer Video</p>
+              {trailerVideoUrl ? (
+                <video src={trailerVideoUrl} controls className="w-full h-48 rounded-lg border border-white/10 bg-black" />
+              ) : (
+                <p className="text-sm text-white/60">No trailer video uploaded.</p>
+              )}
+              <div className="text-xs text-white/65 space-y-1">
+                <p>Source: {script?.trailerSource || "none"}</p>
+                <p>Status: {script?.trailerStatus || "none"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Access & Monetization</p>
+            <p className="text-xs text-white/60">Submission access mode and pricing selected by the writer.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Selected Access", value: accessMode },
+              { label: "Premium Enabled", value: script?.premium ? "Yes" : "No" },
+              { label: "Price", value: formatCurrency(script?.price || 0) },
+              { label: "Public Discovery", value: script?.services?.hosting ?? true ? "Enabled" : "Disabled" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">{item.label}</p>
+                <p className="text-xs text-white/85">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Optional Services</p>
+            <p className="text-xs text-white/60">Paid and included submission services selected during upload.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {optionalServices.map((service) => (
+              <div key={service.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white/90">{service.label}</p>
+                    <p className="text-xs text-white/55 mt-1">{service.detail}</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${service.enabled ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-white/65"}`}>
+                    {service.enabled ? "Enabled" : "Not selected"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">Rights & Licensing Preferences</p>
+            <p className="text-xs text-white/60">Rights and licensing preferences set by the writer during script upload.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {rightsSummaryItems.map((item) => (
+              <div key={item.label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+                <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/45 mb-1">{item.label}</p>
+                <p className="text-xs text-white/85">{item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {script?.rightsLicensing?.customConditions && (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-white/45 mb-2">Custom Conditions</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{script.rightsLicensing.customConditions}</p>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7 space-y-4">
@@ -634,7 +893,7 @@ const AdminScriptView = () => {
 
         <div className="rounded-2xl border border-white/10 bg-[#0c1527] p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45">Main Script</p>
+            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/45">Main Content</p>
             <div className="flex items-center gap-2">
               {totalPages > 0 && (
                 <p className="text-xs text-white/45">

@@ -136,6 +136,39 @@ function ReferralCodeRedirect() {
   return null;
 }
 
+function SingleSegmentProfileOrReferralRoute() {
+  const { id } = useParams();
+  const { user, loading } = useContext(AuthContext);
+  const normalizedSegment = String(id || "").trim();
+  const looksLikeReferralCode =
+    normalizedSegment === normalizedSegment.toUpperCase() &&
+    /^[A-Z0-9]{4,40}$/.test(normalizedSegment);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-gray-500 bg-white">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user && looksLikeReferralCode) {
+    return <ReferralCodeRedirect />;
+  }
+
+  if (!user) {
+    return <Navigate to={`/share/profile/${encodeURIComponent(normalizedSegment)}`} replace />;
+  }
+
+  return (
+    <PrivateRoute>
+      <MainLayout>
+        <Profile />
+      </MainLayout>
+    </PrivateRoute>
+  );
+}
+
 function App() {
   useEffect(() => {
     const preload = () => {
@@ -364,6 +397,16 @@ function App() {
                 }
               />
               <Route
+                path="/:projectHeading/:writerUsername"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <ScriptDetail />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/mandates"
                 element={
                   <PrivateRoute>
@@ -459,7 +502,7 @@ function App() {
                 path="/admin/agreements"
                 element={<AdminAgreements />}
               />
-              <Route path="/:referralCode" element={<ReferralCodeRedirect />} />
+              <Route path="/:id" element={<SingleSegmentProfileOrReferralRoute />} />
             </Routes>
             </Suspense>
           </AdminLoginHandler>

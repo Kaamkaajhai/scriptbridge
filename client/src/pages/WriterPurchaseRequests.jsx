@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useContext } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const STATUS_FILTERS = ["all", "pending", "approved", "rejected"];
 
@@ -66,6 +67,16 @@ function formatAmount(amount) {
   return `₹${amount.toLocaleString("en-IN")}`;
 }
 
+function getRequestActionMessage(err, fallbackMessage) {
+  const code = err?.response?.data?.code;
+
+  if (code === "APPROVAL_LOCK_ACTIVE") {
+    return "You have already approved another film industry professional for this script. You may approve a different professional only after 3 days if the previously approved professional does not complete the payment.";
+  }
+
+  return err?.response?.data?.message || fallbackMessage;
+}
+
 export default function WriterPurchaseRequests() {
   const { user } = useContext(AuthContext);
   const { isDarkMode: dark } = useDarkMode();
@@ -77,6 +88,7 @@ export default function WriterPurchaseRequests() {
   const [rejectNote, setRejectNote] = useState("");
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   const isWriter = ["writer", "creator"].includes(user?.role);
   const isInvestor = ["investor", "producer", "director", "industry", "professional"].includes(user?.role);
@@ -134,19 +146,36 @@ export default function WriterPurchaseRequests() {
     fetchRequests();
   }, [fetchRequests]);
 
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
   const showToast = (type, message) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToast({ type, message });
-    setTimeout(() => setToast(null), 4000);
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   };
 
   const handleApprove = async (requestId) => {
     setActionLoading(requestId);
     try {
       await api.put(`/scripts/purchase-request/${requestId}/approve`);
+      setError("");
       showToast("success", "Request approved. Buyer was notified to complete payment for access.");
       fetchRequests();
     } catch (err) {
-      showToast("error", err.response?.data?.message || "Failed to approve request.");
+      const message = getRequestActionMessage(err, "Failed to approve request.");
+      setError(message);
+      showToast("error", message);
+      if (err.response?.status === 409) {
+        fetchRequests();
+      }
     } finally {
       setActionLoading(null);
     }
@@ -183,19 +212,32 @@ export default function WriterPurchaseRequests() {
     <div className={t.page}>
       {/* ── Toast ── */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all
-          ${toast.type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}
-        >
-          {toast.type === "success" ? (
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          )}
-          {toast.message}
+        <div className="fixed top-[84px] sm:top-[76px] left-3 right-3 sm:left-auto sm:right-4 z-[120] w-auto sm:w-[min(92vw,560px)]">
+          <div className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border backdrop-blur-sm text-sm transition-all
+            ${toast.type === "success"
+              ? "bg-emerald-600 text-white border-emerald-500/70"
+              : "bg-red-600 text-white border-red-500/70"}`}
+          >
+            {toast.type === "success" ? (
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <p className="flex-1 leading-5 break-words">{toast.message}</p>
+            <button
+              onClick={() => setToast(null)}
+              className="w-6 h-6 -mr-1 rounded-md flex items-center justify-center hover:bg-white/15 transition-colors"
+              aria-label="Dismiss notification"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -251,7 +293,7 @@ export default function WriterPurchaseRequests() {
           </div>
           <p className={`mt-1 text-sm ml-[18px] ${t.sub}`}>
             {isWriter
-              ? "Review and manage investors' requests to purchase your scripts."
+              ? "Review and manage film industry professional's requests to purchase your scripts."
               : "Track the status of your script purchase requests."}
           </p>
         </div>
@@ -329,7 +371,7 @@ export default function WriterPurchaseRequests() {
             {filteredRequests.map((req) => {
               const cfg    = getStatusConfig(req.status, dark);
               const person = isWriter ? req.investor : req.writer;
-              const personLabel = isWriter ? "Investor" : "Writer";
+              const personLabel = isWriter ? "Film industry professional" : "Writer";
 
               return (
                 <div
@@ -369,7 +411,7 @@ export default function WriterPurchaseRequests() {
                             {req.script?.title || "Untitled Script"}
                           </Link>
                           <Link
-                            to={`/profile/${person?._id}`}
+                            to={getProfileCanonicalPath(person)}
                             className="flex items-center gap-2 mt-1.5 hover:opacity-80 transition-opacity w-fit"
                           >
                             {person?.profileImage ? (

@@ -26,7 +26,7 @@ export const getScriptCanonicalPath = (script = {}) => {
   );
 
   if (projectHeading && writerUsername) {
-    return `/script/${encodeURIComponent(projectHeading)}/${encodeURIComponent(writerUsername)}`;
+    return `/${encodeURIComponent(projectHeading)}/${encodeURIComponent(writerUsername)}`;
   }
 
   return scriptId ? `/script/${scriptId}` : "/script";
