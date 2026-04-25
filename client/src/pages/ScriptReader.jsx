@@ -9,6 +9,7 @@ import ReviewForm from "../components/ReviewForm";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { Film } from "lucide-react";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const ScriptReader = () => {
   const { id } = useParams();
@@ -214,7 +215,7 @@ const ScriptReader = () => {
             )}
 
             {/* Author */}
-            <Link to={`/profile/${script.creator?._id}`} className="inline-flex items-center gap-3 mb-5 group">
+            <Link to={getProfileCanonicalPath(script.creator)} className="inline-flex items-center gap-3 mb-5 group">
               {script.creator?.profileImage ? (
                 <img src={resolveImage(script.creator.profileImage)} alt=""
                   onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentElement.querySelector('.avatar-fallback').style.display = 'flex'; }}

@@ -32,6 +32,7 @@ import SocialShareButton from "../components/SocialShareButton";
 import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 const BUYER_COMMISSION_RATE = 0.05;
 const getBuyerCheckoutTotal = (baseAmount) => {
@@ -84,8 +85,19 @@ const ScriptDetail = () => {
   const noticeTimerRef = useRef(null);
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const activeScriptId = script?._id || id;
-  const pendingRequestBaseAmount = Number(script?.myPendingRequest?.amount || script?.price || 0);
+  const currentUserId = String(user?._id || "");
+  const rawMyPendingRequest = script?.myPendingRequest || null;
+  const myPendingRequest =
+    rawMyPendingRequest &&
+    String(rawMyPendingRequest?.investor || "") === currentUserId
+      ? rawMyPendingRequest
+      : null;
+  const pendingRequestBaseAmount = Number(myPendingRequest?.amount || script?.price || 0);
   const pendingRequestCheckoutTotal = getBuyerCheckoutTotal(pendingRequestBaseAmount);
+  const pendingRequestBadgeCount = Math.max(
+    Number(script?.pendingRequestsCount || 0),
+    pendingRequests.length
+  );
   const writerCustomConditions = String(script?.legal?.customInvestorTerms || "").trim();
   const hasWriterCustomConditions = writerCustomConditions.length > 0;
   const canViewWriterCustomConditions = Boolean(!script?.isCreator && script?.canPurchase);
@@ -110,7 +122,12 @@ const ScriptDetail = () => {
       await api.delete(`/scripts/${activeScriptId}`);
       window.dispatchEvent(new CustomEvent("scriptDeleted", { detail: { id: activeScriptId } }));
       setShowDeleteModal(false);
-      navigate(`/profile/${user._id}`);
+      navigate(
+        getProfileCanonicalPath(user, {
+          viewerId: user?._id,
+          viewerRole: user?.role,
+        })
+      );
     } catch (err) {
       console.error("Delete failed:", err);
       setDeleteLoading(false);
@@ -193,7 +210,7 @@ const ScriptDetail = () => {
     setCoverError(false);
     setTrailerError(false);
     setHasRecordedSynopsisRead(false);
-  }, [id, projectHeading, writerUsername]);
+  }, [id, projectHeading, writerUsername, user?._id]);
 
   useEffect(() => {
     if (!script?._id || activeTab !== "synopsis" || hasRecordedSynopsisRead || script?.isCreator) return;
@@ -287,12 +304,9 @@ const ScriptDetail = () => {
       const { data } = await api.get(endpoint);
       setScript(data);
 
-      // Keep old /script/:id URLs backward compatible while rewriting to canonical path.
-      if (id) {
-        const canonicalPath = getScriptCanonicalPath(data || {});
-        if (canonicalPath && canonicalPath !== location.pathname) {
-          navigate(canonicalPath, { replace: true });
-        }
+      const canonicalPath = getScriptCanonicalPath(data || {});
+      if (canonicalPath && canonicalPath !== location.pathname) {
+        navigate(canonicalPath, { replace: true });
       }
     } catch {
       /* demo fallback */
@@ -624,13 +638,32 @@ const ScriptDetail = () => {
     setPendingReqLoading(true);
     try {
       const { data } = await api.get("/scripts/purchase-requests/mine");
-      setPendingRequests(data.filter((r) => r.script?._id === script._id && r.status === "pending"));
+      const currentScriptId = String(script?._id || "");
+      const pendingForScript = (Array.isArray(data) ? data : [])
+        .filter((r) => {
+          const requestScriptId = String(r?.script?._id || r?.script || "");
+          return requestScriptId === currentScriptId && r.status === "pending";
+        })
+        .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0));
+
+      setPendingRequests(pendingForScript);
     } catch {
       // silent
     } finally {
       setPendingReqLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!script?.isCreator || !script?._id) return;
+
+    const intervalId = setInterval(() => {
+      fetchPendingRequestsForScript();
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [script?._id, script?.isCreator]);
 
   const fetchReviews = async ({ page = 1 } = {}) => {
     if (!script?._id) return;
@@ -695,10 +728,16 @@ const ScriptDetail = () => {
     setPendingReqActionId(reqId);
     try {
       await api.put(`/scripts/purchase-request/${reqId}/approve`);
+      showNotice("Request approved. Buyer was notified to complete payment.", "success");
       await fetchScript();
       await fetchPendingRequestsForScript();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to approve request");
+      const message = err?.response?.data?.message || "Failed to approve request";
+      showNotice(message, "error");
+      if (err?.response?.status === 409) {
+        await fetchScript({ silent: true });
+        await fetchPendingRequestsForScript();
+      }
     } finally {
       setPendingReqActionId(null);
     }
@@ -1165,7 +1204,7 @@ const ScriptDetail = () => {
                     </div>
 
                     {/* Author */}
-                    <Link to={`/profile/${script.creator?._id}`} className="inline-flex items-center gap-2.5 group">
+                    <Link to={getProfileCanonicalPath(script.creator)} className="inline-flex items-center gap-2.5 group">
                       {script.creator?.profileImage && !coverError ? (
                         <img
                           src={resolveImage(script.creator.profileImage)}
@@ -1351,9 +1390,9 @@ const ScriptDetail = () => {
 
                     {/* Purchase / Request Button for non-owners */}
                     {!isOwner && script.canPurchase && !script.isUnlocked && (
-                      script.myPendingRequest ? (
-                        script.myPendingRequest?.status === "approved" &&
-                        script.myPendingRequest?.paymentStatus !== "released" ? (
+                      myPendingRequest ? (
+                        myPendingRequest?.status === "approved" &&
+                        myPendingRequest?.paymentStatus !== "released" ? (
                           <div className="space-y-1.5">
                             <button
                               onClick={() => navigate(`/script/${script._id}/pay`)}
@@ -2259,15 +2298,15 @@ const ScriptDetail = () => {
                                   </svg>
                                   Access Granted
                                 </div>
-                              ) : script.myPendingRequest ? (
-                                script.myPendingRequest?.status === "approved" &&
-                                script.myPendingRequest?.paymentStatus !== "released" ? (
+                              ) : myPendingRequest ? (
+                                myPendingRequest?.status === "approved" &&
+                                myPendingRequest?.paymentStatus !== "released" ? (
                                   <div className="flex flex-col items-center gap-2">
                                     <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold">
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                       </svg>
-                                      {Number(script.myPendingRequest?.amount || script.price || 0) > 0
+                                      {Number(myPendingRequest?.amount || script.price || 0) > 0
                                         ? "Approved — Complete Payment to Unlock"
                                         : "Approved — Confirm Free Access to Unlock"}
                                     </div>
@@ -2320,14 +2359,16 @@ const ScriptDetail = () => {
                       </div>
                     )}
                     {/* Creator: pending purchase requests for this script */}
-                    {script.isCreator && script.pendingRequestsCount > 0 && (
+                    {script.isCreator && (
                       <div className={`mt-5 pt-5 border-t ${t.divider}`}>
                         <div className="flex items-center justify-between mb-3">
                           <h4 className={`text-sm font-bold ${t.title}`}>
                             Purchase Requests
-                            <span className="ml-2 inline-flex items-center justify-center bg-amber-500 text-white text-xs rounded-full w-5 h-5 font-bold">
-                              {script.pendingRequestsCount}
-                            </span>
+                            {pendingRequestBadgeCount > 0 && (
+                              <span className="ml-2 inline-flex items-center justify-center bg-amber-500 text-white text-xs rounded-full w-5 h-5 font-bold">
+                                {pendingRequestBadgeCount}
+                              </span>
+                            )}
                           </h4>
                         </div>
                         {pendingReqLoading ? (

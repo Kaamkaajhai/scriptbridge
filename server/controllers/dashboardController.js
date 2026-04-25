@@ -349,7 +349,6 @@ export const getInvestorDashboard = async (req, res) => {
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       isDeleted: { $ne: true },
       "scriptScore.overall": { $exists: true },
       holdStatus: "available",
@@ -367,7 +366,6 @@ export const getInvestorDashboard = async (req, res) => {
       adminApproved: true,
       holdStatus: "available",
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       isDeleted: { $ne: true },
     };
     if (prefGenres.length > 0) {
@@ -399,12 +397,11 @@ export const getInvestorDashboard = async (req, res) => {
       .limit(5);
 
     // Platform-wide stats (gives investor a market pulse)
-    const totalPlatformScripts = await Script.countDocuments({ status: "published", adminApproved: true, isSold: { $ne: true }, purchaseRequestLocked: { $ne: true }, isDeleted: { $ne: true } });
+    const totalPlatformScripts = await Script.countDocuments({ status: "published", adminApproved: true, isSold: { $ne: true }, isDeleted: { $ne: true } });
     const newThisWeek = await Script.countDocuments({
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       isDeleted: { $ne: true },
       createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
     });
@@ -412,7 +409,6 @@ export const getInvestorDashboard = async (req, res) => {
       status: "published",
       adminApproved: true,
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
       isDeleted: { $ne: true },
       holdStatus: "available",
     });

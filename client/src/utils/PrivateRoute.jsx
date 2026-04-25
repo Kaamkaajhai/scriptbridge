@@ -40,9 +40,11 @@ const PrivateRoute = ({ children }) => {
       return <Navigate to={`/share/profile/${profileMatch[1]}${location.search}${location.hash}`} replace />;
     }
 
-    const scriptMatch = pathname.match(/^\/script\/([^/?#]+)/i);
-    if (scriptMatch?.[1]) {
-      return <Navigate to={`/share/project/${scriptMatch[1]}${location.search}${location.hash}`} replace />;
+    // Only convert old ID-based script links (/script/:id) to public share links.
+    // Canonical script paths (/:projectHeading/:writerUsername) must go to login.
+    const legacyScriptMatch = pathname.match(/^\/script\/([a-f0-9]{24})$/i);
+    if (legacyScriptMatch?.[1]) {
+      return <Navigate to={`/share/project/${legacyScriptMatch[1]}${location.search}${location.hash}`} replace />;
     }
   }
 

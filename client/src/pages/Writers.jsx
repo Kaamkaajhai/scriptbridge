@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 import { useDarkMode } from "../context/DarkModeContext";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 /* ─── Constants ─────────────────────────────────── */
 const GENRES = [
@@ -142,7 +143,7 @@ const WriterCard = ({ writer, rank, sortBy, dark }) => {
       whileHover={{ y: -2, transition: { duration: 0.15 } }}
       className="h-full"
     >
-      <Link to={`/profile/${writer._id}`} className="block group h-full">
+      <Link to={getProfileCanonicalPath(writer)} className="block group h-full">
         <div className={`relative rounded-xl border transition-all duration-250 overflow-hidden h-full flex flex-col ${
           isTop3
             ? `${dark ? tier.bg.d : tier.bg.l} ${dark ? tier.border.d : tier.border.l} ${tier.glow}`

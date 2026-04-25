@@ -553,7 +553,6 @@ export const getWriters = async (req, res) => {
                 status: "published",
                 isDeleted: { $ne: true },
                 isSold: { $ne: true },
-                purchaseRequestLocked: { $ne: true },
               },
             },
             {
@@ -672,7 +671,6 @@ export const getPublicUserProfile = async (req, res) => {
       status: "published",
       isDeleted: { $ne: true },
       isSold: { $ne: true },
-      purchaseRequestLocked: { $ne: true },
     })
       .select("title sid logline description synopsis genre primaryGenre format formatOther coverImage trailerUrl uploadedTrailerUrl trailerSource createdAt publishedAt")
       .sort({ createdAt: -1 })
@@ -847,7 +845,7 @@ export const getUserProfile = async (req, res) => {
       : {
           creator: user._id,
           status: { $ne: "draft" },
-          purchaseRequestLocked: { $ne: true },
+          isSold: { $ne: true },
           isDeleted: { $ne: true },
         };
 
@@ -905,11 +903,8 @@ export const getUserProfile = async (req, res) => {
       bookmarkedScripts = await Script.find({
         _id: { $in: user.favoriteScripts },
         status: "published",
+        isSold: { $ne: true },
         isDeleted: { $ne: true },
-        $or: [
-          { purchaseRequestLocked: { $ne: true } },
-          { purchaseRequestLockedBy: req.user._id },
-        ],
       })
         .populate("creator", "name profileImage role")
         .sort({ updatedAt: -1 });

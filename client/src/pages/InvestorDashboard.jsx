@@ -7,6 +7,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import ProfileCompletionBanner from "../components/ProfileCompletionBanner";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
+import { getProfileCanonicalPath } from "../utils/profilePath";
 
 /* ── Fade wrapper ────────────────────────────────────────────── */
 const Fade = ({ children, delay = 0, className = "" }) => (
@@ -52,12 +53,10 @@ const InvestorDashboard = () => {
   const profile = data?.industryProfile || {};
   const mandates = profile?.mandates || {};
   const firstName = user?.name?.split(" ")[0] || "Investor";
-  const currentWriterUsername = String(user?.writerProfile?.username || "").trim().toLowerCase();
-  const profileEditPath = currentWriterUsername
-    ? `/profile/${currentWriterUsername}`
-    : user?._id
-      ? `/profile/${user._id}`
-      : "/profile";
+  const profileEditPath = getProfileCanonicalPath(user, {
+    viewerId: user?._id,
+    viewerRole: user?.role,
+  });
   const walletBalance = wallet?.balance ?? wallet?.wallet?.balance ?? 0;
   const closedDealsCount = Math.max(
     Number(stats.convertedDeals || 0),
