@@ -5365,7 +5365,8 @@ export const requestScriptAITrailer = async (req, res) => {
 export const submitTrailerFeedback = async (req, res) => {
   try {
     const scriptId = req.params.id;
-    const { action, note } = req.body || {};
+    const { action, note, trailerUrl: requestedTrailerUrlRaw } = req.body || {};
+    const requestedTrailerUrl = String(requestedTrailerUrlRaw || "").trim();
 
     if (!["approved", "revision_requested"].includes(action)) {
       return res.status(400).json({ message: "action must be approved or revision_requested" });
@@ -5380,8 +5381,25 @@ export const submitTrailerFeedback = async (req, res) => {
       return res.status(403).json({ message: "Only the script creator can submit trailer feedback" });
     }
 
-    if (!script.trailerUrl) {
+    const aiTrailerUrl = String(script.trailerUrl || "").trim();
+    const uploadedTrailerUrl = String(script.uploadedTrailerUrl || "").trim();
+    const hasAnyKnownTrailer = Boolean(aiTrailerUrl || uploadedTrailerUrl || requestedTrailerUrl);
+
+    if (!hasAnyKnownTrailer) {
       return res.status(400).json({ message: "No AI trailer available for feedback" });
+    }
+
+    if (requestedTrailerUrl) {
+      const shouldUseUploadedTrailer =
+        script.trailerSource === "uploaded" || (!aiTrailerUrl && Boolean(uploadedTrailerUrl));
+
+      if (shouldUseUploadedTrailer) {
+        script.uploadedTrailerUrl = requestedTrailerUrl;
+        script.trailerSource = "uploaded";
+      } else {
+        script.trailerUrl = requestedTrailerUrl;
+        script.trailerSource = "ai";
+      }
     }
 
     script.trailerWriterFeedback = {

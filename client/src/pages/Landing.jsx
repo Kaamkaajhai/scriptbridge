@@ -21,7 +21,6 @@ import BrandLogo from "../components/BrandLogo";
 import MarketingHeader from "../components/MarketingHeader";
 import { AuthContext } from "../context/AuthContext";
 import homeImg1 from "../assets/home-img1.jpeg";
-import homeImg2 from "../assets/home-img2.jpeg";
 import homeImg3 from "../assets/home-img3.jpeg";
 
 const FeaturesShowcase = lazy(() => import("../components/FeaturesShowcase"));
@@ -489,9 +488,8 @@ const Landing = () => {
                   fontWeight: 600,
                 }}
               >
-                Your Ideas<br />
-                Deserve <em className="italic" style={{ fontWeight: 600 }}>More</em><br />
-                Than Rejection.
+                Your Script.<br />
+                Your Spotlight.
               </motion.h1>
 
               {/* Subtitle */}
@@ -502,9 +500,8 @@ const Landing = () => {
                 className="font-body text-[#CBD5E1] leading-relaxed max-w-2xl mb-10"
                 style={{ fontSize: 'clamp(1rem, 1.3vw, 1.2rem)' }}
               >
-                Ckript is where writers meet the people who actually finance films.
-                Upload your script, watch AI cut your trailer, get matched with industry professionals
-                and investors looking for stories like yours.
+                Ckript is where visionary writers meet the producers and investors who champion exceptional films.
+                Upload your script, let AI create your trailer, and connect with industry leaders passionate about stories like yours.
               </motion.p>
 
               {/* CTAs */}
@@ -654,7 +651,7 @@ const Landing = () => {
                   "Thousands of unfiltered submissions, no way to find the gems",
                   "No preview of tone or vision before reading 110 pages",
                   "Discovery is slow, expensive, and built on who-you-know",
-                  "The next big film is out there — and you're missing it",
+                  "The next big film is out there and you're missing it",
                 ].map((line, i) => (
                   <li key={i} className="flex gap-3 font-body text-sm sm:text-base text-[#6B7280] leading-relaxed">
                     <span className="text-[#9CA3AF] shrink-0 mt-0.5">→</span>
@@ -678,23 +675,27 @@ const Landing = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="relative mt-16 sm:mt-20 max-w-5xl mx-auto text-center overflow-hidden rounded-3xl border border-white/20 shadow-[0_20px_60px_rgba(15,23,42,0.35)]"
+            className="relative mt-16 sm:mt-20 max-w-6xl mx-auto overflow-hidden rounded-[2rem] border border-[#E2C38B]/35 shadow-[0_28px_80px_rgba(15,23,42,0.26)]"
           >
             <img
-              src={homeImg2}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover object-center opacity-90"
+              src="/enter-ckript-cover.png"
+              alt="Illustrated Ckript workspace connecting writers, producers, and investors"
+              className="absolute inset-0 w-full h-full object-cover object-center"
               loading="eager"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0F172A]/60 via-[#111827]/50 to-[#0F172A]/70" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(250,224,174,0.28),transparent_34%)]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#120E09]/72 via-[#1B1611]/36 to-[#0F172A]/14" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#120E09]/68 via-transparent to-[#0F172A]/16" />
 
-            <div className="relative z-10 max-w-3xl mx-auto px-6 py-20 sm:px-10 sm:py-24">
-              <p className="font-body text-xs font-semibold uppercase tracking-wider text-white mb-4 [text-shadow:0_1px_8px_rgba(0,0,0,0.55)]">
+            <div className="relative z-10 min-h-[420px] sm:min-h-[500px] flex items-end">
+              <div className="max-w-3xl px-6 py-10 text-left sm:px-10 sm:py-12 lg:px-14">
+                <p className="inline-flex items-center rounded-full border border-[#F6E4B8]/35 bg-[#120E09]/38 px-3 py-1.5 font-body text-xs font-semibold uppercase tracking-[0.22em] text-[#F8E7C2] backdrop-blur-sm">
                 Enter Ckript
-              </p>
-              <p className="font-display text-2xl sm:text-3xl lg:text-4xl text-white italic leading-relaxed font-medium [text-shadow:0_2px_14px_rgba(0,0,0,0.65)]">
-                "We cut the gatekeepers and the fog. Writers get seen. Industry professionals get clarity. Everyone gets back to making films."
-              </p>
+                </p>
+                <p className="mt-5 max-w-2xl font-display text-2xl sm:text-3xl lg:text-[2.85rem] text-white italic leading-[1.18] font-medium [text-shadow:0_4px_22px_rgba(0,0,0,0.45)]">
+                  "We cut the gatekeepers and the fog. Writers get seen. Industry professionals get clarity. Everyone gets back to making films."
+                </p>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -718,88 +719,130 @@ const Landing = () => {
       {/* ══════════════════════════════════════
           HOW IT WORKS — dark with cinematic background
           ══════════════════════════════════════ */}
-      <section className="relative py-24 sm:py-32 px-4 sm:px-8 bg-[#0F172A] grain overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src={homeImg2}
-            alt=""
-            className="w-full h-full object-cover opacity-40"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0F172A] via-[#0F172A]/55 to-[#0F172A]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A]/85 via-[#0F172A]/30 to-[#0F172A]/85" />
+      <section className="relative py-24 sm:py-32 px-4 sm:px-8 overflow-hidden bg-[radial-gradient(circle_at_top,#18263e_0%,#0b1325_45%,#070b14_100%)]">
+        <div className="absolute inset-0 opacity-80">
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(56,189,248,0.08),transparent_32%,transparent_68%,rgba(59,130,246,0.06))]" />
+          <div className="absolute inset-0 [background-image:linear-gradient(rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.04)_1px,transparent_1px)] [background-size:120px_120px]" />
+          <div className="absolute left-[16%] top-[18%] w-64 h-64 rounded-full bg-[#2563EB]/12 blur-3xl" />
+          <div className="absolute right-[12%] bottom-[14%] w-72 h-72 rounded-full bg-[#38BDF8]/10 blur-3xl" />
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto">
+        <div className="relative z-10 max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="mb-16 sm:mb-20 max-w-3xl"
+            className="mb-16 sm:mb-20 max-w-3xl mx-auto text-center"
           >
-            <p className="font-body text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-5">
+            <p className="font-body text-xs font-semibold uppercase tracking-[0.28em] text-[#7DD3FC] mb-5">
               How it works
             </p>
-            <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl text-[#F9FAFB] leading-[1.05] tracking-tight font-medium">
-              Four steps. <em>One story.</em>
+            <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl text-[#F9FAFB] leading-[1.02] tracking-tight font-medium">
+              Four steps. <em className="text-[#BAE6FD]">One story.</em>
             </h2>
-            <p className="font-body text-base sm:text-lg text-[#CBD5E1] mt-5 max-w-xl leading-relaxed">
+            <p className="font-body text-base sm:text-lg text-[#CBD5E1] mt-5 max-w-2xl mx-auto leading-relaxed">
               From the first line on the page to the moment you get paid — here's how Ckript
               takes your script from idea to industry.
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="relative max-w-5xl mx-auto">
+            <div className="absolute left-5 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-[#38BDF8]/35 to-transparent md:left-1/2 md:-translate-x-1/2" />
             {processSteps.map((item, index) => {
               const isActive = index === activeProcessStep;
               const Icon = item.icon;
+              const isLeft = index % 2 === 0;
               return (
-                <motion.button
+                <motion.div
                   key={item.step}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  onClick={() => setActiveProcessStep(index)}
-                  className={`group relative text-left p-7 rounded-3xl border backdrop-blur-md transition-all duration-500 ${
-                    isActive
-                      ? "bg-white/10 border-[#6366F1]/60 shadow-[0_20px_50px_rgba(79,70,229,0.25)]"
-                      : "bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20"
+                  className={`relative grid md:grid-cols-2 gap-6 md:gap-12 items-center ${
+                    index !== processSteps.length - 1 ? "mb-10 md:mb-7" : ""
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-8">
-                    <span
-                      className={`font-display text-6xl leading-none font-medium transition-colors duration-500 ${
-                        isActive ? "text-[#A5B4FC]" : "text-white/20"
-                      }`}
-                    >
-                      {item.step}
-                    </span>
+                  <div className={`hidden md:flex ${isLeft ? "justify-end pr-14" : "justify-start pl-14 md:order-3"}`}>
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${
+                      className={`relative flex h-28 w-28 items-center justify-center rounded-[2rem] border transition-all duration-500 ${
                         isActive
-                          ? "bg-[#6366F1] text-white"
-                          : "bg-white/10 text-[#CBD5E1] group-hover:bg-white/15"
+                          ? "border-[#38BDF8]/80 bg-[#0B1730]/88 shadow-[0_0_42px_rgba(56,189,248,0.22)]"
+                          : "border-white/10 bg-white/[0.04]"
                       }`}
                     >
-                      <Icon className="w-4 h-4" />
+                      <div className="absolute inset-3 rounded-[1.45rem] bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.22),transparent_65%)]" />
+                      <Icon className={`relative z-10 w-11 h-11 transition-colors duration-500 ${isActive ? "text-[#7DD3FC]" : "text-[#BFDBFE]"}`} />
                     </div>
                   </div>
 
-                  <h3 className="font-display text-2xl text-[#F9FAFB] mb-3 leading-tight font-medium">
-                    {item.title}
-                  </h3>
-                  <p className="font-body text-sm text-[#CBD5E1] leading-relaxed">
-                    {item.desc}
-                  </p>
+                  <div className="absolute left-5 top-1/2 -translate-x-1/2 -translate-y-1/2 md:left-1/2 md:z-20">
+                    <button
+                      type="button"
+                      onClick={() => setActiveProcessStep(index)}
+                      className={`flex h-10 w-10 items-center justify-center rounded-full border text-[11px] font-semibold transition-all duration-500 ${
+                        isActive
+                          ? "border-[#38BDF8] bg-[#0EA5E9] text-white shadow-[0_0_26px_rgba(14,165,233,0.65)]"
+                          : "border-[#7DD3FC]/40 bg-[#0B1220] text-[#7DD3FC]"
+                      }`}
+                      aria-label={`Highlight step ${item.step}`}
+                    >
+                      {item.step}
+                    </button>
+                  </div>
 
-                  <div
-                    className={`absolute bottom-0 left-7 right-7 h-0.5 bg-[#6366F1] rounded-full transition-all duration-500 ${
-                      isActive ? "opacity-100 scale-x-100" : "opacity-0 scale-x-0"
+                  <motion.button
+                    type="button"
+                    onClick={() => setActiveProcessStep(index)}
+                    className={`group relative ml-12 text-left p-6 sm:p-7 rounded-[1.85rem] border backdrop-blur-xl transition-all duration-500 md:ml-0 ${
+                      isLeft ? "md:order-2" : "md:order-1"
+                    } ${
+                      isActive
+                        ? "bg-[#0B1730]/88 border-[#38BDF8]/80 shadow-[0_18px_50px_rgba(8,47,73,0.45)]"
+                        : "bg-white/[0.04] border-white/10 hover:border-[#38BDF8]/35 hover:bg-white/[0.06]"
                     }`}
-                  />
-                </motion.button>
+                  >
+                    <div className="pointer-events-none absolute inset-0 rounded-[1.85rem] bg-[linear-gradient(135deg,rgba(125,211,252,0.12),transparent_45%,transparent_68%,rgba(59,130,246,0.08))]" />
+                    <div className="relative z-10 flex items-start gap-4 sm:gap-5">
+                      <div
+                        className={`md:hidden shrink-0 flex h-12 w-12 items-center justify-center rounded-2xl border transition-all duration-500 ${
+                          isActive
+                            ? "border-[#38BDF8]/80 bg-[#0EA5E9]/18 text-[#7DD3FC]"
+                            : "border-white/10 bg-white/5 text-[#BFDBFE]"
+                        }`}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-4">
+                          <span
+                            className={`font-body text-[11px] font-semibold uppercase tracking-[0.24em] transition-colors duration-500 ${
+                              isActive ? "text-[#7DD3FC]" : "text-[#94A3B8]"
+                            }`}
+                          >
+                            Step {item.step}
+                          </span>
+                          <div
+                            className={`hidden sm:flex h-9 w-9 items-center justify-center rounded-full border transition-all duration-500 ${
+                              isActive
+                                ? "border-[#38BDF8]/70 bg-[#0EA5E9]/18 text-[#7DD3FC]"
+                                : "border-white/10 bg-white/5 text-[#BFDBFE]"
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </div>
+                        </div>
+                        <h3 className="mt-3 font-display text-2xl sm:text-[2rem] text-[#F9FAFB] leading-tight font-medium">
+                          {item.title}
+                        </h3>
+                        <p className="mt-3 font-body text-sm sm:text-[15px] text-[#CBD5E1] leading-relaxed max-w-md">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.button>
+                </motion.div>
               );
             })}
           </div>
@@ -813,7 +856,7 @@ const Landing = () => {
           >
             <Link
               to="/join"
-              className="group inline-flex items-center gap-2 bg-[#6366F1] text-white font-body text-sm font-semibold px-8 py-4 rounded-full hover:bg-[#4F46E5] transition-all duration-300 hover:shadow-[0_10px_30px_rgba(79,70,229,0.4)]"
+              className="group inline-flex items-center gap-2 bg-[linear-gradient(135deg,#0EA5E9,#2563EB)] text-white font-body text-sm font-semibold px-8 py-4 rounded-full transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(14,165,233,0.38)]"
             >
               Start your story
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
