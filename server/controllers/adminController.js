@@ -1395,6 +1395,7 @@ export const uploadTrailerAsAdmin = async (req, res) => {
             folder: "scriptbridge/trailers",
             resource_type: "video",
             public_id: `admin-trailer-${script._id}-${Date.now()}`,
+            chunked: true,
         });
 
         const trailerUrl = uploadResult?.secure_url;
