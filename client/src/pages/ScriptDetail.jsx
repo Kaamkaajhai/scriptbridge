@@ -33,6 +33,12 @@ import { formatCurrency } from "../utils/currency";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
 import { getProfileCanonicalPath } from "../utils/profilePath";
+import {
+  getScriptCompletionBadgeClasses,
+  getScriptCompletionFuturePlans,
+  getScriptCompletionProgressText,
+  getScriptCompletionStatusLabel,
+} from "../utils/scriptCompletion";
 
 const BUYER_COMMISSION_RATE = 0.05;
 const getBuyerCheckoutTotal = (baseAmount) => {
@@ -974,6 +980,9 @@ const ScriptDetail = () => {
   const evaluationPending = !score?.overall && (script?.evaluationStatus === "requested" || hasEvaluationService);
   const cl = script.classification || {};
   const ci = script.contentIndicators || {};
+  const completionLabel = getScriptCompletionStatusLabel(script);
+  const completionProgress = getScriptCompletionProgressText(script);
+  const completionFuturePlans = getScriptCompletionFuturePlans(script);
   const publishedAtValue = script?.publishedAt || script?.createdAt;
 
   const tabs = [
@@ -1127,6 +1136,9 @@ const ScriptDetail = () => {
                         {cl.secondaryGenre}
                       </span>
                     )}
+                    <span className={`px-2.5 py-1 backdrop-blur-md rounded-lg text-[11px] font-semibold ${getScriptCompletionBadgeClasses(script, isDarkMode)}`}>
+                      {completionLabel}
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <span className={`px-2.5 py-1 rounded-lg text-[11px] font-medium ${isDarkMode ? "bg-black/30 text-white/80" : "bg-white/80 text-gray-600 border border-gray-200"}`}>
@@ -1212,6 +1224,9 @@ const ScriptDetail = () => {
                       {(script.primaryGenre || script.genre) && (
                         <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{script.primaryGenre || script.genre}</span>
                       )}
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${getScriptCompletionBadgeClasses(script, isDarkMode)}`}>
+                        {completionProgress ? `${completionLabel} · ${completionProgress}` : completionLabel}
+                      </span>
                       <span className={`px-2.5 py-1 rounded-lg border ${t.chip}`}>{script.views || 0} views</span>
                     </div>
 
@@ -1265,6 +1280,23 @@ const ScriptDetail = () => {
                       )}
                     </div>
                   )}
+
+                  <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 ${t.label}`}>Completion Status</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold ${getScriptCompletionBadgeClasses(script, isDarkMode)}`}>
+                        {completionLabel}
+                      </span>
+                      {completionProgress && (
+                        <span className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${t.chip}`}>
+                          {completionProgress}
+                        </span>
+                      )}
+                    </div>
+                    {completionFuturePlans && (
+                      <p className={`mt-3 text-sm leading-relaxed whitespace-pre-wrap ${t.sub}`}>{completionFuturePlans}</p>
+                    )}
+                  </div>
 
                   {(ci.bechdelTest || ci.basedOnTrueStory || ci.adaptation || script.tags?.length > 0) && (
                     <div className={`rounded-2xl border p-5 sm:p-6 ${t.card}`}>
@@ -1649,6 +1681,7 @@ const ScriptDetail = () => {
                       { label: "Primary Genre", value: cl.primaryGenre || script.primaryGenre || script.genre },
                       { label: "Views", value: Number(script.views || 0).toLocaleString("en-IN") },
                       { label: "Secondary Genre", value: cl.secondaryGenre },
+                      { label: "Completion", value: completionProgress ? `${completionLabel} · ${completionProgress}` : completionLabel },
                       { label: "Page Count", value: script.pageCount },
                       { label: "Budget Level", value: fmtBudget(script.budget) },
                       { label: "Published", value: formatDateTime(publishedAtValue) },

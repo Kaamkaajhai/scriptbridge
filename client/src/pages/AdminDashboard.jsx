@@ -5,6 +5,7 @@ import BrandLogo from "../components/BrandLogo";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { formatCurrency } from "../utils/currency";
 import { getApiBaseUrl, getApiOrigin } from "../utils/apiOrigin";
+import { getScriptCompletionBadgeClasses, getScriptCompletionProgressText, getScriptCompletionStatusLabel, getScriptCompletionSummary } from "../utils/scriptCompletion";
 
 const API_ORIGIN = getApiOrigin();
 const API_BASE_URL = getApiBaseUrl();
@@ -328,6 +329,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true, 
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Title</th>
                         {showCreator && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Creator</th>}
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Genre</th>
+                        <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Completion</th>
                         {showApprovalType && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Approval Type</th>}
                         <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Status</th>
                         {showScore && <th className={`text-left px-5 py-3 text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}>Score</th>}
@@ -350,6 +352,18 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true, 
                                 </td>
                             )}
                             <td className={`px-5 py-3.5 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{s.genre || s.primaryGenre || "—"}</td>
+                            <td className="px-5 py-3.5">
+                                <div className="flex flex-col gap-1">
+                                    <span className={`inline-flex items-center w-fit px-2.5 py-0.5 rounded-full text-xs font-bold ${getScriptCompletionBadgeClasses(s, isDark)}`}>
+                                        {getScriptCompletionStatusLabel(s)}
+                                    </span>
+                                    {getScriptCompletionProgressText(s) && (
+                                        <span className={`text-[11px] ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                                            {getScriptCompletionProgressText(s)}
+                                        </span>
+                                    )}
+                                </div>
+                            </td>
                             {showApprovalType && (
                                 <td className="px-5 py-3.5">
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${s.approvalRequestType === "edit_submission"
@@ -388,7 +402,7 @@ const ScriptTable = ({ scripts, isDark, actions, showScore, showCreator = true, 
                         </tr>
                     ))}
                     {scripts.length === 0 && (
-                        <tr><td colSpan={(showCreator ? 1 : 0) + (showApprovalType ? 1 : 0) + (showScore ? 1 : 0) + (actions ? 1 : 0) + 4} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No scripts found</td></tr>
+                        <tr><td colSpan={(showCreator ? 1 : 0) + (showApprovalType ? 1 : 0) + (showScore ? 1 : 0) + (actions ? 1 : 0) + 5} className={`px-5 py-10 text-center text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>No scripts found</td></tr>
                     )}
                 </tbody>
             </table>
@@ -1161,7 +1175,7 @@ const AdminDashboard = () => {
             case "trailers":
                 return {
                     title: `${TABS.find((tab) => tab.key === activeTab)?.label || "Scripts"} (${scripts.length})`,
-                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
+                    lines: scripts.map((s, idx) => `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Completion: ${getScriptCompletionSummary(s)} | Status: ${s.status || "-"} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`),
                 };
             case "payments":
                 return {
@@ -1383,7 +1397,7 @@ const AdminDashboard = () => {
                     const approvalLabel = s.status === "pending_approval" && s.approvalRequestType === "edit_submission"
                         ? "edit approval"
                         : (s.status || "-");
-                    return `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Status: ${approvalLabel} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`;
+                    return `${idx + 1}. ${s.title || "-"} | SID: ${s.sid || "-"} | Creator: ${getScriptCreatorName(s)} | Genre: ${s.genre || s.primaryGenre || "-"} | Completion: ${getScriptCompletionSummary(s)} | Status: ${approvalLabel} | Score: ${s.scriptScore?.overall || s.platformScore?.overall || s.rating || "-"} | Date: ${formatExportDate(s.createdAt)}`;
                 }),
             });
 

@@ -7,6 +7,11 @@ import { getScriptCanonicalPath } from "../utils/scriptPath";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 import SocialShareButton from "./SocialShareButton";
+import {
+  getScriptCompletionBadgeClasses,
+  getScriptCompletionProgressText,
+  getScriptCompletionStatusLabel,
+} from "../utils/scriptCompletion";
 
 const FORMAT_LABEL = {
   feature: "Feature Film",
@@ -53,6 +58,9 @@ const ProjectCard = ({ project, userName }) => {
   const views        = project?.views ?? 0;
   const rating       = project?.rating ?? 0;
   const reads        = project?.readsCount ?? 0;
+  const completionLabel = getScriptCompletionStatusLabel(project);
+  const completionProgress = getScriptCompletionProgressText(project);
+  const completionBadgeCls = getScriptCompletionBadgeClasses(project, dark);
   const isWriterOrInvestorViewer = user?.role === "writer" || user?.role === "creator" || user?.role === "investor";
   const status       = STATUS[project?.status] || STATUS.draft;
   const coverImage   = project?.coverImage || null;
@@ -319,8 +327,16 @@ const ProjectCard = ({ project, userName }) => {
         </p>
 
         {/* Tags */}
-        {(genre || format) && (
+        {(genre || format || completionLabel) && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <span className={`text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-lg ${completionBadgeCls}`}>
+              {completionLabel}
+            </span>
+            {completionProgress && (
+              <span className={`text-[10px] font-medium tracking-wide px-2.5 py-1 rounded-lg ${dark ? "bg-[#111e2d] text-[#6f859a]" : "bg-gray-50 text-gray-500 border border-gray-100"}`}>
+                {completionProgress}
+              </span>
+            )}
             {genre && (
               <span className={`text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-lg ${
                 dark ? "bg-[#111e2d] text-[#8896a7]" : "bg-gray-100 text-gray-600"

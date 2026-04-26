@@ -18,6 +18,12 @@ import { Image as ImageIcon, Film, CheckCircle2, Move, ZoomIn, RotateCw } from "
 import api from "../services/api";
 import { formatCurrency } from "../utils/currency";
 import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
+import {
+  SCRIPT_COMPLETION_OPTIONS,
+  buildScriptCompletionPayload,
+  createScriptCompletionFormState,
+  getScriptCompletionValidationMessage,
+} from "../utils/scriptCompletion";
 
 const DRAFT_ENDPOINT = `${(import.meta.env.VITE_API_URL || "http://localhost:5002").replace(/\/api\/?$/, "").replace(/\/$/, "")}/api/scripts/draft`;
 const LOCAL_WORKING_DRAFT_KEY = "create-project-working-draft-v1";
@@ -627,7 +633,16 @@ const CreateProject = () => {
   const [showUndoBar, setShowUndoBar] = useState(false);
 
   // Step 2: Details
-  const [formData, setFormData] = useState({ format: "feature", formatOther: "", primaryGenre: "", logline: "", synopsis: "", writer: "", companyName: "" });
+  const [formData, setFormData] = useState({
+    format: "feature",
+    formatOther: "",
+    primaryGenre: "",
+    logline: "",
+    synopsis: "",
+    writer: "",
+    companyName: "",
+    ...createScriptCompletionFormState(),
+  });
 
   // File Upload State
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -973,6 +988,7 @@ const CreateProject = () => {
       if (data.logline) setFormData(f => ({ ...f, logline: data.logline }));
       if (data.synopsis) setFormData(f => ({ ...f, synopsis: data.synopsis }));
       else if (data.description) setFormData(f => ({ ...f, synopsis: data.description }));
+      setFormData(f => ({ ...f, ...createScriptCompletionFormState(data?.scriptCompletion || {}) }));
       if (data.tags?.length) setTagsInput(data.tags.join(", "));
       if (Array.isArray(data.roles)) {
         setRoles(data.roles.map((role) => ({
@@ -1012,6 +1028,20 @@ const CreateProject = () => {
       title: title?.trim() ? title.trim() : "Untitled Draft",
       textContent: editor.getHTML(),
       companyName: String(formData.companyName || "").trim(),
+      format: formData.format,
+      formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
+      logline: formData.logline,
+      synopsis: formData.synopsis,
+      pageCount: estimatedPages,
+      primaryGenre: formData.primaryGenre,
+      classification: {
+        primaryGenre: formData.primaryGenre || "",
+        secondaryGenre: "",
+        tones: classification.tones,
+        themes: classification.themes,
+        settings: classification.settings,
+      },
+      scriptCompletion: buildScriptCompletionPayload(formData),
       legal: {
         agreedToTerms: Boolean(legal.agreedToTerms),
         termsVersion: SCRIPT_UPLOAD_TERMS_VERSION,
@@ -1020,12 +1050,14 @@ const CreateProject = () => {
       rightsLicensing: buildRightsPayload(),
       ...(scriptId ? { scriptId } : {}),
     };
-  }, [buildRightsPayload, editor, formData.companyName, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
+  }, [buildRightsPayload, classification.settings, classification.themes, classification.tones, editor, estimatedPages, formData, legal.agreedToTerms, legal.customInvestorTerms, scriptId, title]);
 
   const getDraftSignature = useCallback((payload) => {
     if (!payload) return "";
     const html = String(payload.textContent || "");
-    return `${payload.title || ""}::${String(payload.companyName || "")}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
+    const completion = payload.scriptCompletion || {};
+    const classificationSignature = JSON.stringify(payload.classification || {});
+    return `${payload.title || ""}::${String(payload.companyName || "")}::${payload.format || ""}::${payload.primaryGenre || ""}::${payload.logline || ""}::${payload.synopsis || ""}::${completion.status || ""}::${completion.completedParts || 0}::${completion.totalParts || 0}::${completion.futurePlans || ""}::${classificationSignature}::${html.length}:${html.slice(0, 120)}:${html.slice(-120)}`;
   }, []);
 
   const hasMeaningfulDraft = useCallback((payload) => {
@@ -1156,6 +1188,7 @@ const CreateProject = () => {
       synopsis: "",
       writer: "",
       companyName: "",
+      ...createScriptCompletionFormState(),
     });
 
     if (editor) {
@@ -1552,6 +1585,13 @@ const CreateProject = () => {
       }
       if (!formData.primaryGenre) { setError("Primary genre is required."); return false; }
       if (formData.logline && formData.logline.length > 50) { setError("Logline must be 50 chars or less."); return false; }
+      {
+        const completionError = getScriptCompletionValidationMessage(formData);
+        if (completionError) {
+          setError(completionError);
+          return false;
+        }
+      }
       if (!formData.synopsis || !formData.synopsis.trim()) { setError("Synopsis is required."); return false; }
       const ageRangeError = getInvalidRoleAgeRangeMessage();
       if (ageRangeError) { setError(ageRangeError); return false; }
@@ -1662,6 +1702,7 @@ const CreateProject = () => {
         formatOther: formData.format === "other" ? String(formData.formatOther || "").trim() : "",
         pageCount: estimatedPages, textContent: editor.getHTML(), tags: tagsArr,
         classification: { primaryGenre: formData.primaryGenre, secondaryGenre: null, tones: classification.tones, themes: classification.themes, settings: classification.settings },
+        scriptCompletion: buildScriptCompletionPayload(formData),
         roles: roles
           .filter((role) => role.characterName?.trim())
           .map((role) => ({
@@ -2531,6 +2572,49 @@ const CreateProject = () => {
                       : pageStatus === "short" ? `Your script is shorter than typical. That's okay for early drafts - keep writing!`
                         : `Your script exceeds the typical range. Consider trimming or changing the format.`}
                   </p>
+                </div>
+              </div>
+              <div className={`rounded-2xl border p-4 sm:p-5 ${dark ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
+                <div>
+                  <h3 className={`text-sm font-bold ${dark ? "text-gray-100" : "text-gray-900"}`}>Script Completion</h3>
+                  <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                    Show whether this script is complete, partially finished, or still ongoing.
+                  </p>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="lg:col-span-2">
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Completion Status</label>
+                    <select name="completionStatus" value={formData.completionStatus} onChange={handleChange} className={inputCls}>
+                      {SCRIPT_COMPLETION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <p className={`text-[11px] mt-1 ${dark ? "text-gray-500" : "text-gray-500"}`}>
+                      {SCRIPT_COMPLETION_OPTIONS.find((option) => option.value === formData.completionStatus)?.helper}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Completed Chapters/Parts</label>
+                    <input type="number" min="0" name="completedParts" value={formData.completedParts} onChange={handleChange} placeholder="4" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Total Planned Chapters/Parts</label>
+                    <input type="number" min="0" name="totalParts" value={formData.totalParts} onChange={handleChange} placeholder="10" className={inputCls} />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className={`block text-sm font-medium mb-1.5 ${dark ? "text-gray-300" : "text-gray-700"}`}>Future Update Note <span className={`${dark ? "text-gray-600" : "text-gray-400"}`}>(optional)</span></label>
+                    <textarea
+                      name="futurePlans"
+                      value={formData.futurePlans}
+                      onChange={handleChange}
+                      rows={3}
+                      maxLength={300}
+                      placeholder="Example: Remaining episodes are still in development and will be added later."
+                      className={`${inputCls} resize-none`}
+                    />
+                    <p className={`text-[10px] mt-1 text-right ${dark ? "text-gray-600" : "text-gray-400"}`}>
+                      {String(formData.futurePlans || "").length}/300
+                    </p>
+                  </div>
                 </div>
               </div>
               <div>
