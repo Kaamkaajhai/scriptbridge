@@ -9,6 +9,12 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { formatCurrency } from "../utils/currency";
 import { getScriptCanonicalPath } from "../utils/scriptPath";
 import { SCRIPT_UPLOAD_TERMS_TEXT, SCRIPT_UPLOAD_TERMS_VERSION } from "../constants/scriptUploadTerms";
+import {
+  SCRIPT_COMPLETION_OPTIONS,
+  buildScriptCompletionPayload,
+  createScriptCompletionFormState,
+  getScriptCompletionValidationMessage,
+} from "../utils/scriptCompletion";
 
 // Format options
 const formats = [
@@ -438,6 +444,7 @@ const ScriptUpload = () => {
     primaryGenre: "",
     logline: "",
     synopsis: "",
+    ...createScriptCompletionFormState(),
   });
 
   // Classification data
@@ -584,6 +591,7 @@ const ScriptUpload = () => {
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || data.genre || "",
           synopsis: data.synopsis || data.description || "",
+          ...createScriptCompletionFormState(data?.scriptCompletion || {}),
         });
         setTagsInput((data.tags || []).join(", "));
         setClassification({
@@ -641,6 +649,7 @@ const ScriptUpload = () => {
           pageCount: data.pageCount ? String(data.pageCount) : "",
           primaryGenre: data.classification?.primaryGenre || data.primaryGenre || "",
           synopsis: data.synopsis || data.description || "",
+          ...createScriptCompletionFormState(data?.scriptCompletion || {}),
         }));
         if (Array.isArray(data.roles)) {
           setRoles(data.roles.map((role) => ({
@@ -1060,6 +1069,13 @@ const ScriptUpload = () => {
           setError("Logline must be 50 characters or less.");
           return false;
         }
+        {
+          const completionError = getScriptCompletionValidationMessage(formData);
+          if (completionError) {
+            setError(completionError);
+            return false;
+          }
+        }
         if (!formData.synopsis || !formData.synopsis.trim()) {
           setError("Synopsis is required.");
           return false;
@@ -1299,6 +1315,7 @@ const ScriptUpload = () => {
           themes: classification.themes,
           settings: classification.settings,
         },
+        scriptCompletion: buildScriptCompletionPayload(formData),
         // Send script URL only when we have a remote file URL.
         ...(isHttpUrl(uploadedFile?.url)
           ? { scriptUrl: uploadedFile.url }
@@ -1650,6 +1667,86 @@ const ScriptUpload = () => {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className={`rounded-2xl border p-4 sm:p-5 ${isDarkMode ? "border-[#1d3350] bg-[#0b1626]" : "border-gray-200 bg-gray-50/60"}`}>
+                    <div className="flex flex-col gap-1">
+                      <h3 className={`text-sm font-bold ${isDarkMode ? "text-gray-100" : "text-gray-900"}`}>Script Completion</h3>
+                      <p className={`text-[11px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
+                        Let buyers and admins know whether this is a full script, partially complete, or still ongoing.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div className="lg:col-span-2">
+                        <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
+                          Completion Status
+                        </label>
+                        <select
+                          name="completionStatus"
+                          value={formData.completionStatus}
+                          onChange={handleChange}
+                          className={inputCls}
+                        >
+                          {SCRIPT_COMPLETION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className={`mt-1 text-[11px] ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>
+                          {SCRIPT_COMPLETION_OPTIONS.find((option) => option.value === formData.completionStatus)?.helper}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
+                          Completed Chapters/Parts
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          name="completedParts"
+                          value={formData.completedParts}
+                          onChange={handleChange}
+                          placeholder="4"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div>
+                        <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
+                          Total Planned Chapters/Parts
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          name="totalParts"
+                          value={formData.totalParts}
+                          onChange={handleChange}
+                          placeholder="10"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="lg:col-span-2">
+                        <label className={`block text-sm ${labelCls} font-medium mb-1.5`}>
+                          Future Update Note <span className="text-neutral-500">(optional)</span>
+                        </label>
+                        <textarea
+                          name="futurePlans"
+                          value={formData.futurePlans}
+                          onChange={handleChange}
+                          rows={3}
+                          maxLength={300}
+                          placeholder="Example: Episodes 5-8 are still being written and will be uploaded later."
+                          className={`${inputCls} resize-none`}
+                        />
+                        <p className="text-xs text-neutral-500 mt-1 text-right">
+                          {String(formData.futurePlans || "").length}/300
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div>

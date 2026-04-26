@@ -66,6 +66,7 @@ const SCRIPT_UPLOAD_TERMS_VERSION = process.env.SCRIPT_UPLOAD_TERMS_VERSION || "
 const MAX_CUSTOM_INVESTOR_TERMS_LENGTH = 3000;
 const SCRIPT_PURCHASE_PLATFORM_TAX_RATE = 0.05;
 const MAX_RIGHTS_CUSTOM_CONDITIONS_LENGTH = 5000;
+const MAX_SCRIPT_COMPLETION_FUTURE_PLANS_LENGTH = 300;
 const LEGAL_MARKETPLACE_DISCLAIMER = "Please accept all required terms before continuing.";
 
 const RIGHTS_TYPE_LABELS = {
@@ -97,6 +98,7 @@ const RIGHTS_TYPE_OPTIONS = new Set(Object.keys(RIGHTS_TYPE_LABELS));
 const MODIFICATION_RIGHTS_OPTIONS = new Set(Object.keys(MODIFICATION_RIGHTS_LABELS));
 const PAYMENT_STRUCTURE_OPTIONS = new Set(Object.keys(PAYMENT_STRUCTURE_LABELS));
 const NEGOTIATION_MODE_OPTIONS = new Set(Object.keys(NEGOTIATION_MODE_LABELS));
+const SCRIPT_COMPLETION_STATUS_OPTIONS = new Set(["complete", "partial", "ongoing"]);
 const MIN_LICENSE_DURATION_MONTHS = 1;
 const MAX_LICENSE_DURATION_MONTHS = 120;
 
@@ -109,6 +111,94 @@ const toBoolean = (value, fallback = false) => {
     if (["false", "0", "no", "n"].includes(normalized)) return false;
   }
   return Boolean(value);
+};
+
+const toNonNegativeInteger = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(0, Math.round(num));
+};
+
+const normalizeScriptCompletionInput = (incoming = {}, fallback = {}) => {
+  const fallbackStatus = SCRIPT_COMPLETION_STATUS_OPTIONS.has(fallback?.status)
+    ? fallback.status
+    : "complete";
+  const nextStatus = SCRIPT_COMPLETION_STATUS_OPTIONS.has(incoming?.status)
+    ? incoming.status
+    : fallbackStatus;
+
+  let completedParts = incoming?.completedParts !== undefined
+    ? toNonNegativeInteger(incoming.completedParts, 0)
+    : toNonNegativeInteger(fallback?.completedParts, 0);
+  let totalParts = incoming?.totalParts !== undefined
+    ? toNonNegativeInteger(incoming.totalParts, 0)
+    : toNonNegativeInteger(fallback?.totalParts, 0);
+
+  if (totalParts > 0 && completedParts > totalParts) {
+    completedParts = totalParts;
+  }
+
+  if (nextStatus === "complete") {
+    if (totalParts > 0 && completedParts === 0) {
+      completedParts = totalParts;
+    } else if (completedParts > 0 && totalParts === 0) {
+      totalParts = completedParts;
+    }
+  }
+
+  return {
+    status: nextStatus,
+    completedParts,
+    totalParts,
+    futurePlans: String(
+      incoming?.futurePlans !== undefined
+        ? incoming.futurePlans
+        : (fallback?.futurePlans || "")
+    ).trim().slice(0, MAX_SCRIPT_COMPLETION_FUTURE_PLANS_LENGTH),
+  };
+};
+
+const validateScriptCompletionPayload = (scriptCompletion = {}) => {
+  const errors = [];
+  const status = String(scriptCompletion?.status || "").trim();
+
+  if (status && !SCRIPT_COMPLETION_STATUS_OPTIONS.has(status)) {
+    errors.push("Script completion status is invalid.");
+  }
+
+  const completedRaw = scriptCompletion?.completedParts;
+  if (completedRaw !== undefined && completedRaw !== null && completedRaw !== "") {
+    const completedNum = Number(completedRaw);
+    if (!Number.isInteger(completedNum) || completedNum < 0) {
+      errors.push("Completed chapters/parts must be a whole number.");
+    }
+  }
+
+  const totalRaw = scriptCompletion?.totalParts;
+  if (totalRaw !== undefined && totalRaw !== null && totalRaw !== "") {
+    const totalNum = Number(totalRaw);
+    if (!Number.isInteger(totalNum) || totalNum < 0) {
+      errors.push("Total planned chapters/parts must be a whole number.");
+    }
+  }
+
+  if (
+    completedRaw !== undefined && completedRaw !== null && completedRaw !== ""
+    && totalRaw !== undefined && totalRaw !== null && totalRaw !== ""
+  ) {
+    const completedNum = Number(completedRaw);
+    const totalNum = Number(totalRaw);
+    if (Number.isInteger(completedNum) && Number.isInteger(totalNum) && totalNum > 0 && completedNum > totalNum) {
+      errors.push("Completed chapters/parts cannot exceed the total planned parts.");
+    }
+  }
+
+  if (String(scriptCompletion?.futurePlans || "").trim().length > MAX_SCRIPT_COMPLETION_FUTURE_PLANS_LENGTH) {
+    errors.push(`Future update note must be ${MAX_SCRIPT_COMPLETION_FUTURE_PLANS_LENGTH} characters or fewer.`);
+  }
+
+  return errors;
 };
 
 const normalizeRightsLicensingInput = (incoming = {}, fallback = {}) => {
@@ -1091,6 +1181,17 @@ export const saveDraft = async (req, res) => {
         };
         script.markModified("classification");
       }
+      if (otherData.scriptCompletion !== undefined) {
+        const completionErrors = validateScriptCompletionPayload(otherData.scriptCompletion || {});
+        if (completionErrors.length > 0) {
+          return res.status(400).json({ message: completionErrors[0] });
+        }
+        script.scriptCompletion = normalizeScriptCompletionInput(
+          otherData.scriptCompletion || {},
+          script.scriptCompletion || {}
+        );
+        script.markModified("scriptCompletion");
+      }
 
       if (otherData.legal !== undefined) {
         const incomingLegal = otherData.legal || {};
@@ -1149,6 +1250,17 @@ export const saveDraft = async (req, res) => {
     if (safeOtherData.rightsLicensing !== undefined) {
       safeOtherData.rightsLicensing = normalizeRightsLicensingInput(
         safeOtherData.rightsLicensing || {},
+        {}
+      );
+    }
+
+    if (safeOtherData.scriptCompletion !== undefined) {
+      const completionErrors = validateScriptCompletionPayload(safeOtherData.scriptCompletion || {});
+      if (completionErrors.length > 0) {
+        return res.status(400).json({ message: completionErrors[0] });
+      }
+      safeOtherData.scriptCompletion = normalizeScriptCompletionInput(
+        safeOtherData.scriptCompletion || {},
         {}
       );
     }
@@ -1245,7 +1357,7 @@ export const getMyScripts = async (req, res) => {
   try {
     const scripts = await Script.find({ creator: req.user._id, status: { $ne: "draft" }, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
-      .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt publishedAt")
+      .select("_id title logline description synopsis genre contentType coverImage premium price views services scriptScore platformScore status adminApproved rejectionReason creator createdAt publishedAt scriptCompletion")
       .populate("creator", "name profileImage")
       .lean();
     res.json(scripts);
@@ -1277,7 +1389,7 @@ export const updateScript = async (req, res) => {
       formatOther,
       scriptUrl, description, synopsis, textContent, fileUrl,
       coverImage, genre, contentType, premium, price, roles, tags, budget, holdFee, services, legal,
-      rightsLicensing,
+      rightsLicensing, scriptCompletion,
     } = req.body;
 
     if (!legal?.agreedToTerms) {
@@ -1297,6 +1409,13 @@ export const updateScript = async (req, res) => {
     const rightsValidationErrors = validateRightsLicensingPayload(normalizedRights);
     if (rightsValidationErrors.length > 0) {
       return res.status(400).json({ message: rightsValidationErrors[0] });
+    }
+
+    const completionValidationErrors = validateScriptCompletionPayload(
+      scriptCompletion || script.scriptCompletion || {}
+    );
+    if (completionValidationErrors.length > 0) {
+      return res.status(400).json({ message: completionValidationErrors[0] });
     }
 
     if (logline !== undefined && String(logline).trim().length > 50) {
@@ -1367,6 +1486,14 @@ export const updateScript = async (req, res) => {
         spotlight: services.spotlight ?? script.services?.spotlight ?? false,
       };
       script.markModified("services");
+    }
+
+    if (scriptCompletion !== undefined) {
+      script.scriptCompletion = normalizeScriptCompletionInput(
+        scriptCompletion || {},
+        script.scriptCompletion || {}
+      );
+      script.markModified("scriptCompletion");
     }
 
     if (legal?.agreedToTerms !== undefined) {
@@ -1511,6 +1638,7 @@ export const uploadScript = async (req, res) => {
       services,
       legal,
       rightsLicensing,
+      scriptCompletion,
       // Legacy fields for backward compatibility
       description,
       synopsis,
@@ -1565,6 +1693,11 @@ export const uploadScript = async (req, res) => {
     const rightsValidationErrors = validateRightsLicensingPayload(normalizedRights);
     if (rightsValidationErrors.length > 0) {
       return res.status(400).json({ message: rightsValidationErrors[0] });
+    }
+
+    const completionValidationErrors = validateScriptCompletionPayload(scriptCompletion || {});
+    if (completionValidationErrors.length > 0) {
+      return res.status(400).json({ message: completionValidationErrors[0] });
     }
 
     const isPremiumAccess = Boolean(isPremium || premium) && Number(price || 0) > 0;
@@ -1650,6 +1783,7 @@ export const uploadScript = async (req, res) => {
       textContent,
       fileUrl: scriptUrl || fileUrl,
       pageCount,
+      scriptCompletion: normalizeScriptCompletionInput(scriptCompletion || {}, {}),
       coverImage,
       genre: genre || classification?.primaryGenre,
       contentType: getContentTypeFromFormat(format, contentType),
@@ -2387,6 +2521,7 @@ export const getPublicScriptById = async (req, res) => {
         adaptation: Boolean(script.contentIndicators?.adaptation),
         adaptationSource: script.contentIndicators?.adaptationSource || "",
       },
+      scriptCompletion: normalizeScriptCompletionInput(script.scriptCompletion || {}, {}),
       evaluation: script.scriptScore?.overall
         ? {
             overall: Number(script.scriptScore.overall || 0),
