@@ -1125,6 +1125,41 @@ export const saveDraft = async (req, res) => {
         script.markModified("rightsLicensing");
       }
 
+      // Publishing layer fields
+      if (otherData.targetIndustry !== undefined) {
+        script.targetIndustry = Array.isArray(otherData.targetIndustry) ? otherData.targetIndustry : ["film"];
+      }
+      if (otherData.publishingDetails !== undefined) {
+        const pd = otherData.publishingDetails || {};
+        script.publishingDetails = {
+          enabled: Boolean(pd.enabled),
+          storyFormat: Array.isArray(pd.storyFormat) ? pd.storyFormat : [],
+          writingStyle: Array.isArray(pd.writingStyle) ? pd.writingStyle : [],
+          targetAudience: Array.isArray(pd.targetAudience) ? pd.targetAudience : [],
+          estimatedWordCount: String(pd.estimatedWordCount || "").trim().slice(0, 60),
+          seriesPotential: pd.seriesPotential || undefined,
+          bookPitch: String(pd.bookPitch || "").trim().slice(0, 2500),
+          proseSample: String(pd.proseSample || "").trim().slice(0, 5000),
+          proseSampleGeneratedAt: pd.proseSampleGeneratedAt ? new Date(pd.proseSampleGeneratedAt) : script.publishingDetails?.proseSampleGeneratedAt,
+          previewContent: pd.previewContent || "none",
+          publishingRights: pd.publishingRights ? {
+            rightsBundle: pd.publishingRights.rightsBundle || "custom",
+            bookPublishing: Boolean(pd.publishingRights.bookPublishing),
+            digitalPublishing: Boolean(pd.publishingRights.digitalPublishing),
+            audiobookRights: Boolean(pd.publishingRights.audiobookRights),
+            territory: Array.isArray(pd.publishingRights.territory) ? pd.publishingRights.territory : [],
+            territorySpecific: String(pd.publishingRights.territorySpecific || "").trim().slice(0, 300),
+            languages: Array.isArray(pd.publishingRights.languages) ? pd.publishingRights.languages : [],
+            adaptationRights: Array.isArray(pd.publishingRights.adaptationRights) ? pd.publishingRights.adaptationRights : [],
+            exclusivity: pd.publishingRights.exclusivity || "non_exclusive",
+            durationYears: String(pd.publishingRights.durationYears || "").trim().slice(0, 60),
+            paymentType: pd.publishingRights.paymentType || "one_time_upfront",
+            modificationRights: pd.publishingRights.modificationRights || "buyer_must_consult_writer",
+          } : (script.publishingDetails?.publishingRights || {}),
+        };
+        script.markModified("publishingDetails");
+      }
+
       await script.save();
       return res.json(script);
     }
@@ -1278,6 +1313,9 @@ export const updateScript = async (req, res) => {
       scriptUrl, description, synopsis, textContent, fileUrl,
       coverImage, genre, contentType, premium, price, roles, tags, budget, holdFee, services, legal,
       rightsLicensing,
+      // Publishing layer
+      targetIndustry,
+      publishingDetails,
     } = req.body;
 
     if (!legal?.agreedToTerms) {
@@ -1392,6 +1430,41 @@ export const updateScript = async (req, res) => {
 
     script.rightsLicensing = normalizedRights;
     script.markModified("rightsLicensing");
+
+    // Publishing layer fields
+    if (targetIndustry !== undefined) {
+      script.targetIndustry = Array.isArray(targetIndustry) && targetIndustry.length > 0 ? targetIndustry : ["film"];
+    }
+    if (publishingDetails !== undefined) {
+      const pd = publishingDetails || {};
+      script.publishingDetails = {
+        enabled: Boolean(pd.enabled),
+        storyFormat: Array.isArray(pd.storyFormat) ? pd.storyFormat : [],
+        writingStyle: Array.isArray(pd.writingStyle) ? pd.writingStyle : [],
+        targetAudience: Array.isArray(pd.targetAudience) ? pd.targetAudience : [],
+        estimatedWordCount: String(pd.estimatedWordCount || "").trim().slice(0, 60),
+        seriesPotential: pd.seriesPotential || undefined,
+        bookPitch: String(pd.bookPitch || "").trim().slice(0, 2500),
+        proseSample: String(pd.proseSample || "").trim().slice(0, 5000),
+        proseSampleGeneratedAt: pd.proseSampleGeneratedAt ? new Date(pd.proseSampleGeneratedAt) : script.publishingDetails?.proseSampleGeneratedAt,
+        previewContent: pd.previewContent || "none",
+        publishingRights: pd.publishingRights ? {
+          rightsBundle: pd.publishingRights.rightsBundle || "custom",
+          bookPublishing: Boolean(pd.publishingRights.bookPublishing),
+          digitalPublishing: Boolean(pd.publishingRights.digitalPublishing),
+          audiobookRights: Boolean(pd.publishingRights.audiobookRights),
+          territory: Array.isArray(pd.publishingRights.territory) ? pd.publishingRights.territory : [],
+          territorySpecific: String(pd.publishingRights.territorySpecific || "").trim().slice(0, 300),
+          languages: Array.isArray(pd.publishingRights.languages) ? pd.publishingRights.languages : [],
+          adaptationRights: Array.isArray(pd.publishingRights.adaptationRights) ? pd.publishingRights.adaptationRights : [],
+          exclusivity: pd.publishingRights.exclusivity || "non_exclusive",
+          durationYears: String(pd.publishingRights.durationYears || "").trim().slice(0, 60),
+          paymentType: pd.publishingRights.paymentType || "one_time_upfront",
+          modificationRights: pd.publishingRights.modificationRights || "buyer_must_consult_writer",
+        } : (script.publishingDetails?.publishingRights || {}),
+      };
+      script.markModified("publishingDetails");
+    }
 
     const wasPendingApproval = script.status === "pending_approval";
     const hasEvaluationEntitlement = Boolean(
@@ -1511,6 +1584,9 @@ export const uploadScript = async (req, res) => {
       services,
       legal,
       rightsLicensing,
+      // Publishing layer
+      targetIndustry,
+      publishingDetails,
       // Legacy fields for backward compatibility
       description,
       synopsis,
@@ -1721,7 +1797,35 @@ export const uploadScript = async (req, res) => {
 
       approvalRequestType: "new_submission",
 
-      status: "pending_approval" // Requires admin approval before publishing
+      status: "pending_approval", // Requires admin approval before publishing
+
+      // Publishing layer
+      targetIndustry: Array.isArray(targetIndustry) && targetIndustry.length > 0 ? targetIndustry : ["film"],
+      publishingDetails: publishingDetails ? {
+        enabled: Boolean(publishingDetails.enabled),
+        storyFormat: Array.isArray(publishingDetails.storyFormat) ? publishingDetails.storyFormat : [],
+        writingStyle: Array.isArray(publishingDetails.writingStyle) ? publishingDetails.writingStyle : [],
+        targetAudience: Array.isArray(publishingDetails.targetAudience) ? publishingDetails.targetAudience : [],
+        estimatedWordCount: String(publishingDetails.estimatedWordCount || "").trim().slice(0, 60),
+        seriesPotential: publishingDetails.seriesPotential || undefined,
+        bookPitch: String(publishingDetails.bookPitch || "").trim().slice(0, 2500),
+        proseSample: String(publishingDetails.proseSample || "").trim().slice(0, 5000),
+        previewContent: publishingDetails.previewContent || "none",
+        publishingRights: publishingDetails.publishingRights ? {
+          rightsBundle: publishingDetails.publishingRights.rightsBundle || "custom",
+          bookPublishing: Boolean(publishingDetails.publishingRights.bookPublishing),
+          digitalPublishing: Boolean(publishingDetails.publishingRights.digitalPublishing),
+          audiobookRights: Boolean(publishingDetails.publishingRights.audiobookRights),
+          territory: Array.isArray(publishingDetails.publishingRights.territory) ? publishingDetails.publishingRights.territory : [],
+          territorySpecific: String(publishingDetails.publishingRights.territorySpecific || "").trim().slice(0, 300),
+          languages: Array.isArray(publishingDetails.publishingRights.languages) ? publishingDetails.publishingRights.languages : [],
+          adaptationRights: Array.isArray(publishingDetails.publishingRights.adaptationRights) ? publishingDetails.publishingRights.adaptationRights : [],
+          exclusivity: publishingDetails.publishingRights.exclusivity || "non_exclusive",
+          durationYears: String(publishingDetails.publishingRights.durationYears || "").trim().slice(0, 60),
+          paymentType: publishingDetails.publishingRights.paymentType || "one_time_upfront",
+          modificationRights: publishingDetails.publishingRights.modificationRights || "buyer_must_consult_writer",
+        } : {},
+      } : { enabled: false },
     };
 
     let script;
