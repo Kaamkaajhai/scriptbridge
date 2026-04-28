@@ -26,8 +26,9 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import multer from "multer";
 import path from "path";
+import { promises as fs } from "fs";
 import { fileURLToPath } from "url";
-import { uploadToCloudinary } from "../config/cloudinary.js";
+import { uploadToCloudinary, buildPrivateDownloadUrl } from "../config/cloudinary.js";
 import {
   buildInvestorFeed,
   trackInvestorInteraction,
@@ -35,6 +36,7 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const ADMIN_APPROVAL_ARCHIVE_DIR = process.env.ADMIN_APPROVAL_ARCHIVE_DIR || "C:\\Users\\yashc\\OneDrive\\ckript-data\\c-s";
 
 // Lazy initialization of Razorpay
 let razorpayInstance = null;
@@ -103,6 +105,128 @@ const NEGOTIATION_MODE_OPTIONS = new Set(Object.keys(NEGOTIATION_MODE_LABELS));
 const SCRIPT_COMPLETION_STATUS_OPTIONS = new Set(["complete", "partial", "ongoing"]);
 const MIN_LICENSE_DURATION_MONTHS = 1;
 const MAX_LICENSE_DURATION_MONTHS = 120;
+
+const sanitizeArchiveSegment = (value = "", fallback = "item") => {
+  const normalized = String(value || "")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized || fallback;
+};
+
+const inferArchiveExtension = ({ url = "", contentType = "" } = {}) => {
+  const normalizedType = String(contentType || "").toLowerCase();
+  if (normalizedType.includes("pdf")) return ".pdf";
+  if (normalizedType.includes("msword")) return ".doc";
+  if (normalizedType.includes("officedocument.wordprocessingml")) return ".docx";
+  if (normalizedType.startsWith("text/plain")) return ".txt";
+
+  try {
+    const pathname = new URL(String(url || "")).pathname || "";
+    const ext = path.extname(pathname);
+    if (ext) return ext.toLowerCase();
+  } catch {
+    // Ignore invalid URLs and fall through to plain text.
+  }
+
+  return ".txt";
+};
+
+const fetchArchivePdfBuffer = async (script) => {
+  const remoteUrl = String(script?.fileUrl || "").trim();
+  if (remoteUrl) {
+    try {
+      const response = await fetch(remoteUrl);
+      if (response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        const extension = inferArchiveExtension({ url: remoteUrl, contentType });
+        if (extension === ".pdf") {
+          return Buffer.from(await response.arrayBuffer());
+        }
+      }
+    } catch (error) {
+      console.error("[fetchArchivePdfBuffer] Remote file download failed:", error?.message || error);
+    }
+  }
+
+  const summaryPublicId = String(script?.submissionSummaryPdf?.publicId || "").trim();
+  const summaryUrl = String(script?.submissionSummaryPdf?.url || "").trim();
+
+  if (summaryPublicId) {
+    try {
+      const signedUrl = buildPrivateDownloadUrl(summaryPublicId, "pdf", {
+        resource_type: "raw",
+        type: "upload",
+        expires_at: Math.floor(Date.now() / 1000) + 10 * 60,
+        attachment: false,
+      });
+      const response = await fetch(signedUrl);
+      if (response.ok) {
+        return Buffer.from(await response.arrayBuffer());
+      }
+    } catch (error) {
+      console.error("[fetchArchivePdfBuffer] Submission summary PDF download by publicId failed:", error?.message || error);
+    }
+  }
+
+  if (summaryUrl) {
+    try {
+      const response = await fetch(summaryUrl);
+      if (response.ok) {
+        return Buffer.from(await response.arrayBuffer());
+      }
+    } catch (error) {
+      console.error("[fetchArchivePdfBuffer] Submission summary PDF download by url failed:", error?.message || error);
+    }
+  }
+
+  return null;
+};
+
+const archiveScriptSubmissionForAdmin = async ({ script, writer, approvalSource = "" }) => {
+  if (!script?._id) return null;
+
+  const archiveRoot = path.resolve(ADMIN_APPROVAL_ARCHIVE_DIR);
+  const writerName = sanitizeArchiveSegment(writer?.name || writer?.email || "unknown-writer", "unknown-writer");
+  const titleSegment = sanitizeArchiveSegment(script?.title || "untitled-script", "untitled-script");
+  const approvalType = sanitizeArchiveSegment(script?.approvalRequestType || "submission", "submission");
+  const scriptId = sanitizeArchiveSegment(script._id.toString(), "script");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const folderName = `${timestamp}__${writerName}__${titleSegment}__${scriptId}__${approvalType}`;
+  const targetDir = path.join(archiveRoot, folderName);
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const metadata = {
+    archivedAt: new Date().toISOString(),
+    archiveSource: approvalSource,
+    scriptId: script._id.toString(),
+    sid: script.sid || "",
+    title: script.title || "",
+    writerId: writer?._id?.toString?.() || script?.creator?.toString?.() || "",
+    writerName: writer?.name || "",
+    writerEmail: writer?.email || "",
+    status: script.status || "",
+    approvalRequestType: script.approvalRequestType || "",
+    fileUrl: script.fileUrl || "",
+    projectSource: script.projectSource || "",
+  };
+
+  await fs.writeFile(
+    path.join(targetDir, "metadata.json"),
+    JSON.stringify(metadata, null, 2),
+    "utf8"
+  );
+
+  const pdfBuffer = await fetchArchivePdfBuffer(script);
+  if (!pdfBuffer || pdfBuffer.length === 0) {
+    throw new Error(`Unable to create PDF archive for script ${scriptId}`);
+  }
+
+  const archiveName = sanitizePdfFileName(titleSegment);
+  await fs.writeFile(path.join(targetDir, archiveName), pdfBuffer);
+  return { targetDir, archiveName, mode: "pdf" };
+};
 
 const toBoolean = (value, fallback = false) => {
   if (value === undefined || value === null) return fallback;
@@ -1571,6 +1695,14 @@ export const updateScript = async (req, res) => {
     (async () => {
       const tasks = [];
 
+      tasks.push(
+        archiveScriptSubmissionForAdmin({
+          script,
+          writer: req.user,
+          approvalSource: "update-script",
+        })
+      );
+
       if (!wasPendingApproval) {
         tasks.push(
           notifyAdminWorkflowEvent({
@@ -1900,6 +2032,11 @@ export const uploadScript = async (req, res) => {
     // Run non-critical tasks post-response to keep submit API fast.
     (async () => {
       const tasks = [
+        archiveScriptSubmissionForAdmin({
+          script,
+          writer: creator,
+          approvalSource: "upload-script",
+        }),
         notifyAdminWorkflowEvent({
           title: "Writer Project Submitted For Approval",
           section: "approvals",
