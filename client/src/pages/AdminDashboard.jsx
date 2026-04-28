@@ -1607,6 +1607,8 @@ const AdminDashboard = () => {
                 sessionStorage.removeItem("admin-session");
                 setAuthorized(false);
                 showToast("Session expired. Please re-enter the access code.", "error");
+            } else {
+                showToast(err?.response?.data?.message || "Failed to load admin data", "error");
             }
         }
         setMessagesLoading(false);

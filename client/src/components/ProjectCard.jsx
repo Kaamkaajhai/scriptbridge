@@ -22,6 +22,7 @@ const FORMAT_LABEL = {
   tv_pilot: "TV Pilot",
   tv_serial: "TV Serial",
   limited_series: "Limited Series",
+  fiction_novel: "Fiction Novel",
   webseries: "Web Series",
   web_series: "Web Series",
   documentary: "Documentary",
@@ -38,6 +39,7 @@ const FORMAT_LABEL = {
 const STATUS = {
   pending_approval: { label: "In Review", dot: "bg-amber-400",   dk: "text-amber-400",   lt: "text-amber-600" },
   rejected:         { label: "Rejected",  dot: "bg-rose-400",    dk: "text-rose-400",    lt: "text-rose-600"  },
+  approved:         { label: "Published", dot: "bg-emerald-400", dk: "text-emerald-400", lt: "text-emerald-600" },
   published:        { label: "Published", dot: "bg-emerald-400", dk: "text-emerald-400", lt: "text-emerald-600" },
   draft:            { label: "Draft",     dot: "bg-[#4a5a6e]",   dk: "text-[#4a5a6e]",  lt: "text-gray-400"  },
 };
@@ -49,7 +51,7 @@ const ProjectCard = ({ project, userName }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [coverError, setCoverError] = useState(false);
 
-  const isClickable  = project?.status === "published";
+  const isClickable  = project?.status === "published" || project?.status === "approved";
   const genre        = project?.primaryGenre || project?.genre || null;
   const format       = project?.format === "other"
     ? (project?.formatOther || FORMAT_LABEL.other)
@@ -85,7 +87,7 @@ const ProjectCard = ({ project, userName }) => {
       || 0
   );
   const showVerifiedBadge = Boolean(project?.verifiedBadge || project?.promotion?.spotlightActive || hasSpotlightPurchase);
-  const isPublished = project?.status === "published";
+  const isPublished = project?.status === "published" || project?.status === "approved";
   const timelineDate = isPublished
     ? (project?.publishedAt || project?.createdAt)
     : project?.createdAt;
