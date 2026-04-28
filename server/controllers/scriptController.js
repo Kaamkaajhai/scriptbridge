@@ -52,8 +52,10 @@ const getRazorpay = () => {
   return razorpayInstance;
 };
 
+const PUBLISHED_SCRIPT_STATUSES = ["published", "approved"];
+
 const PUBLIC_SCRIPT_FILTER = {
-  status: "published",
+  status: { $in: PUBLISHED_SCRIPT_STATUSES },
   isSold: { $ne: true },
   transactionStatus: { $ne: "sold_licensed" },
   isDeleted: { $ne: true },

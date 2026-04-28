@@ -63,6 +63,7 @@ const scriptSchema = new mongoose.Schema({
       "short_film",
       "web_series",
       "limited_series",
+      "fiction_novel",
       "documentary",
       "drama_school",
       "anime",

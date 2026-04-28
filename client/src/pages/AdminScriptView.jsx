@@ -32,6 +32,7 @@ const FORMAT_LABELS = {
   short_film: "Short Film",
   web_series: "Web Series",
   limited_series: "Limited Series",
+  fiction_novel: "Fiction Novel",
   documentary: "Documentary",
   drama_school: "Drama School",
   anime: "Anime",

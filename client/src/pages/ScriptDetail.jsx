@@ -800,6 +800,7 @@ const ScriptDetail = () => {
       tv_pilot_halfhour: "TV Pilot (Half Hour)",
       short_film: "Short Film",
       web_series: "Web Series",
+      fiction_novel: "Fiction Novel",
       play: "Play",
       songs: "Songs",
       standup_comedy: "Standup Comedy",
