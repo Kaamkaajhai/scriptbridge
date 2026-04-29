@@ -18,7 +18,6 @@ import {
   Instagram,
   Twitter,
   FileText,
-  MapPin,
   Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,7 +28,7 @@ const isValidEmail = (email) => {
   if (!email || typeof email !== 'string') return false;
   email = email.trim().toLowerCase();
   if (email.length > 254 || email.length < 5) return false;
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
   if (!emailRegex.test(email)) return false;
   const parts = email.split('@');
   if (parts.length !== 2) return false;
@@ -52,11 +51,8 @@ const validatePassword = (password) => {
 };
 
 const PHONE_REGEX = /^[+]?[\d\s\-().]{7,15}$/;
-const CITY_STATE_REGEX = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
-const INDIA_COUNTRY_NAME = "India";
-const INDIA_ZIP_REGEX = /^\d{6}$/;
-const INTERNATIONAL_POSTAL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\s-]{2,11}$/;
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+const MotionDiv = motion.div;
 
 const INVESTOR_ONBOARDING_DRAFT_KEY = "sb-investor-onboarding-draft-v1";
 
@@ -65,15 +61,6 @@ const DEFAULT_ACCOUNT_DATA = {
   email: "",
   phone: "",
   password: "",
-  confirmPassword: "",
-};
-
-const DEFAULT_ADDRESS_FIELDS = {
-  street: "",
-  city: "",
-  state: "",
-  zipCode: "",
-  country: INDIA_COUNTRY_NAME,
 };
 
 const DEFAULT_INVESTOR_PROFILE = {
@@ -269,8 +256,6 @@ const InvestorOnboarding = () => {
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [addressError, setAddressError] = useState("");
-  const [zipLookupLoading, setZipLookupLoading] = useState(false);
   const [firmNameError, setFirmNameError] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [usernameStatus, setUsernameStatus] = useState({
@@ -296,15 +281,6 @@ const InvestorOnboarding = () => {
     ...DEFAULT_ACCOUNT_DATA,
     ...(initialDraft?.accountData || {}),
   }));
-  const [addressFields, setAddressFields] = useState(() => ({
-    ...DEFAULT_ADDRESS_FIELDS,
-    ...(initialDraft?.addressFields || {}),
-  }));
-  const [isOutsideIndia, setIsOutsideIndia] = useState(() => {
-    const draftCountry = String(initialDraft?.addressFields?.country || INDIA_COUNTRY_NAME).trim().toLowerCase();
-    return Boolean(draftCountry) && draftCountry !== "india";
-  });
-  const zipLookupRequestRef = useRef(0);
   const usernameCheckRequestRef = useRef(0);
 
   // Email Verification (keeping for compatibility, but using OTP now)
@@ -335,9 +311,7 @@ const InvestorOnboarding = () => {
   });
 
   // Step 4: Legal
-  const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
   const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
-  const agreementRef = useRef(null);
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
 
   useEffect(() => {
@@ -346,7 +320,6 @@ const InvestorOnboarding = () => {
     const safeAccountData = {
       ...accountData,
       password: "",
-      confirmPassword: "",
     };
 
     const draft = {
@@ -355,23 +328,19 @@ const InvestorOnboarding = () => {
       userEmail,
       otpConfig,
       accountData: safeAccountData,
-      addressFields,
       verificationCode,
       verificationSent,
       investorProfile,
       creditAttachments,
       selectedGenres,
       selectedFormats,
-      agreementScrolled,
       agreementAccepted,
     };
 
     window.sessionStorage.setItem(INVESTOR_ONBOARDING_DRAFT_KEY, JSON.stringify(draft));
   }, [
     accountData,
-    addressFields,
     agreementAccepted,
-    agreementScrolled,
     currentStep,
     creditAttachments,
     investorProfile,
@@ -383,68 +352,6 @@ const InvestorOnboarding = () => {
     verificationCode,
     verificationSent,
   ]);
-
-  useEffect(() => {
-    if (isOutsideIndia) {
-      setZipLookupLoading(false);
-      return;
-    }
-
-    const zipCode = String(addressFields.zipCode || "").trim();
-    if (!INDIA_ZIP_REGEX.test(zipCode)) {
-      setZipLookupLoading(false);
-      return;
-    }
-
-    const requestId = Date.now();
-    zipLookupRequestRef.current = requestId;
-    let isActive = true;
-
-    const lookupZipInfo = async () => {
-      setZipLookupLoading(true);
-      try {
-        const { data } = await api.get(`/auth/zip-info/${zipCode}`);
-        if (!isActive || zipLookupRequestRef.current !== requestId) return;
-
-        if (data?.valid === false) {
-          if (data?.message) {
-            setAddressError(data.message);
-          }
-          return;
-        }
-
-        const resolvedCity = String(data?.city || "").trim();
-        const resolvedState = String(data?.state || "").trim();
-
-        setAddressFields((prev) => {
-          if (prev.zipCode !== zipCode) return prev;
-          return {
-            ...prev,
-            city: resolvedCity || prev.city,
-            state: resolvedState || prev.state,
-          };
-        });
-
-        setAddressError("");
-      } catch (err) {
-        if (!isActive || zipLookupRequestRef.current !== requestId) return;
-        const message = err?.response?.data?.message;
-        if (message) {
-          setAddressError(message);
-        }
-      } finally {
-        if (isActive && zipLookupRequestRef.current === requestId) {
-          setZipLookupLoading(false);
-        }
-      }
-    };
-
-    lookupZipInfo();
-
-    return () => {
-      isActive = false;
-    };
-  }, [addressFields.zipCode, isOutsideIndia]);
 
   useEffect(() => {
     const username = String(investorProfile.username || "").trim().toLowerCase();
@@ -529,28 +436,6 @@ const InvestorOnboarding = () => {
     setUsernameError("");
     setEmailError("");
     setPhoneError("");
-    setAddressError("");
-
-    const normalizedUsername = String(investorProfile.username || "").trim().toLowerCase();
-    if (!normalizedUsername) {
-      setUsernameError("Username is required");
-      return;
-    }
-
-    if (!USERNAME_PATTERN.test(normalizedUsername)) {
-      setUsernameError("Use 3-30 lowercase letters, numbers, or underscores");
-      return;
-    }
-
-    if (usernameStatus.state === "checking") {
-      setUsernameError("Please wait while we verify username availability");
-      return;
-    }
-
-    if (usernameStatus.state === "unavailable") {
-      setUsernameError("Username is already taken");
-      return;
-    }
 
     const phone = String(accountData.phone || "").trim();
     if (!phone) {
@@ -562,38 +447,6 @@ const InvestorOnboarding = () => {
       setPhoneError("Please enter a valid phone number (e.g. +91 00000 00000)");
       return;
     }
-
-    const street = String(addressFields.street || "").trim();
-    const city = String(addressFields.city || "").trim();
-    const state = String(addressFields.state || "").trim();
-    const zipCode = String(addressFields.zipCode || "").trim();
-    const country = isOutsideIndia
-      ? String(addressFields.country || "").trim()
-      : INDIA_COUNTRY_NAME;
-
-    if (!street || !city || !state || !zipCode || !country) {
-      setAddressError("Street, city, state, postal code, and country are required");
-      return;
-    }
-
-    if (!isOutsideIndia) {
-      if (!INDIA_ZIP_REGEX.test(zipCode)) {
-        setAddressError("ZIP code must be exactly 6 digits");
-        return;
-      }
-    } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
-      setAddressError("Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)");
-      return;
-    }
-
-    if (!CITY_STATE_REGEX.test(city) || !CITY_STATE_REGEX.test(state)) {
-      setAddressError("Enter a valid city and state name");
-      return;
-    }
-
-    const formattedAddress = isOutsideIndia
-      ? `${street}, ${city}, ${state}, ${zipCode}, ${country}`
-      : `${street}, ${city}, ${state}, ${zipCode}`;
 
     // Trim and sanitize email
     const sanitizedEmail = accountData.email.trim().toLowerCase();
@@ -611,35 +464,14 @@ const InvestorOnboarding = () => {
       return;
     }
 
-    // Check password confirmation
-    if (accountData.password !== accountData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
     setLoading(true);
     try {
-      if (!isOutsideIndia) {
-        await api.post("/auth/validate-address", {
-          address: formattedAddress,
-        });
-      }
-
       const response = await join({
         name: accountData.name,
         email: sanitizedEmail,
         phone,
-        username: normalizedUsername,
         password: accountData.password,
         role: "investor",
-        address: {
-          street,
-          city,
-          state,
-          zipCode,
-          country,
-          formatted: formattedAddress,
-        },
       });
 
       // Check if OTP verification is required
@@ -659,9 +491,7 @@ const InvestorOnboarding = () => {
       setError("");
     } catch (err) {
       const msg = err.response?.data?.message || "Registration failed";
-      if (/zip|city|state|address/i.test(msg)) {
-        setAddressError(msg);
-      } else if (/phone/i.test(msg)) {
+      if (/phone/i.test(msg)) {
         setPhoneError(msg);
       } else {
         setError(msg);
@@ -1090,7 +920,7 @@ const InvestorOnboarding = () => {
 
             {/* ── Step 1: Account ── */}
             {currentStep === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <MotionDiv key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
                   <h2 className="text-xl font-black text-gray-900">Create your account</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Join as a producer/director and discover projects worth backing</p>
@@ -1125,167 +955,6 @@ const InvestorOnboarding = () => {
                           required
                         />
                       </div>
-                    </div>
-
-                    <div>
-                      <label className={labelClass}>Username</label>
-                      <div className="relative">
-                        <span className="absolute left-3.5 top-3 text-gray-300 font-medium text-sm">@</span>
-                        <input
-                          type="text"
-                          placeholder="e.g. investor_yash"
-                          value={investorProfile.username}
-                          onChange={(e) => {
-                            setInvestorProfile({
-                              ...investorProfile,
-                              username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
-                            });
-                            if (usernameError) setUsernameError("");
-                          }}
-                          className={`${inputClass} pl-8 ${usernameError || usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" ? "border-red-400 focus:border-red-400 focus:ring-red-100" : usernameStatus.state === "available" ? "border-emerald-400" : ""}`}
-                          required
-                        />
-                      </div>
-                      {!usernameError && usernameStatus.message && (
-                        <p className={`mt-1.5 text-xs flex items-center gap-1 ${usernameStatus.state === "available" ? "text-emerald-600" : usernameStatus.state === "unavailable" || usernameStatus.state === "invalid" || usernameStatus.state === "error" ? "text-red-500" : "text-gray-500"}`}>
-                          <AlertCircle size={12} /> {usernameStatus.message}
-                        </p>
-                      )}
-                      {usernameError && (
-                        <p className="mt-1.5 text-xs font-semibold text-red-500">{usernameError}</p>
-                      )}
-                    </div>
-
-                    <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <MapPin size={15} className="text-gray-400" />
-                        <label className="text-sm font-semibold text-gray-700">Address Details</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAddressFields((prev) => ({
-                              ...prev,
-                              country: isOutsideIndia ? INDIA_COUNTRY_NAME : "",
-                              zipCode: "",
-                              city: "",
-                              state: "",
-                            }));
-                            setIsOutsideIndia((prev) => !prev);
-                            setAddressError("");
-                            setZipLookupLoading(false);
-                          }}
-                          className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                            isOutsideIndia
-                              ? "border-black bg-black text-white"
-                              : "border-black bg-white text-black hover:bg-gray-100"
-                          }`}
-                        >
-                          {isOutsideIndia && (
-                            <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                          {isOutsideIndia ? "Outside India Enabled" : "Outside India"}
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {isOutsideIndia && (
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1.5">Country</label>
-                            <input
-                              type="text"
-                              value={addressFields.country}
-                              onChange={(e) => {
-                                setAddressFields({ ...addressFields, country: e.target.value });
-                                setAddressError("");
-                              }}
-                              className={inputClass}
-                              placeholder="United Kingdom"
-                              required
-                            />
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                            {isOutsideIndia ? "Postal Code" : "ZIP Code"}
-                          </label>
-                          <input
-                            type="text"
-                            inputMode={isOutsideIndia ? "text" : "numeric"}
-                            maxLength={isOutsideIndia ? 12 : 6}
-                            value={addressFields.zipCode}
-                            onChange={(e) => {
-                              const nextPostalValue = isOutsideIndia
-                                ? e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12)
-                                : e.target.value.replace(/\D/g, "").slice(0, 6);
-                              setAddressFields({ ...addressFields, zipCode: nextPostalValue });
-                              setAddressError("");
-                            }}
-                            className={inputClass}
-                            placeholder={isOutsideIndia ? "SW1A 1AA" : "400001"}
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
-                          <input
-                            type="text"
-                            value={addressFields.state}
-                            onChange={(e) => {
-                              setAddressFields({ ...addressFields, state: e.target.value });
-                              setAddressError("");
-                            }}
-                            className={inputClass}
-                            placeholder={isOutsideIndia ? "State / Province" : "Maharashtra"}
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
-                          <input
-                            type="text"
-                            value={addressFields.city}
-                            onChange={(e) => {
-                              setAddressFields({ ...addressFields, city: e.target.value });
-                              setAddressError("");
-                            }}
-                            className={inputClass}
-                            placeholder={isOutsideIndia ? "London" : "Mumbai"}
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Street Address</label>
-                        <input
-                          type="text"
-                          value={addressFields.street}
-                          onChange={(e) => {
-                            setAddressFields({ ...addressFields, street: e.target.value });
-                            setAddressError("");
-                          }}
-                          className={inputClass}
-                          placeholder="House/Flat, Street, Area"
-                          required
-                        />
-                      </div>
-
-                      {zipLookupLoading && !isOutsideIndia && (
-                        <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
-                      )}
-
-                      {isOutsideIndia && (
-                        <p className="text-[11px] text-gray-500">Enter country and postal code exactly as used in your region.</p>
-                      )}
-
-                      {addressError && (
-                        <p className="text-xs font-semibold text-red-600">{addressError}</p>
-                      )}
                     </div>
 
                     <div>
@@ -1371,20 +1040,6 @@ const InvestorOnboarding = () => {
                           </div>
                         )}
                       </div>
-                      <div>
-                        <label className={labelClass}>Confirm</label>
-                        <div className="relative">
-                          <Lock size={15} className="absolute left-3.5 top-3.5 text-gray-300" />
-                          <input
-                            type="password"
-                            placeholder="Repeat password"
-                            value={accountData.confirmPassword}
-                            onChange={(e) => setAccountData({ ...accountData, confirmPassword: e.target.value })}
-                            className={`${inputClass} pl-10`}
-                            required
-                          />
-                        </div>
-                      </div>
                     </div>
 
                     {emailError && (
@@ -1457,12 +1112,12 @@ const InvestorOnboarding = () => {
                     </button>
                   </form>
                 )}
-              </motion.div>
+              </MotionDiv>
             )}
 
             {/* ── Step 2: Investor Profile ── */}
             {currentStep === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <MotionDiv key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
                   <h2 className="text-xl font-black text-gray-900">Industry Professional profile</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Tell writers and creators about your production focus</p>
@@ -1896,12 +1551,12 @@ const InvestorOnboarding = () => {
                     </button>
                   </div>
                 </form>
-              </motion.div>
+              </MotionDiv>
             )}
 
             {/* ── Step 3: Preferences ── */}
             {currentStep === 3 && (
-              <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <MotionDiv key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
                   <h2 className="text-xl font-black text-gray-900">Project preferences</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Help us match you with the right projects</p>
@@ -1948,12 +1603,12 @@ const InvestorOnboarding = () => {
                     </button>
                   </div>
                 </form>
-              </motion.div>
+              </MotionDiv>
             )}
 
             {/* ── Step 4: Legal & Complete ── */}
             {currentStep === 4 && (
-              <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <MotionDiv key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <div className="px-8 pt-7 pb-2 border-b border-gray-50">
                   <h2 className="text-xl font-black text-gray-900">Producer/Director Agreement</h2>
                   <p className="text-gray-400 text-sm font-medium mt-1">Please read and accept the terms before accessing the platform</p>
@@ -2044,7 +1699,7 @@ const InvestorOnboarding = () => {
                     </button>
                   </div>
                 </div>
-              </motion.div>
+              </MotionDiv>
             )}
 
           </AnimatePresence>

@@ -21,6 +21,7 @@ import { notifyAdminWorkflowEvent } from "../utils/adminWorkflowAlerts.js";
 import { CREDIT_PRICES } from "./creditsController.js";
 import { buildScriptShareMeta } from "../utils/shareMeta.js";
 import { getCurrentPurchaseTermsPolicy } from "../utils/termsPolicyService.js";
+import { getProfileCompletion } from "../utils/profileCompletion.js";
 import { createRequire } from 'module';
 import Razorpay from "razorpay";
 import crypto from "crypto";
@@ -639,8 +640,18 @@ const hasProjectCreatorAccess = (user) => {
 };
 
 const requireProjectCreatorAccess = (req, res) => {
-  if (hasProjectCreatorAccess(req.user)) return true;
-  res.status(403).json({ message: "Only writer accounts can create or submit projects." });
+  if (!hasProjectCreatorAccess(req.user)) {
+    res.status(403).json({ message: "Only writer accounts can create or submit projects." });
+    return false;
+  }
+
+  const completion = getProfileCompletion(req.user);
+  if (completion.isComplete) return true;
+
+  res.status(403).json({
+    message: "Complete your profile before creating or uploading projects.",
+    profileCompletion: completion,
+  });
   return false;
 };
 
@@ -989,6 +1000,10 @@ const getPurchasedUserIdSet = async (script) => {
 
 export const extractPdfText = async (req, res) => {
   try {
+    if (!requireProjectCreatorAccess(req, res)) {
+      return;
+    }
+
     if (!req.file) {
       return res.status(400).json({ message: "No PDF file provided" });
     }

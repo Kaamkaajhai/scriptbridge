@@ -9,14 +9,11 @@ import {
   Upload, 
   CheckCircle, 
   ArrowRight, 
-  ArrowLeft,
   Mail,
   Lock,
   User,
   AlertCircle,
-  MapPin,
   Phone,
-  Calendar,
   Link as LinkIcon,
   Instagram,
   Twitter,
@@ -33,7 +30,7 @@ const isValidEmail = (email) => {
   if (!email || typeof email !== 'string') return false;
   email = email.trim().toLowerCase();
   if (email.length > 254 || email.length < 5) return false;
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
   if (!emailRegex.test(email)) return false;
   const parts = email.split('@');
   if (parts.length !== 2) return false;
@@ -74,7 +71,6 @@ const DEFAULT_ACCOUNT_DATA = {
   email: "",
   referralCode: "",
   password: "",
-  confirmPassword: "",
   address: "",
   phone: "",
   role: "creator"
@@ -195,6 +191,7 @@ const WRITER_TERMS_ROUTE = "/terms-conditions?tab=writer";
 const PRIVACY_POLICY_VERSION = "registration-privacy-v2026-03-24";
 const REGISTRATION_PRIVACY_ROUTE = "/registration-privacy-policy";
 const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+const MotionDiv = motion.div;
 const GENDER_OPTIONS = [
   "Male",
   "Female",
@@ -266,9 +263,8 @@ const WriterOnboarding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [addressError, setAddressError] = useState("");
-  const [zipLookupLoading, setZipLookupLoading] = useState(false);
-  const [dobError, setDobError] = useState("");
+  const [, setAddressError] = useState("");
+  const [, setZipLookupLoading] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [usernameStatus, setUsernameStatus] = useState({ state: "idle", message: "" });
   const [openRepSections, setOpenRepSections] = useState(() => ({
@@ -294,7 +290,7 @@ const WriterOnboarding = () => {
     ...DEFAULT_ADDRESS_FIELDS,
     ...(initialDraft?.addressFields || {}),
   }));
-  const [isOutsideIndia, setIsOutsideIndia] = useState(() => {
+  const [isOutsideIndia] = useState(() => {
     const draftCountry = String(initialDraft?.addressFields?.country || INDIA_COUNTRY_NAME).trim().toLowerCase();
     return Boolean(draftCountry) && draftCountry !== "india";
   });
@@ -320,10 +316,8 @@ const WriterOnboarding = () => {
   const [showTagError, setShowTagError] = useState(false);
 
   // Step 4: Legal & Checkout
-  const [agreementScrolled, setAgreementScrolled] = useState(Boolean(initialDraft?.agreementScrolled));
   const [agreementAccepted, setAgreementAccepted] = useState(Boolean(initialDraft?.agreementAccepted));
-  const agreementRef = useRef(null);
-  const [selectedPlan, setSelectedPlan] = useState("free");
+  const [selectedPlan] = useState("free");
   const [privacyPolicyAccepted, setPrivacyPolicyAccepted] = useState(false);
   const zipLookupRequestRef = useRef(0);
   const usernameCheckRequestRef = useRef(0);
@@ -370,7 +364,6 @@ const WriterOnboarding = () => {
     const safeAccountData = {
       ...accountData,
       password: "",
-      confirmPassword: "",
     };
 
     const draft = {
@@ -386,7 +379,6 @@ const WriterOnboarding = () => {
       writerProfile,
       selectedGenres,
       nuancedTags,
-      agreementScrolled,
       agreementAccepted,
     };
 
@@ -395,7 +387,6 @@ const WriterOnboarding = () => {
     accountData,
     addressFields,
     agreementAccepted,
-    agreementScrolled,
     currentStep,
     nuancedTags,
     openRepSections,
@@ -619,49 +610,13 @@ const WriterOnboarding = () => {
     setError("");
     setPhoneError("");
     setAddressError("");
-    setDobError("");
     setEmailError("");
-
-    if (!accountData.dateOfBirth) {
-      setDobError("Date of birth is required");
-      return;
-    }
 
     if (!accountData.phone) {
       setPhoneError("Phone number is required");
       return;
     }
 
-    const street = addressFields.street.trim();
-    const city = addressFields.city.trim();
-    const state = addressFields.state.trim();
-    const zipCode = addressFields.zipCode.trim();
-    const country = isOutsideIndia ? addressFields.country.trim() : INDIA_COUNTRY_NAME;
-
-    if (!street || !city || !state || !zipCode || !country) {
-      setAddressError("Street, city, state, postal code, and country are required");
-      return;
-    }
-
-    if (!isOutsideIndia) {
-      if (!INDIA_ZIP_REGEX.test(zipCode)) {
-        setAddressError("ZIP code must be exactly 6 digits");
-        return;
-      }
-    } else if (!INTERNATIONAL_POSTAL_REGEX.test(zipCode)) {
-      setAddressError("Enter a valid postal code (3-12 letters, numbers, spaces, or hyphen)");
-      return;
-    }
-
-    const cityStatePattern = /^[a-zA-Z][a-zA-Z\s.'-]{1,}$/;
-    if (!cityStatePattern.test(city) || !cityStatePattern.test(state)) {
-      setAddressError("Enter a valid city and state name");
-      return;
-    }
-
-    const formattedAddress = isOutsideIndia
-      ? `${street}, ${city}, ${state}, ${zipCode}, ${country}`
-      : `${street}, ${city}, ${state}, ${zipCode}`;
     const phoneRegex = /^[+]?[\d\s\-().]{7,15}$/;
     if (!phoneRegex.test(accountData.phone)) {
       setPhoneError("Please enter a valid phone number (e.g. +91 00000 00000)");
@@ -684,12 +639,6 @@ const WriterOnboarding = () => {
       return;
     }
     
-    // Check password confirmation
-    if (accountData.password !== accountData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
     const normalizedReferralCode = normalizeReferralInput(accountData.referralCode);
     if (normalizedReferralCode && referralStatus.state === "invalid") {
       setError("Referral code or username not found");
@@ -698,29 +647,13 @@ const WriterOnboarding = () => {
     
     setLoading(true);
     try {
-      // Validate ZIP, state and city consistency for India addresses.
-      if (!isOutsideIndia) {
-        await api.post("/auth/validate-address", {
-          address: formattedAddress,
-        });
-      }
-
       // Create account using AuthContext join function
       const joinPayload = {
         name: accountData.name,
         email: sanitizedEmail,
         password: accountData.password,
         role: "creator",
-        dateOfBirth: accountData.dateOfBirth,
         phone: accountData.phone,
-        address: {
-          street,
-          city,
-          state,
-          zipCode,
-          country,
-          formatted: formattedAddress,
-        },
         referralCode: normalizedReferralCode,
       };
 
@@ -777,6 +710,13 @@ const WriterOnboarding = () => {
       resendCooldownSeconds: undefined,
       startCooldownOnMount: false,
     });
+  };
+
+  const handleFinishLater = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(WRITER_ONBOARDING_DRAFT_KEY);
+    }
+    navigate("/dashboard");
   };
 
   const handleEmailVerification = async (e) => {
@@ -853,12 +793,24 @@ const WriterOnboarding = () => {
     setLoading(true);
     
     try {
-      const response = await api.put("/onboarding/writer-profile", {
+      const writerProfilePayload = {
         ...writerProfile,
         username: normalizedUsername,
-        dateOfBirth: accountData.dateOfBirth,
         phone: accountData.phone,
-        address: {
+      };
+
+      if (accountData.dateOfBirth) {
+        writerProfilePayload.dateOfBirth = accountData.dateOfBirth;
+      }
+
+      if (
+        addressFields.street ||
+        addressFields.city ||
+        addressFields.state ||
+        addressFields.zipCode ||
+        (isOutsideIndia && addressFields.country)
+      ) {
+        writerProfilePayload.address = {
           street: addressFields.street,
           city: addressFields.city,
           state: addressFields.state,
@@ -867,8 +819,10 @@ const WriterOnboarding = () => {
           formatted: isOutsideIndia
             ? `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}, ${addressFields.country}`
             : `${addressFields.street}, ${addressFields.city}, ${addressFields.state}, ${addressFields.zipCode}`,
-        },
-      });
+        };
+      }
+
+      const response = await api.put("/onboarding/writer-profile", writerProfilePayload);
 
       const latestWriterProfile = response?.data?.user?.writerProfile
         ? mergeWriterProfile(response.data.user.writerProfile)
@@ -1090,28 +1044,6 @@ const WriterOnboarding = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date of Birth
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="date"
-                    value={accountData.dateOfBirth}
-                    onChange={(e) => setAccountData({...accountData, dateOfBirth: e.target.value})}
-                    className={`w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent ${accountData.dateOfBirth ? "text-gray-900" : "text-gray-400"}`}
-                    max={new Date().toISOString().split('T')[0]}
-                    required
-                  />
-                </div>
-                {dobError && (
-                  <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
-                    <AlertCircle size={12} /> {dobError}
-                  </p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email
                 </label>
                 <div className="relative">
@@ -1155,140 +1087,6 @@ const WriterOnboarding = () => {
                     <AlertCircle size={12} /> {referralStatus.message}
                   </p>
                 ) : null}
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white/80 p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <MapPin className="text-gray-500" size={16} />
-                  <label className="text-sm font-semibold text-gray-800">Address Details</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddressFields((prev) => ({
-                        ...prev,
-                        country: isOutsideIndia ? INDIA_COUNTRY_NAME : "",
-                        zipCode: "",
-                        city: "",
-                        state: "",
-                      }));
-                      setIsOutsideIndia((prev) => !prev);
-                      setAddressError("");
-                      setZipLookupLoading(false);
-                    }}
-                    className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                      isOutsideIndia
-                        ? "border-black bg-black text-white"
-                        : "border-black bg-white text-black hover:bg-gray-100"
-                    }`}
-                  >
-                    {isOutsideIndia && (
-                      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    {isOutsideIndia ? "Outside India Enabled" : "Outside India"}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {isOutsideIndia && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Country</label>
-                      <input
-                        type="text"
-                        value={addressFields.country}
-                        onChange={(e) => {
-                          setAddressFields({ ...addressFields, country: e.target.value });
-                          setAddressError("");
-                        }}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                        placeholder="United Kingdom"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                      {isOutsideIndia ? "Postal Code" : "ZIP Code"}
-                    </label>
-                    <input
-                      type="text"
-                      inputMode={isOutsideIndia ? "text" : "numeric"}
-                      maxLength={isOutsideIndia ? 12 : 6}
-                      value={addressFields.zipCode}
-                      onChange={(e) => {
-                        const nextPostalValue = isOutsideIndia
-                          ? e.target.value.replace(/[^a-zA-Z0-9\s-]/g, "").slice(0, 12)
-                          : e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setAddressFields({ ...addressFields, zipCode: nextPostalValue });
-                        setAddressError("");
-                      }}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder={isOutsideIndia ? "SW1A 1AA" : "400001"}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">State</label>
-                    <input
-                      type="text"
-                      value={addressFields.state}
-                      onChange={(e) => {
-                        setAddressFields({ ...addressFields, state: e.target.value });
-                        setAddressError("");
-                      }}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder={isOutsideIndia ? "State / Province" : "Maharashtra"}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">City</label>
-                    <input
-                      type="text"
-                      value={addressFields.city}
-                      onChange={(e) => {
-                        setAddressFields({ ...addressFields, city: e.target.value });
-                        setAddressError("");
-                      }}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                      placeholder={isOutsideIndia ? "London" : "Mumbai"}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Street Address</label>
-                  <input
-                    type="text"
-                    value={addressFields.street}
-                    onChange={(e) => {
-                      setAddressFields({ ...addressFields, street: e.target.value });
-                      setAddressError("");
-                    }}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="House/Flat, Street, Area"
-                    required
-                  />
-                </div>
-
-                {zipLookupLoading && !isOutsideIndia && (
-                  <p className="text-[11px] text-gray-500">Looking up ZIP code and auto-filling city/state...</p>
-                )}
-
-                {isOutsideIndia && (
-                  <p className="text-[11px] text-gray-500">Enter country and postal code exactly as used in your region.</p>
-                )}
-
-                {addressError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
-                    <AlertCircle size={12} /> {addressError}
-                  </p>
-                )}
               </div>
 
               <div>
@@ -1379,24 +1177,6 @@ const WriterOnboarding = () => {
                   </div>
                 )}
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="password"
-                    value={accountData.confirmPassword}
-                    onChange={(e) => setAccountData({...accountData, confirmPassword: e.target.value})}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a365d] focus:border-transparent text-gray-900"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
-              </div>
-              
               {emailError && (
                 <div className="bg-red-50 text-red-600 p-4 rounded-lg">
                   {emailError}
@@ -1928,11 +1708,10 @@ const WriterOnboarding = () => {
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => setCurrentStep(1)}
+                onClick={handleFinishLater}
                 className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} className="!text-black" />
-                Back
+                Finish later
               </button>
               <button
                 type="submit"
@@ -1989,7 +1768,7 @@ const WriterOnboarding = () => {
               {/* Error Message */}
               <AnimatePresence>
                 {showTagError && (
-                  <motion.div
+                  <MotionDiv
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
@@ -1997,7 +1776,7 @@ const WriterOnboarding = () => {
                   >
                     <AlertCircle size={16} />
                     <span>Please choose your top 5 only.</span>
-                  </motion.div>
+                  </MotionDiv>
                 )}
               </AnimatePresence>
 
@@ -2038,11 +1817,10 @@ const WriterOnboarding = () => {
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => setCurrentStep(2)}
+                onClick={handleFinishLater}
                 className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} className="!text-black" />
-                Back
+                Finish later
               </button>
               <button
                 type="submit"
@@ -2162,11 +1940,10 @@ const WriterOnboarding = () => {
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => setCurrentStep(3)}
+                onClick={handleFinishLater}
                 className="px-6 py-2.5 border border-slate-300 bg-white !text-black rounded-lg font-semibold hover:bg-slate-50 hover:border-slate-400 hover:!text-black transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <ArrowLeft size={20} className="!text-black" />
-                Back
+                Finish later
               </button>
               <button
                 type="submit"
@@ -2277,7 +2054,7 @@ const WriterOnboarding = () => {
         </div>
         
         {/* Form Container */}
-        <motion.div
+        <MotionDiv
           key={currentStep}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -2286,7 +2063,7 @@ const WriterOnboarding = () => {
           className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 border border-gray-100"
         >
           {renderStep()}
-        </motion.div>
+        </MotionDiv>
       </div>
     </div>
   );
