@@ -9,7 +9,8 @@ import Invoice from "../models/Invoice.js";
 import { issueInvoice, totalRow, gatewayRow } from "../utils/invoiceIssue.js";
 import { recordPayment } from "../utils/ledger.js";
 import User from "../models/User.js";
-import { createNotification, sendEmailNotification } from "../utils/notify.js";
+import { createNotification, resolveClientBaseUrl, sendEmailNotification } from "../utils/notify.js";
+import { buildSubmissionMail } from "../utils/competitionMail.js";
 import { hasProjectCreatorAccess } from "../utils/projectAccess.js";
 import { generateCompetitionCertificate } from "../utils/competitionCertificatePdf.js";
 import {
@@ -19,7 +20,6 @@ import {
   referralWindow,
 } from "../utils/competitionReferrals.js";
 import { countPages } from "../utils/paginate.js";
-import { escapeHtml } from "../utils/escapeHtml.js";
 import { isKnownCountry } from "../utils/countries.js";
 import { classifyText } from "../utils/classify.js";
 import {
@@ -1285,15 +1285,22 @@ export const submitCompetitionEntry = async (req, res) => {
       type: "competition",
       message: `Submission received for ${competition.name} at ${now.toUTCString()}.`,
     });
+    // The receipt: the script, the entry ID, the exact time and the script's numbers, in the
+    // platform's own document. Everything typed by the writer is escaped inside the builder.
+    const receipt = buildSubmissionMail({
+      competition,
+      entry,
+      writerName: req.user.name,
+      scriptTitle: script.title || "Untitled",
+      submittedAt: now,
+      baseUrl: resolveClientBaseUrl(),
+    });
     sendEmailNotification({
       to: req.user.email,
       subject: `Submission received — ${competition.name}`,
-      // As above: the script title is whatever the writer typed, so it is escaped like everything
-      // else that reaches the HTML body.
-      html: `<p>Hi ${escapeHtml(req.user.name || "there")},</p>
-        <p>Your script <strong>${escapeHtml(script.title || "Untitled")}</strong> was submitted to <strong>${escapeHtml(competition.name)}</strong>.</p>
-        <p>Submitted at ${escapeHtml(now.toUTCString())}. Your script is now locked. We'll email you when results are announced.</p>`,
-      text: `Your script was submitted to ${competition.name} at ${now.toUTCString()}.`,
+      html: receipt.html,
+      text: receipt.text,
+      preheader: receipt.preheader,
     }).catch(() => { /* best effort */ });
 
     // Respond before the AI work — the writer should never wait on a model call to learn they made
