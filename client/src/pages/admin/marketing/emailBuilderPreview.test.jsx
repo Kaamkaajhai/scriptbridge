@@ -27,6 +27,9 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const builder = fs.readFileSync(path.join(here, "EmailBuilder.jsx"), "utf8");
 const server = fs.readFileSync(path.resolve(here, "../../../../../server/utils/emailService.js"), "utf8");
+// The server-side twin of the compiler: every transactional mail (results, receipts, OTPs, invites)
+// is set in this document.
+const mailDocument = fs.readFileSync(path.resolve(here, "../../../../../server/utils/mailDocument.js"), "utf8");
 
 const broadcast = () => {
   const start = server.indexOf("export const sendAdminBroadcastEmail");
@@ -105,5 +108,28 @@ describe("the server's own wrapper and strip speak the same theme as the compile
 
   it("the Preferences link targets the profile Settings tab", () => {
     expect(broadcast()).toMatch(/buildClientUrl\("\/profile\?tab=settings", clientBaseUrl\)/);
+  });
+});
+
+describe("the server's transactional document speaks the same theme as the compiler", () => {
+  it("uses only the compiler's palette", () => {
+    expect(hexes(stripComments(mailDocument)).filter((h) => !EMAIL_PALETTE.includes(h))).toEqual([]);
+  });
+
+  it("points at the same wordmark, in the same serif, with the same ink button", () => {
+    expect(mailDocument).toContain("ckript-logo-landscape-nobg.png");
+    expect(mailDocument).toMatch(/const SERIF = "'Baskervville', 'Spectral', Georgia/);
+    expect(mailDocument).toMatch(/const BODY = "'PT Serif', Georgia/);
+    expect(mailDocument).toMatch(/button: "#161513"/);
+    expect(mailDocument).toMatch(/accent: "#d14d37"/);
+  });
+
+  it("every emailService template is set in it — none still carries its own <!DOCTYPE>", () => {
+    // The broadcast wrapper is the one document emailService.js still draws itself (the builder's
+    // own compiled document goes out verbatim); everything else must come from mailDocument.js.
+    const outsideBroadcast = server.replace(broadcast(), "");
+    expect(outsideBroadcast.match(/<!DOCTYPE html>/g) || []).toHaveLength(0);
+    expect(outsideBroadcast).not.toMatch(/#1e3a5f|#2d5a8f|#0f172a|#1d4ed8|#10b981/i);
+    expect(server).toMatch(/from "\.\/mailDocument\.js"/);
   });
 });

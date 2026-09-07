@@ -18,11 +18,11 @@ import User from "../models/User.js";
 import { recordGrant } from "../utils/ledger.js";
 import { planAmountMinor } from "../utils/planCheckout.js";
 import { WRITER_PLAN_KEY } from "../config/pricing.js";
-import { createNotification, sendEmailNotification } from "../utils/notify.js";
+import { createNotification, resolveClientBaseUrl, sendEmailNotification } from "../utils/notify.js";
+import { buildResultMail } from "../utils/competitionMail.js";
 import { getCompetitionPhase } from "../utils/competitionPhase.js";
 import { runEntryAIProcessing } from "./competitionAI.js";
 import { getReferralProgress, tiersFor, referralWindow } from "../utils/competitionReferrals.js";
-import { escapeHtml } from "../utils/escapeHtml.js";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 
 // Reward definitions. Mirrors WRITER_GOLD_MODEL / WRITER_SILVER_MODEL in paymentController.js — a
@@ -621,30 +621,38 @@ const featureScript = async (scriptId, extra = {}) => {
   await Script.updateOne({ _id: scriptId }, { $set: { isFeatured: true, ...extra } });
 };
 
-const CERTIFICATE_NOTE = "Your certificate is attached, and stays available in your challenge dashboard.";
-
 /**
  * The in-app notification and the email for one entrant's result.
  *
- * With `certificate`, the email carries the entrant's certificate PDF — built by the same generator
- * as the dashboard download, so the two never differ. Best-effort at every step: a certificate that
- * fails to render sends the mail without it, and a mail that fails to send never stops the declare.
+ * The notification keeps the one-line `message`. The email is the full results document from
+ * competitionMail.js — the prize lines the competition page promised, the badge artwork, the
+ * script's numbers, the certificate note, the links — so it reads like a result rather than a
+ * receipt. With `certificate`, the entrant's certificate PDF rides along, built by the same
+ * generator as the dashboard download so the two never differ. Best-effort at every step: a
+ * certificate that fails to render sends the mail without it, and a mail that fails to send never
+ * stops the declare.
  */
-const notifyEntry = async (entry, competitionName, message, subject, { certificate = null } = {}) => {
+const notifyEntry = async (entry, competition, message, subject, { certificate = null, submittedCount = 0 } = {}) => {
   const user = await User.findById(entry.userId).select("name email");
   if (!user) return;
   await createNotification({ userId: entry.userId, type: "competition", message });
   const attachment = certificate
-    ? await tryCertificateAttachment({ competition: certificate.competition, entry, writerName: user.name, declaredAt: certificate.declaredAt })
+    ? await tryCertificateAttachment({ competition, entry, writerName: user.name, declaredAt: certificate.declaredAt })
     : null;
+  const mail = buildResultMail({
+    competition,
+    entry,
+    writerName: user.name,
+    baseUrl: resolveClientBaseUrl(),
+    certificateAttached: Boolean(attachment),
+    submittedCount,
+  });
   await sendEmailNotification({
     to: user.email,
     subject,
-    // Both halves are free text somebody typed — the writer's display name, and a message carrying
-    // the competition name and the admin's special-award title — so neither can go into HTML raw.
-    // Subject and text are not HTML; escaping those would just show the entities to the reader.
-    html: `<p>Hi ${escapeHtml(user.name || "there")},</p><p>${escapeHtml(message)}</p>${attachment ? `<p>${escapeHtml(CERTIFICATE_NOTE)}</p>` : ""}`,
-    text: attachment ? `${message}\n\n${CERTIFICATE_NOTE}` : message,
+    html: mail.html,
+    text: mail.text,
+    preheader: mail.preheader,
     attachments: attachment ? [attachment] : [],
   }).catch(() => { /* email is best-effort */ });
 };
@@ -771,6 +779,8 @@ export const adminDeclareResults = async (req, res) => {
     const cashSentence = (grant) => (grant.cashMinor > 0
       ? ` The ${formatCash(grant.cashMinor, grant.cashCurrency)} cash prize will be paid to you directly by Ckript.`
       : "");
+    // What every results mail carries: the certificate, and the size of the field it was judged in.
+    const resultNotice = { certificate: { declaredAt: now }, submittedCount: entries.filter(hasSubmitted).length };
 
     // Winner ────────────────────────────────────────────────────────────────
     winner.result.award = "winner";
@@ -778,7 +788,7 @@ export const adminDeclareResults = async (req, res) => {
     winner.status = "judged";
     await winner.save();
     counts.winners = 1;
-    await grantOnce(winner, "notified", () => notifyEntry(winner, name, `🏆 You won the ${name}! Your rewards have been added to your account.${cashSentence(grants.winner)}`, `🏆 You won the ${name}`, { certificate: { competition, declaredAt: now } }));
+    await grantOnce(winner, "notified", () => notifyEntry(winner, competition, `🏆 You won the ${name}! Your rewards have been added to your account.${cashSentence(grants.winner)}`, `🏆 You won the ${name}`, resultNotice));
     await winner.save();
 
     // Runner-up ─────────────────────────────────────────────────────────────
@@ -788,7 +798,7 @@ export const adminDeclareResults = async (req, res) => {
       runnerUp.status = "judged";
       await runnerUp.save();
       counts.runnerUp = 1;
-      await grantOnce(runnerUp, "notified", () => notifyEntry(runnerUp, name, `You placed Runner-Up in the ${name}! Your rewards have been added to your account.${cashSentence(grants.runnerUp)}`, `Runner-Up — ${name}`, { certificate: { competition, declaredAt: now } }));
+      await grantOnce(runnerUp, "notified", () => notifyEntry(runnerUp, competition, `You placed Runner-Up in the ${name}! Your rewards have been added to your account.${cashSentence(grants.runnerUp)}`, `Runner-Up — ${name}`, resultNotice));
       await runnerUp.save();
     }
 
@@ -799,7 +809,7 @@ export const adminDeclareResults = async (req, res) => {
       secondRunnerUp.status = "judged";
       await secondRunnerUp.save();
       counts.secondRunnerUp = 1;
-      await grantOnce(secondRunnerUp, "notified", () => notifyEntry(secondRunnerUp, name, `You placed Second Runner-Up in the ${name}! Your rewards have been added to your account.${cashSentence(grants.secondRunnerUp)}`, `Second Runner-Up — ${name}`, { certificate: { competition, declaredAt: now } }));
+      await grantOnce(secondRunnerUp, "notified", () => notifyEntry(secondRunnerUp, competition, `You placed Second Runner-Up in the ${name}! Your rewards have been added to your account.${cashSentence(grants.secondRunnerUp)}`, `Second Runner-Up — ${name}`, resultNotice));
       await secondRunnerUp.save();
     }
 
@@ -821,7 +831,7 @@ export const adminDeclareResults = async (req, res) => {
       entry.status = "judged";
       await entry.save();
       counts.special += 1;
-      await grantOnce(entry, "notified", () => notifyEntry(entry, name, `You received the "${title}" award in the ${name}!${cashSentence(special)}`, `${title} — ${name}`, { certificate: { competition, declaredAt: now } }));
+      await grantOnce(entry, "notified", () => notifyEntry(entry, competition, `You received the "${title}" award in the ${name}!${cashSentence(special)}`, `${title} — ${name}`, resultNotice));
       await entry.save();
     }
 
@@ -846,7 +856,7 @@ export const adminDeclareResults = async (req, res) => {
       entry.status = "judged";
       await entry.save();
       counts.participants += 1;
-      await grantOnce(entry, "notified", () => notifyEntry(entry, name, completion, `${name} — results are in`, { certificate: { competition, declaredAt: now } }));
+      await grantOnce(entry, "notified", () => notifyEntry(entry, competition, completion, `${name} — results are in`, resultNotice));
       await entry.save();
     }
 
